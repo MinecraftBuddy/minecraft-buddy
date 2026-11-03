@@ -60,6 +60,8 @@ final class Modes {
 		m.put("pathDig", c.pathDig);
 		m.put("pathPlace", c.pathPlace);
 		m.put("stayOffline", c.stayOffline);
+		// an order of items: Soprano takes along on the way what the order and the kit lack (docs/obtain.md)
+		m.put("obtainTakeAlong", c.obtainTakeAlong);
 		// AFK mode and what the buddy does in it, each a switch in the panel
 		m.put("afk", c.afk);
 		m.put("lookAround", c.lookAround);
@@ -115,6 +117,7 @@ final class Modes {
 			case "pathDig" -> c.pathDig = v;
 			case "pathPlace" -> c.pathPlace = v;
 			case "stayOffline" -> c.stayOffline = v;
+			case "obtainTakeAlong" -> c.obtainTakeAlong = v;
 			case "afk" -> Switches.setAfk(v);
 			case "lookAround" -> c.lookAround = v;
 			case "wander" -> { c.wander = v; if (!v) Wander.abort("switched off"); }

@@ -103,6 +103,105 @@ final class Alto {
 			if (!want) { holder = null; cancel(); }
 			Exchange.emit("alto", "action", want ? "up" : "down");
 		}
+		takeAlong();
+	}
+
+	// ---------- taking things along on the way (ObtainWish, Soprano's TakeAlongChain) ----------
+
+	/** Game ticks between two workings out of the wishes with the same bag: five game seconds. */
+	private static final long WISH_TICKS = 100;
+	private static boolean wishing;
+	private static long wishedAt;
+	private static int wishedBag;
+	private static long saidStart = -1, saidEnd = -1;
+
+	/**
+	 * Once a tick: while Soprano is up for an order and obtainTakeAlong is on, the wishes go to Soprano every five game
+	 * seconds and when the bag changes, the buddy's own reasons to leave detours alone with them (Obtain.takeAlongHold),
+	 * and each detour is an event when it starts and when it ends.
+	 */
+	private static void takeAlong() {
+		var mc = AfkHelperClient.mc();
+		var p = mc == null ? null : mc.player;
+		if (!up || p == null || !AfkConfig.get().obtainTakeAlong) {
+			if (wishing) { adris.altoclef.takealong.TakeAlong.off(); wishing = false; }
+			return;
+		}
+		long t = p.level().getGameTime();
+		int bag = bag(p);
+		if (!wishing || bag != wishedBag || t - wishedAt >= WISH_TICKS || t < wishedAt) {
+			if (!wishing) {
+				// a detour of an earlier order is not this one's to report
+				var c = adris.altoclef.takealong.TakeAlong.current();
+				var l = adris.altoclef.takealong.TakeAlong.last();
+				saidStart = c == null ? -1 : c.id();
+				saidEnd = l == null ? -1 : l.id();
+			}
+			wishing = true;
+			wishedAt = t;
+			wishedBag = bag;
+			try {
+				var w = wishes(p);
+				adris.altoclef.takealong.TakeAlong.wishes(w.now(), w.later(), w.values());
+			} catch (RuntimeException e) {
+				adris.altoclef.takealong.TakeAlong.off();
+				Exchange.emit("obtain", "action", "take along", "state", "error", "why", String.valueOf(e));
+			}
+		}
+		adris.altoclef.takealong.TakeAlong.hold(Obtain.takeAlongHold(p));
+		var cur = adris.altoclef.takealong.TakeAlong.current();
+		if (cur != null && cur.id() != saidStart) {
+			saidStart = cur.id();
+			Exchange.emit("obtain", "action", "take along", "state", "start", "item", cur.items(), "blocks", cur.blocks(),
+				"value", cur.value(), "cost", cur.cost());
+		}
+		var last = adris.altoclef.takealong.TakeAlong.last();
+		if (last != null && last.id() != saidEnd) {
+			saidEnd = last.id();
+			Exchange.emit("obtain", "action", "take along", "state", last.state(), "why", last.why(), "item", last.items(),
+				"blocks", last.blocks(), "value", last.value(), "cost", last.cost(), "seconds", last.seconds(), "got", last.got());
+		}
+	}
+
+	/** The wishes now (ObtainWish): the kit for the order's gate, the order, the buddy's own step, the planner's prices. */
+	static ObtainWish.Wishes wishes(net.minecraft.client.player.LocalPlayer p) {
+		var gh = new Obtain.GameHave(p);
+		java.util.List<ObtainKit.Need> missing = ObtainKit.missingAll(kitDanger(p), gh);
+		ObtainPlan.Step s = Obtain.step();
+		boolean own = s != null && s.act() != ObtainPlan.Act.SPECIAL;
+		return ObtainWish.of(missing, Obtain.item(), Obtain.count(), own ? s.item() : null, own ? s.count() : 0, tableAndPlanks(p, missing),
+			copperPieces(p, missing), gh);
+	}
+
+	/** The copper pieces kit() makes meanwhile: a slot empty, its iron piece missing and its iron not in the bag, no copper one in the bag. */
+	private static java.util.List<String> copperPieces(net.minecraft.client.player.LocalPlayer p, java.util.List<ObtainKit.Need> missing) {
+		java.util.List<String> out = new java.util.ArrayList<>();
+		java.util.Set<String> names = new java.util.HashSet<>();
+		for (ObtainKit.Need n : missing) names.add(n.name());
+		for (String slot : new String[] { "chestplate", "leggings", "helmet", "boots" }) {
+			if (!names.contains(slot) || !worn(p, slot).isEmpty() || ironFor(p, slot) || ObtainSteps.count(p, "copper_" + slot) > 0) continue;
+			out.add("copper_" + slot);
+		}
+		return out;
+	}
+
+	/**
+	 * The kit fetches a table and planks before any iron: with a piece of armour still missing, near the surface, and no
+	 * table or under eight planks in the bag (as kit() asks for them).
+	 */
+	private static boolean tableAndPlanks(net.minecraft.client.player.LocalPlayer p, java.util.List<ObtainKit.Need> missing) {
+		boolean armour = false;
+		for (ObtainKit.Need n : missing)
+			if (java.util.Set.of("helmet", "chestplate", "leggings", "boots", "shield").contains(n.name())) armour = true;
+		return armour && !ObtainSafe.deepUnder(p) && (ObtainSteps.count(p, "crafting_table") < 1 || planks(p) < 8);
+	}
+
+	/** The bag in one number: a change of any stack changes it. */
+	private static int bag(net.minecraft.client.player.LocalPlayer p) {
+		int h = 1;
+		for (net.minecraft.world.item.ItemStack st : p.getInventory().getNonEquipmentItems())
+			h = 31 * h + (st.isEmpty() ? 0 : System.identityHashCode(st.getItem()) * 67 + st.getCount());
+		return h;
 	}
 
 	private static String lastDoing;

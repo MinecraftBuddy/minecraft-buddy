@@ -153,6 +153,28 @@ final class Obtain {
 
 	static String item() { return item; }
 
+	/** The order's count, a bag count. */
+	static int count() { return count; }
+
+	/** The step under way, null between two. */
+	static ObtainPlan.Step step() { return step; }
+
+	/**
+	 * The buddy's own reasons to leave taking along on the way alone right now (Soprano's TakeAlongChain), null for none:
+	 * the same gates food on the way has. A portal under way, the boat, the trip home or a food run, monsters about.
+	 */
+	static String takeAlongHold(LocalPlayer p) {
+		if (!on()) return "no order";
+		if (exec instanceof Alto.Run r) {
+			if (r.boat()) return "the boat";
+			if (r.home()) return "the trip home for food";
+			if (r.food() || r.onTheWay()) return "a food run";
+		}
+		if (Alto.portalUnderWay()) return "a portal under way";
+		if (!ObtainSafe.foes(p).isEmpty()) return "monsters about";
+		return null;
+	}
+
 	/** How the last order ended, for the panel once it is over: the item, the count, done or why not, and when. */
 	private static Map<String, Object> last;
 

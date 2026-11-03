@@ -83,7 +83,7 @@ DIM = re.compile(r"^[a-z0-9_.-]{1,32}:[a-z0-9_./-]{1,64}$")
 # the switches of the mode card and the settings page (Modes in the mod)
 SETTINGS = {"baseHarvest", "baseFurnaces", "baseStore", "baseFight", "baseSleep", "baseSleepOthers", "baseShear", "baseHerd", "basePenGates", "baseRenew", "assistDig", "assistChop",
             "assistFarm", "followGuard", "followGuardPlayers", "followCarry", "followMobFarm", "pathDig", "pathPlace", "stayOffline",
-            "afk", "lookAround", "wander", "afkCrouch", "crouchAlong", "menuLog"}
+            "afk", "lookAround", "wander", "afkCrouch", "crouchAlong", "menuLog", "obtainTakeAlong"}
 # the amounts of the mode card (Modes in the mod): ingots of iron and gold left over when something is made, and how far
 # (blocks) and how often (minutes) to walk about in AFK mode; the lowest and highest each may be
 AMOUNTS = {"keepIron": (0, 10000), "keepGold": (0, 10000), "wanderMaxBlocks": (1, 8), "wanderEveryMin": (1, 60)}

@@ -1055,6 +1055,8 @@ const SW = {
     ['afkCrouch', 'Stay crouched', 'on the ground']],
   afkNum: [['wanderMaxBlocks', 'Blocks per step', 'how far a walk about goes each way, 1 to 8', 1, 8],
     ['wanderEveryMin', 'Every', 'minutes between two walks, on average', 1, 60]],
+  // an order of items (Obtain items): Soprano's detours for what the order and the kit still lack
+  obtain: [['obtainTakeAlong', 'Take things along', 'mines ores, gravel and logs in sight on the way when the order or its kit still needs them and the detour pays']],
   log: [['menuLog', 'Record menus and screens', 'writes every menu a server opens (menus.jsonl) and everything the server sends (recording.jsonl)']],
 };
 /* how a mode or switch is set in the game, behind a ? (for Tend the base: the base is set by hitting a bed with an empty
@@ -1187,7 +1189,7 @@ function modes(s) {
         '<input id="ob-n" class="n" type="number" min="1" max="2304" step="1" inputmode="numeric" value="' + esc(String(obN)) + '" aria-label="How many">' +
         '<input id="ob-to" class="to" list="names" placeholder="Deliver to" value="' + esc(obTo !== null ? obTo : known[0] || '') + '" aria-label="Deliver to">' +
         '<button type="button" class="btn small" data-obgo>Fetch</button></div>' +
-        '<div id="ob-list" class="oblist" role="listbox" aria-label="Items"></div><div id="ob-prog" class="obprog"></div></div>', 'obtain');
+        '<div id="ob-list" class="oblist" role="listbox" aria-label="Items"></div><div id="ob-prog" class="obprog"></div></div>' + swHtml(s, SW.obtain), 'obtain');
   obList();
   obtainProgress(s);
   followButtons();
