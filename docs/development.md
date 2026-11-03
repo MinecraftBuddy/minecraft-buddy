@@ -43,6 +43,16 @@ A push to `master` builds and tests the mod, puts the jars on the GitHub release
 version. The panel compares its own version with the newest release and offers the update. So a change that should
 reach the buddies gets a new version in `gradle.properties`.
 
+Work goes on in branches beside each other, each in its own worktree:
+
+- **A branch for master** (a panel feature, a fix) leaves `version=` alone. The version goes up, by one patch step,
+  in the commit that brings the branch onto master. Two branches done at the same time then take two numbers.
+- **A branch with a tester of its own** (`obtain`, built for the practice rig's trainee) never changes `version=`
+  either. It counts its builds in `branch.properties`, a file only that branch has: `build=obtain.3` makes
+  `0.5.14-obtain.3`, the third build on top of 0.5.14. After a release, merge master into the branch and count from 1
+  again. Merging the branch into master removes `branch.properties` and raises `version=`.
+- A push of any branch other than master builds no release.
+
 ## Contributing
 
 Issues and pull requests are welcome. The code is under the GNU Affero General Public License 3.0 or later

@@ -13,8 +13,19 @@ apply plugin: 'maven-publish'
 
 base { archivesName = project.archives_base_name }
 
+// A branch built for a tester of its own before it reaches master counts its builds in branch.properties (build=obtain.3)
+// and leaves version= in gradle.properties to master: 0.5.14-obtain.3 is the third build on top of 0.5.14. The file
+// exists only on that branch and goes when the branch is merged into master.
+def branchFile = file("branch.properties")
+ext.branchBuild = ""
+if (branchFile.exists()) {
+	def p = new Properties()
+	branchFile.withInputStream { p.load(it) }
+	if (p.getProperty("build")) ext.branchBuild = "-" + p.getProperty("build").trim()
+}
+
 // The jar carries the Minecraft version in its name, so the two builds never get mixed up.
-version = "${project.version}+mc${project.minecraft_version}"
+version = "${project.version}${branchBuild}+mc${project.minecraft_version}"
 
 repositories {
 	// Add repositories to retrieve artifacts from in here.
