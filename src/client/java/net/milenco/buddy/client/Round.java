@@ -13,10 +13,10 @@ import net.minecraft.world.phys.AABB;
  * The jump around a wall, as on a parkour course's obsidian stretch, which is faster than the way round. The straight
  * line from one block to the next runs through a pillar between them, and past its side, through the air, it does not:
  * from the corner of the block, crouched to its edge, a sprinting jump angled outward, and in the air steered back in
- * so that he comes down on the block behind the pillar, not beside it. That course holds that jump at 1.6 blocks of
+ * so that the jumper comes down on the block behind the pillar, not beside it. That course holds that jump at 1.6 blocks of
  * travel along the wall; it leaves about 0.13 of a block to spare on either side, so it is worked out tick by tick with
- * the game's own numbers and the real blocks, and worked out again every tick in the air from where he is.
- * Directions are angles in degrees from straight on (along the jump), positive toward the side he passes the pillar.
+ * the game's own numbers and the real blocks, and worked out again every tick in the air from where the jumper is.
+ * Directions are angles in degrees from straight on (along the jump), positive toward the side the jump passes the pillar.
  */
 final class Round {
 	private Round() {}
@@ -25,18 +25,18 @@ final class Round {
 	static final double ACC = 0.02548;
 	/** The take-off tick: the ground's 0.1274 with sprint and the sprinting jump's 0.2, both along the facing direction. */
 	static final double TAKE_OFF = 0.3274;
-	/** Where he stands for it: 0.15 back from the middle of the block, at its outer edge (a crouched player stops there). */
+	/** Where to stand for it: 0.15 back from the middle of the block, at its outer edge (a crouched player stops there). */
 	static final double START_U = -0.15, START_W = 0.77;
-	/** Where the jump onto that block aims: half a block short of the corner, as far as the speed he lands with slides him. */
+	/** Where the jump onto that block aims: half a block short of the corner, as far as the landing's speed slides on. */
 	static final double LAND_U = -0.6, LAND_W = 0.6;
-	/** What a jump from where he happens to stand has to leave over before he takes it without going to the corner. */
+	/** What a jump from wherever the jumper happens to stand has to leave over to be taken without going to the corner. */
 	static final double GO = 0.04;
 
 	/** Take-off angles to try, and the steering afterwards: one direction for k ticks, then another. */
 	static final double[] FIRSTS = { 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60 };
 	static final double[] AIRS = { -90, -75, -60, -45, -30, -15, 0, 15, 30, 45, 60 };
 	static final int[] KS = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-	// fewer, for the look every tick while he crouches to the corner (the whole lot takes a tenth of a second)
+	// fewer, for the look every tick while crouching to the corner (the whole lot takes a tenth of a second)
 	static final double[] FIRSTS_M = { 12, 18, 24, 30, 36, 42, 48, 54 };
 	static final double[] AIRS_M = { -90, -75, -60, -45, -30, -15 };
 	// the planner's quick look: a few of each, enough to know the jump is there
@@ -47,7 +47,7 @@ final class Round {
 	/** What the planner's look has to leave over: clearance from the pillar and room on the landing. */
 	private static final double PLAN_SPARE = 0.06;
 
-	/** Along the jump (u), sideways toward the side he passes (w), from the middle of the block he leaves. */
+	/** Along the jump (u), sideways toward the side the jump passes (w), from the middle of the block left behind. */
 	static final class Frame {
 		final double ox, oz, fx, fz, sx, sz;
 
@@ -82,7 +82,7 @@ final class Round {
 			return Math.toDegrees(Math.atan2(dx * sx + dz * sz, dx * fx + dz * fz));
 		}
 
-		/** Is the strafe-left key toward the side, looking straight on? Left of where he looks is (cos yaw, sin yaw). */
+		/** Is the strafe-left key toward the side, looking straight on? Left of the look is (cos yaw, sin yaw). */
 		boolean sideIsLeft() {
 			double r = Math.toRadians(yaw(0));
 			return Math.cos(r) * sx + Math.sin(r) * sz > 0;
@@ -93,7 +93,7 @@ final class Round {
 	static final class Plan {
 		final double first, a1, a2, score;
 		final int k;
-		/** Where it has him after the next tick: to hold the arithmetic against what happened. */
+		/** Where it puts the jumper after the next tick: to hold the arithmetic against what happened. */
 		final double nx, nz;
 
 		Plan(double first, double a1, int k, double a2, double score, double nx, double nz) {
@@ -101,7 +101,7 @@ final class Round {
 		}
 	}
 
-	/** Every block's collision box around the two cells, from a block under his feet to above where a jump takes his head. */
+	/** Every block's collision box around the two cells, from a block under the feet to above where a jump takes the head. */
 	static List<AABB> obstacles(Level level, BlockPos a, BlockPos b, double feet) {
 		List<AABB> out = new ArrayList<>();
 		int y0 = (int) Math.floor(feet) - 1, y1 = (int) Math.floor(feet) + 4;
@@ -116,7 +116,7 @@ final class Round {
 
 	private static final double E = 1e-7;
 
-	/** His body (0.6 wide, 1.8 high) at this place against the blocks: the clearance in the open, or -1 where it hits. */
+	/** The jumper's body (0.6 wide, 1.8 high) at this place against the blocks: the clearance in the open, or -1 where it hits. */
 	private static double clear(List<AABB> obs, double x, double y, double z) {
 		double c = 1.0;
 		for (AABB o : obs) {
@@ -129,7 +129,7 @@ final class Round {
 		return c;
 	}
 
-	/** The top of what he comes down on at this place, or NaN when nothing is under him there. */
+	/** The top of what the jumper comes down on at this place, or NaN when nothing is under the feet there. */
 	private static double ground(List<AABB> obs, double x, double y, double z) {
 		double g = Double.NaN;
 		for (AABB o : obs) {
@@ -140,16 +140,16 @@ final class Round {
 		return g;
 	}
 
-	/** How far inside the place his middle may come down and still stand on the landing. */
+	/** How far inside the place the jumper's middle may come down and still stand on the landing. */
 	private static double margin(AABB land, double x, double z) {
 		return Math.min(Math.min(x - (land.minX - 0.3), land.maxX + 0.3 - x), Math.min(z - (land.minZ - 0.3), land.maxZ + 0.3 - z));
 	}
 
 	/**
 	 * The game's movement, tick by tick: the jump's first tick (when {@code takeOff}), then the facing direction a1 for
-	 * k ticks and a2 after; the height moved first, then the larger of the two across, as the game does. NaN when he
-	 * hits something or comes down beside the landing; else the least of the clearance on the way and the room on the
-	 * landing. {@code next} gets where he is after the first tick.
+	 * k ticks and a2 after; the height moved first, then the larger of the two across, as the game does. NaN when the
+	 * jumper hits something or comes down beside the landing; else the least of the clearance on the way and the room on
+	 * the landing. {@code next} gets the place after the first tick.
 	 */
 	static double sim(List<AABB> obs, Frame fr, double x, double y, double z, double vx, double vy, double vz, boolean takeOff,
 			double first, double a1, int k, double a2, AABB land, double top, double[] next) {
@@ -170,7 +170,7 @@ final class Round {
 			double ny = y + vy;
 			boolean landed = false;
 			if (clear(obs, x, ny, z) < 0) {
-				if (vy >= 0) return Double.NaN;   // his head against something
+				if (vy >= 0) return Double.NaN;   // the head against something
 				double g = ground(obs, x, ny, z);
 				if (Double.isNaN(g) || Math.abs(g - top) > 1e-3 || x + 0.3 <= land.minX || x - 0.3 >= land.maxX
 						|| z + 0.3 <= land.minZ || z - 0.3 >= land.maxZ) return Double.NaN;
@@ -215,7 +215,7 @@ final class Round {
 	private static final Map<String, Boolean> knownWay = new HashMap<>();
 
 	/**
-	 * For the planner: can he get round from cell a (standing on {@code from}) into cell b (landing on {@code land})
+	 * For the planner: is there a way round from cell a (standing on {@code from}) into cell b (landing on {@code land})
 	 * past this side, from a standstill at the corner? A quick look, kept half a minute.
 	 */
 	static boolean possible(Level level, BlockPos a, BlockPos b, int side, AABB from, AABB land) {

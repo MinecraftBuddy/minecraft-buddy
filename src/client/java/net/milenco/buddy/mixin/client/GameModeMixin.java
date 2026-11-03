@@ -25,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(MultiPlayerGameMode.class)
 public class GameModeMixin {
-	/** Every click on a block, his own, the panel's or a job's: a container menu that opens next is that block's (Containers). */
+	/** Every click on a block, the buddy's own, the panel's or a job's: a container menu that opens next is that block's (Containers). */
 	@Inject(method = "useItemOn", at = @At("HEAD"))
 	private void buddy$noteUsedBlock(LocalPlayer player, InteractionHand hand, BlockHitResult hit, CallbackInfoReturnable<InteractionResult> cir) {
 		Containers.used(hit.getBlockPos());

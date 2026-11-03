@@ -81,8 +81,8 @@ public class AfkConfig {
 	public int raidDrinkPauseSec = 15;    // wait after the victory before the next bottle
 	public boolean farmThroughMenus = true;   // keep hitting while the chat or the Esc menu is open
 	public boolean farmRecenter = true;   // return to your starting spot when you have drifted
-	public int farmVisitorRadius = 12;     // untrusted player this close: farm stands still as long as they stay (0 = off)
-	public int farmVisitorAfterSec = 15;     // and this long afterwards, so you do not start the moment they turn around
+	public int farmVisitorRadius = 12;     // untrusted player this close: farm stands still as long as the player stays (0 = off)
+	public int farmVisitorAfterSec = 15;     // and this long afterwards, so you do not start the moment the player turns around
 	public int farmSideSwitchSec = 180;   // this often move to another side of the landing spot (0 = never)
 	public int farmSessionMin = 60;           // on average this often a long break of 2-8 min (0 = never)
 	public boolean clickLog = true;                // intervals between hits to clicks.csv (for klikanalyse.py)
@@ -126,11 +126,11 @@ public class AfkConfig {
 	public int buildToolMin = 20;          // never break with a tool that has less durability left
 	public boolean buildPickup = true;              // pick up the drops around the build now and then
 	// wheat field: walk the rows, harvest, replant, sell or store what comes off it (see WheatFarm)
-	public boolean wheatOn = false;                  // the switch itself: it survives a restart, so after a kick or a crash he goes back to the home and carries on
+	public boolean wheatOn = false;                  // the switch itself: it survives a restart, so after a kick or a crash the buddy goes back to the home and carries on
 	public String wheatHome = "wheat";             // the home beside the field, with the chests and the crafting table
 	public String wheatCrop = "wheat_seeds";      // what goes on bare farmland (wheat_seeds, carrot, potato, beetroot_seeds); seeds of any other crop are never planted, so a field of another crop turns into this one
-	public boolean wheatHoe = true;            // break the crops with the hoe that has the most Fortune and plant from the off hand; without a usable hoe he breaks by hand
-	public int wheatHoeMin = 20;             // a hoe with this much durability or less is not used any more: it goes back into a chest and he takes another there
+	public boolean wheatHoe = true;            // break the crops with the hoe that has the most Fortune and plant from the off hand; without a usable hoe, by hand
+	public int wheatHoeMin = 20;             // a hoe with this much durability or less is not used any more: it goes back into a chest and another is taken there
 	public int wheatX1 = 0;                           // two corners of the field (x and z); the floor height is found on arrival
 	public int wheatZ1 = 0;
 	public int wheatX2 = 0;
@@ -141,22 +141,22 @@ public class AfkConfig {
 	// the account without a screen (see Alt)
 	public String altHome = "";           // alt: home for a "home" by PM ("" = plain /home)
 	public boolean pmCommands = false;        // commands by PM from trusted players (tpa, tpahere, tpaccept, home, status)
-	public String altName = "";   // his account name, written when he logs in; the panel and the bridge name him by it
+	public String altName = "";   // the buddy's account name, written at login; the panel and the bridge go by it
 	public boolean altCrouchAlong = false;      // alt: crouch on/off when a trusted player nearby crouches, or by PM "crouch"
 	public boolean altCrouched = false;        // alt: last requested crouch and jump state, so it survives a restart
 	public boolean altJumping = false;
 	public boolean keepEvents = false;      // archive events.jsonl at startup instead of clearing it (alt: nothing lost after a restart)
-	public boolean pathDig = true;          // the alt digs through natural ground on his way where walking does not get him there
-	public boolean pathPlace = true;        // and puts down a block he can spare to climb or to cross a gap
+	public boolean pathDig = true;          // the alt digs through natural ground on the way where walking does not get there
+	public boolean pathPlace = true;        // and puts down a spare block to climb or to cross a gap
 	public boolean obtainBaritone = true;   // an order of items walks with Baritone (Soprano) when it is in the mods folder
 	public boolean obtainAltoSurvival = true;   // AltoClef's chains (Soprano) fight, eat and get out of lava for an order
 	public boolean practiceFastTicks = false;   // a practice server only: the client ticks as fast as the server's /tick rate (FastTicksMixin)
 	public boolean obtainSopranoFirst = true;   // an order AltoClef's catalogue knows is got by Soprano whole; the buddy's own steps only where it has none
-	public boolean stayOffline = false;     // the panel took him off the server: he stays off until it says join
-	// keeping a base (Modes): what he does there; each a switch on the panel's mode card
+	public boolean stayOffline = false;     // the panel took the buddy off the server: off until it says join
+	// keeping a base (Modes): what the buddy does there; each a switch on the panel's mode card
 	public boolean baseHarvest = true;      // harvest and replant the base's fields
 	public boolean baseFurnaces = true;     // keep its furnaces going
-	public boolean baseStore = true;        // put what he carries into its chests
+	public boolean baseStore = true;        // put what is carried into its chests
 	public boolean baseFight = true;        // fight monsters in the base
 	public boolean baseSleep = true;        // sleep in the base at night
 	public boolean baseSleepOthers = false; // ... only while another player sleeps too (Sleepers)
@@ -164,25 +164,25 @@ public class AfkConfig {
 	public boolean baseHerd = true;         // bring an animal that got out back into its pen with wheat (Herd); needs basePenGates
 	public boolean basePenGates = false;    // through a pen's gate or door; off, its fence is a wall and carpets on it a way over (Herd.penGate)
 	public boolean baseRenew = true;        // a new iron tool or armour piece for one nearly worn out, while iron stays over
-	// what he leaves of iron and gold when he makes something of them (set in the web panel), in ingots, a block nine
+	// what is left of iron and gold when something is made of them (set in the web panel), in ingots, a block nine
 	public int keepIron = 9;                // a tool, armour, shears or a shield only while this much iron stays over
 	public int keepGold = 64;               // golden apples only while this much gold stays over
 	// following (Modes): guarding is Guard's own switch, the assists above
-	public boolean followCarry = true;      // fetch the followed player's things after a death and carry home what he is given
+	public boolean followCarry = true;      // fetch the followed player's things after a death and carry home what the buddy is given
 	// players too (step 4 of the plan for fighting: the alt defends the player and attacks along, without setting off the
-	// server's anti-cheat): a player who attacks him or the alt, and one he attacks; on, kept over a restart
+	// server's anti-cheat): a player who attacks the followed player or the alt, and one the followed player attacks; on, kept over a restart
 	public boolean guardPlayers = true;
 	// farming mobs at a pen (Pen, 0.4.80)
 	public boolean followMobFarm = true;    // a bare-hand punch on a monster in a pen starts the farm
 	public int penSideSwitchSec = 180;      // walk round the pen this often (times 0.7 to 1.3); 0 = only to reach mobs
 	public boolean penNightPause = true;    // no blows while it is night and someone sleeps, so the night can pass
-	public int penOwnerAwayMin = 0;         // stop after the player is gone this long; 0 = farm on while he is offline
+	public int penOwnerAwayMin = 0;         // stop after the player is gone this long; 0 = farm on while the player is offline
 	public boolean menuLog = false;       // write every menu the server opens to menus.jsonl (see MenuLog)
 	public List<String> servers = new ArrayList<>();   // only act automatically here, besides the servers the profiles name
 	public boolean allServers = false;    // testing: active everywhere
 	/** What each server is like: its commands and lines, the hop after joining, its resource pack (see Profiles). */
 	public List<Profiles.Profile> profiles = Profiles.defaults();
-	// the alt's help that a tap of the followed player switches (Tap): off until he taps
+	// the alt's help that a tap of the followed player switches (Tap): off until the player taps
 	public boolean assistDig = false;
 	public boolean assistChop = false;
 	public boolean assistFarm = false;

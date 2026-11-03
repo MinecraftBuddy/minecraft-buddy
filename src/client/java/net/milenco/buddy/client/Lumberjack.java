@@ -63,7 +63,7 @@ public class Lumberjack {
 		Exchange.emit("wood", "action", on ? "finishing on" : "finishing off");
 	}
 
-	/** Is he carrying something that belongs in the drop-off chest (wood, apples, sticks)? */
+	/** Is the buddy carrying something that belongs in the drop-off chest (wood, apples, sticks)? */
 	private static boolean somethingForTheChest(LocalPlayer p) {
 		for (int i = 0; i < 36; i++) {
 			ItemStack st = p.getInventory().getItem(i);
@@ -140,7 +140,7 @@ public class Lumberjack {
 			return;
 		}
 		// Stuck in a block: you cannot point at that block with the crosshair (the ray starts inside it), so we chop it
-		// away directly, with the face that points at you. That is how a player gets free too when a tree grows around him.
+		// away directly, with the face that points at you. That is how a player gets free too when a tree grows around that player.
 		if (freeTarget != null) {
 			BlockState st = p.level().getBlockState(freeTarget);
 			if (st.isAir() || st.getCollisionShape(p.level(), freeTarget).isEmpty()) { mc.gameMode.stopDestroyBlock(); wasHitting = false; freeTarget = null; }
@@ -402,11 +402,11 @@ public class Lumberjack {
 		var screen = Game.openScreen(mc);
 		boolean container = screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>;
 		if (container && !(current instanceof ChestStep)) {
-			if (!paused) pause(300, "scherm open");
+			if (!paused) pause(300, "screen open");
 			pausedUntil = Math.max(pausedUntil, now + 300);
 			return false;
 		}
-		// player nearby: hold still, and only continue a minute after they have left
+		// player nearby: hold still, and only continue a minute after that player has left
 		Player other = playerNearby(p, c.woodPauseRadius);
 		if (other != null) { lastPlayer = now; if (!paused) pause(1000, "player " + other.getGameProfile().name()); }
 		if (paused) {
@@ -566,8 +566,8 @@ public class Lumberjack {
 		List<ItemEntity> loose = looseItems(p, c);
 		if (!loose.isEmpty() && pickupTime(c, now)) { planPickup(loose); return; }
 		// while planting a trunk appeared on the path: that one first, only then the open plots
-		// While planting a trunk appeared on the path, or he got stuck. That row belongs to this kind's round again,
-		// otherwise he moves on to the next kind and half the row stays without saplings.
+		// While planting a trunk appeared on the path, or the buddy got stuck. That row belongs to this kind's round again,
+		// otherwise the round moves on to the next kind and half the row stays without saplings.
 		if (chopFirst) {
 			chopFirst = false;
 			if (chopFirstRow != Integer.MIN_VALUE) { rowsToDo.add(chopFirstRow); chopFirstRow = Integer.MIN_VALUE; }
@@ -688,7 +688,7 @@ public class Lumberjack {
 	/** Row number: the fixed coordinate of the row (z for a row along x, x for a row along z), with an offset so x and z rows do not collide. */
 	/**
 	 * A cell on the row itself, in front of or behind the plot. Walking along the row is straight and calm; standing
-	 * beside the row costs a detour and often puts his nose in the leaves of the neighbouring tree.
+	 * beside the row costs a detour and often puts the buddy's nose in the leaves of the neighbouring tree.
 	 */
 	private static BlockPos onTheRow(LocalPlayer p, AfkConfig c, BlockPos plot) {
 		AfkConfig.WoodPlot pl = null;
@@ -924,8 +924,8 @@ public class Lumberjack {
 		boolean alongX = rowAlongX(c, plots.get(0));
 		plots.sort(Comparator.comparingInt(q -> alongX ? q.x : q.z));
 		/*
-		 * Start at the end that is nearest. At first he walked to the far end first to walk back planting, but
-		 * this step is rebuilt every time (after every plant or hiccup), and then he sent himself to that far
+		 * Start at the end that is nearest. At first the buddy walked to the far end first to walk back planting, but
+		 * this step is rebuilt every time (after every plant or hiccup), and then the step sent the buddy to that far
 		 * point again each time: there, back, there (26 Sep: distance swung between 4.5 and 6.3 blocks
 		 * while the route ran from 4 to 2 points).
 		 */
@@ -938,7 +938,7 @@ public class Lumberjack {
 			AfkConfig.WoodPlot pl = plots.get(i);
 			BlockPos stand = new BlockPos(pl.x + dx, c.woodY, pl.z + dz);
 			// if a trunk or something else is in the way there, then the cell on the other side on the row: walking
-			// along the row is calm and straight. Standing beside the row costs a detour and often puts him in the leaves.
+			// along the row is calm and straight. Standing beside the row costs a detour and often ends in the leaves.
 			if (!walkable(level, stand)) stand = new BlockPos(pl.x - dx, c.woodY, pl.z - dz);
 			if (!walkable(level, stand)) { BlockPos beside = nearestSpotBeside(p, pl.pos()); if (beside != null) { steps.add(new WalkTo(beside)); steps.add(new Plant(pl.pos(), pl.kind)); } continue; }
 			line.add(pl); route.add(stand);
@@ -1133,7 +1133,7 @@ public class Lumberjack {
 				if (n.getX() < x1 || n.getX() > x2 || n.getZ() < z1 || n.getZ() > z2 || closed.contains(n)) continue;
 				if (!walkable(level, n)) continue;
 				// walking around beats hitting: a leaf in the strip costs like 2.5 steps, so up to two steps of detour wins.
-				// In the lane between the rows it costs like eleven steps: there he nearly always walks around.
+				// In the lane between the rows it costs like eleven steps: there walking around nearly always wins.
 				int leaf = leavesInTheWay(level, n) == null ? 0 : plotCells.contains(n) ? 25 : 110;
 				int k = cost.get(cur) + 10 + leaf + (heading.get(cur) != null && heading.get(cur) != d ? 3 : 0);
 				if (k < cost.getOrDefault(n, Integer.MAX_VALUE)) { cost.put(n, k); cameFrom.put(n, cur); heading.put(n, d); q.add(n); }
@@ -1163,12 +1163,12 @@ public class Lumberjack {
 	 * Where you aim: a point on the face of the block that points at you and is not covered, a quarter block
 	 * from the edges. The centre of the block, aimed from the lane beside log 0, goes through log +1 (the ray
 	 * hits the block above first), and then log 0 stays standing. Straight above your head has no direction:
-	 * then slightly to the side you are already looking, otherwise he first turns to yaw 0.
+	 * then slightly to the side you are already looking, otherwise the first turn is to yaw 0.
 	 */
 	/**
 	 * Aiming point to place a sapling: the top face of the dirt under the plot, on the half that lies away from
-	 * you. He aimed at 3 cm below the surface, and from a neighbouring cell that ray then comes in from the side:
-	 * you hit the side or the block in front, and planting only works on the top face. The owner saw his crosshair
+	 * you. The aim was 3 cm below the surface, and from a neighbouring cell that ray then comes in from the side:
+	 * you hit the side or the block in front, and planting only works on the top face. The owner saw the crosshair
 	 * just beside it and only had to nudge it (screenshot, 26 Sep).
 	 */
 	static Vec3 aimAtGround(LocalPlayer p, BlockPos plot) {
@@ -1239,7 +1239,7 @@ public class Lumberjack {
 		void failed(LocalPlayer p, AfkConfig c) {}
 		/** Name for the events: the watcher matches on it. */
 		abstract String name();
-		/** What the player sees in the HUD status line, in their own language. */
+		/** What the player sees in the HUD status line, in the player's own language. */
 		abstract String label();
 		long elapsed() { return System.currentTimeMillis() - startedAt; }
 	}
@@ -1267,7 +1267,7 @@ public class Lumberjack {
 
 	/**
 	 * Walk to a floor spot via a path, with the real walk key and correcting the view direction. The path is
-	 * a staircase of straight bits; he cuts corners as long as the straight line is clear, keeps walking while
+	 * a staircase of straight bits; the walk cuts corners as long as the straight line is clear, keeps going while
 	 * turning and sprints on long stretches. Otherwise you see a zigzag with stops.
 	 */
 	static class WalkTo extends Step {
@@ -1342,7 +1342,7 @@ public class Lumberjack {
 		void failed(LocalPlayer p, AfkConfig c) {
 			releaseKeys(Minecraft.getInstance()); steps.clear();
 			if (noPath) {
-				// twice no path from the same spot: then you are standing somewhere he cannot get away from. Do not strike the
+				// twice no path from the same spot: then you are standing somewhere with no way out. Do not strike the
 				// trees off, but report, wait a moment and look again (maybe you walk a bit).
 				if (noPathFrom != null && p.position().distanceTo(noPathFrom) < 1.5) noPathCount++; else { noPathCount = 1; noPathFrom = p.position(); }
 				if (noPathCount >= 2) {
@@ -1401,7 +1401,7 @@ public class Lumberjack {
 		}
 		/**
 		 * If breaking fails, only leave that plot alone after two times, and only when it concerns the trunk of a
-		 * known plot. A leaf he hits away on the way may never strike a tree off.
+		 * known plot. A leaf hit away on the way may never strike a tree off.
 		 */
 		void failed(LocalPlayer p, AfkConfig c) {
 			hitTarget = null;
@@ -1514,7 +1514,7 @@ public class Lumberjack {
 		}
 		/*
 		 * When the plant step failed, the plot went straight back on the list and the planning built it up again:
-		 * "planten onderweg" and "plant" alternated while he stood still (26 Sep). After two failures we
+		 * "planten onderweg" and "plant" alternated while the buddy stood still (26 Sep). After two failures we
 		 * leave that plot alone for three minutes; by then the leaves have decayed or it looks different.
 		 */
 		void failed(LocalPlayer p, AfkConfig c) {
@@ -1639,20 +1639,20 @@ public class Lumberjack {
 	/**
 	 * Walk backwards through the strip with the sapling in hand and click as soon as the crosshair passes over
 	 * the empty dirt of a plot, like a player does: no stopping, no waiting. The gaze is angled down at about a
-	 * block in front of you, so on the plot you just left. What he misses goes on "later".
+	 * block in front of you, so on the plot you just left. What is missed goes on "later".
 	 */
 	static class PlantOnTheWay extends Step {
 		final List<AfkConfig.WoodPlot> plots; final List<BlockPos> route;   // plots in walking order, and where you walk to each time
 		final Set<BlockPos> toDo = new HashSet<>(); int idx = 0, sinceClick = 99, still = 0; Vec3 previous;
 		/*
-		 * The plot he is aiming at now. Without this he picked the plot with the smallest angle anew every tick;
-		 * if two were about equally close, that choice flipped back and forth, he kept turning back and walked
+		 * The plot aimed at now. Without this the plot with the smallest angle was picked anew every tick;
+		 * if two were about equally close, that choice flipped back and forth, the buddy kept turning back and walked
 		 * jerkily forwards and backwards until the step failed after tens of seconds.
 		 */
 		BlockPos aimTarget = null;
 		/*
-		 * Is he walking backwards (then he looks into the row he just planted)? Without a threshold this flipped
-		 * as soon as the distance passed 2.2: he walked forwards, switched to backwards, thereby got farther than
+		 * Walking backwards (looking into the row just planted)? Without a threshold this flipped
+		 * as soon as the distance passed 2.2: the buddy walked forwards, switched to backwards, thereby got farther than
 		 * 2.2 again and flipped back. That is the spinning the owner saw (26 Sep).
 		 */
 		boolean besideLatched = false;
@@ -1728,8 +1728,8 @@ public class Lumberjack {
 			}
 			Vec3 m = new Vec3(wp.getX() + 0.5, p.getY(), wp.getZ() + 0.5);
 			double dx = m.x - p.getX(), dz = m.z - p.getZ(), d = Math.hypot(dx, dz);
-			// 0.35 block was too strict: close to his point he walks backwards and slides just past the
-			// middle, and then he gave up the whole row ("kom niet bij mijn punt" at 0.87 block, 26 Sep).
+			// 0.35 block was too strict: close to the point the buddy walks backwards and slides just past the
+			// middle, and then the whole row was given up ("kom niet bij mijn punt" at 0.87 block, 26 Sep).
 			if (d < 0.9) {
 				// finish the plot at this point first; only when it is there (or after 2 s) on to the next
 				AfkConfig.WoodPlot here = idx < plots.size() ? plots.get(idx) : null;
@@ -1762,11 +1762,11 @@ public class Lumberjack {
 			besideLatched = beside;
 			// Aim at the top face of the dirt of the plot that is up now. With the fixed view angle of 52° the
 			// crosshair landed just on the dirt in front at one plot and on the sapling already there at the next;
-			// then the hitbox is wrong, he does not click and the plot stays empty (screenshot,
+			// then the hitbox is wrong, no click goes out and the plot stays empty (screenshot,
 			// 25 Sep 2026). The plot then only comes up again much later.
 			BlockPos aimAt = null;
 			if (beside) {
-				// do not keep aiming at a plot farther away: then he stands turning instead of planting
+				// do not keep aiming at a plot farther away: that is standing and turning instead of planting
 				boolean stillGood = aimTarget != null && toDo.contains(aimTarget) && withinReach(p, aimTarget.below())
 					&& horizontal(p, aimTarget) > 0.8 && aimTarget.distToCenterSqr(p.getX(), p.getY(), p.getZ()) < 2.5 * 2.5;
 				if (!stillGood) aimTarget = toDo.stream()
@@ -1790,11 +1790,11 @@ public class Lumberjack {
 				pitch = 8f;
 			}
 			/*
-			 * Which key brings him to his point? Backwards is relative to his view direction, and that points
-			 * at the plot he is planting. If his point lay to the side, he walked away diagonally, got outside
+			 * Which key brings the buddy to the point? Backwards is relative to the view direction, and that points
+			 * at the plot being planted. If the point lay to the side, the walk went away diagonally, got outside
 			 * the boundary, turned back and it started again: the fast back and forth the owner saw (26 Sep,
 			 * distance that kept swinging between 2 and 3.3). Now the angle to the point counts: if it
-			 * is behind him then backwards, in front then forwards, and if it is to the side he simply turns
+			 * is behind, then backwards, in front then forwards, and if it is to the side the buddy simply turns
 			 * towards it and walks forwards.
 			 */
 			float toWp = Mth.wrapDegrees(yawAway - p.getYRot());
@@ -1809,16 +1809,16 @@ public class Lumberjack {
 			HeldKeys.set(mc.options.keyDown, backwards && Math.abs(delta) < 30);
 			HeldKeys.set(mc.options.keyUp, !backwards && Math.abs(toWp) < 45);
 			/*
-			 * If he does not get closer to his point, something is in the way: with spruce and cherry the leaves hang
-			 * down to eye level. On 26 Sep he kept swinging around one spot because of that, with his crosshair in
+			 * If the buddy gets no closer to the point, something is in the way: with spruce and cherry the leaves hang
+			 * down to eye level. On 26 Sep the buddy kept swinging around one spot because of that, with the crosshair in
 			 * the leaves. We hit those leaves away, just like when walking normally; if that fails the row goes on later.
 			 */
-			// Standing still because he is planting is not being stuck: then this check does not count.
+			// Standing still to plant is not being stuck: then this check does not count.
 			if (d < bestD - 0.1 || sinceClick < 40) { bestD = Math.min(bestD, d); bestDSince = System.currentTimeMillis(); }
 			else if (bestDSince == 0) bestDSince = System.currentTimeMillis();
 			else if (System.currentTimeMillis() - bestDSince > 2500) {
 				bestD = 99; bestDSince = 0;
-				// a trunk that has grown between him and his point: chop that first, do not fiddle around it
+				// a trunk that has grown between the buddy and the point: chop that first, do not fiddle around it
 				BlockPos between = p.blockPosition().offset(Integer.signum(wp.getX() - p.blockPosition().getX()), 0, Integer.signum(wp.getZ() - p.blockPosition().getZ()));
 				for (BlockPos q : new BlockPos[] { between, between.above(), p.blockPosition().above() }) {
 					if (level.getBlockState(q).is(BlockTags.LOGS)) {
@@ -1829,7 +1829,7 @@ public class Lumberjack {
 						return DONE;
 					}
 				}
-				// only leaves that are really on his walking path: the leaves under his crosshair usually hang beside him,
+				// only leaves that are really on the walking path: the leaves under the crosshair usually hang to the side,
 				// and hitting those away helped nothing and looked like jitter (26 Sep)
 				BlockPos away = leavesInTheWay(level, wp);
 				if (away == null) away = leavesInTheWay(level, p.blockPosition());
@@ -1849,7 +1849,7 @@ public class Lumberjack {
 				idx++;
 				return BUSY;
 			}
-			// measure instead of guess: if he is jittering without planting, log what he sees at that moment
+			// measure instead of guess: if the buddy is jittering without planting, log what is in sight at that moment
 			if (sinceClick > 40 && System.currentTimeMillis() - lastStuckLog > 1000) {
 				lastStuckLog = System.currentTimeMillis();
 				String crosshair = "nothing";
@@ -2081,7 +2081,7 @@ public class Lumberjack {
 					click(mc, p, i); return BUSY;
 				}
 				chestWithoutBonemeal = !seen && countInInventory(p, Items.BONE_MEAL) == 0; chestWithoutBonemealSince = System.currentTimeMillis();
-				// remember which saplings were in here: otherwise he walks to an empty chest anew every round
+				// remember which saplings were in here: otherwise the walk to an empty chest comes anew every round
 				Set<String> seenSaplings = new HashSet<>();
 				for (int i = 0; i < chestSlots; i++) {
 					ItemStack s2 = menu.getSlot(i).getItem();

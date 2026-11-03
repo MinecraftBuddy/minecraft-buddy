@@ -13,10 +13,10 @@ import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Getting loose when a walk goes nowhere (after Player2's UnstuckChain). The walk's own check sees one second of
- * standing still with the walk key down; this one looks longer, while he has a route: twelve seconds without getting
- * more than a block and a bit from where he was, thirty seconds of going to and fro within four blocks over twenty
- * blocks of walking, or two seconds held in a cobweb, powder snow or a berry bush. Then he shuffles loose for one and a
- * half to three seconds (a random side, a step back, jumps), leaves the cells he wandered over out of his plans for a
+ * standing still with the walk key down; this one looks longer, while there is a route: twelve seconds without getting
+ * more than a block and a bit from where the buddy was, thirty seconds of going to and fro within four blocks over twenty
+ * blocks of walking, or two seconds held in a cobweb, powder snow or a berry bush. Then a shuffle loose for one and a
+ * half to three seconds (a random side, a step back, jumps), the cells wandered over left out of the plans for a
  * minute, and plans anew. Not again within ten seconds; the same spot twice within ten minutes is told once (Failures).
  */
 final class Unstuck {
@@ -31,7 +31,7 @@ final class Unstuck {
 
 	static boolean busy() { return shuffle > 0; }
 
-	/** Every tick of the chain, before the jobs; true while he shuffles loose. */
+	/** Every tick of the chain, before the jobs; true while shuffling loose. */
 	static boolean tick(Minecraft mc, LocalPlayer p, boolean moving) {
 		long now = System.currentTimeMillis();
 		if (shuffle > 0) {
@@ -74,7 +74,7 @@ final class Unstuck {
 		if (trapTicks > 40) return start(mc, p, "trap: " + trap);
 		if (SEEN.size() < 2) return false;
 		Sample last = SEEN.peekLast();
-		// twelve seconds and never more than 1.2 from where he is now
+		// twelve seconds and never more than 1.2 from where the buddy is now
 		boolean still = true;
 		Sample from = null;
 		for (Sample s : SEEN) if (last.t - s.t <= 12_000) { if (from == null) from = s; if (dist(s, last) > 1.2) still = false; }

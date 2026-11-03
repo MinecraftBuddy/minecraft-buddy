@@ -27,12 +27,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * What lay in every container he had open, by its block, so that the panel can show a chest's contents. The server
+ * What lay in every container the buddy had open, by its block, so that the panel can show a chest's contents. The server
  * sends a chest's items only to who has it open, and then into the open menu, never into the block, so the 3D view
  * cannot read them from the world. This keeps the last look per block in
  * {@code containers.json} in the exchange folder (server, dimension, place, the items by slot, when), which the panel
  * shows when the mouse is on that block. A menu counts as the block's only when it opened within two seconds of a click
- * on that block (his own, the panel's, or a job's), so a server menu typed while he looks at a chest is not taken for
+ * on that block (the buddy's own, the panel's, or a job's), so a server menu typed while looking at a chest is not taken for
  * it. A double chest is kept under both halves. An item with more than its kind (a name, enchantments, what a shulker
  * box holds) carries its components as the game writes them, a fourth element of its slot, so the panel can give the
  * container's data with its items to copy, for instance to set the same thing up on a test server.
@@ -151,7 +151,7 @@ public final class Containers {
 				seen.put(o.get("server").getAsString() + "|" + o.get("dim").getAsString() + "|" + o.get("x").getAsInt() + "," + o.get("y").getAsInt() + "," + o.get("z").getAsInt(), o);
 			}
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "containers.json: " + e.getMessage());
+			Exchange.emit("error", "msg", "chest contents not read: " + e.getMessage());
 		}
 	}
 
@@ -166,7 +166,7 @@ public final class Containers {
 			Files.writeString(tmp, GSON.toJson(root));
 			Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "writing containers.json: " + e.getMessage());
+			Exchange.emit("error", "msg", "chest contents not saved: " + e.getMessage());
 		}
 	}
 }

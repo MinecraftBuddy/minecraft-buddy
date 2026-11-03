@@ -34,12 +34,12 @@ public final class Alt {
 	 */
 	private static void crouchTick(Minecraft mc) {
 		AfkConfig c = AfkConfig.get();
-		// no crouching while chopping wood or farming: the sneak key slows him down and holds him back
+		// no crouching while chopping wood or farming: the sneak key slows the walk and holds the alt back
 		// when walking along the rows. Those modules set shift themselves when needed.
-		// Nor while building: crouched he walked so slowly that the walk steps gave up, and a crouched click on a chest
+		// Nor while building: crouched the alt walked so slowly that the walk steps gave up, and a crouched click on a chest
 		// places a block against it instead of opening it. The builder crouches itself at an edge.
 		// The mod being on, not AFK mode: on some servers the alt runs with AFK mode off.
-		// Nor while following someone: crouched he falls behind, and he crouches again once he stands beside him.
+		// Nor while following someone: crouched the alt falls behind, and crouches again once beside the player.
 		boolean want = c.altCrouched && c.altCrouchAlong && AfkHelperClient.active() && !Jobs.anyOn(Jobs.Job.FOLLOW) && !Follow.walking();
 		if (want) { HeldKeys.set(mc.options.keyShift, true); crouchKeyHeld = true; }
 		else if (crouchKeyHeld) { HeldKeys.set(mc.options.keyShift, false); crouchKeyHeld = false; }
@@ -54,7 +54,7 @@ public final class Alt {
 
 	/**
 	 * A trusted player nearby starts crouching: then the alt toggles, upright becomes crouched and the
-	 * other way round. Only the moment he starts crouching counts; if it kept following as long as he
+	 * other way round. Only the moment of starting to crouch counts; if it kept following as long as the player
 	 * stayed crouched, the alt went up and down at every sneaking step of your friend.
 	 */
 	private static void followCrouch(Minecraft mc, LocalPlayer me) {
@@ -78,8 +78,8 @@ public final class Alt {
 	private static float previousHealth = -1;
 
 	/**
-	 * Every time he loses health: how much, which kind of damage, by whom or what, and what is around
-	 * him. On 22 Sep he went from 20 to 0 health in under 10 s without a death message, and afterwards
+	 * Every time the alt loses health: how much, which kind of damage, by whom or what, and what is around
+	 * at that moment. On 22 Sep the alt went from 20 to 0 health in under 10 s without a death message, and afterwards
 	 * it was impossible to find out why.
 	 */
 	private static void damageTick(Minecraft mc, LocalPlayer p) {
@@ -105,7 +105,7 @@ public final class Alt {
 	/**
 	 * Every 5 s who is within 48 blocks and how far, as long as someone is there; when the last one
 	 * leaves, one more empty line. Player notifications are off on the alt, so without this you could
-	 * not see afterwards who was with him when something happened.
+	 * not see afterwards who was with the alt when something happened.
 	 */
 	private static void playersTick(Minecraft mc, LocalPlayer p, long now) {
 		if (now < nextPlayers || mc.level == null) return;
@@ -184,11 +184,11 @@ public final class Alt {
 	/**
 	 * Dead: respawn after 4-10 s. Without this the alt lay on the death screen for over five hours on 22 Sep:
 	 * without a screen nobody presses Respawn. Not tied to AFK mode: on some servers the alt runs with AFK mode
-	 * off, and a watcher outside the game had to switch it on for a moment to get him up again.
+	 * off, and a watcher outside the game had to switch it on for a moment to get the alt up again.
 	 */
 	private static void deathTick(LocalPlayer p) {
-		// while someone plays him from the panel, the death screen waits for that person's Respawn, as the game's does;
-		// once the panel lets go, he gets up by himself again
+		// while someone plays the alt from the panel, the death screen waits for that person's Respawn, as the game's does;
+		// once the panel lets go, the alt gets up unaided again
 		if (respawnPlanned || !p.isDeadOrDying() || !AfkHelperClient.active() || Steer.active()) return;
 		respawnPlanned = true;
 		double wait = rnd(4, 10);
@@ -214,7 +214,7 @@ public final class Alt {
 	private static void jumpTick(Minecraft mc) {
 		AfkConfig c = AfkConfig.get();
 		// the mod being on, not AFK mode, as with crouching: the alt may run with AFK mode off
-		// not while following: the walk jumps where the way goes up, and a held key had him hop the whole way
+		// not while following: the walk jumps where the way goes up, and a held key made the alt hop the whole way
 		boolean want = c.altJumping && AfkHelperClient.active() && !Jobs.anyOn(Jobs.Job.FOLLOW) && !Follow.walking();
 		if (want) { HeldKeys.set(mc.options.keyJump, true); jumpKeyHeld = true; }
 		else if (jumpKeyHeld) { HeldKeys.set(mc.options.keyJump, false); jumpKeyHeld = false; }
@@ -249,8 +249,8 @@ public final class Alt {
 		if (!c.pmCommands || !c.isTrusted(from) || !AfkHelperClient.active()) return false;
 		List<String> w = List.of(text.toLowerCase(Locale.ROOT).split("[^a-z0-9_]+"));
 		String sentence = " " + String.join(" ", w) + " ";
-		// A request turns on, it does not toggle: "kan je eens hurken" turned it off, because he had just
-		// started crouching since the player crouched next to him. Only a clear "uit" in the sentence turns it off.
+		// A request turns on, it does not toggle: "kan je eens hurken" turned it off, because the alt had just
+		// started crouching since the player crouched alongside. Only a clear "uit" in the sentence turns it off.
 		boolean off = w.contains("uit") || w.contains("off") || w.contains("stop") || w.contains("niet") || w.contains("genoeg") || sentence.contains(" sta op ");
 		String send;
 		boolean statusLine = false;
@@ -304,7 +304,7 @@ public final class Alt {
 		AfkHelperClient.later(ANSWER_MS / 1000.0 + 0.2, () -> {
 			if (answerTo == null || !answerTo.equals(from) || !cmd.equals(answerCmd)) return;
 			answerTo = null;
-			String msg = Profiles.cmd("msg", from, cmd + " verstuurd, geen antwoord van de server");
+			String msg = Profiles.cmd("msg", from, cmd + " sent, no answer from the server");
 			if (msg != null) AfkHelperClient.sendChat(msg);
 		});
 	}
@@ -332,19 +332,18 @@ public final class Alt {
 	}
 
 	/**
-	 * Short and in ASCII: where he stands and how he is doing. This goes to the asking player by /msg,
-	 * so it stays in Dutch: the trusted players are Dutch.
+	 * Short and in ASCII: where the alt stands and how things are going. This goes to the asking player by /msg.
 	 */
 	private static String status() {
 		LocalPlayer p = AfkHelperClient.mc().player;
 		if (p == null) return "no player";
 		String zone = AfkHelperClient.zone();
-		// what he can eat himself: only the hotbar counts, that is where the eating routine looks
+		// what the alt can eat unaided: only the hotbar counts, that is where the eating routine looks
 		int slot = AfkHelperClient.findFood(p);
-		String food = slot < 0 ? " geen eten in hotbar" : " " + p.getInventory().getItem(slot).getCount() + "x " + AfkHelperClient.itemId(p.getInventory().getItem(slot));
+		String food = slot < 0 ? " no food in the hotbar" : " " + p.getInventory().getItem(slot).getCount() + "x " + AfkHelperClient.itemId(p.getInventory().getItem(slot));
 		return zone + " " + p.getBlockX() + " " + p.getBlockY() + " " + p.getBlockZ()
-			+ " hp " + Math.round(p.getHealth()) + " honger " + p.getFoodData().getFoodLevel() + food
-			+ " afk " + (AfkConfig.get().afk ? "aan" : "uit") + " home " + (AfkConfig.get().altHome.isBlank() ? "standaard" : AfkConfig.get().altHome) + (AfkConfig.get().altCrouched ? " gehurkt" : "") + (AfkConfig.get().altJumping ? " springt" : "");
+			+ " health " + Math.round(p.getHealth()) + " food " + p.getFoodData().getFoodLevel() + food
+			+ " afk " + (AfkConfig.get().afk ? "on" : "off") + " home " + (AfkConfig.get().altHome.isBlank() ? "default" : AfkConfig.get().altHome) + (AfkConfig.get().altCrouched ? " crouched" : "") + (AfkConfig.get().altJumping ? " jumping" : "");
 	}
 
 	/**

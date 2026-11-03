@@ -45,7 +45,7 @@ public final class MenuPick {
 			return;
 		}
 		if (p.containerMenu == p.inventoryMenu) {
-			// closed again by the player: then they changed their mind
+			// closed again by the player: a change of mind
 			if (menuId >= 0) want = null;
 			else if (now > until) {  Exchange.emit("menu choice", "action", "no menu", "menu", command, "name", want); want = null; }
 			return;

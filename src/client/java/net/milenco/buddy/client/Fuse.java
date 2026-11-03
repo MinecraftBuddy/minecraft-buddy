@@ -7,7 +7,7 @@ package net.milenco.buddy.client;
  * <li>{@link Count}: the server's count of one creeper's swell, as the most it can be. The client counts a swell itself
  * (Creeper.tick runs there too, on the swell direction the server sends), but what a landing adds it never sees:
  * Creeper.causeFallDamage, server-side, adds 1.5 a block fallen, up to five under the fuse. A drop farm's creeper
- * lands at 25 of its 30, which the client's own count put at 0 (the third review of 22 Oct 2026: he stayed to strike
+ * lands at 25 of its 30, which the client's own count put at 0 (the third review of 22 Oct 2026: the buddy stayed to strike
  * one that went off five ticks after it began to swell).</li>
  * <li>{@link #cooldownWait}: a blow within ten ticks of a hurt that is no stronger than that hurt does nothing
  * (LivingEntity.hurtServer), so a blow at a creeper that just took fall damage only counts once that is over.</li>
@@ -28,7 +28,7 @@ final class Fuse {
 	 * Walking out of a blast: the walker's pace on the ground without sprinting (the terminal 0.216 a tick of a player's
 	 * walk, a little under it for the first steps) and the ticks it takes to start. Upright beside the pen's fence too
 	 * (Pen.gettingAway): until the test of 22 Oct 2026 the walker crouched the first block (0.065 a tick), twelve ticks
-	 * more, so that from a spot beside a pit a walk off never cleared him and every strike there was late at once.
+	 * more, so that from a spot beside a pit a walk off never cleared the walker and every strike there was late at once.
 	 */
 	static final double WALK = 0.2;
 	static final int WALK_START = 3;
@@ -91,8 +91,8 @@ final class Fuse {
 
 	/**
 	 * The latest a blow lands, in ticks from now: the slowest of the turn to it, the strength that kills it, a moment's
-	 * reaction, the cooldown of its last hurt and a hitch of his own (in the air, eating, a line not clear yet), then
-	 * the tick it is queued for, his ping and a margin. In time while this is under the fuse left.
+	 * reaction, the cooldown of its last hurt and a hitch of the buddy's own (in the air, eating, a line not clear yet),
+	 * then the tick it is queued for, the buddy's ping and a margin. In time while this is under the fuse left.
 	 */
 	static int sum(int turn, int strength, int react, int cooldown, int hitch, int ping, int margin) {
 		return Math.max(Math.max(Math.max(turn, strength), Math.max(react, cooldown)), hitch) + 1 + ping + margin;
@@ -100,12 +100,12 @@ final class Fuse {
 
 	/**
 	 * Whether the blow at a swelling creeper goes ahead. A new one ({@code committed} false): when it lands within the
-	 * fuse ({@code sum} under {@code fuse}) with no hitch of his own at all. One he turned to already: as long as its sum,
-	 * the hitch's own ticks counted, still fits; a hitch of unknown length ({@code unseen}: a mob in the line, nothing of
-	 * it in reach) only while a walk out of its blast still clears him ({@code late} false), unless that hitch began only
-	 * once it no longer did ({@code unseenLate}); and once getting away no longer clears him, kept while it fits but for
-	 * its {@code margin}, for then the walk off gets him nowhere clear (the third review of 22 Oct 2026: one tick in which
-	 * the blow could not go out ended it, and he walked off with too little of the fuse left).
+	 * fuse ({@code sum} under {@code fuse}) with no hitch of the buddy's own at all. One already turned to: as long as its
+	 * sum, the hitch's own ticks counted, still fits; a hitch of unknown length ({@code unseen}: a mob in the line, nothing
+	 * of it in reach) only while a walk out of its blast still clears the buddy ({@code late} false), unless that hitch began
+	 * only once it no longer did ({@code unseenLate}); and once getting away no longer clears the buddy, kept while it fits
+	 * but for its {@code margin}, for then the walk off leads nowhere clear (the third review of 22 Oct 2026: one tick in
+	 * which the blow could not go out ended it, and the buddy walked off with too little of the fuse left).
 	 */
 	static boolean strike(boolean committed, int hitch, boolean unseen, boolean unseenLate, int sum, int fuse, boolean late, int margin) {
 		if (!committed) return hitch == 0 && !unseen && sum < fuse;
@@ -114,13 +114,14 @@ final class Fuse {
 	}
 
 	/**
-	 * Whether a strike begun goes on this tick (Pen.strikeOn), its creeper still swelling at him within the grace by the
-	 * server's swell direction, whatever the client's own sight says: with a plan for its blow ({@code planned}) while
-	 * that blow still fits ({@code ahead}: {@link #strike}), alone or, with another one swelling at him too, only while
-	 * {@code late}, for a walk off then clears him of this one by nothing, where otherwise it clears him of both; with no
-	 * plan for a moment (a bystander in a sword's sweep), alone and late at its last plan ({@code lastLate}) within
-	 * {@code grace} ticks of it ({@code sincePlan}). A second one's swell, or a tick the client lost sight of it at the
-	 * rim, dropped a late strike, and he walked off into its blast (the review of the fourth round, 22 Oct 2026).
+	 * Whether a strike begun goes on this tick (Pen.strikeOn), its creeper still swelling at the buddy within the grace by
+	 * the server's swell direction, whatever the client's own sight says: with a plan for its blow ({@code planned}) while
+	 * that blow still fits ({@code ahead}: {@link #strike}), alone or, with another one swelling at the buddy too, only
+	 * while {@code late}, for a walk off then clears the buddy of this one by nothing, where otherwise it clears the buddy
+	 * of both; with no plan for a moment (a bystander in a sword's sweep), alone and late at its last plan
+	 * ({@code lastLate}) within {@code grace} ticks of it ({@code sincePlan}). A second one's swell, or a tick the client
+	 * lost sight of it at the rim, dropped a late strike, and the buddy walked off into its blast (the review of the fourth
+	 * round, 22 Oct 2026).
 	 */
 	static boolean keeps(boolean planned, boolean ahead, boolean late, boolean alone, boolean lastLate, int sincePlan, int grace) {
 		if (planned) return ahead && (alone || late);
@@ -128,7 +129,7 @@ final class Fuse {
 	}
 
 	/**
-	 * How long the death of a creeper just struck is waited for before another blow may follow, in milliseconds: his ping
+	 * How long the death of a creeper just struck is waited for before another blow may follow, in milliseconds: the ping
 	 * and two ticks (the death comes as the health the server sends after it), never less than the gap of the quickest
 	 * clicks ({@code minGap}): the blow went out once a tick until the client learnt of the death (the third review).
 	 */
@@ -137,7 +138,7 @@ final class Fuse {
 	}
 
 	/**
-	 * The ticks a walk takes him out of a blast that reaches {@code blast}, from {@code dist} off it: a start, and the
+	 * The ticks a walk takes out of a blast that reaches {@code blast}, from {@code dist} off it: a start, and the
 	 * blocks at the walker's pace.
 	 */
 	static int walkOut(double dist, double blast) {
@@ -146,7 +147,7 @@ final class Fuse {
 	}
 
 	/**
-	 * The ticks until he stands again, from this far above what is under him and this speed up (a player's fall:
+	 * The ticks until standing again, from this far above what is underfoot and this speed up (a player's fall:
 	 * the move first, then gravity and drag, LivingEntity.travel), at most 40.
 	 */
 	static int airTicks(double above, double vy) {

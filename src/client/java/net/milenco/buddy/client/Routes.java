@@ -12,8 +12,8 @@ import com.google.gson.JsonParser;
 import net.minecraft.core.BlockPos;
 
 /**
- * His own best time per walk, a personal best to test and improve the pathfinding (no parkour feature of its own). A
- * {@code ga} that arrives gives its time, from the command to the last spot; the route is the dimension, the block he
+ * The buddy's own best time per walk, a personal best to test and improve the pathfinding (no parkour feature of its own). A
+ * {@code ga} that arrives gives its time, from the command to the last spot; the route is the dimension, the block
  * stood on when the command came (in steps of two, so that a start a block off counts as the same) and the last spot.
  * Kept in the exchange folder as {@code routes.json}; the event {@code ga} {@code aangekomen} carries {@code ms},
  * {@code pb} (a new best), {@code best} and {@code runs}.
@@ -41,7 +41,7 @@ final class Routes {
 			Path tmp = f.resolveSibling("routes.json.tmp");
 			Files.writeString(tmp, all.toString(), StandardCharsets.UTF_8);
 			Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-		} catch (Exception e) { Exchange.emit("error", "msg", "routes.json: " + e.getMessage()); }
+		} catch (Exception e) { Exchange.emit("error", "msg", "best walk times not saved: " + e.getMessage()); }
 		Exchange.emit("goto", "action", "arrived", "ms", ms, "pb", pb, "best", best, "runs", runs, "route", key);
 	}
 }

@@ -1,11 +1,12 @@
 package net.milenco.buddy.client;
 
 /**
- * Which block of a pit the alt may break: only one that lies between his work (0.4.44). Made after the alt had broken
- * whole walls one block past the room he carved, as if the alt did not see the shape being made: the alt no longer
- * takes the ring of one around his box, and inside the box only a block that has, along x or along z, something open on
- * both sides within {@link #REACH}: a block he broke or the open part of the pit, inside his box. A wall he left
- * standing has rock behind it and is never taken; neither is the inner corner of an L he did not dig. A block he put
+ * Which block of a pit the alt may break: only one that lies between the player's work (0.4.44). Made after the alt had
+ * broken whole walls one block past the room the player carved, as if the alt did not see the shape being made: the alt
+ * no longer takes the ring of one around the player's box, and inside the box only a block that has, along x or along z,
+ * something open on both sides within {@link #REACH}: a block the player broke or the open part of the pit, inside that
+ * box. A wall the player left standing has rock behind it and is never taken; neither is the inner corner of an L the
+ * player did not dig. A block the player put
  * back (see {@code Work}) stops the look along a line.
  */
 final class PitShape {
@@ -15,13 +16,13 @@ final class PitShape {
 	static final int REACH = 5;
 
 	interface Cells {
-		/** No collision: broken by him or already open. */
+		/** No collision: broken by the player or already open. */
 		boolean open(int x, int y, int z);
-		/** He put a block back here after the alt broke it. */
+		/** The player put a block back here after the alt broke it. */
 		boolean fixed(int x, int y, int z);
 	}
 
-	/** Is this block between his work, in the box xMin..xMax, zMin..zMax? */
+	/** Is this block between the player's work, in the box xMin..xMax, zMin..zMax? */
 	static boolean between(Cells c, int x, int y, int z, int xMin, int xMax, int zMin, int zMax) {
 		if (x < xMin || x > xMax || z < zMin || z > zMax) return false;
 		return (side(c, x, y, z, 1, 0, xMin, xMax, zMin, zMax) && side(c, x, y, z, -1, 0, xMin, xMax, zMin, zMax))

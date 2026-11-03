@@ -24,12 +24,12 @@ import net.minecraft.world.phys.Vec3;
 import net.milenco.buddy.version.Game;
 
 /**
- * Torches while he digs along: only underground (no sky light where the alt stands), only in the tunnel or pit he digs
- * along in, only where it is dark (block light under {@link #DARK} at his head and feet), on a wall at head height: in
+ * Torches while digging along: only underground (no sky light where the alt stands), only in the tunnel or pit dug
+ * along in, only where it is dark (block light under {@link #DARK} at head and feet), on a wall at head height: in
  * a tunnel the right-hand wall seen from where it started (so on the way out the torches are on the left), in a pit the
  * nearest wall. Never on a block that is still to be dug, on a chest or another block with something in it, or on a
- * face a torch does not hold on. Under {@link #MIN} torches he takes more from the player's chests (Stash), and makes
- * them himself from coal or charcoal and sticks in his own crafting grid; with none at all he says so.
+ * face a torch does not hold on. Under {@link #MIN} torches the alt takes more from the player's chests (Stash), and
+ * makes them from coal or charcoal and sticks in the inventory's own crafting grid; with none at all the alt says so.
  */
 final class Torches {
 	private Torches() {}
@@ -50,7 +50,7 @@ final class Torches {
 
 	static boolean busy() { return wall != null || craftStep > 0; }
 
-	/** Torches to fetch from a chest: he digs along and has fewer than {@link #MIN}. */
+	/** Torches to fetch from a chest: digging along with fewer than {@link #MIN}. */
 	static boolean wants(LocalPlayer p) { return Work.dig && count(p) < MIN; }
 
 	static int count(LocalPlayer p) {
@@ -141,7 +141,7 @@ final class Torches {
 	}
 
 	/**
-	 * Torches from coal (or charcoal) and a stick, in the 2x2 grid of his own inventory, one at a time: coal top left,
+	 * Torches from coal (or charcoal) and a stick, in the 2x2 grid of the buddy's own inventory, one at a time: coal top left,
 	 * stick under it, the result shift-clicked out (four torches). Real clicks, a few ticks apart, as a player does.
 	 */
 	private static boolean craft(Minecraft mc, LocalPlayer p, long now) {
@@ -192,7 +192,7 @@ final class Torches {
 
 	private static int craftBefore;
 
-	/** Room in his inventory for four torches: an empty slot, or a stack of torches with four places left. */
+	/** Room in the inventory for four torches: an empty slot, or a stack of torches with four places left. */
 	private static boolean room(LocalPlayer p) {
 		for (int i = 0; i < 36; i++) {
 			ItemStack st = p.getInventory().getItem(i);

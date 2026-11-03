@@ -33,35 +33,35 @@ import net.minecraft.world.phys.Vec3;
  * back to their pen.
  * A chore of the base ({@link Chores}, kind HERD).
  * <ul>
- * <li><b>A pen</b>: the closed space behind a fence gate or a wooden door within reach of him, the other side open
+ * <li><b>A pen</b>: the closed space behind a fence gate or a wooden door within reach of the buddy, the other side open
  * ground: an animal walks from the cell on one side of it to at most {@link #LIMIT} cells, through no gate or door, and
  * from the other side to more. Its kind is what most of the animals in it are, and stays known while it is empty.</li>
  * <li><b>A stray</b>: an animal that wheat tempts (a sheep, a cow, a mooshroom, a goat) in the base, on open ground, in
  * no pen, not on a lead, with a pen of its kind within {@link #FROM_GATE}.</li>
  * <li><b>The round</b>: to the stray, wheat in hand from {@link #LURE} (the game's animals follow a player holding their
  * food from ten blocks); to the gate's outside cell, waiting while it lags and until it is close; through the gate,
- * which is held open ({@link Follow#holdOpen}), to the pen's far end, so that the pen's own animals crowd round him there
+ * which is held open ({@link Follow#holdOpen}), to the pen's far end, so that the pen's own animals crowd round the buddy there
  * and not behind the gate; the wheat out of hand the moment the stray is in, the gate shut from the cell just inside it,
- * and out again, the gate shut behind him as always. The game makes an animal that stopped following wait five seconds
+ * and out again, the gate shut behind as always. The game makes an animal that stopped following wait five seconds
  * before it follows again (TemptGoal's calm-down), so a stray that is lost is gone after for a fresh start, three times
  * at most.</li>
  * </ul>
- * He carries wheat for it always: Stash keeps one stack of it and fetches one when he has none ({@link Chores#wants}).
+ * The buddy carries wheat for it always: Stash keeps one stack of it and fetches one when there is none ({@link Chores#wants}).
  */
 final class Herd {
 	private Herd() {}
 
 	/** A closed space holds at most this many cells; past it the side of a gate is open ground. */
 	static final int LIMIT = 256;
-	/** Gates looked for this far round him; strays anywhere in the base, no farther from their pen's gate than FROM_GATE. */
+	/** Gates looked for this far round the buddy; strays anywhere in the base, no farther from their pen's gate than FROM_GATE. */
 	static final int SCAN_R = 32;
 	static final double FROM_GATE = 32;
 	/** Wheat in hand from this near to the animal; led on while it stays within LAG, gone after again past LOST. */
 	static final double LURE = 9, CLOSE = 4, LAG = 6, LOST = 11;
-	/** Inside: this far from the gate's middle at least, before he lets go of the wheat. */
+	/** Inside: this far from the gate's middle at least, before the wheat is let go of. */
 	static final double INSIDE = 1.6;
 	static final long SCAN_EVERY = 30_000, SKIP_FOR = 600_000, ROUND_MAX = 120_000, WAIT_MAX = 15_000, OUT_MAX = 8000;
-	/** In the pen: how long he waits for the stray to come in; for the gate to shut. */
+	/** In the pen: how long the buddy waits for the stray to come in; for the gate to shut. */
 	static final long CALL_MAX = 15_000, SHUT_MAX = 10_000;
 	static final int TRIES = 3;
 
@@ -93,7 +93,7 @@ final class Herd {
 
 	static boolean hasPens() { return !kindOf.isEmpty(); }
 
-	/** A round is under way: he leads an animal, and opens a gate it waits behind on purpose. */
+	/** A round is under way: the buddy leads an animal, and opens a gate it waits behind on purpose. */
 	static boolean active() { return phase != 0; }
 
 	private static final Map<BlockPos, Long> closedAt = new HashMap<>();
@@ -149,7 +149,7 @@ final class Herd {
 
 	/**
 	 * An animal a pen holds: no pet (a wolf, cat or parrot) and no happy ghast. Two dogs in a room of the house made
-	 * the house a pen and its door a wall, so from 0.4.128 on he could not get out to the field or the pens.
+	 * the house a pen and its door a wall, so from 0.4.128 on the buddy could not get out to the field or the pens.
 	 */
 	private static boolean penAnimal(Animal a) { return !(a instanceof TamableAnimal) && !(a instanceof HappyGhast); }
 
@@ -158,7 +158,7 @@ final class Herd {
 
 	// ---------- the start ----------
 
-	/** In the base, with wheat on him: a stray, and the round set up for it. */
+	/** In the base, with wheat at hand: a stray, and the round set up for it. */
 	static boolean find(LocalPlayer p, long now) {
 		skip.values().removeIf(u -> u < now);
 		for (Pen pn : pens) if (p.level().isLoaded(pn.gate) && !isGate(p.level().getBlockState(pn.gate))) { nextScan = 0; break; }
@@ -168,12 +168,12 @@ final class Herd {
 		Animal best = null;
 		Pen bestPen = null;
 		double bd = Double.MAX_VALUE;
-		// in the whole base, as shearing: he waits by his bed, more than 24 blocks from the pens (23 Oct 2026)
+		// in the whole base, as shearing: the buddy waits by the bed, more than 24 blocks from the pens (23 Oct 2026)
 		for (Animal a : level.getEntitiesOfClass(Animal.class, p.getBoundingBox().inflate(Base.RADIUS, 8, Base.RADIUS))) {
 			if (!lured(a) || !a.isAlive() || a.isLeashed() || a.isPassenger() || skip.containsKey(a.getId())) continue;
 			Pen home = homeOf(kind(a), a.position());
 			if (home == null || penned(a.position()) || !inBase(level, a.position())) continue;
-			// on open ground: not shut in somewhere else (a pen with no gate he knows, a barn), which a walk cannot open
+			// on open ground: not shut in somewhere else (a pen with no gate known, a barn), which a walk cannot open
 			BlockPos f = foot(level, a.blockPosition());
 			if (f == null || flood(level, f) != null) continue;
 			double d = a.distanceToSqr(p);
@@ -197,17 +197,17 @@ final class Herd {
 	/**
 	 * One tick of the round; false when it is over ({@link #why} says how). Wheat in hand only while it brings the stray
 	 * along, never otherwise, and gates are shut properly. The gate is open only while the stray comes in, and shut from
-	 * inside before he
-	 * walks out: the first measured version walked out through the gate it had held open, and one of the pen's own sheep
-	 * went out with him; a second one let go of the wheat at the gate, the stray stayed outside and the gate stood open
-	 * for half a minute; a third called from four blocks inside a pen three wide, its own sheep crowded behind the gate
-	 * and the stray stood in front of it. From farther off a sheep between him and the gate kept his click off it.
+	 * inside before the buddy walks out: the first measured version walked out through the gate it had held open, and one
+	 * of the pen's own sheep went out as well; a second one let go of the wheat at the gate, the stray stayed outside and the
+	 * gate stood open for half a minute; a third called from four blocks inside a pen three wide, its own sheep crowded
+	 * behind the gate and the stray stood in front of it. From farther off a sheep between the buddy and the gate kept
+	 * the click off it.
 	 */
 	static boolean tick(Minecraft mc, LocalPlayer p, long now) {
 		if (animal == null || pen == null) return end(p, "no animal");
 		if (!animal.isAlive() || animal.isRemoved()) return end(p, "animal gone");
-		// the gate taken away or moved: the pens looked for anew (the measurement: a gate moved three blocks, and he led
-		// the stray to the fence where it had stood, through the new gate, which shut behind him)
+		// the gate taken away or moved: the pens looked for anew (the measurement: a gate moved three blocks, and the buddy
+		// led the stray to the fence where it had stood, through the new gate, which shut behind both)
 		if (!isGate(p.level().getBlockState(pen.gate))) { nextScan = 0; return end(p, "gate gone"); }
 		if (now - since > ROUND_MAX && phase < LET_GO) { why = "took too long"; to(LET_GO, now); }
 		if (phase < LET_GO && Chores.count(p, "wheat") == 0) return end(p, "no wheat");
@@ -224,7 +224,7 @@ final class Herd {
 				if (d > LOST) return lost(p, now);
 				Vec3 out = Vec3.atBottomCenterOf(pen.outside);
 				boolean there = Math.hypot(p.getX() - out.x, p.getZ() - out.z) <= 1.2;
-				// at the gate it has to be close: the game's animals stop 2.5 from the player, and walk on as he walks
+				// at the gate it has to be close: the game's animals stop 2.5 from the player, and walk on as the player walks
 				if (d > LAG || (there && d > CLOSE - 0.8)) return waitFor(p, now);
 				waitSince = -1;
 				if (there) { to(IN, now); return true; }
@@ -244,7 +244,7 @@ final class Herd {
 					if (now - waitSince > CALL_MAX) { why = "cannot get into the pen"; to(LET_GO, now); }
 					return true;
 				}
-				// it lags on the way in: he stands, the gate open, until it has caught up
+				// it lags on the way in: the buddy stands, the gate open, until it has caught up
 				if (d > LAG) { if (waitSince < 0) waitSince = now; Follow.stand(); Follow.aim(p, animal.getEyePosition()); Work.walkFresh();
 					if (now - waitSince > WAIT_MAX) { why = "does not follow"; to(LET_GO, now); } return true; }
 				waitSince = -1;
@@ -255,13 +255,13 @@ final class Herd {
 				Follow.holdOpen(pen.gate);
 				letGo(p);
 				Follow.stand();
-				// the game's animals look at a player's hand every other tick: a moment, and nothing follows him to the gate
+				// the game's animals look at a player's hand every other tick: a moment, and nothing follows to the gate
 				if (now - phaseSince >= 600) { Follow.holdOpen(null); to(SHUT, now); }
 				return true;
 			}
 			case SHUT -> {
-				// shut from inside, at once, from the cell just inside it, where no animal stands between him and the gate:
-				// nothing wanders in or out while he walks out
+				// shut from inside, at once, from the cell just inside it, where no animal stands between the buddy and the
+				// gate: nothing wanders in or out on the way out
 				letGo(p);
 				if (!open(p.level().getBlockState(pen.gate)) || now - phaseSince > SHUT_MAX) { to(OUT, now); return true; }
 				Vec3 mid = Vec3.atCenterOf(pen.gate);
@@ -319,7 +319,7 @@ final class Herd {
 		if (next == LET_GO) Exchange.emit("herd", "action", "gate shut", "animal", kind(animal), "inside", pen.holds(animal.position()));
 	}
 
-	/** It lags: he stands and waits for it, a while. */
+	/** It lags: the buddy stands and waits for it, a while. */
 	private static boolean waitFor(LocalPlayer p, long now) {
 		if (waitSince < 0) waitSince = now;
 		if (now - waitSince > WAIT_MAX) return lost(p, now);
@@ -362,7 +362,7 @@ final class Herd {
 
 	// ---------- the wheat ----------
 
-	/** Wheat in hand, from his hotbar or his backpack; the slot he had in hand remembered. */
+	/** Wheat in hand, from the hotbar or the backpack; the slot in hand before remembered. */
 	private static void hold(Minecraft mc, LocalPlayer p) {
 		if (p.getMainHandItem().is(Items.WHEAT)) return;
 		var inv = p.getInventory();
@@ -371,7 +371,7 @@ final class Herd {
 		AfkHelperClient.toHotbar(p, mc, s -> s.is(Items.WHEAT), java.util.Comparator.comparingInt(ItemStack::getCount), "wheat");
 	}
 
-	/** Something else in hand than what the animals follow: the slot he had, else one without their food. */
+	/** Something else in hand than what the animals follow: the slot held before, else one without their food. */
 	private static void letGo(LocalPlayer p) {
 		if (!p.getMainHandItem().is(Items.WHEAT)) return;
 		var inv = p.getInventory();
@@ -382,7 +382,7 @@ final class Herd {
 
 	// ---------- the pens ----------
 
-	/** The pens behind the gates and wooden doors round him, and their kinds from the animals in them now. */
+	/** The pens behind the gates and wooden doors round the buddy, and their kinds from the animals in them now. */
 	private static void scan(Level level, LocalPlayer p) {
 		List<Pen> found = new ArrayList<>();
 		BlockPos me = p.blockPosition();
@@ -457,7 +457,7 @@ final class Herd {
 
 	private static String kind(Animal a) { return BuiltInRegistries.ENTITY_TYPE.getKey(a.getType()).getPath(); }
 
-	/** In a base of the player he works for. */
+	/** In a base of the player the buddy works for. */
 	private static boolean inBase(Level level, Vec3 at) {
 		String boss = Follow.boss();
 		var e = Tap.baseAt(Work.dimOf(level), at, Base.RADIUS);

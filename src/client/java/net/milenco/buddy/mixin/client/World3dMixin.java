@@ -11,8 +11,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * What changes in his world, for the panel's 3D view (World3d): a block that changed (from the server, or his own), a
- * chunk the server sent, and a block broken near him (the game's level event 2001: his own and other players').
+ * What changes in the buddy's world, for the panel's 3D view (World3d): a block that changed (from the server, or the
+ * buddy's own), a chunk the server sent, and a block broken nearby (the game's level event 2001: the buddy's own and other players').
  */
 @Mixin(ClientLevel.class)
 public class World3dMixin {

@@ -10,7 +10,7 @@ import java.util.Map;
  * tried and where (a walk to a cell, a chest, a furnace); the second within ten minutes blocks it for ten minutes and
  * is told once, as the event {@code hulp} {@code geeft op}. A success clears it.
  * <p>
- * A block that comes back is longer each time (21 Oct 2026: the bone meal chest under the composter, which he cannot
+ * A block that comes back is longer each time (21 Oct 2026: the bone meal chest under the composter, out of the buddy's
  * reach, was walked to and given up 21 times in a night): ten minutes, then thirty, then an hour and a half, at most
  * six hours, counted per goal over the last day.
  */

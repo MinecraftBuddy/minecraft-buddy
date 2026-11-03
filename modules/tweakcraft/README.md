@@ -5,10 +5,10 @@ core's. It does nothing on a server whose profile does not name it.
 
 ## Parkour
 
-`{"cmd":"parkour"}`, `!parkour` in Telegram: he joins a Parkour that two players voted open with `/eventvote` (such a
-game has no prize) and runs from the start to the finish. With no Parkour open, or one of the half-hourly draw (which pays
-its winner), he does nothing and says why. `{"cmd":"parkour","on":false}` stops the run and takes him out of the game
-with the profile's `eventLeave` command.
+`{"cmd":"parkour"}`, `!parkour` in Telegram: the buddy joins a Parkour that two players voted open with `/eventvote`
+(such a game has no prize) and runs from the start to the finish. With no Parkour open, or one of the half-hourly draw
+(which pays its winner), nothing happens and the answer says why. `{"cmd":"parkour","on":false}` stops the run and leaves
+the game with the profile's `eventLeave` command.
 
 In the server's profile in `buddy.json`:
 

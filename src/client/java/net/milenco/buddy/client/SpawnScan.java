@@ -61,7 +61,7 @@ public final class SpawnScan {
 		}
 		try {
 			Files.writeString(Paths.get(AfkConfig.get().exchangeDir).resolve("spawnscan.txt"), out, StandardCharsets.UTF_8);
-		} catch (IOException e) { Exchange.emit("error", "msg", "spawnscan not written: " + e.getMessage()); return; }
+		} catch (IOException e) { Exchange.emit("error", "msg", "spawn scan not saved: " + e.getMessage()); return; }
 		Exchange.emit("spawnscan", "x", cx, "y", cy, "z", cz, "r", r, "spots", spots, "columns_not_loaded", unloaded, "floor", perFloor);
 	}
 

@@ -36,7 +36,7 @@ public class AfkHelperClient implements ClientModInitializer {
 	// scheduling
 	private record Job(long due, Runnable run) {}
 	private final List<Job> jobs = new ArrayList<>();
-	private long lastInput = 0;              // last time the player did something themselves (key, mouse, looking around)
+	private long lastInput = 0;              // last time a person did something by hand (key, mouse, looking around)
 	private Vec3 lastPos = null; private float lastYaw, lastPitch;
 	private long ignoreLookUntil = 0;
 	private boolean afkCrouching = false;
@@ -214,7 +214,7 @@ public class AfkHelperClient implements ClientModInitializer {
 	public static void playerDied(net.minecraft.world.entity.player.Player player) { Corpse.deathEvent(player.getGameProfile().name(), player.position(), player.getKillCredit()); }
 
 	/**
-	 * A mob took a blow (DamageEventMixin): for the pen's gesture, the bare-hand punch of the player he follows on a
+	 * A mob took a blow (DamageEventMixin): for the pen's gesture, the bare-hand punch of the followed player on a
 	 * monster in a mob farm. What it needs is copied for the next tick.
 	 */
 	public static void damageEvent(net.minecraft.world.entity.LivingEntity e, net.minecraft.world.damagesource.DamageSource s) {
@@ -222,14 +222,14 @@ public class AfkHelperClient implements ClientModInitializer {
 		Pen.damage(e, s);
 	}
 
-	/** A mob near us died (DeathEventMixin): a kill of the pen when it was one he hit. */
+	/** A mob near us died (DeathEventMixin): a kill of the pen when it was one the buddy hit. */
 	public static void mobDied(int id) { Pen.mobDied(id); }
 
 	/** The hunger guard's own look is turning (away from a hopper, a door or a trapdoor before it eats). */
 	static boolean lookBusy() { return INSTANCE != null && INSTANCE.look.busy(); }
 
 	/**
-	 * Whether to take the resource pack a server pushes (ResourcePackMixin): by the server's profile, so that he never
+	 * Whether to take the resource pack a server pushes (ResourcePackMixin): by the server's profile, so that nothing ever
 	 * waits on the question.
 	 */
 	public static Boolean takePack(boolean required, String ip) {
@@ -277,9 +277,9 @@ public class AfkHelperClient implements ClientModInitializer {
 	public static boolean isEating() { LocalPlayer p = mc().player; return (INSTANCE != null && (INSTANCE.eatTicks > 0 || INSTANCE.drinkTicks > 0)) || (p != null && p.isUsingItem()); }
 
 	/**
-	 * A bite of his own under way ended, as a player lets go of the button: the use key up, which ends the use
-	 * (Minecraft.handleKeybinds), and the slot it was taken from back in hand. Getting away from a creeper (Pen): eating
-	 * he walks at a fifth of his pace.
+	 * The buddy's own bite under way ended, as a player lets go of the button: the use key up, which ends the use
+	 * (Minecraft.handleKeybinds), and the slot it was taken from back in hand. Getting away from a creeper (Pen): eating,
+	 * a player walks at a fifth of the pace.
 	 */
 	static void stopEating(String why) {
 		AfkHelperClient a = INSTANCE;
@@ -322,7 +322,7 @@ public class AfkHelperClient implements ClientModInitializer {
 	public static void sendChat(String text) {
 		LocalPlayer p = mc().player;
 		if (p == null) return;
-		// every line the buddy sends goes through here: nothing the server would throw them off for (ChatText)
+		// every line the buddy sends goes through here: nothing the server would kick for (ChatText)
 		text = ChatText.sendable(text);
 		if (text.isEmpty() || text.equals("/")) return;
 		if (text.startsWith("/")) p.connection.sendCommand(text.substring(1)); else p.connection.sendChat(text);
@@ -363,7 +363,7 @@ public class AfkHelperClient implements ClientModInitializer {
 	private void onIncoming(String text, String kind) { onIncoming(text, kind, null); }
 
 	/**
-	 * A chat line's kind ("pm", "chat", "join", "leave" or "server"), the player it names and what they said: by the active
+	 * A chat line's kind ("pm", "chat", "join", "leave" or "server"), the player it names and what was said: by the active
 	 * profile's texts pm and pmOut, join and leave, and chat (a player's public line); a line the game itself signed as a
 	 * player's is chat, and without a chat text the vanilla forms "<Name> text" and "Name: text" count too.
 	 */
@@ -384,7 +384,7 @@ public class AfkHelperClient implements ClientModInitializer {
 		String clean = text.replace('\n', ' ').trim();
 		// what kind of line it is, so that the Telegram chat can be set to show some kinds only: a private message, a
 		// player's chat line, a join, a leave, or anything else
-		// the server says; with the player and what they said where the profile's text gives them
+		// the server says; with the player and the words said where the profile's text gives them
 		Object[] what = lineKind(clean, kind);
 		List<Object> ev = new ArrayList<>(List.of("kind", kind, "is", what[0], "text", clean));
 		if (what[1] != null) { ev.add("player"); ev.add(what[1]); }
@@ -395,10 +395,10 @@ public class AfkHelperClient implements ClientModInitializer {
 		AfkConfig c = AfkConfig.get();
 		LocalPlayer p = mc().player;
 
-		// Your own PM counts as a conversation too: if you ask someone for money, their payment often
-		// arrives before they type anything back, and otherwise we would not know who it came from.
-		// a PM line counts only from the start of the line: in public chat a player's own name stands in front, so what they
-		// type cannot pass for a PM to or from someone else, also where a profile's text has no ^
+		// Your own PM counts as a conversation too: if you ask someone for money, the payment often
+		// arrives before any reply is typed, and otherwise we would not know who it came from.
+		// a PM line counts only from the start of the line: in public chat a player's own name stands in front, so what is
+		// typed there cannot pass for a PM to or from someone else, also where a profile's text has no ^
 		Matcher pmOut = Profiles.match("pmOut", clean, null);
 		if (pmOut.lookingAt()) {
 			lastTalker = pmOut.group(1);
@@ -501,7 +501,7 @@ public class AfkHelperClient implements ClientModInitializer {
 		HeldKeys.startTick(mc);
 		// A bite or a sip the server has just ended (its event is handled before this tick): the key up before
 		// Minecraft.handleKeybinds, which with the key down and nothing in use clicks whatever the crosshair is on. Let go
-		// at the end of the tick, it was one tick late: a chest minecart before him opened at every bite (22 Oct 2026).
+		// at the end of the tick, it was one tick late: a chest minecart ahead opened at every bite (22 Oct 2026).
 		if ((eatTicks > 0 || drinkTicks > 0) && mc.player != null && !mc.player.isUsingItem()) HeldKeys.set(mc.options.keyUse, false);
 		Jobs.startTick(mc);
 		Alt.startTick(mc);
@@ -513,7 +513,7 @@ public class AfkHelperClient implements ClientModInitializer {
 			if (p != null && mc.gameMode != null
 				&& (p.getMainHandItem().get(DataComponents.FOOD) != null || p.getMainHandItem().getItem() == net.minecraft.world.item.Items.OMINOUS_BOTTLE)) {
 				mc.gameMode.useItem(p, InteractionHand.MAIN_HAND);
-				// a bite of his own holds the use key only once it has begun: a key that is down while nothing is in use
+				// the buddy's own bite holds the use key only once it has begun: a key that is down while nothing is in use
 				// is a click on whatever the crosshair is on (Minecraft.handleKeybinds), a door, a chest, a bed
 				if ((eatTicks > 0 || drinkTicks > 0) && p.isUsingItem()) HeldKeys.set(mc.options.keyUse, true);
 			}
@@ -572,7 +572,7 @@ public class AfkHelperClient implements ClientModInitializer {
 		}
 		MenuLog.tick(p);
 		Containers.tick(mc, p);
-		// his own name as the game has it, once a start: a renamed account is followed by the panel and the bridge, which
+		// the account's own name as the game has it, once a start: a renamed account is followed by the panel and the bridge, which
 		// read altName
 		if (!ownNameChecked) {
 			ownNameChecked = true;
@@ -590,8 +590,8 @@ public class AfkHelperClient implements ClientModInitializer {
 			if (p.isUsingItem()) eatBitten = true;
 			else {
 				// The key comes up the tick a bite is over. It stayed down 45 ticks for a bite of 32, and vanilla clicks the
-				// crosshair every 4 ticks while it is down and nothing is in use, so after a bite that filled him a door, a chest,
-				// a bed or a villager before him was clicked up to three times (the review of 22 Oct 2026). A bite that did not
+				// crosshair every 4 ticks while it is down and nothing is in use, so after a bite that filled the food bar a door, a chest,
+				// a bed or a villager in front was clicked up to three times (the review of 22 Oct 2026). A bite that did not
 				// begin is tried a few ticks, without the key; hunger asks again after four seconds.
 				HeldKeys.set(mc.options.keyUse, false);
 				if (eatBitten || eatTicks <= 40) eatTicks = 0;
@@ -727,7 +727,7 @@ public class AfkHelperClient implements ClientModInitializer {
 			Vec3 pos = p.position();
 			Exchange.emit("location", "dim", p.level().dimension().identifier().toString(), "x", Math.round(pos.x), "y", Math.round(pos.y), "z", Math.round(pos.z), "zone", zone);
 			ItemStack hand = p.getMainHandItem();
-			// hand_slot: the item alone does not say which of several equal stacks he holds, and the buddy's page marks it in the hotbar
+			// hand_slot: the item alone does not say which of several equal stacks is held, and the buddy's page marks it in the hotbar
 			Exchange.emit("status", "hp", p.getHealth(), "food", p.getFoodData().getFoodLevel(), "hand", hand.isEmpty() ? "" : itemId(hand),
 				"hand_slot", p.getInventory().getSelectedSlot(), "menu_open", p.containerMenu != p.inventoryMenu, "afk", c.afk, "server", serverIp(), "active", active(),
 				"food_hotbar", countFood(p, 0, 9), "food_inv", countFood(p, 9, 36), "air", p.getAirSupply());
@@ -858,12 +858,12 @@ public class AfkHelperClient implements ClientModInitializer {
 	/** Jump once: hold the jump key for a few ticks, like a real press. */
 	private void jumpOnce() {
 		LocalPlayer p = mc().player;
-		// log whether the little jump really happens: the owner did not see him jump after drinking and the
-		// events did not show whether he tried (a jump is shorter than the 5 s between measurements)
+		// log whether the little jump really happens: the owner saw no jump after drinking and the
+		// events did not show whether one was tried (a jump is shorter than the 5 s between measurements)
 		if (p == null || !p.onGround()) { Exchange.emit("raid", "action", "hop skipped", "reason", p == null ? "no player" : "not on the ground"); return; }
 		jumpTicks = ThreadLocalRandom.current().nextInt(2, 5);
 		HeldKeys.set(mc().options.keyJump, true);
-		// "sprongetje" alone still did not tell whether he left the ground: the key was pressed every time,
+		// "sprongetje" alone still did not tell whether the buddy left the ground: the key was pressed every time,
 		// yet the owner saw no jump. Measure the peak and look for a ceiling or a block that damps jumps.
 		jumpStartY = jumpPeakY = p.getY();
 		jumpWatch = 15;
@@ -994,7 +994,7 @@ public class AfkHelperClient implements ClientModInitializer {
 
 	/**
 	 * Off the server from the panel, and on again with "join": out
-	 * cleanly, and out he stays until "join", also when the game starts anew (the launcher joins by itself, so he leaves
+	 * cleanly, and out the buddy stays until "join", also when the game starts anew (the launcher joins by itself, so the game leaves
 	 * again at once).
 	 */
 	static void leave() {
@@ -1005,7 +1005,7 @@ public class AfkHelperClient implements ClientModInitializer {
 		Exchange.emit("connection", "action", "stays away");
 	}
 
-	/** Back to the server he was on last. */
+	/** Back to the server last played on. */
 	static void join() {
 		AfkConfig c = AfkConfig.get();
 		c.stayOffline = false;
@@ -1049,7 +1049,7 @@ public class AfkHelperClient implements ClientModInitializer {
 			/*
 			 * The Mojang session expires after about a day. After that, reconnecting never works again,
 			 * and only a fresh start of the client fetches a new session. On 24 Sep the alt was offline
-			 * like that for seven hours with 731 futile attempts. So he quits the game; the service
+			 * like that for seven hours with 731 futile attempts. So the game quits; the service
 			 * restarts it right away.
 			 */
 			if (c.reconnectMaxAttempts > 0 && failedConnections >= c.reconnectMaxAttempts) {
@@ -1082,8 +1082,8 @@ public class AfkHelperClient implements ClientModInitializer {
 	/** Warns at low hunger and eats from the hotbar itself when AutoEat leaves it (also works with an open chat screen). */
 
 	private void hungerGuard(LocalPlayer p, AfkConfig c, long now) {
-		// he eats always: following nobody outside a base he stood hungry at food 3 (the scenarios of 23 Oct 2026)
-		// played from the panel he eats when the person does, as in the game: a bite of his own changed the item in the
+		// eating always: following nobody outside a base, the buddy stood hungry at food 3 (the scenarios of 23 Oct 2026)
+		// played from the panel the buddy eats when the person does, as in the game: a bite of the buddy's own changed the item in the
 		// person's hand in the middle of a raised shield (31 Oct 2026, the 3D drive)
 		if (Steer.active()) return;
 		int food = p.getFoodData().getFoodLevel();
@@ -1093,19 +1093,20 @@ public class AfkHelperClient implements ClientModInitializer {
 		boolean hungry = food <= c.eatBelow;
 		boolean lowHealth = health <= c.eatBelowHealth && food < 20;   // regenerating only works with food in the belly
 		if (!hungry && !lowHealth) return;
-		// Not in the middle of jumps: eating slows him to a walk and takes the sprint, and a jump without it falls short
-		// (17 Oct 2026, the parkour course: a bite at food 16 between two blocks, and down he went). After them, unless
-		// his hearts run out.
-		// Starving (food 0) a bite comes before a jump: at food 0 by the pen's fence he went on jumping and lost ten hearts
+		// Not in the middle of jumps: eating slows to a walk and takes the sprint, and a jump without it falls short
+		// (17 Oct 2026, the parkour course: a bite at food 16 between two blocks, and down the buddy went). After them, unless
+		// the hearts run out.
+		// Starving (food 0) a bite comes before a jump: at food 0 by the pen's fence the buddy went on jumping and lost ten hearts
 		// (the scenarios of 23 Oct 2026)
 		if (Follow.inJumps() && health > 6 && food > 0) return;
 		// Not with an enemy at hand: a bite takes 1.6 s without a blow back, in which a zombie hits twice (17 Oct 2026:
 		// the alt ate bread at 15.5 hearts with a zombie a block off, and died). Fight first, eat when it is over.
 		Entity foe = Guard.enemy();
 		if (foe != null && foe.distanceTo(p) < 6) return;
-		// also with no guarding on: a monster after it within ten blocks, or a shooter in sight within fifteen (a drowned hit
-		// the buddy four times while it ate two cod for its hearts, and killed it; the distances are Soprano's: a bite is 1.6
-		// s without a blow, and a zombie covers ten blocks in about that time running). Not when only a bite can save it
+		// also with no guarding on: a monster after the buddy within ten blocks, or a shooter in sight within fifteen (a
+		// drowned hit the buddy four times during two cod eaten for hearts, and killed the buddy; the distances are
+		// Soprano's: a bite is 1.6 s without a blow, and a zombie covers ten blocks in about that time running). Not when
+		// only a bite can save the buddy
 		if (health > 4) for (var m : p.level().getEntitiesOfClass(net.minecraft.world.entity.monster.Monster.class, p.getBoundingBox().inflate(15, 5, 15))) {
 			if (!m.isAlive()) continue;
 			// at arm's length aggressive or not: the client did not show a zombie a block off as aggressive while it hit four
@@ -1115,7 +1116,7 @@ public class AfkHelperClient implements ClientModInitializer {
 			boolean shooter = m instanceof net.minecraft.world.entity.monster.RangedAttackMob;
 			if (m.distanceTo(p) < 10 || (shooter && p.hasLineOfSight(m))) return;
 		}
-		// nor while a creeper swells at him at the pen, or he strikes one or walks away from one: a bite takes his hand off
+		// nor while a creeper swells at the buddy at the pen, or one is struck or walked away from: a bite takes the hand off
 		// the blow that kills it and slows the walk out of its blast to a fifth (the third review of 22 Oct 2026)
 		if (Pen.creeperDanger()) return;
 		if (p.isUsingItem() && p.getUseItem().get(DataComponents.FOOD) != null) return;   // already eating: do not get in between
@@ -1123,9 +1124,9 @@ public class AfkHelperClient implements ClientModInitializer {
 		// the bag it starved for ten minutes without a bite. Then the buddy's own bite (Alto.starving)
 		if (Alto.on() && !Alto.starving(p)) return;
 		if (eatTicks == 0 && now - lastEat > 4000 && p.containerMenu == p.inventoryMenu) {
-			// no looking away from a sign, chest or door first: his own bite is a use of the item, no click on what he looks
-			// at, and the use key goes down only once the bite has begun (22 Oct 2026); in his cellar between chests no safe
-			// place to look at was found and he starved facing one (the scenarios of 23 Oct 2026)
+			// no looking away from a sign, chest or door first: the buddy's own bite is a use of the item, no click on what is looked
+			// at, and the use key goes down only once the bite has begun (22 Oct 2026); in a cellar between chests no safe
+			// place to look at was found and the buddy starved facing one (the scenarios of 23 Oct 2026)
 			if (look.busy() || Wander.busy()) return;
 			int slot = findFood(p);
 			if (slot >= 0) {
@@ -1139,7 +1140,7 @@ public class AfkHelperClient implements ClientModInitializer {
 				Exchange.emit("eat", "action", "start", "item", item, "food", food, "hp", health, "reason", lowHealth ? "life" : "backup");
 				return;
 			}
-			if (foodToHotbar(p, mc())) return;   // next second it is in the hotbar and he simply eats
+			if (foodToHotbar(p, mc())) return;   // next second it is in the hotbar and eating simply follows
 			if (now - lastHungerWarn > 120_000) { lastHungerWarn = now;  Exchange.emit("hunger", "food", food, "hp", health, "food", false); }
 			return;
 		}
@@ -1148,7 +1149,7 @@ public class AfkHelperClient implements ClientModInitializer {
 
 	/**
 	 * No food in the hotbar, but there is in the inventory: fetch one stack to the hotbar, like the lumberjack
-	 * takes his saplings (one SWAP click, no screen open). Without this an account without a screen starved
+	 * takes the saplings (one SWAP click, no screen open). Without this an account without a screen starved
 	 * with an inventory full of steak, because the eating function only searches the hotbar.
 	 */
 	private static String previousInventory = null;
@@ -1197,14 +1198,14 @@ public class AfkHelperClient implements ClientModInitializer {
 	private static final Map<String, Long> lastSwap = new HashMap<>();
 
 	/**
-	 * Fetch something from the backpack to the hotbar with one SWAP click, like the lumberjack takes his
-	 * saplings. Without this he stood around doing nothing with an axe or sword in his backpack as soon as
-	 * his hotbar was full.
+	 * Fetch something from the backpack to the hotbar with one SWAP click, like the lumberjack takes the
+	 * saplings. Without this the buddy stood around doing nothing with an axe or sword in the backpack as soon as
+	 * the hotbar was full.
 	 */
 	static boolean toHotbar(LocalPlayer p, Minecraft mc, java.util.function.Predicate<ItemStack> want,
 			java.util.Comparator<ItemStack> better, String why) {
 		if (mc.gameMode == null || p.containerMenu != p.inventoryMenu) return false;
-		// not in the middle of a bite: the swap took the food out of his hand (the scenarios of 23 Oct 2026)
+		// not in the middle of a bite: the swap took the food out of the hand (the scenarios of 23 Oct 2026)
 		if (isEating() && !"food".equals(why)) return false;
 		long now = System.currentTimeMillis();
 		if (now - lastSwap.getOrDefault(why, 0L) < 10_000) return false;   // if it fails, do not click again every second
@@ -1218,7 +1219,7 @@ public class AfkHelperClient implements ClientModInitializer {
 		// preferably an empty slot; otherwise a slot without a weapon, tool or compass (you still need those)
 		int target = -1;
 		for (int i = 8; i >= 0 && target < 0; i--) if (p.getInventory().getItem(i).isEmpty()) target = i;
-		// food last: it is what he eats from the hotbar
+		// food last: it is what gets eaten from the hotbar
 		for (int pass = 0; pass < 2 && target < 0; pass++) for (int i = 8; i >= 0 && target < 0; i--) {
 			ItemStack st = p.getInventory().getItem(i);
 			if (st.isDamageableItem() || st.getItem() == net.minecraft.world.item.Items.COMPASS) continue;
@@ -1226,7 +1227,7 @@ public class AfkHelperClient implements ClientModInitializer {
 			target = i;
 		}
 		// food never waits for a free slot: with a hotbar of tools alone (six pairs of shears, an axe, a pickaxe, a shovel)
-		// eighty-nine cooked beef lay in his backpack and he starved in his own base (the scenarios of 23 Oct 2026). A second
+		// eighty-nine cooked beef lay in the backpack and the buddy starved inside the base (the scenarios of 23 Oct 2026). A second
 		// one of a kind goes first, then anything but a weapon; it lands in the food's slot in the backpack
 		if (target < 0 && "food".equals(why)) {
 			for (int i = 8; i >= 0 && target < 0; i--) if (moreOf(p, i)) target = i;
@@ -1243,7 +1244,7 @@ public class AfkHelperClient implements ClientModInitializer {
 		return true;
 	}
 
-	/** Another slot of his inventory holds the same item as this one. */
+	/** Another slot of the inventory holds the same item as this one. */
 	private static boolean moreOf(LocalPlayer p, int slot) {
 		ItemStack st = p.getInventory().getItem(slot);
 		if (st.isEmpty()) return false;
@@ -1368,7 +1369,7 @@ public class AfkHelperClient implements ClientModInitializer {
 						c.trusted = names;
 					}
 					case "menuLog" -> c.menuLog = v.getAsBoolean();
-					// the crop the alt plants on its field, from Telegram; a typo would leave the field bare
+					// the crop the buddy plants on the field, from Telegram; a typo would leave the field bare
 					case "wheatCrop" -> {
 						if (WheatFarm.cropNamed(v.getAsString()) == null) { Exchange.emit("error", "msg", "unknown crop " + v.getAsString()); return; }
 						c.wheatCrop = v.getAsString();
@@ -1427,7 +1428,7 @@ public class AfkHelperClient implements ClientModInitializer {
 				Exchange.emit("renderdistance", "chunks", mc().options.renderDistance().get());
 				Details.soon();
 			}
-			// the tree farm's plots and chests, measured where he stands (was /buddy wood scan in his own game)
+			// the tree farm's plots and chests, measured where the buddy stands (was /buddy wood scan in the game itself)
 			case "woodscan" -> { LocalPlayer q = mc().player; if (q == null) Exchange.emit("error", "msg", "woodscan: not in a world"); else { Exchange.emit("woodscan", "text", Lumberjack.scan(q)); } }
 			// what the farms brought in: per running farm, or the one named in "farm" (wheat, crop, mob, raid, wood, pen)
 			case "farmstatus" -> Yield.status(o.has("farm") ? o.get("farm").getAsString() : null);

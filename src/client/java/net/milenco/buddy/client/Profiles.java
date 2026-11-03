@@ -45,7 +45,7 @@ public final class Profiles {
 		public String withCommand = "";
 		/** A command this server does not have: the profile fits only when the server did not send it. */
 		public String withoutCommand = "";
-		/** "accept" or "decline"; a pack the server requires is always taken, or the server would throw him off. */
+		/** "accept" or "decline"; a pack the server requires is always taken, or the server would throw the buddy off. */
 		public String resourcepack = "accept";
 		/** Typed one after the other once the server is joined: the hop from a proxy's lobby, for one. */
 		public List<String> afterJoin = new ArrayList<>();
@@ -59,12 +59,12 @@ public final class Profiles {
 		 * given). The keys are listed in CLAUDE.md, "Server profiles".
 		 */
 		public Map<String, String> texts = new LinkedHashMap<>();
-		/** Dimensions (or the start of their name) that are a game: there the command eventLeave takes him out. */
+		/** Dimensions (or the start of their name) that are a game: there the command eventLeave takes the buddy out. */
 		public List<String> eventDims = new ArrayList<>();
 		/** Dimensions (or the start of their name) where a fall into the void is part of the game (a parkour course). */
 		public List<String> voidOk = new ArrayList<>();
 		/**
-		 * The first tick of a clear night he may lie down when others sleep; 0 is the game's own (12523, the day
+		 * The first tick of a clear night to lie down in when others sleep; 0 is the game's own (12523, the day
 		 * timeline's sky light). A server whose sleep plugin counts a sleeper later says so here (Tweakcraft: 12542).
 		 */
 		public long sleepFrom = 0;
@@ -92,7 +92,7 @@ public final class Profiles {
 	private static String clickAccept, clickFrom;
 	private static long clickAt;
 
-	/** The profile of the server he is on, or an empty one: then every command is missing and every text unknown. */
+	/** The profile of the server the buddy is on, or an empty one: then every command is missing and every text unknown. */
 	static Profile active() {
 		if (active != null) return active;
 		Profile p = byAddress(AfkHelperClient.serverIp());
@@ -213,7 +213,7 @@ public final class Profiles {
 	/** The profile's command for this, filled in; null where the server has none. */
 	static String cmd(String which, String player) { return cmd(which, player, null); }
 
-	/** The first tick of a clear night he lies down when others sleep, on this server ({@link Profile#sleepFrom}). */
+	/** The first tick of a clear night to lie down in when others sleep, on this server ({@link Profile#sleepFrom}). */
 	static long sleepFrom() {
 		long t = active().sleepFrom;
 		return t > 0 ? t : 12523;
@@ -272,7 +272,7 @@ public final class Profiles {
 
 	// ---------- the resource pack ----------
 
-	/** Whether the alt takes a pack the server pushes. A required one always, or the server throws him off. */
+	/** Whether the alt takes a pack the server pushes. A required one always, or the server throws the alt off. */
 	static boolean takePack(boolean required, String ip) {
 		if (required) return true;
 		// while joining there is no current server yet: the address comes with the pack's connection
@@ -286,7 +286,7 @@ public final class Profiles {
 	/**
 	 * A line of chat with a command behind a click. Written to the events, so that a profile for a new server can be
 	 * filled in from what the server really sends; and where the profile has no line for a request to come along,
-	 * a click that accepts something from the player he follows is the request (the server's own button).
+	 * a click that accepts something from the followed player is the request (the server's own button).
 	 */
 	static void clicks(Component msg) {
 		List<String> run = new ArrayList<>();
@@ -303,8 +303,8 @@ public final class Profiles {
 		for (String c : run) {
 			String l = c.toLowerCase(Locale.ROOT);
 			if (l.contains("accept") || l.contains("tpyes") || l.matches(".*\\b(ja|yes)\\b.*")) {
-				// a button with more than its command word has to name him too: "/tpaccept .Steve" (someone whose name
-				// holds his) or "/pay x 1000 yes" is no request of his
+				// a button with more than its command word has to name that player too: "/tpaccept .Steve" (someone whose
+				// name holds the player's) or "/pay x 1000 yes" is no request of that player's
 				if (c.trim().split("\\s+").length > 1 && !names(c, target)) continue;
 				clickAccept = c.startsWith("/") ? c : "/" + c;
 				clickFrom = target;
@@ -325,19 +325,19 @@ public final class Profiles {
 		if (clickAccept == null || from == null || !from.equalsIgnoreCase(clickFrom) || System.currentTimeMillis() - clickAt > 60_000) return null;
 		String c = clickAccept.trim();
 		clickAccept = null;
-		// a bare button ("/tpaccept") takes the newest request: with the name it can only be his (clicks() made sure that
-		// a button with more words names him already)
+		// a bare button ("/tpaccept") takes the newest request: with the name it can only be that player's (clicks() made
+		// sure that a button with more words names the player already)
 		return c.split("\\s+").length == 1 ? c + " " + from : c;
 	}
 
 	// ---------- forgetting ----------
 
 	/**
-	 * Forget what he knows of this server for one player: {@code alles}, {@code kisten} or {@code velden}. Only the
-	 * server he is on: a chest on another server stays.
+	 * Forget what the buddy knows of this server for one player: {@code alles}, {@code kisten} or {@code velden}. Only
+	 * the server the buddy is on: a chest on another server stays.
 	 */
 	static void forget(String what, String owner, String by) {
-		if (owner == null) { Exchange.emit("error", "msg", "the buddy follows nobody: whose memory is to be forgotten?"); return; }
+		if (owner == null) { Exchange.emit("error", "msg", Needs.named("forget: {me} follows nobody, so there is no player to forget for")); return; }
 		boolean all = what == null || what.equals("all");
 		int chests = 0, fields = 0, ovens = 0;
 		boolean home = false, pens = false;

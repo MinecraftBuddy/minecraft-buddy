@@ -3,7 +3,7 @@
 apply plugin: project.loom_plugin
 
 base { archivesName = 'minecraft-buddy-tweakcraft' }
-version = "${project.version}+mc${project.minecraft_version}"
+version = "${project.version}${rootProject.branchBuild}+mc${project.minecraft_version}"
 
 evaluationDependsOn(':')
 

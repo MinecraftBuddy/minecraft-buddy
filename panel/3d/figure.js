@@ -1,10 +1,10 @@
 /**
- * The buddy as the game's inventory screen draws him: his skin and the armour he wears, the body turned a little and the
+ * The buddy as the game's inventory screen draws a player: the skin and the armour worn, the body turned a little and the
  * head looking at the mouse. The player model and the armour model are the game's (HumanoidModel and
  * its armour meshes: the outer layer inflated by one pixel, leggings by half a pixel), drawn orthographic as the game's
  * GUI does; the follow is InventoryScreen's: atan of the mouse's distance over 40 GUI pixels, the body 20 degrees per
- * unit, the head 40 sideways and 20 up and down. And frontView() draws his skin from the front, flat, for the picture
- * beside his name.
+ * unit, the head 40 sideways and 20 up and down. And frontView() draws the skin from the front, flat, for the picture
+ * beside the buddy's name.
  */
 import * as THREE from './three.module.min.js';
 
@@ -23,7 +23,7 @@ function box(geo, w, h, d, u, v, inflate, tw, th, mirror) {
     uv.push(u0, v0, u1, v0, u1, v1, u0, v1);
     idx.push(n, n + 3, n + 2, n, n + 2, n + 1);
   };
-  // the sides of the unwrap: -x (his right), front, +x (his left), back; mirrored (a left limb from a right one) they swap
+  // the sides of the unwrap: -x (the figure's right), front, +x (the figure's left), back; mirrored (a left limb from a right one) they swap
   const R = [[-1, 1, -1], [-1, 1, 1], [-1, -1, 1], [-1, -1, -1]], L = [[1, 1, 1], [1, 1, -1], [1, -1, -1], [1, -1, 1]];
   face(mirror ? L : R, mirror ? u + d + w : u, v + d, d, h, mirror);
   face([[-1, 1, 1], [1, 1, 1], [1, -1, 1], [-1, -1, 1]], u + d, v + d, w, h, mirror);
@@ -163,7 +163,7 @@ export function inventoryFigure(canvas) {
   };
 }
 
-/** His skin from the front, flat, on a 2D canvas 16 by 32 pixels: head and hat, body and jacket, arms, legs. */
+/** The buddy's skin from the front, flat, on a 2D canvas 16 by 32 pixels: head and hat, body and jacket, arms, legs. */
 export function frontView(canvas, img, slim) {
   canvas.width = 16; canvas.height = 32;
   const g = canvas.getContext('2d');
@@ -174,7 +174,7 @@ export function frontView(canvas, img, slim) {
     if (!mirror) { g.drawImage(img, sx, sy, w, h, dx, dy, w, h); return; }
     g.save(); g.translate(dx + w, dy); g.scale(-1, 1); g.drawImage(img, sx, sy, w, h, 0, 0, w, h); g.restore();
   };
-  blit(4, 20, 4, 12, 4, 20);                                 // his right leg
+  blit(4, 20, 4, 12, 4, 20);                                 // the right leg
   if (legacy) blit(4, 20, 4, 12, 8, 20, true); else blit(20, 52, 4, 12, 8, 20);
   blit(20, 20, 8, 12, 4, 8);                                 // body
   blit(44, 20, aw, 12, 4 - aw, 8);                           // right arm

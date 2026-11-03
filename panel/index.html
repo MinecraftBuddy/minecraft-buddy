@@ -260,7 +260,7 @@ box-shadow:inset calc(var(--p)*2) calc(var(--p)*2) 0 #fff,inset calc(var(--p)*-2
 .inv .craft .g2{display:grid;grid-template-columns:repeat(2,var(--v))}
 .inv .arrow{width:calc(var(--p)*14);height:calc(var(--p)*13);background:linear-gradient(90deg,#8b8b8b 0 60%,transparent 60%);clip-path:polygon(0 35%,60% 35%,60% 0,100% 50%,60% 100%,60% 65%,0 65%)}
 .inv .s.res{width:calc(var(--v) + var(--p)*4);height:calc(var(--v) + var(--p)*4)}
-/* a menu open in the game (a chest, /shards): its title, its slots, then his own inventory as in the game's chest screen */
+/* a menu open in the game (a chest, /shards): its title, its slots, then the buddy's own inventory as in the game's chest screen */
 .inv .mhead{display:flex;align-items:center;gap:8px;min-height:calc(var(--p)*9);margin:0 0 calc(var(--p)*2)}
 .inv .mtitle,.inv .mlbl{font-size:max(11px,calc(var(--p)*5));color:#404040;line-height:1.2}
 .inv .mtitle{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -385,14 +385,14 @@ padding:3px 7px 4px;font-size:14px;line-height:1.35;pointer-events:none;text-ali
 .ok-quiet { font-size: 13px; color: var(--muted); padding: 4px 2px; margin: 0; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-/* driving him */
+/* Take control */
 .drive { position: fixed; inset: 0; z-index: 70; background: rgba(8,10,12,.72); display: flex; align-items: center; justify-content: center;
   padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
 .drive .card { width: min(820px, 100%); max-height: 100%; overflow-y: auto; gap: 14px; }
 #pad { position: relative; height: 260px; border-radius: 10px; border: 2px dashed var(--line2); display: flex; align-items: center; justify-content: center;
   text-align: center; padding: 10px; background: #5b7f3e; overflow: hidden; cursor: pointer; user-select: none; touch-action: none; }
-/* his view drawn: sky and ground split at the horizon his pitch puts it at, the angles above and below it, and a compass
-   band with the directions he turns past (padView) */
+/* the buddy's view drawn: sky and ground split at the horizon the pitch puts it at, the angles above and below it, and a
+   compass band with the directions the view turns past (padView) */
 #padsky { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
 #pad .hint, #pad .cross { z-index: 1; }
 #pad.on { border: 2px solid var(--accent); cursor: none; }
@@ -403,7 +403,7 @@ padding:3px 7px 4px;font-size:14px;line-height:1.35;pointer-events:none;text-ali
 #pad .hint { position: relative; max-width: 34em; background: rgba(20,24,28,.86); color: var(--text); border-radius: 8px; padding: 8px 12px; font-size: 13.5px; line-height: 1.7; }
 #pad.on .hint { display: none; }
 #pad[data-look="orbit"] .hint, #pad[data-look="fly"] .hint, #pad[data-look="eyes"] .hint { display: none; }
-/* watching through their eyes (Take control before you click): what you watch and the keys at the top, out of the middle
+/* watching through the buddy's eyes (Take control before you click): what you watch and the keys at the top, out of the middle
    of the view, the keys folded away when asked (kept per browser) */
 .drive.play3d #pad .hint { position: absolute; top: 54px; left: 50%; transform: translateX(-50%); width: max-content; max-width: min(46em, calc(100vw - 340px)); text-align: left; }
 @media (max-width: 900px) { .drive.play3d #pad .hint { top: 120px; max-width: calc(100vw - 24px); } }
@@ -420,7 +420,7 @@ kbd { font: 11px/1 var(--mono); border: 1px solid var(--line3); border-bottom-wi
 .keys { display: grid; grid-template-columns: repeat(3, 58px); gap: 5px; }
 .keys button { height: 38px; padding: 0; border-radius: 6px; border: 1px solid var(--line2); background: var(--raise); }
 .keys button.down { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-/* driving him in the 3D view: the whole screen, the panel's blocks over it when they are asked for */
+/* Take control in the 3D view: the whole screen, the panel's blocks over it when they are asked for */
 .drive.play3d { background: #000; display: block; padding: 0; }
 .drive.play3d > .card { width: 100%; height: 100%; max-height: none; border-radius: 0; border: 0; padding: 0; background: transparent; display: block; position: relative; overflow: hidden; }
 .drive.play3d #pad { position: absolute; inset: 0; height: auto; border: 0; border-radius: 0; background: #78a7ff; }
@@ -640,19 +640,19 @@ dialog#rawdlg td code { word-break: break-all; }
 
   <div class="col colB">
     <section class="card needs" data-pane="map" id="needcard" hidden>
-      <h2>What they are missing</h2>
+      <h2 data-nm="html">What {n} is missing</h2>
       <div id="needs" style="display:flex;flex-direction:column;gap:6px"></div>
     </section>
     <section class="card" data-pane="map">
       <div class="maphead">
         <h2>Map</h2>
-        <span class="note" id="mapnote">128 × 128 blocks around them</span>
+        <span class="note" id="mapnote">128 × 128 blocks</span>
         <span class="seg" id="mapview" role="group" aria-label="Map view"><button data-view="auto">Auto</button><button data-view="surface">Surface</button><button data-view="cave">Cave</button></span>
         <span class="seg" role="group" aria-label="Flat map or 3D" style="margin-left:auto"><button data-dim="2d">2D</button><button data-dim="3d">3D</button></span>
-        <button class="btn small copper" id="drive" title="Play them as in the game: the view through their eyes, the mouse turns them">Take control</button>
+        <button class="btn small copper" id="drive" data-nm title="Watch through {n}'s eyes; a click on the view takes control">Take control</button>
       </div>
       <div class="mapbox" id="mapbox">
-        <canvas id="map" aria-label="Map around the buddy"></canvas>
+        <canvas id="map" data-nm aria-label="Map around {n}"></canvas>
         <div class="map3d" id="map3d" hidden></div>
         <span class="cmp n">N</span><span class="cmp e">E</span><span class="cmp s">S</span><span class="cmp w">W</span>
         <div class="coords" id="coords">–</div>
@@ -660,10 +660,10 @@ dialog#rawdlg td code { word-break: break-all; }
         <div class="zoom">
           <button id="zin" aria-label="Zoom in">+</button>
           <button id="zout" aria-label="Zoom out">−</button>
-          <button id="zctr" aria-label="Keep the map on the buddy"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path></svg></button>
+          <button id="zctr" data-nm aria-label="Keep the map on {n}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path></svg></button>
         </div>
         <div class="pop" id="pop" hidden></div>
-        <button class="btn small copper back" id="back" hidden>Back to them</button>
+        <button class="btn small copper back" id="back" hidden>Back to the buddy</button>
         <div class="empty" id="mapempty">Waiting for the map…</div>
       </div>
       <div class="legend">
@@ -673,10 +673,10 @@ dialog#rawdlg td code { word-break: break-all; }
         <span><i style="background:#fff;border-radius:50%"></i>Player</span>
         <span><i style="background:#fff;transform:rotate(45deg);width:8px;height:8px"></i>NPC</span>
         <span><i style="background:#ff5a4a;border-radius:50%;border:0;width:8px;height:8px"></i>Monster</span>
-        <span class="r" id="hover">Click a spot to send them there, drag to look around</span>
+        <span class="r" id="hover" data-nm="html">Click a spot to send {n} there, drag to look around</span>
       </div>
       <div class="legend" style="margin-top:-4px">
-        <span style="opacity:.8">The dimmed area is what they saw earlier; it updates when they pass by again.</span>
+        <span style="opacity:.8" data-nm="html">Dimmed: what {n} saw earlier. It updates when {n} passes by again.</span>
       </div>
     </section>
 
@@ -689,19 +689,19 @@ dialog#rawdlg td code { word-break: break-all; }
         <div class="side">
           <div id="heldbox"></div>
           <div class="fx" id="fx"></div>
-          <p class="note watchnote">You are watching: this is what they have open, and a click here does nothing in the game.</p>
+          <p class="note watchnote" data-nm="html">You are watching: this is what {n} has open. A click here does nothing in the game.</p>
           <span class="label ctl">Controls</span>
           <ul class="ctl">
-            <li>Click to pick up or put down, right-click to take half or put one</li>
-            <li><kbd>Shift</kbd>-click to move across, double-click to collect a kind</li>
+            <li>Left click to pick up or put down, right click to take half or put one</li>
+            <li><kbd>Shift</kbd> and left click to move across, double click to collect a kind</li>
             <li><kbd>1</kbd>–<kbd>9</kbd> over a slot swaps with the hotbar, <kbd>F</kbd> with the off hand</li>
             <li><kbd>Q</kbd> drops one, <kbd>Ctrl</kbd>+<kbd>Q</kbd> the stack</li>
             <li>Drag a held stack over slots to share it out</li>
             <li>Click outside the window to drop what you hold</li>
-            <li>The wheel over the hotbar picks what they hold</li>
+            <li>The wheel over the hotbar picks a slot</li>
           </ul>
-          <p class="note" id="menuopen" hidden>A menu is open in the game; their inventory shows again when it closes.</p>
-          <p class="note ctl" id="menuhint" hidden>A menu is open in the game. Click in it as you would there: a click on a button does what it does in the game, Close or <kbd>Esc</kbd> shuts it.</p>
+          <p class="note" id="menuopen" data-nm="html" hidden>A menu is open in the game; {n}'s inventory shows again when it closes.</p>
+          <p class="note ctl" id="menuhint" hidden>A menu is open in the game. Click in it as you would there; Close or <kbd>Esc</kbd> shuts it.</p>
         </div>
       </div>
     </section>
@@ -722,8 +722,8 @@ dialog#rawdlg td code { word-break: break-all; }
       <div class="say">
         <div class="cmdtips" id="cmdtips" hidden></div>
         <form id="say">
-          <label for="text" class="sr">Chat as the buddy</label>
-          <input id="text" type="text" maxlength="256" autocomplete="off" placeholder="Chat as the buddy, or type a /command">
+          <label for="text" class="sr" data-nm="html">Chat as {n}</label>
+          <input id="text" type="text" maxlength="256" autocomplete="off" data-nm placeholder="Chat as {n}, or type a /command">
           <button class="btn go" type="submit">Send</button>
         </form>
         <div class="row" id="quick"></div>
@@ -731,7 +731,7 @@ dialog#rawdlg td code { word-break: break-all; }
     </section>
     <section class="card" data-pane="chat">
       <h2>Priorities</h2>
-      <p class="note">They work on the highest item that needs doing; everything below waits.</p>
+      <p class="note" data-nm="html">{N} works on the highest item that needs doing; everything below waits.</p>
       <ol class="chain" id="chain"></ol>
     </section>
     <section class="card probs" data-pane="chat" id="probcard" hidden>
@@ -761,7 +761,7 @@ dialog#rawdlg td code { word-break: break-all; }
     </section>
 
     <section class="card" id="s-game">
-      <div class="shead"><h2>Status</h2><span class="note">How the game on this machine stands: what is installed, the account, the server and whether it runs.</span></div>
+      <div class="shead"><h2>Status</h2><span class="note">What is installed, the account, the server, and whether the game runs.</span></div>
       <div class="tgst" id="gstate"><div><i></i><span>–</span></div></div>
       <div class="row" id="gbtns"></div>
       <div id="gjob"></div>
@@ -776,11 +776,11 @@ dialog#rawdlg td code { word-break: break-all; }
         <div class="row" style="margin-left:auto"><button class="btn" id="leave">Leave server</button><button class="btn go" id="join">Join</button></div>
       </div>
       <div id="sw-conn"></div>
-      <p class="note">Leave disconnects them cleanly. Join reconnects them to the last server.</p>
+      <p class="note" data-nm="html">Leave takes {n} off the server, and {n} stays off until you press Join. Join goes back to the last server. After a kick or a lost connection, {n} joins again automatically in about half a minute, except after logging out when nearly dead.</p>
     </section>
 
     <section class="card" id="s-prof">
-      <div class="shead"><h2>Server profiles</h2><span class="note">Per server: how they join, which commands they use and which server messages they react to. The first profile whose address matches is used.</span></div>
+      <div class="shead"><h2>Server profiles</h2><span class="note">Per server: how to join, which commands to use and which server messages to react to. The first profile whose address matches is used.</span></div>
       <p class="note" id="pnow"></p>
       <div class="profs">
         <div class="plist" id="plist"></div>
@@ -789,7 +789,7 @@ dialog#rawdlg td code { word-break: break-all; }
     </section>
 
     <section class="card" id="s-access">
-      <div class="shead"><h2>Access</h2><span class="note">Who may open this page, and whom they listen to.</span></div>
+      <div class="shead"><h2>Access</h2><span class="note" data-nm="html">Who may open this page, and whom {n} listens to.</span></div>
       <div id="ownerbox">
         <h3 class="tgsub">Password for untrusted IPs</h3>
         <div class="row">
@@ -812,11 +812,11 @@ dialog#rawdlg td code { word-break: break-all; }
       <h3 class="tgsub">Trusted players</h3>
       <div class="tbl"><table><thead><tr><th>Minecraft name</th><th class="tgcol">Telegram user id</th><th></th></tr></thead><tbody id="trusted"></tbody></table></div>
       <div class="row"><button class="btn" id="addtrust">Add</button><span style="flex:1"></span><button class="btn go" id="savetrust">Save</button></div>
-      <p class="note">With a Minecraft name the buddy trusts the player in the game: their taps and private-message commands count, and the buddy accepts their teleport requests and does not stop for them.<span class="tgcol"> With a Telegram user id they may chat as the buddy and give ! commands in Telegram, and "to me" means their Minecraft name. Either may be empty.</span></p>
+      <p class="note" data-nm="html">Minecraft name: that player's taps, private-message commands and teleport requests count.<span class="tgcol"><br>Telegram user id: that person can chat as {n} and give ! commands in Telegram; "to me" means that person's Minecraft name.<br>Either may be empty.</span></p>
     </section>
 
     <section class="card" id="s-tg">
-      <div class="shead"><h2>Telegram</h2><span class="note">They relay in-game chat to a Telegram chat and say whatever you type there; lines starting with ! are commands for them. Saved changes apply within a few seconds.</span></div>
+      <div class="shead"><h2>Telegram</h2><span class="note" data-nm="html">{N}'s game chat goes to a Telegram chat, and what you type there {n} says in the game; a line starting with ! is a command. Changes apply within a few seconds.</span></div>
       <div id="tgmain"></div>
       <div id="tgbody" style="display:flex;flex-direction:column;gap:10px">
         <div class="tgst" id="tgstate"><div><i></i><span>–</span></div></div>
@@ -827,7 +827,7 @@ dialog#rawdlg td code { word-break: break-all; }
     </section>
 
     <section class="card" id="s-sch">
-      <div class="shead"><h2>Schematics</h2><span class="note">Litematica files they can build. Upload one here, then place it on the overview under Build a schematic.</span></div>
+      <div class="shead"><h2>Schematics</h2><span class="note" data-nm="html">Litematica files for {n} to build. Upload one here, then place it on the overview under Build a schematic.</span></div>
       <form class="row" id="upload">
         <input type="file" id="file" accept=".litematic" style="flex:1 1 240px;min-width:0" aria-label="Schematic file">
         <button class="btn go" type="submit">Upload</button>
@@ -850,7 +850,7 @@ dialog#rawdlg td code { word-break: break-all; }
       </form>
       <dialog id="rawdlg" aria-labelledby="rawdlgt">
         <h3 id="rawdlgt">Raw commands</h3>
-        <p class="note">A raw command is one line of JSON that goes to the mod as it is (it reads <code>commands.jsonl</code>). The page's buttons send the same lines. <code>cmd</code> says what to do, the other fields how. What they answer, or what is wrong, shows in Activity. Click Use to put an example in the field, change it, then Send.</p>
+        <p class="note">A raw command is one line of JSON that goes to the mod as it is; the page's buttons send the same lines. <code>cmd</code> says what to do, the other fields how. The answer, or what is wrong, shows in Activity. Click Use to put an example in the field, change it, then Send.</p>
         <div class="tbl"><table><tbody id="rawlist"></tbody></table></div>
         <div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="rawclose">Close</button></div>
       </dialog>
@@ -866,17 +866,17 @@ dialog#rawdlg td code { word-break: break-all; }
 </nav>
 
 <div class="drive play3d" id="driver" hidden>
-  <div class="card" role="dialog" aria-label="Drive the buddy">
-    <div class="row drivebar"><button class="btn small" id="backdrive" title="Hand them back and go to the overview">← Overview</button><h2>Control</h2><span class="w3status" id="w3status">Starting the 3D view…</span>
+  <div class="card" role="dialog" data-nm aria-label="Take control of {n}">
+    <div class="row drivebar"><button class="btn small" id="backdrive" data-nm title="Hand {n} back and go to the overview">← Overview</button><h2>Control</h2><span class="w3status" id="w3status">Starting the 3D view…</span>
       <span class="seg" role="group" aria-label="View" style="margin-left:auto"><button data-look="drive" data-nm title="{N}'s own view: you watch, and a click on the view takes control">Play</button><button data-look="orbit" data-nm="html" title="Drag to turn around {n}, scroll to zoom. {N} stands still.">Around {n}</button><button data-look="fly" data-nm title="Click the view, then W A S D, Space and Shift. {N} stands still.">Fly</button></span>
       <span class="seg" role="group" aria-label="Brightness"><button data-light="game" title="As bright as the game by default: caves are dark">Game</button><button data-light="bright" title="The game's Brightness at its brightest">Bright</button><button data-light="full" title="As with Night Vision: you see into dark caves">Full</button></span>
       <button class="btn small" id="obpeek" aria-pressed="true" hidden>Plan</button><button class="btn small" id="invpeek" aria-pressed="false">Inventory</button><button class="btn small" id="closedrive">Done</button></div>
-    <div id="pad" tabindex="0"><canvas id="w3view" aria-label="The world around them in 3D"></canvas><canvas id="padsky" aria-hidden="true"></canvas><div class="cross"></div><div class="hint" id="padhint">
+    <div id="pad" tabindex="0"><canvas id="w3view" data-nm aria-label="The world around {n} in 3D"></canvas><canvas id="padsky" aria-hidden="true"></canvas><div class="cross"></div><div class="hint" id="padhint">
       <div class="watchline"><b id="watchline">Watching</b><button type="button" class="btn small ghost" id="keystoggle">Hide keys</button></div>
       <div class="keyhelp"><span id="watchhow">Click the view to take control.</span> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk,
-      the mouse turns them, <kbd>Space</kbd> jumps, <kbd>Shift</kbd> sneaks, <kbd>R</kbd> sprints, the left button hits or breaks, the right button uses,
-      <kbd>1</kbd>–<kbd>9</kbd> or the wheel pick a hotbar slot, <kbd>Q</kbd> drops, <kbd>F</kbd> swaps hands, <kbd>E</kbd> the inventory,
-      <kbd>T</kbd> or <kbd>/</kbd> the chat, <kbd>Tab</kbd> who is online, <kbd>F5</kbd> the camera. <kbd>Esc</kbd> gives them back and you watch again.</div></div></div>
+      mouse looks, <kbd>Space</kbd> jumps, <kbd>Shift</kbd> sneaks, <kbd>R</kbd> sprints, left click hits or breaks, right click uses,
+      <kbd>1</kbd>–<kbd>9</kbd> or wheel picks a slot, <kbd>Q</kbd> drops, <kbd>F</kbd> swaps hands, <kbd>E</kbd> inventory,
+      <kbd>T</kbd> or <kbd>/</kbd> chat, <kbd>Tab</kbd> player list, <kbd>F5</kbd> camera. <kbd>Esc</kbd> stops.</div></div></div>
     <div id="w3hover" class="card w3hover"></div>
     <div class="fireov" id="fireov" hidden></div>
     <div class="playhud" id="phud"></div>
@@ -902,7 +902,7 @@ dialog#rawdlg td code { word-break: break-all; }
         <div>Looking at <b id="slook">–</b></div>
       </div>
     </div>
-    <p class="note drivenote">While you are in control nothing else moves them. When you stop, they resume what they were doing.</p>
+    <p class="note drivenote" data-nm="html">While you are in control, nothing else moves {n}. When you stop, {n} carries on as before.</p>
   </div>
 </div>
 
@@ -910,7 +910,7 @@ dialog#rawdlg td code { word-break: break-all; }
   <h3 id="matdlgt">Material list</h3>
   <p class="note" id="matnote"></p>
   <div class="row"><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="matmissing"> Only what is still missing</label></div>
-  <div class="tbl matlist"><table><thead><tr><th>Item</th><th class="n">Total</th><th class="n">Missing</th><th class="n">They carry</th><th class="n">In chests</th><th>Ignore</th></tr></thead><tbody id="matlist"></tbody></table></div>
+  <div class="tbl matlist"><table><thead><tr><th>Item</th><th class="n">Total</th><th class="n">Missing</th><th class="n">Carried</th><th class="n">In chests</th><th>Ignore</th></tr></thead><tbody id="matlist"></tbody></table></div>
   <div class="row" style="justify-content:flex-end"><button type="button" class="btn ghost" id="matrefresh">Count again</button><button type="button" class="btn" id="matclose">Close</button></div>
 </dialog>
 <div id="cursor"></div>
@@ -949,6 +949,10 @@ function nmFill() {
   }
 }
 nmFill();
+/* game time as on a clock (18:32) and the game's ticks: tick 0 is 06:00, 1000 ticks an hour. Both round up, so that a
+   time shown or typed is never earlier than the tick: a bed tried before the server allows it is refused. */
+function tickClock(t) { const all = Math.ceil(((t / 1000 + 6) % 24) * 60 - 1e-6) % 1440; return String(Math.floor(all / 60)).padStart(2, '0') + ':' + String(all % 60).padStart(2, '0'); }
+function clockTick(c) { const m = /^(\d{1,2})[:.](\d{2})$/.exec(String(c).trim()); if (!m || +m[1] > 23 || +m[2] > 59) return null; return Math.ceil((((+m[1] - 6 + 24) % 24) + +m[2] / 60) * 1000 - 1e-6) % 24000; }
 function note(t) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 3500); }
 async function cmd(c, done) { try { await post('/api/command', {command: c}); if (done) note(done); quick(); } catch (e) { note('Not sent: ' + e.message); } }
 const cap = s => String(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -972,33 +976,33 @@ function facing(yaw) {
   return d[((Math.round(yaw / 45) % 8) + 8) % 8];
 }
 
-/* ---------- what he does, in words ---------- */
+/* ---------- what the buddy does, in words ---------- */
 function doingText(s) {
-  const f = s.follows || 'the one they follow', b = s.base ? s.base + "'s base" : 'the base';
+  const f = s.follows || 'a player', b = s.base ? s.base + "'s base" : 'the base';
   if (s.doing === 'idle' && s.mode === 'base') return 'Tending ' + b + ', nothing to do right now';
   if (s.doing === 'farm mobs' && s.pen) return 'Farming mobs at ' + s.pen.x1 + ' ' + s.pen.y + ' ' + s.pen.z1;
   return ({idle: 'Idle', 'with player': 'Standing by ' + f, follow: 'Following ' + f, search: 'Looking for ' + f, base: 'Tending ' + b,
     work: 'Working alongside ' + f, fight: 'Fighting', creeper: 'Dealing with a swelling creeper', 'corpse guard': "Collecting a dead player's things", 'farm mobs': 'Farming mobs at a pen', 'take cover': 'Taking cover', carrier: 'Taking things home', renew: 'Going home to make a new tool',
     sleep: 'Sleeping', ride: 'Riding', stay: 'Staying put', air: 'Coming up for air', 'get loose': 'Getting unstuck', 'put out fire': 'Putting out a fire',
     'open door': 'Opening a door', chest: 'At a chest', furnace: 'At a furnace', chore: 'Doing a chore', 'panel steers': 'Driven from this page',
-    panel: 'Waiting while you use their inventory', goto: 'Walking to a spot', unload: 'Unloading', tap: 'Answering a tap', answer: 'Answering a sign',
+    panel: 'Waiting while you use the inventory', goto: 'Walking to a spot', unload: 'Unloading', tap: 'Answering a tap', answer: 'Answering a sign',
     obtain: s.obtain && s.obtain.on ? 'Fetching ' + s.obtain.count + ' ' + obName(s.obtain.item) : 'Fetching an order', flee: 'Fleeing a fight that cannot be won',
     alto: 'Kept safe by Soprano', watch: 'Order done, waiting', afk: 'Waiting in the AFK zone', tpahere: 'Answering a teleport request', test: 'Running a test'})[s.doing] || first(s.doing || 'idle');
 }
-/* the order his steps get the tick in (Follow.tick, and this page's own jobs), with what wakes each */
+/* the order the buddy's steps get the tick in (Follow.tick, and this page's own jobs), with what wakes each */
 const CHAIN = [
   ['Stay safe', ['air', 'put out fire', 'get loose', 'open door', 'creeper'], 'air, fire, stuck, a creeper'],
   ['Your instructions', ['panel steers', 'panel', 'goto', 'tap', 'answer', 'tpahere', 'test'], 'a walk, a tap, driving'],
-  ['Fight', ['fight', 'flee'], 'a monster near them'],
+  ['Fight', ['fight', 'flee'], 'a monster nearby'],
   ['Fetch an order', ['obtain', 'watch'], 'an item ordered under Obtain items'],
   ["Save a player's things", ['corpse guard'], 'after a death nearby'],
   ['Farm mobs', ['farm mobs'], 'a bare-hand punch on a mob in a pen'],
-  ['Take cover', ['take cover'], 'shot at from a pit where they stay'],
+  ['Take cover', ['take cover'], 'shot at while staying put'],
   ['Bring things home', ['carrier', 'unload', 'renew'], 'a full inventory, a worn tool'],
   ['Tend the base', ['base', 'chest', 'furnace', 'chore'], 'fields, furnaces, chests'],
   ['Sleep', ['sleep'], 'at nightfall'],
   ['Help you work', ['work'], 'when you mine or chop'],
-  ['Follow', ['with player', 'follow', 'search', 'stay', 'ride'], 'the one they follow'],
+  ['Follow', ['with player', 'follow', 'search', 'stay', 'ride'], 'a player to follow'],
 ];
 function chain(s) {
   const at = CHAIN.findIndex(c => c[1].includes(s.doing));
@@ -1011,57 +1015,57 @@ function chain(s) {
 /* ---------- the modes and their switches ---------- */
 const SW = {
   base: [['baseHarvest', 'Harvest fields', 'harvests ripe crops and replants'], ['baseFurnaces', 'Run furnaces', 'fuels, loads and empties them'],
-    ['baseStore', 'Store in chests', 'puts what they carry in the base chests'], ['baseFight', 'Fight monsters', 'fights hostile mobs in the base'],
+    ['baseStore', 'Store in chests', 'puts what {n} carries in the base chests'], ['baseFight', 'Fight monsters', 'fights hostile mobs in the base'],
     ['baseSleep', 'Sleep at night', 'sleeps in the base bed'], ['baseSleepOthers', 'Only when others sleep', 'goes to bed only once another player does'],
     ['baseShear', 'Shear sheep', 'shears the sheep in the pens and picks up the wool'], ['baseHerd', 'Herd strays', 'lures escaped animals back into their pen'],
-    ['basePenGates', 'Use pen gates', 'off: they climb over carpeted fences instead of opening gates (herding needs this on)'],
+    ['basePenGates', 'Use pen gates', 'off: {n} climbs over carpeted fences instead of opening gates (herding needs this on)'],
     ['baseRenew', 'Renew worn gear', 'crafts a new iron tool or armour piece from spare iron when one is nearly broken']],
-  /* amounts (Modes in the mod): what he leaves of iron and gold when he makes something of them, in ingots, a block nine */
-  baseNum: [['keepIron', 'Leave iron', 'iron ingots they always keep; tools, armour, shears and shields only from the rest'],
-    ['keepGold', 'Leave gold', 'gold ingots they always keep; golden apples (8 ingots each) only from the rest']],
+  /* amounts (Modes in the mod): what the buddy leaves of iron and gold when making something of them, in ingots, a block nine */
+  baseNum: [['keepIron', 'Leave iron', 'iron ingots {n} always keeps; tools, armour, shears and shields only from the rest'],
+    ['keepGold', 'Leave gold', 'gold ingots {n} always keeps; golden apples (8 ingots each) only from the rest']],
   follow: [['assistDig', 'Mine with you', 'joins in when you dig'], ['assistChop', 'Chop with you', 'joins in when you chop trees'],
     ['assistFarm', 'Farm with you', 'joins in when you harvest'], ['followGuard', 'Guard you', 'fights mobs that attack you'],
-    ['followGuardPlayers', 'Guard against players', 'fights players who attack you or the buddy, and players you attack'],
+    ['followGuardPlayers', 'Guard against players', 'fights players who attack you or {n}, and players you attack'],
     ['followCarry', 'Pick up your drops', 'and guards your items after you die'],
     ['followMobFarm', 'Farm mobs', ''], ['pathDig', 'Dig when blocked', 'only when there is no other way, never near a base'],
-    ['pathPlace', 'Bridge and pillar', 'with dirt, cobblestone or netherrack from their inventory'],
+    ['pathPlace', 'Bridge and pillar', 'with dirt, cobblestone or netherrack from the inventory'],
     // Crouch is an option of Follow a player too
-    ['crouchAlong', 'Crouch', 'crouches when you crouch next to them, until you crouch again']],
+    ['crouchAlong', 'Crouch', 'crouches when you crouch next to {n}, until you crouch again']],
   conn: [['stayOffline', 'Reconnect automatically', 'Rejoins after a kick, a server restart or a game restart.', true]],
   // AFK is a mode of its own on the overview: AFK is standing still and doing nothing, Look around is looking at players,
   // Walk about is moving now and then (how many blocks can be set) so that a server's anti-AFK check does not step in
   afk: [['lookAround', 'Look around', 'looks at players who come close'],
-    ['wander', 'Walk about', 'now and then a few steps and back, so that an AFK check of the server sees them move'],
+    ['wander', 'Walk about', 'now and then a few steps and back, so that the server\'s AFK check sees movement'],
     ['afkCrouch', 'Stay crouched', 'on the ground']],
   afkNum: [['wanderMaxBlocks', 'Blocks per step', 'how far a walk about goes each way, 1 to 8', 1, 8],
     ['wanderEveryMin', 'Every', 'minutes between two walks, on average', 1, 60]],
-  log: [['menuLog', 'Record menus and screens', 'writes every menu a server opens (menus.jsonl) and everything they are sent (recording.jsonl)']],
+  log: [['menuLog', 'Record menus and screens', 'writes every menu a server opens (menus.jsonl) and everything the server sends (recording.jsonl)']],
 };
 /* how a mode or switch is set in the game, behind a ? (for Tend the base: the base is set by hitting a bed with an empty
    hand while the buddy is near) */
 const TIPS = {
-  base: 'Their base is the bed you tap: with them within six blocks, hit a bed with an empty hand and let go within a second. They walk there and set it as their home. ' +
-    'They tend the base (fields, furnaces, chests, sleeping) while they follow nobody, or when you tell them to stay in it: look at them and crouch twice.',
-  follow: 'In the game: look at them and crouch twice quickly, with empty hands or a tool. They follow you; the same sign again and they stay where they are. ' +
-    'Only trusted players (Settings, Access) can do this. Tap a block with a bare hand to give them a job: stone or ore to mine, a log to chop, a field, a furnace.',
-  afk: 'They stay where they are and do nothing else, for instance to keep the chunks around them loaded (a farm only runs near a player). They accept a teleport request from a trusted player. Switching to another mode ends it.',
+  base: 'Set the base: with {n} within six blocks, tap a bed with an empty hand. {N} walks there and makes it home, and tends the base (fields, furnaces, chests, sleep) ' +
+    'when following nobody or when told to stay: look at {n} and crouch twice.',
+  follow: 'In the game: look at {n} and crouch twice quickly, with empty hands or a tool. {N} follows you; the same sign again and {n} stays put. ' +
+    'Only trusted players (Settings, Access) can do this. Tap a block with a bare hand to give {n} a job: stone or ore to mine, a log to chop, a field, a furnace.',
+  afk: '{N} stays put and does nothing else, for example to keep a farm\'s chunks loaded. Teleport requests from trusted players are accepted. Another mode ends it.',
   obtain: 'Pick an item and how many, then Fetch. The item comes from the base chests, or is gathered, crafted and smelted with every step in between (a better pickaxe, a furnace, fuel). ' +
     'Following stops while the order runs. When done, the items go to the player named; with nobody named they stay in the bag. Safety first: a hole in the ground at night or when hurt, and an order is given up rather than risk dying.',
   // where a schematic is uploaded, not how one is made
-  build: 'Upload a .litematic file in Settings, Schematics. Place it here (the circle opens this card), then press Confirm switch: they build the placed schematic nearest to them, with what they carry and the chests near where they stand.',
-  place: 'The schematic\'s start block lands on the spot you choose: the block they stand in, or x y z. Turning and mirroring go around it. ' +
+  build: 'Upload a .litematic file in Settings, Schematics. Place it here (the circle opens this card), then press Confirm switch: {n} builds the nearest placed schematic, with what {n} carries and the chests nearby.',
+  place: 'The schematic\'s start block lands on the spot you choose: the block {n} stands in, or x y z. Turning and mirroring go around it. ' +
     'For a file saved with Litematica it is the corner with the lowest x, y and z, unless whoever saved it chose another. A placed schematic is only a plan: nothing is built until you confirm the switch to Build a schematic.',
-  materials: 'What the schematic takes, item by item, as Litematica counts it: in all, what is still missing where the schematic is loaded, what they carry and what the chests they build from held. ' +
-    'Ignore an item and they leave its blocks out, as with Litematica.',
-  followMobFarm: 'While they follow you, punch a monster in the pen of your mob farm with your bare hand, within six blocks of them. They walk to its edge and kill what comes in. Crouch twice near them to stop.',
+  materials: 'What the schematic takes, item by item, as Litematica counts it: in all, what is still missing where the schematic is loaded, what {n} carries and what the chests used for building held. ' +
+    'Ignore an item and {n} leaves its blocks out, as Litematica does.',
+  followMobFarm: 'While {n} follows you, punch a monster in your mob farm\'s pen with a bare hand, within six blocks of {n}. {N} walks to the pen\'s edge and kills what comes in. Crouch twice near {n} to stop.',
 };
-const help = k => TIPS[k] ? '<span class="help" tabindex="0" role="note" aria-label="' + esc(TIPS[k]) + '">?<span class="tip">' + esc(TIPS[k]) + '</span></span>' : '';
-const numHtml = (s, list) => list.map(([k, name, how, lo = 0, hi = 10000]) => '<label class="num"><span class="tx"><b>' + esc(name) + '</b><span>' + esc(how) + '</span></span>' +
+const help = k => TIPS[k] ? (t => '<span class="help" tabindex="0" role="note" aria-label="' + esc(t) + '">?<span class="tip">' + esc(t) + '</span></span>')(nm(TIPS[k])) : '';
+const numHtml = (s, list) => list.map(([k, name, how, lo = 0, hi = 10000]) => '<label class="num"><span class="tx"><b>' + esc(name) + '</b><span>' + esc(nm(how)) + '</span></span>' +
   '<input type="number" min="' + lo + '" max="' + hi + '" step="1" inputmode="numeric" data-num="' + k + '" value="' + esc(String(s.settings && s.settings[k] !== undefined ? s.settings[k] : '')) + '"' +
    ' aria-label="' + esc(name) + '"></label>').join('');
 // a fourth element true: the switch shows the setting the other way round (Reconnect automatically is stayOffline off)
 const swHtml = (s, list, wide) => list.map(([k, name, how, inv]) => '<button type="button" class="sw' + (wide ? ' wide' : '') + '" role="switch" aria-checked="' +
-  (!!(s.settings && s.settings[k]) !== !!inv ? 'true' : 'false') + '" data-set="' + k + '"' + (inv ? ' data-inv="1"' : '') + '><span class="tx"><b>' + esc(name) + help(k) + '</b>' + (how ? '<span>' + esc(how) + '</span>' : '') + '</span><span class="track"></span></button>').join('');
+  (!!(s.settings && s.settings[k]) !== !!inv ? 'true' : 'false') + '" data-set="' + k + '"' + (inv ? ' data-inv="1"' : '') + '><span class="tx"><b>' + esc(name) + help(k) + '</b>' + (how ? '<span>' + esc(nm(how)) + '</span>' : '') + '</span><span class="track"></span></button>').join('');
 let lastBuild = '', modeKey = '';
 let MPICK = ''; // the mode opened with its circle and not switched to yet
 function bedText() {
@@ -1078,7 +1082,7 @@ async function schList() {
   try { const j = await (await fetch('/api/schematics')).json(); const names = (j.files || []).map(f => f.name); if (JSON.stringify(names) !== JSON.stringify(SCH)) { SCH = names; if (S) modes(S); } } catch (e) {}
 }
 function buildLine(s) {
-  if (s.litematica === false) return 'Litematica is missing in their game';
+  if (s.litematica === false) return nm('Litematica is missing in {n}\'s game');
   const pl = s.placements || [];
   if (!pl.length) return SCH.length ? SCH.length + (SCH.length === 1 ? ' schematic' : ' schematics') + ' uploaded, none placed: open this card to place one' : 'No schematic uploaded yet';
   const o = xyz(pl[0].origin);
@@ -1092,7 +1096,7 @@ function placeFormHtml(s) {
   const opt = (v, t, cur) => '<option value="' + esc(v) + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + esc(t) + '</option>';
   return '<div class="pform"><div class="plchead"><b>Place a schematic' + help('place') + '</b></div>' +
     '<label class="pfrow">File <select data-pf="file" aria-label="Schematic file">' + SCH.map(f => opt(f, f.replace(/\.litematic$/, ''), PF.file)).join('') + '</select></label>' +
-    '<div class="pfrow"><span>Start block</span><label><input type="radio" name="pfwhere" value="here" data-pf="where"' + (PF.where === 'here' ? ' checked' : '') + '> where they stand</label>' +
+    '<div class="pfrow"><span>Start block</span><label><input type="radio" name="pfwhere" value="here" data-pf="where"' + (PF.where === 'here' ? ' checked' : '') + '> ' + nm('where {n} stands') + '</label>' +
     '<label><input type="radio" name="pfwhere" value="xyz" data-pf="where"' + (PF.where === 'xyz' ? ' checked' : '') + '> at x y z</label></div>' +
     (PF.where === 'xyz' ? '<div class="plcxyz">' + ['x', 'y', 'z'].map(k => '<label>' + k + ' <input type="number" step="1" inputmode="numeric" data-pf="' + k + '" value="' + esc(PF[k]) + '" aria-label="Start block ' + k + '"></label>').join('') + '</div>' : '') +
     '<div class="pfrow"><label>Turn <select data-pf="rot">' + [['0', 'none'], ['90', '90° clockwise'], ['180', '180°'], ['270', '90° counter-clockwise']].map(([v, t]) => opt(v, t, PF.rot)).join('') + '</select></label>' +
@@ -1100,7 +1104,7 @@ function placeFormHtml(s) {
     '<div class="plcbtns"><button class="btn small go" data-placego>Place</button></div></div>';
 }
 function placementsHtml(s) {
-  if (s.litematica === false) return '<p class="note plcnote">Litematica is not in their game, so they cannot build a schematic.</p>';
+  if (s.litematica === false) return '<p class="note plcnote">' + nm('Litematica is missing in {n}\'s game, so schematics cannot be built.') + '</p>';
   const pl = s.placements || [];
   if (!pl.length) return '';
   return pl.map((p, i) => {
@@ -1116,8 +1120,8 @@ function placementsHtml(s) {
       (p.locked ? '<p class="note">Locked in Litematica, so it cannot be moved from here.</p>' :
         '<div class="plcxyz">' + (o ? num('x', o.x) + num('y', o.y) + num('z', o.z) : num('x') + num('y') + num('z')) + '</div>' +
         '<div class="plcrow"><button class="btn small" data-move="' + n + '" data-i="' + i + '">Move here</button>' +
-        '<button class="btn small ghost" data-movehere="' + n + '" title="The start block to the block they stand in">To where they stand</button></div>') +
-      '<div class="plcbtns"><button class="btn small ghost" data-mats="' + n + '" title="' + esc(TIPS.materials) + '">Material list</button>' +
+        '<button class="btn small ghost" data-movehere="' + n + '" title="' + esc(nm('Move the start block to the block {n} stands in')) + '">' + esc(nm('To where {n} stands')) + '</button></div>') +
+      '<div class="plcbtns"><button class="btn small ghost" data-mats="' + n + '" title="' + esc(nm(TIPS.materials)) + '">Material list</button>' +
       '<button class="btn small ghost" data-plremove="' + n + '">Remove</button></div>' +
       '</div>';
   }).join('');
@@ -1150,12 +1154,12 @@ function modes(s) {
   $('modes').innerHTML =
     block(m === 'afk', 'AFK', '<span>Stays put and does nothing else</span>', '', swHtml(s, SW.afk) + numHtml(s, SW.afkNum), 'afk') +
     block(m === 'base', 'Tend the base', '<span>' + esc(bedText()) + '</span>', '', swHtml(s, SW.base) + numHtml(s, SW.baseNum), 'base') +
-    // the name stays a field while he follows, so another player is one click away, and the button is Stop following
+    // the name stays a field while following, so another player is one click away, and the button is Stop following
     block(following, 'Follow a player', '<input id="who" list="names" placeholder="player name" value="' + esc((following && s.follows) || known[0] || '') + '" aria-label="Player to follow">' +
         '<datalist id="names">' + known.map(n => '<option value="' + esc(n) + '">').join('') + '</datalist>' +
-        (m === 'stay' ? '<span>Staying put: Follow sends them after the player again</span>' : '') +
+        (m === 'stay' ? '<span>' + esc(nm('Staying put: Follow sends {n} after the player again')) + '</span>' : '') +
         (pen ? '<span>' + esc('Farming mobs at ' + pen.x1 + ' ' + pen.y + ' ' + pen.z1 + ' · ' + pen.killed + ' killed') + '</span>' : ''),
-      // while they follow, one button: Stop following for the name in the field, Follow when they stay put or another name is typed
+      // while following, one button: Stop following for the name in the field, Follow when staying put or another name is typed
       '<button class="btn small ghost" data-mode="follow" id="fgo">Follow</button><button class="btn small ghost" data-follow-stop id="fstop">Stop following</button>',
       swHtml(s, SW.follow), 'follow') +
     block(m === 'build', 'Build a schematic', '<span>' + esc(m === 'build' && lastBuild ? lastBuild : buildLine(s)) + '</span>', '',
@@ -1185,14 +1189,14 @@ async function obtainItems() {
 function obList() {
   const box = $('ob-list'); if (!box) return;
   if (OB === null) { box.innerHTML = '<span class="obprog" style="padding:6px 8px">Loading the list</span>'; obtainItems().then(obList); return; }
-  if (!OB.length) { box.innerHTML = '<span class="obprog" style="padding:6px 8px">The list comes once the buddy has been in the game</span>'; return; }
+  if (!OB.length) { box.innerHTML = '<span class="obprog" style="padding:6px 8px">' + esc(nm('The list comes once {n} has been in the game')) + '</span>'; return; }
   const words = obQ.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const hit = OB.filter(id => { const n = (obName(id) + ' ' + id.replace(/_/g, ' ')).toLowerCase(); return words.every(w => n.includes(w)); });
   hit.sort((a, b) => (obName(a).toLowerCase().startsWith(words[0] || '') ? 0 : 1) - (obName(b).toLowerCase().startsWith(words[0] || '') ? 0 : 1) || obName(a).localeCompare(obName(b)));
   box.innerHTML = hit.slice(0, 80).map(id => '<button type="button" role="option" data-obpick="' + esc(id) + '"' + (id === obPick ? ' class="sel" aria-selected="true"' : '') + '>' +
     (ICONS[id] ? '<img src="' + icon(id) + '" alt="">' : '<span class="noimg"></span>') + '<span>' + esc(obName(id)) + '</span><span class="id">' + esc(id) + '</span></button>').join('') +
     (hit.length > 80 ? '<span class="obprog" style="padding:4px 8px">' + (hit.length - 80) + ' more: search on</span>' : '') +
-    (hit.length ? '' : '<span class="obprog" style="padding:6px 8px">Nothing they know a way to</span>');
+    (hit.length ? '' : '<span class="obprog" style="padding:6px 8px">' + esc(nm('Nothing {n} knows a way to')) + '</span>');
 }
 const obAgo = s => s < 90 ? s + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h';
 /* an order's step and what Soprano does now, in its own words; the lines with their times are in the Activity tab,
@@ -1369,7 +1373,7 @@ document.addEventListener('change', ev => {
   const k = el.dataset.pf;
   if (k === 'where') {
     PF.where = el.value;
-    // at x y z starts where they stand, to change from there
+    // at x y z starts where the buddy stands, to change from there
     if (PF.where === 'xyz' && S && String(PF.x).trim() === '') { PF.x = S.x; PF.y = S.y; PF.z = S.z; }
     el.blur(); modeKey = ''; if (S) modes(S);
   } else PF[k] = el.value;
@@ -1501,7 +1505,7 @@ const MENU_KIND = {'minecraft:furnace': 'Furnace', 'minecraft:blast_furnace': 'B
   'minecraft:anvil': 'Anvil', 'minecraft:crafting': 'Crafting', 'minecraft:hopper': 'Hopper', 'minecraft:shulker_box': 'Shulker Box',
   'minecraft:generic_3x3': 'Dispenser', 'minecraft:brewing_stand': 'Brewing Stand', 'minecraft:merchant': 'Trading', 'minecraft:enchantment': 'Enchant'};
 /* A menu open in the game, shown on the page so that its items can be clicked: as the game's chest screen, its title, its
-   slots and his own 36 below. The slots are the menu's own numbers, so a click goes to the menu with its id
+   slots and the buddy's own 36 below. The slots are the menu's own numbers, so a click goes to the menu with its id
    (Details.inventory). */
 /* ---------- the game's own screens (villagers, anvils, smithing tables and the rest). Each slot stands where the game puts
    it (the menu's pos), on the screen's own background, and what the screen shows besides (MenuExtra in the mod: a furnace's
@@ -1653,7 +1657,7 @@ function screenExtras(s, m, sc) {
   }
   return h;
 }
-/* the lectern: the book's page, the arrows and Take Book, as its screen has them (its menu has no slots of his) */
+/* the lectern: the book's page, the arrows and Take Book, as its screen has them (its menu has none of the buddy's slots) */
 /* a lectern, as the game draws it: its book texture, the page with its number, the arrows, Take Book and Done */
 function lecternView(s, m) {
   const e = m.extra || {}, book = e.book || {}, pages = book.pages || [], n = e.page || 0;
@@ -1715,7 +1719,7 @@ function inventory(s) {
   MENU = s.menu || null;
   if (MENU) return menuView(s);
   BY = {}; for (const v of s.slots || []) BY[v.slot] = v;
-  // as the game's inventory screen: armour, the player with the off hand beside him, the 2x2 crafting grid and its result
+  // as the game's inventory screen: armour, the player figure with the off hand beside it, the 2x2 crafting grid and its result
   let h = '<div class="top"><div class="armour">';
   for (const [k, g] of [[39, 'helmet'], [38, 'chestplate'], [37, 'leggings'], [36, 'boots']]) h += slot(k, BY[k], g);
   h += '</div><div class="pop2">' + (!s.me && ICONS._player ? '<img src="' + icon('_player') + '" alt="">' : '') + '</div>';
@@ -1748,10 +1752,10 @@ document.addEventListener('mousemove', ev => {
   const t = $('tip');
   if (t.style.display === 'block') { t.style.left = Math.min(mouse.x + 14, innerWidth - t.offsetWidth - 6) + 'px'; t.style.top = Math.max(6, mouse.y - t.offsetHeight - 10) + 'px'; }
 });
-/* what is on the cursor follows the mouse only where it is yours: in Take control while you play them with their inventory
-   open, as in the game, and in the overview after a click of your own in their inventory. What they or someone else
-   playing them hold on the cursor stays in "On the cursor". The mark waits two seconds for the click to come back in their
-   state. */
+/* what is on the cursor follows the mouse only where it is yours: in Take control while you play the buddy with the
+   inventory open, as in the game, and in the overview after a click of your own in the inventory. What the buddy, or
+   someone else playing the buddy, holds on the cursor stays in "On the cursor". The mark waits two seconds for the click
+   to come back in the state. */
 let carryMine = false, carryClickAt = 0;
 function cursor() {
   const c = S && S.carried, el = $('cursor');
@@ -1794,9 +1798,9 @@ async function inv(body) {
    the mouse gets no click (the Close button over the 3D view did nothing, 31 Oct 2026) */
 let invHtml = '';
 function setInv(h) { if (h !== invHtml) { invHtml = h; $('inv').innerHTML = h; } placeFig(); }
-/* ---------- himself: in the inventory as the game draws him, his head after the mouse, and beside his name (the buddy's
-   skin, without armour, at the icon at the top left). The state's me (0.4.164) has his skin's address, slim
-   arms and his armour's equipment assets; the default skins and the armour's pictures come from the game's jar. ---------- */
+/* ---------- the buddy's own figure: in the inventory as the game draws it, the head after the mouse, and beside the name
+   (the buddy's skin, without armour, at the icon at the top left). The state's me (0.4.164) has the skin's address, slim
+   arms and the armour's equipment assets; the default skins and the armour's pictures come from the game's jar. ---------- */
 let FIG = null, FIGmod = null, figCanvas = null, figKey = '', faceKey = '';
 const figModule = () => FIGmod || (FIGmod = import('/3d/figure.js'));
 const skinHash = me => ((me && me.skin || '').match(/\/texture\/([0-9a-f]{20,80})$/) || [])[1];
@@ -1804,7 +1808,7 @@ const gamePath = p => String(p || '').replace(/^minecraft:/, '').replace(/^textu
 async function skinUrl(me) {
   const h = skinHash(me);
   if (h) return '/api/skin?h=' + h;
-  // a built-in skin (a server in offline mode shows no one's own): his account's own skin from Mojang, by his name
+  // a built-in skin (a server in offline mode shows no one's own): the account's own skin from Mojang, by its name
   try { const a = await (await fetch('/api/account-skin')).json(); if (a.hash) { me.slim = a.slim; return '/api/skin?h=' + a.hash; } } catch (e) { }
   if (!me || !me.skin_default) return null;
   const n = gamePath(me.skin_default), w3 = await import('/3d/world3d.js');
@@ -1912,7 +1916,7 @@ document.addEventListener('mouseup', ev => {
 });
 /* a click outside the window with something on the cursor throws it, as in the game; in Take control too, where the
    world around the window is the 3D view (that click shut the inventory, which put the item back). In the overview only
-   what you picked up yourself: a click on the page threw what they held while they or someone else played them. */
+   what you picked up yourself: a click on the page threw what the buddy held while the buddy worked or someone else played. */
 let threwAt = 0;
 document.addEventListener('mousedown', ev => {
   if (!S || !S.carried || ev.target.closest('.inv')) return;
@@ -1943,7 +1947,7 @@ document.addEventListener('keydown', ev => {
   }
 });
 
-/* ---------- his state ---------- */
+/* ---------- the buddy's state ---------- */
 let fastUntil = 0;
 function quick() { fastUntil = Date.now() + 1500; setTimeout(state, 120); }
 async function state() {
@@ -1954,7 +1958,7 @@ async function state() {
     if (s.empty) return;
     S = s;
     CTL = s.control || {held: false};
-    // the server may choose his slot (a middle click picks the block's item from the hotbar): the page takes it over,
+    // the server may choose the buddy's slot (a middle click picks the block's item from the hotbar): the page takes it over,
     // unless you just chose one yourself and the state does not know it yet
     if (steer.on && typeof s.selected === 'number' && s.selected !== steer.slot && Date.now() - (steer.slotAt || 0) > 1500) steer.slot = s.selected;
     $('name').textContent = s.name || 'Buddy';
@@ -1963,11 +1967,11 @@ async function state() {
     if (ICONS._player && !$('face').firstChild) $('face').innerHTML = '<img src="' + icon('_player') + '" alt="">';
     if (s.me) face(s.me);
     const age = Date.now() - s.t, fresh = age < 30000;
-    // Getting started and the line in Server profiles follow him coming on or going off
+    // Getting started and the line in Server profiles follow the buddy coming on or going off
     if (!!(s.online && fresh) !== sOnline) { sOnline = !!(s.online && fresh); if (G) sRender(); pnow(); }
     $('dot').className = 'dot' + (s.online && fresh ? ' on' : '');
     const status = !s.online ? 'Offline' + (s.stay_offline ? ' until you press Join' : '')
-      : !fresh ? 'No update from them for ' + Math.round(age / 1000) + ' s'
+      : !fresh ? nm('No update from {n} for ') + Math.round(age / 1000) + ' s'
       : 'Online on ' + (s.server || 'a server') + (s.profile && P.some(p => p.name === s.profile) && s.profile.toLowerCase() !== hostOf(s.server || '') ? ' · profile ' + s.profile : '');
     $('status').textContent = status;
     $('connstate').textContent = status;
@@ -1976,13 +1980,13 @@ async function state() {
     $('leave').disabled = !s.online; $('join').disabled = !!s.online;
     const doing = s.online ? doingText(s) : 'Offline';
     $('now').textContent = doing;
-    // the note only where what he does is not that already (it stood twice)
+    // the note only where what the buddy does is not that already (it stood twice)
     $('nowm').textContent = s.online && s.steered && !/driven from this page/i.test(doing) ? 'driven from this page' : '';
     const gt = s.online && fresh ? gameTime(s.clock) : '';
     if ($('mclock').textContent !== gt) $('mclock').textContent = gt;
     if ($('w3clock').textContent !== gt) $('w3clock').textContent = gt;
     if (!s.online) {
-      $('inv').innerHTML = '<p style="padding:20px;margin:0">They are not on a server.</p>'; $('fx').innerHTML = ''; heldBox({}); cursor();
+      $('inv').innerHTML = '<p style="padding:20px;margin:0">' + esc(nm('{N} is not on a server.')) + '</p>'; $('fx').innerHTML = ''; heldBox({}); cursor();
       chain(s); modes(s); needs(s); obtainProgress(s); return;
     }
     if (!drag && !typingInMenu()) setInv(inventory(s));
@@ -2000,7 +2004,7 @@ async function state() {
     $('slook').textContent = !k ? 'nothing' : k.block ? (N.item[k.block] || cap(k.block)) + ' at ' + k.x + ' ' + k.y + ' ' + k.z
       : (k.name || (N.item[k.entity + '_spawn_egg'] || '').replace(/ Spawn Egg$/, '') || cap(k.entity));
     $('sstate').textContent = steer.on ? (s.steered ? 'you are driving' : 'taking over…') : (s.steered ? 'driven elsewhere' : 'not driving');
-    // where he really looks, once the mouse has rested a moment: the prediction follows it (the mod took its own start
+    // where the buddy really looks, once the mouse has rested a moment: the prediction follows it (the mod took its own start
     // a moment after this page did)
     if (steer.on && s.steered && typeof s.yaw === 'number' && Date.now() - (steer.movedAt || 0) > 700) {
       if (Math.abs(wrap180(s.yaw - (steer.baseYaw + steer.yaw))) > 3) steer.baseYaw = s.yaw - steer.yaw;
@@ -2013,23 +2017,23 @@ async function state() {
   } catch (e) { $('dot').className = 'dot'; }
 }
 
-/* ---------- what he is missing (Needs in the mod): its key, and the number its text carries ---------- */
+/* ---------- what the buddy is missing (Needs in the mod): its key, and the number its text carries ---------- */
 const TOOL = {pickaxe: 'pickaxe', axe: 'axe', shovel: 'shovel', sword: 'sword'};
 function needText(n) {
   const num = (/\((\d+) (?:left|uses left)\)/.exec(n.text) || [])[1], k = n.key;
   if (k === 'food') return num ? ['Almost out of food', num + ' left, and none in the chests'] : ['No food left', 'and none in the chests'];
   if (k === 'weapon') return ['No weapon', 'to guard you with'];
-  if (k === 'full') return ['Inventory full', /chests/.test(n.text) ? 'and the chests they know are full too' : 'and they know no chest to empty it in'];
+  if (k === 'full') return ['Inventory full', /chests/.test(n.text) ? 'all known chests are full too' : 'no known chest to empty it in'];
   if (k.startsWith('broken_')) return [first(TOOL[k.slice(7)] || k.slice(7)) + ' almost broken', (num ? num + ' uses left' : '') + ', and no spare in the chests'];
-  if (k === 'better_pickaxe') return ['Needs a better pickaxe', 'for a block they wanted to break'];
-  if (TOOL[k]) return ['Needs ' + (k === 'axe' ? 'an ' : 'a ') + TOOL[k], 'for a block they wanted to break'];
-  if (k === 'tool') return ['Needs the right tool', 'for a block they wanted to break'];
+  if (k === 'better_pickaxe') return ['Needs a better pickaxe', nm('for a block {n} wanted to break')];
+  if (TOOL[k]) return ['Needs ' + (k === 'axe' ? 'an ' : 'a ') + TOOL[k], nm('for a block {n} wanted to break')];
+  if (k === 'tool') return ['Needs the right tool', nm('for a block {n} wanted to break')];
   if (k === 'torches') return ['No torches', 'for your tunnel'];
-  if (k === 'wood') return ['No wood', 'for sticks, and no tree in the base they may chop'];
-  if (k === 'pen_stuck') return ['Fell into the mob farm', 'cannot get out by themselves'];
-  if (k === 'pen_danger') return ['Left the mob farm', /three times/.test(n.text) ? 'it hurt them three times in ten minutes' : /creeper/.test(n.text) ? 'a creeper kept them from it' : 'they kept being hit there'];
-  if (k === 'shot_at') return ['Shot at where they stayed', /keeps being/.test(n.text) ? 'again and again in the base; they take cover each time' : /base/.test(n.text) ? 'no cover in the base; they keep the base' : 'no cover there, so they follow you again'];
-  if (k === 'pen_weapon') return ['No weapon at the farm', 'they hit with their fists'];
+  if (k === 'wood') return ['No wood', nm('for sticks, and no tree in the base {n} may chop')];
+  if (k === 'pen_stuck') return ['Stuck in the mob farm', 'cannot get out'];
+  if (k === 'pen_danger') return ['Left the mob farm', /three times/.test(n.text) ? 'hurt three times in ten minutes' : /creeper/.test(n.text) ? 'a creeper was in the way' : 'kept being hit there'];
+  if (k === 'shot_at') return ['Shot at while staying put', /keeps being/.test(n.text) ? nm('again and again in the base; {n} takes cover each time') : /base/.test(n.text) ? nm('no cover in the base; {n} stays at the base') : nm('no cover there, so {n} follows you again')];
+  if (k === 'pen_weapon') return ['No weapon at the farm', 'fighting with bare hands'];
   if (k === 'bow') return ['No bow', 'for phantoms and skeletons out of reach; three string make one'];
   if (k === 'arrows') return ['No arrows', 'a flint, a stick and a feather make four'];
   if (k === 'rest') { const d = (/for ([\d.]+) game days/.exec(n.text) || [])[1]; return ['Has not slept', (d ? d + ' game days' : 'for days') + ': phantoms come after three']; }
@@ -2067,7 +2071,7 @@ async function map() {
   } catch (e) {}
 }
 const span = () => (M ? M.size : 128) / view.zoom;
-/* what he remembers (MapMemory): tiles of 128 blocks, fetched for what is in view and again when they changed */
+/* what the buddy remembers (MapMemory): tiles of 128 blocks, fetched for what is in view and again when they changed */
 const TILE = 128, CACHES = new Map();
 let TILES = new Map(), tileDim = '', tileAsk = 0;
 /* the remembered tiles per world (server, dimension, cave layer), the last four kept, so that a switch back shows them
@@ -2181,7 +2185,7 @@ function drawMap() {
   }
   if (picked) { const s = Math.max(10 * u, k); g.strokeStyle = '#f5d76e'; g.lineWidth = 2 * u; g.strokeRect(px(picked.x + .5) - s / 2, pz(picked.z + .5) - s / 2, s, s); }
   if (S && S.online) {
-    // him: an arrow the way he looks (yaw 0 is south, which is down on the map)
+    // the buddy: an arrow the way the buddy looks (yaw 0 is south, which is down on the map)
     g.save(); g.translate(px(S.x + .5), pz(S.z + .5)); g.rotate((S.yaw || 0) * Math.PI / 180 + Math.PI); g.scale(u, u);
     g.fillStyle = '#f0c6a3'; g.strokeStyle = '#14181c'; g.lineWidth = 2; g.lineJoin = 'round';
     g.beginPath(); g.moveTo(0, -10); g.lineTo(8, 9); g.lineTo(0, 4); g.lineTo(-8, 9); g.closePath(); g.fill(); g.stroke();
@@ -2191,7 +2195,7 @@ function drawMap() {
   $('zin').disabled = view.zoom >= 4; $('zout').disabled = view.zoom <= .25;
   $('zctr').classList.toggle('on', view.follow);
   $('back').hidden = view.follow && view.zoom === 1;
-  $('back').textContent = 'Back to ' + ((S && S.name) || 'them');
+  $('back').textContent = nm('Back to {n}');
   if (mapDim === '3d') mapButtons();
 }
 function spotAt(ev) {
@@ -2241,14 +2245,14 @@ mapEl.addEventListener('pointermove', ev => {
   const s = spotAt(ev);
   $('hover').textContent = !s ? '' : s.y === null ? 'x ' + s.x + ' · z ' + s.z + ' · not loaded' : 'x ' + s.x + ' · y ' + s.y + ' · z ' + s.z;
 });
-const HOVER = 'Click a spot to send them there, drag to look around';
-$('hover').textContent = HOVER;
-mapEl.addEventListener('pointerleave', () => { if (!pan) $('hover').textContent = HOVER; });
+const HOVER = () => nm('Click a spot to send {n} there, drag to look around');
+$('hover').textContent = HOVER();
+mapEl.addEventListener('pointerleave', () => { if (!pan) $('hover').textContent = HOVER(); });
 mapEl.addEventListener('pointerup', ev => {
   const p = pan; pan = null; $('mapbox').classList.remove('pan');
   if (!p || p.moved) return;
   const s = spotAt(ev);
-  if (!s || s.y === null) { note('They have not seen that part of the map'); return; }
+  if (!s || s.y === null) { note(nm('{N} has not seen that part of the map')); return; }
   pickSpot(s);
   drawMap();
 });
@@ -2257,13 +2261,13 @@ function pickSpot(s) {
   picked = s;
   $('pop').innerHTML = '<span class="mono">x ' + s.x + ', y ' + s.y + ', z ' + s.z + '</span><span class="row" style="gap:6px"><button class="btn small go" id="walk">Walk there</button><button class="btn small ghost" id="unpick">Cancel</button></span>';
 }
-/* a click in the 3D map: the block it hit, and the air in front of the side it hit, where he walks to */
+/* a click in the 3D map: the block it hit, and the air in front of the side it hit, where the buddy walks to */
 const FACE_STEP = {up: [0, 1, 0], down: [0, -1, 0], east: [1, 0, 0], west: [-1, 0, 0], south: [0, 0, 1], north: [0, 0, -1]};
 function pick3d(h) {
   // a click on the map while its menu is open shuts the menu, as a click beside a menu does (the menu sometimes came
   // unintended)
   if (picked && !$('pop').hidden) { picked = null; placePop(); return; }
-  if (!h) { note('Click a block to send them there'); return; }
+  if (!h) { note(nm('Click a block to send {n} there')); return; }
   const d = FACE_STEP[h.face] || [0, 1, 0];
   pickSpot({x: h.x + d[0], y: h.y + d[1], z: h.z + d[2], at: {x: h.clientX, y: h.clientY}});
   placePop();
@@ -2274,7 +2278,7 @@ $('pop').addEventListener('click', async ev => {
   if (ev.target.id === 'unpick') { picked = null; drawMap(); placePop(); }
   if (ev.target.id === 'walk' && picked) {
     const p = picked; picked = null; drawMap(); placePop();
-    try { await post('/api/goto', p); note('On their way to ' + p.x + ' ' + p.y + ' ' + p.z); quick(); } catch (e) { note('Not sent: ' + e.message); }
+    try { await post('/api/goto', p); note(nm('{N} is on the way to ') + p.x + ' ' + p.y + ' ' + p.z); quick(); } catch (e) { note('Not sent: ' + e.message); }
   }
 });
 mapEl.addEventListener('wheel', ev => { ev.preventDefault(); zoom(ev.deltaY < 0 ? 2 : .5); }, {passive: false});
@@ -2309,7 +2313,7 @@ function readable(hex) {
   return l < 90 ? '#e6e9ec' : hex;
 }
 function nameColour(n) { let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) % 360; return 'hsl(' + h + ' 45% 72%)'; }
-/* His own line comes in twice: as typed (chat_sent) and as the server sends it back to everyone. The server's line is
+/* The buddy's own line comes in twice: as typed (chat_sent) and as the server sends it back to everyone. The server's line is
    shown; the typed one only when no such line follows within ten seconds (a command, or chat the server refused). */
 const ECHO = 10000;
 const typed = e => e.type === 'chat_sent' || e.type === 'sent';
@@ -2331,7 +2335,7 @@ function dropTyped(batch, text, t) {
 const echoShown = e => [...$('feed-chat').querySelectorAll('.l[data-said]')].some(el => el.dataset.said === e.text && +el.dataset.t - e.t >= 0 && +el.dataset.t - e.t <= ECHO);
 /* A server line's runs as the game draws them (see Details.chatRuns): a run in a pack's font is pictures and is left out,
    a full block is a pixel of a picture, and a run with a click does what it does in the game: a command or a suggestion
-   only for who may steer him, an address and a copy for everyone. */
+   only for who may steer the buddy, an address and a copy for everyone. */
 const PIXEL = '\u2588', CLICKS = new Set(['run', 'suggest', 'url', 'copy']);
 function runsHtml(runs) {
   let html = '';
@@ -2497,7 +2501,7 @@ for (const b of document.querySelectorAll('[data-feed]')) b.addEventListener('cl
   if (b.dataset.feed === 'players') players();
   const box = $('feed-' + b.dataset.feed); box.scrollTop = b.dataset.feed === 'prob' ? 0 : box.scrollHeight;
 });
-/* who is online, and since when (the server's list as he sees it) */
+/* who is online, and since when (the server's list as the buddy sees it) */
 function ago(ms) {
   const m = Math.max(0, Math.floor(ms / 60000)), h = Math.floor(m / 60), d = Math.floor(h / 24);
   return d ? d + ' d ' + (h % 24) + ' h' : h ? h + ' h ' + (m % 60) + ' min' : m + ' min';
@@ -2510,8 +2514,8 @@ async function players() {
   const day = d => new Date(d).toDateString() === new Date().toDateString() ? clock(d) : new Date(d).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'}) + ' ' + clock(d);
   $('feed-players').innerHTML = list.length ? list.map(p => '<div class="pl"><b class="' + (S && p.name === S.name ? 'me' : '') + '" style="' + (S && p.name === S.name ? '' : 'color:' + nameColour(p.name)) + '">' + esc(p.name) + '</b><span>' +
     (p.exact ? 'since ' : 'at least since ') + day(p.since) + '<br>' + ago(Date.now() - p.since) + '</span></div>').join('') +
-    '<p class="ok-quiet" style="margin-top:8px">"At least since": already online when the buddy joined, so the moment the buddy first saw them.</p>'
-    : '<p class="ok-quiet">Nobody online, or the buddy is not on a server.</p>';
+    '<p class="ok-quiet" style="margin-top:8px">' + esc(nm('"At least since": that player was online already when {n} joined.')) + '</p>'
+    : '<p class="ok-quiet">' + esc(nm('Nobody online, or {n} is not on a server.')) + '</p>';
 }
 
 let quickKey = '';
@@ -2595,7 +2599,7 @@ $('cmdtips').addEventListener('mousedown', ev => {
 });
 $('text').addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== $('text')) tabReset(); }, 150));
 
-/* ---------- driving him ---------- */
+/* ---------- Take control ---------- */
 const steer = {on: false, session: '', keys: new Set(), yaw: 0, pitch: 0, uses: 0, slot: -1, timer: null};
 const KEYMAP = {KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd', Space: 'jump', ShiftLeft: 'sneak', ShiftRight: 'sneak', KeyR: 'sprint'};
 function send() {
@@ -2606,7 +2610,7 @@ function send() {
   post('/api/steer', {on: true, session: steer.session, keys: [...steer.keys].join(' '), yaw: steer.yaw, pitch: steer.pitch, right: steer.uses, slot: steer.slot, target,
     ui: playUi === 'inv' ? 'inv' : ''}).catch(e => { if (e.status === 409 && steer.on) { note(e.message); giveBack(); } });
 }
-/* someone else plays them: from where (what the panel says beside their state) */
+/* someone else plays the buddy: from where (what the panel says beside the state) */
 let CTL = {held: false};
 const someoneElse = () => CTL.held && !CTL.mine;
 function busyText() {
@@ -2617,7 +2621,7 @@ function takeControl() {
   if (steer.on) return;
   if (someoneElse()) { note(busyText()); return; }
   steer.on = true; steer.session = Math.random().toString(36).slice(2); steer.keys.clear(); steer.yaw = 0; steer.pitch = 0; steer.uses = 0;
-  // where he looked when you took over: the mod turns him to that plus what you moved, so the page can draw it at once
+  // where the buddy looked when you took over: the mod turns the buddy to that plus what you moved, so the page can draw it at once
   steer.baseYaw = S && typeof S.yaw === 'number' ? S.yaw : 0; steer.basePitch = S && typeof S.pitch === 'number' ? S.pitch : 0; steer.movedAt = 0;
   steer.slot = S ? S.selected : -1;
   $('pad').classList.add('on');
@@ -2644,7 +2648,7 @@ function turn(dx, dy) {
   steer.movedAt = Date.now();
   padSoon();
 }
-/* where he looks: what you steer, at once, while you drive; his own when you do not */
+/* where the buddy looks: what you steer, at once, while you drive; the buddy's own when you do not */
 function padView() {
   if (steer.on) return {yaw: steer.baseYaw + steer.yaw, pitch: Math.max(-90, Math.min(90, steer.basePitch + steer.pitch))};
   return {yaw: S && typeof S.yaw === 'number' ? S.yaw : 0, pitch: S && typeof S.pitch === 'number' ? S.pitch : 0};
@@ -2653,7 +2657,7 @@ let padFrame = 0;
 function padSoon() { if (!padFrame) padFrame = requestAnimationFrame(() => { padFrame = 0; drawPad(); }); }
 const COMPASS = [[0, 'N'], [45, 'NE'], [90, 'E'], [135, 'SE'], [180, 'S'], [225, 'SW'], [270, 'W'], [315, 'NW']];
 const wrap180 = a => ((a % 360) + 540) % 360 - 180;
-/* the view as the game draws it: 70 degrees from top to bottom, the horizon where his pitch puts it, a line every 15
+/* the view as the game draws it: 70 degrees from top to bottom, the horizon where the pitch puts it, a line every 15
    degrees above and below it, the directions on the horizon and on a band along the top (yaw 0 is south: north is 180) */
 function drawPad() {
   const cv = $('padsky');
@@ -2681,7 +2685,7 @@ function drawPad() {
   for (let e = -75; e <= 75; e += 15) {
     if (e === 0 || Math.abs(e + v.pitch) >= 80) continue;
     const y = elevation(e);
-    if (y < 52 * u || y > H + 20) continue;   // not under the compass band and his heading
+    if (y < 52 * u || y > H + 20) continue;   // not under the compass band and the heading
     const half = (e % 45 === 0 ? 46 : 28) * u;
     g.strokeStyle = 'rgba(255,255,255,.45)'; g.lineWidth = u;
     g.beginPath(); g.moveTo(W / 2 - half, y); g.lineTo(W / 2 - 10 * u, y); g.moveTo(W / 2 + 10 * u, y); g.lineTo(W / 2 + half, y); g.stroke();
@@ -2702,7 +2706,7 @@ function drawPad() {
       g.fillStyle = big ? '#fff' : 'rgba(255,255,255,.8)'; g.fillText(name, x, hy - (big ? 19 : 15) * u);
     }
   }
-  // the compass band along the top: ticks every 15 degrees, the eight directions named, his heading in the middle
+  // the compass band along the top: ticks every 15 degrees, the eight directions named, the heading in the middle
   const bh = 26 * u, pxDeg = W / Math.max(60, HF);
   g.fillStyle = 'rgba(14,17,20,.66)'; g.fillRect(0, 0, W, bh);
   g.textAlign = 'center';
@@ -2717,7 +2721,7 @@ function drawPad() {
       g.fillStyle = named[1] === 'N' ? '#f0c6a3' : '#e6e9ec'; g.fillText(named[1], x, 9.5 * u);
     }
   }
-  // his heading: a mark in the middle of the band and the number below it
+  // the heading: a mark in the middle of the band and the number below it
   g.fillStyle = '#f0c6a3';
   g.beginPath(); g.moveTo(W / 2 - 5 * u, bh); g.lineTo(W / 2 + 5 * u, bh); g.lineTo(W / 2, bh - 6 * u); g.closePath(); g.fill();
   const label = SHORT[facing(v.yaw)] + ' ' + Math.round(heading) + '°  ·  ' + (v.pitch > 0.5 ? 'down ' : v.pitch < -0.5 ? 'up ' : 'level ') + Math.round(Math.abs(v.pitch)) + '°';
@@ -2749,7 +2753,7 @@ pad.addEventListener('mousedown', ev => {
   if (ev.button === 0) steer.keys.add('left');
   // the right button: one use at once, and held for eating, a bow, a shield (the game's use key down)
   else if (ev.button === 2) { steer.uses++; steer.keys.add('use'); }
-  // the middle button: the block under the crosshair into his hand, when he has it (pick block)
+  // the middle button: the block under the crosshair into the buddy's hand, when the buddy has it (pick block)
   else if (ev.button === 1) { ev.preventDefault(); const h = W3 && W3.hit(); if (h && h.face) post('/api/command', {command: {cmd: 'pickblock', x: h.x, y: h.y, z: h.z}}).then(quick).catch(() => {}); }
   send();
 });
@@ -2773,7 +2777,7 @@ document.addEventListener('keydown', ev => {
   if (!steer.on || typing(ev)) return;
   if (ev.code === 'Escape') { giveBack(); return; }
   // W twice quickly sprints, as in the game, until W is let go: told as the sprint key, because a quick release between
-  // the two presses need not reach his game
+  // the two presses need not reach the buddy's game
   if (ev.code === 'KeyW' && !ev.repeat) {
     const now = performance.now();
     if (now - (steer.wUp || -1e9) < 300 && now - (steer.wDown || -1e9) < 600 && !steer.keys.has('sprint')) { steer.keys.add('sprint'); steer.tapSprint = true; }
@@ -2827,7 +2831,7 @@ async function matAsk(c) {
     const j = await matFetch();
     if (j.name === MATS.name && (j.t || 0) !== was) { MATS = {...MATS, rows: j.rows || [], t: j.t, unloaded: j.unloaded || 0}; matRender(); return; }
   }
-  $('matnote').textContent = 'No answer from them: are they online?';
+  $('matnote').textContent = nm('No answer from {n}: is {n} online?');
 }
 function openMaterials(name) {
   MATS = {name, rows: [], t: 0, unloaded: 0};
@@ -2841,15 +2845,15 @@ function matRender() {
   const only = $('matmissing').checked;
   const rows = MATS.rows.filter(r => !only || (r.missing > 0 && !r.ignored))
     .sort((a, b) => (a.ignored - b.ignored) || (b.missing - a.missing) || (b.total - a.total));
-  const nm = id => N.item[bare(id)] || cap(bare(id));
+  const iname = id => N.item[bare(id)] || cap(bare(id));
   const ic = id => ICONS[bare(id)] ? '<img src="' + icon(bare(id)) + '" alt="">' : '';
-  $('matlist').innerHTML = rows.length ? rows.map(r => '<tr' + (r.ignored ? ' class="ign"' : '') + '><td class="it">' + ic(r.item) + esc(nm(r.item)) + '</td>' +
+  $('matlist').innerHTML = rows.length ? rows.map(r => '<tr' + (r.ignored ? ' class="ign"' : '') + '><td class="it">' + ic(r.item) + esc(iname(r.item)) + '</td>' +
     '<td class="n">' + r.total + '</td><td class="n' + (r.missing && !r.ignored ? ' miss' : '') + '">' + r.missing + '</td><td class="n">' + r.have + '</td><td class="n">' + r.chests + '</td>' +
     '<td><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" data-matign="' + esc(r.item) + '"' + (r.ignored ? ' checked' : '') + '> ignore</label></td></tr>').join('')
     : '<tr><td class="note">' + (MATS.rows.length ? 'Nothing is missing.' : 'The schematic holds no blocks.') + '</td></tr>';
   const miss = MATS.rows.filter(r => !r.ignored).reduce((a, r) => a + r.missing, 0), ign = MATS.rows.filter(r => r.ignored).length;
   $('matnote').textContent = MATS.rows.length + ' items, ' + miss + ' blocks still to place' + (ign ? ', ' + ign + ' ignored (left out when building)' : '') +
-    (MATS.unloaded ? '. Part of it is not loaded near them, so it counts as missing until they come near.' : '.') + ' Counted at ' + clock(Date.now()) + '.';
+    (MATS.unloaded ? nm('. Part of it is not loaded, so it counts as missing until {n} comes near.') : '.') + ' Counted at ' + clock(Date.now()) + '.';
 }
 $('matmissing').addEventListener('change', matRender);
 $('matclose').addEventListener('click', () => $('matdlg').close());
@@ -2862,7 +2866,7 @@ $('matdlg').addEventListener('change', ev => {
 });
 
 /* ---------- settings: connection, profiles, access ---------- */
-async function leave() { if (!confirm('Take them off the server? They stay off until you press Join.')) return; try { await post('/api/leave', {}); note('Leaving the server'); quick(); } catch (e) { note(e.message); } }
+async function leave() { if (!confirm(nm('Take {n} off the server? {N} stays off until you press Join.'))) return; try { await post('/api/leave', {}); note('Leaving the server'); quick(); } catch (e) { note(e.message); } }
 async function join() { try { await post('/api/join', {}); note('Joining'); quick(); } catch (e) { note(e.message); } }
 $('leavejoin').addEventListener('click', () => (S && S.online ? leave() : join()));
 $('leave').addEventListener('click', leave);
@@ -2875,31 +2879,31 @@ const unlines = t => Object.fromEntries(t.split('\n').map(l => l.trim()).filter(
    to a new one. The example is the panel's own: it is never saved, only copied. Its lines are EssentialsX's
    and WorldGuard's in English, the plugins most servers have. */
 const PDOC = {
-  name: 'Shown in this list and in their reports.',
+  name: 'Shown in this list and in reports.',
   address: 'Matches when the server address contains this. The first matching profile is used; empty matches every server.',
   withCommand: 'For servers sharing one proxy address: only match where the server has this command.',
   withoutCommand: 'Only match where the server does not have this command.',
-  resourcepack: 'What they do when the server offers a resource pack. Required packs are always accepted.',
-  eventDims: 'Minigame dimensions (or name prefixes). There they use the eventLeave command to get out.',
-  voidOk: 'Dimensions where falling into the void is part of the game (e.g. parkour). They do not try to save themselves there.',
-  sleepFrom: 'Game time from which they go to bed when others sleep. Empty uses the vanilla value (12523); only change it for a sleep plugin that starts later.',
-  afterJoin: 'Commands they type after joining, one by one, e.g. /server survival to leave a proxy lobby. Usually empty.',
-  commands: 'The commands they use on this server. {player} is a player name, {text} a message. Leave one out and they do without (no /tpa: they walk).',
-  texts: 'Server messages they react to, as regular expressions in the server\'s language. {player} stands for a name. Leave one out and they ignore it.',
+  resourcepack: 'Accept or decline a resource pack the server offers. Required packs are always accepted.',
+  eventDims: 'Minigame dimensions (or name prefixes). There, {n} uses the eventLeave command to get out.',
+  voidOk: 'Dimensions where falling into the void is part of the game (such as parkour). There, {n} does not try to stop a fall.',
+  sleepFrom: 'Game time from which {n} goes to bed when others sleep. Empty is the game\'s own moment, 18:32 on this clock; change it only for a sleep plugin that starts later.',
+  afterJoin: 'Commands {n} types after joining, one by one, such as /server survival to leave a proxy lobby. Usually empty.',
+  commands: 'The commands {n} uses on this server. {player} is a player name, {text} a message. Leave one out and {n} does without it (no /tpa: walking instead).',
+  texts: 'Server messages {n} reacts to, as regular expressions in the server\'s language. {player} stands for a name. Leave one out and {n} ignores that message.',
   modules: 'JSON: the server modules on for this server, each with its settings (see How it works). Keys a module does not know are ignored, so a "description" key may hold a note. Empty for none.',
 };
-const PCMDS = {tpa: 'request to teleport to the player they follow', tpahere: 'ask a player to come to the buddy', tpaccept: 'accept a request from the player they follow',
-  tpdeny: 'refuse a request', afk: 'go to the AFK area when they have nothing to do', sethome: 'set their home at the bed you tap', home: 'go home',
-  homes: 'list their homes (menu or chat)', msg: 'a private message', eventLeave: 'leave a minigame'};
-const PTEXTS = {tpa: 'a player asks to teleport to the buddy', tpahere: 'a player asks the buddy to teleport to them (the buddy only accepts the player they follow)',
+const PCMDS = {tpa: 'ask to teleport to the player {n} follows', tpahere: 'ask a player to come to {n}', tpaccept: 'accept a request from the player {n} follows',
+  tpdeny: 'refuse a request', afk: 'go to the AFK area when there is nothing to do', sethome: 'set the home at the bed you tap', home: 'go home',
+  homes: 'list the homes (menu or chat)', msg: 'a private message', eventLeave: 'leave a minigame'};
+const PTEXTS = {tpa: 'a player asks to teleport to {n}', tpahere: 'a player asks {n} to come over (accepted only from the player {n} follows)',
   chat: 'a player\'s public chat line ({player} and the text): what Telegram shows as players\' chat',
   join: 'the server\'s own line when a player comes online: kept out of Telegram, which takes joins from the player list',
   leave: 'the server\'s own line when a player goes offline: kept out of Telegram, as join',
-  pm: 'a private message to the buddy ({player} and the text)', pmOut: 'their own private message, as the server echoes it', accepted: 'their teleport request was accepted',
-  declined: 'their request was refused', expired: 'their request expired', teleportComing: 'a teleport is about to happen (a countdown)', teleported: 'they were teleported',
-  afkAlready: 'they are AFK already', fightOn: 'they are in combat (combat-tag plugin)', fightOff: 'they are out of combat', cancelledMoved: 'a teleport was cancelled because they moved',
-  cancelledDamage: 'a teleport was cancelled because they were hit', afkInFight: '/afk refused in combat', afkInEvent: '/afk refused in a minigame',
-  noPermission: 'they cannot break blocks here (claim, spawn)', noChestAccess: 'they cannot open this chest', noBuildAccess: 'they cannot build here',
+  pm: 'a private message to {n} ({player} and the text)', pmOut: '{n}\'s own private message, as the server echoes it', accepted: '{n}\'s teleport request was accepted',
+  declined: '{n}\'s request was refused', expired: '{n}\'s request expired', teleportComing: 'a teleport is about to happen (a countdown)', teleported: '{n} was teleported',
+  afkAlready: '{n} is AFK already', fightOn: '{n} is in combat (combat-tag plugin)', fightOff: '{n} is out of combat', cancelledMoved: 'a teleport was cancelled because {n} moved',
+  cancelledDamage: 'a teleport was cancelled because {n} was hit', afkInFight: '/afk refused in combat', afkInEvent: '/afk refused in a minigame',
+  noPermission: 'breaking blocks is not allowed here (claim, spawn)', noChestAccess: 'opening this chest is not allowed', noBuildAccess: 'building is not allowed here',
   nextPage: 'the label of a menu\'s next-page button'};
 const PEXAMPLE = {name: 'example', address: 'play.example.net', withCommand: '', withoutCommand: '', resourcepack: 'accept',
   eventDims: ['events:'], voidOk: ['events:parkour'], sleepFrom: 0, afterJoin: [],
@@ -2916,18 +2920,18 @@ const PEXAMPLE = {name: 'example', address: 'play.example.net', withCommand: '',
     cancelledDamage: '^Pending teleportation request cancelled', afkInFight: '^You cannot do that while in combat', afkInEvent: '^You cannot do that in a minigame'},
   modules: {}};
 const EXAMPLE = -1;
-/* How it works: the variables, every name with what he types and what he reacts to, and the server modules */
+/* How it works: the variables, every name with what the buddy types and reacts to, and the server modules */
 let MODS = null;
 function howItWorks(canAdd) {
   const names = [...new Set([...Object.keys(PCMDS), ...Object.keys(PTEXTS)])];
-  const vars = [['{player}', 'A player\'s name. In a command the player they act on; in a server message any name, which they read from it.'],
-    ['{text}', 'The text they send, only in the msg command.'],
+  const vars = [['{player}', 'A player\'s name. In a command, the player acted on; in a server message, any name, read from the message.'],
+    ['{text}', 'The text to send, only in the msg command.'],
     ['(.*)', 'Not a variable but a regular expression: in a server message it catches the rest of the line, such as a private message\'s text.']];
   let h = '<div class="pdocs1"><p class="note">Everything else in a command or a message is plain text: the "me" in EssentialsX\'s <code>[{player} -> me]</code> is what that server writes.</p>' +
     '<h4>Variables</h4><table><tbody>' + vars.map(([k, v]) => '<tr><td class="mono">' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</tbody></table>' +
-    '<h4>Names</h4><p class="note">A name can have a command they type, a server message they react to, or both. Leave one out and they do without it.</p>' +
-    '<table><thead><tr><th>Name</th><th>Command: what they type to</th><th>Server message: they react when</th></tr></thead><tbody>' +
-    names.map(k => '<tr><td class="mono">' + k + '</td><td>' + esc(PCMDS[k] || '–') + '</td><td>' + esc(PTEXTS[k] || '–') + '</td></tr>').join('') + '</tbody></table>' +
+    '<h4>Names</h4><p class="note">' + esc(nm('A name can have a command {n} types, a server message {n} reacts to, or both. Leave one out and {n} does without it.')) + '</p>' +
+    '<table><thead><tr><th>Name</th><th>' + esc(nm('Command: {n} types it to')) + '</th><th>' + esc(nm('Server message: {n} reacts when')) + '</th></tr></thead><tbody>' +
+    names.map(k => '<tr><td class="mono">' + k + '</td><td>' + esc(nm(PCMDS[k] || '–')) + '</td><td>' + esc(nm(PTEXTS[k] || '–')) + '</td></tr>').join('') + '</tbody></table>' +
     '<h4>Server modules</h4>';
   if (!MODS) h += '<p class="note">Loading…</p>';
   else if (!MODS.length) h += '<p class="note">No module is described on this machine.</p>';
@@ -2939,15 +2943,15 @@ function howItWorks(canAdd) {
     '<p class="note">* needed. As JSON: <code>' + esc(JSON.stringify({[m.id]: m.example || {}})) + '</code></p></div>').join('');
   return h + '</div>';
 }
-/* the server he plays on (a setting of the game, not a profile) and the profile that fits it: the mod's choice while he is
-   on, the first whose address the server's contains otherwise */
+/* the server the buddy plays on (a setting of the game, not a profile) and the profile that fits it: the mod's choice while
+   the buddy is on, the first whose address the server's contains otherwise */
 function pnow() {
   const el = $('pnow'); if (!el) return;
   const srv = (G && G.settings && G.settings.server) || (S && S.server) || '';
   if (!srv) { el.innerHTML = ''; return; }
   const fit = onServer() ? P.find(p => p.name && p.name === S.profile) : P.find(p => p.address && srv.toLowerCase().includes(p.address.toLowerCase()));
-  el.innerHTML = fit ? 'They play on <b class="mono">' + esc(srv) + '</b>, with the profile <b>' + esc(fit.name) + '</b>.'
-    : 'They play on <b class="mono">' + esc(srv) + '</b> (the server is set in Getting started, or Settings, Game) without a profile, so with the defaults. ' +
+  el.innerHTML = fit ? esc(nm('{N} plays on ')) + '<b class="mono">' + esc(srv) + '</b>, with the profile <b>' + esc(fit.name) + '</b>.'
+    : esc(nm('{N} plays on ')) + '<b class="mono">' + esc(srv) + '</b> without a profile, so with the defaults (the server is set in Getting started or under Status). ' +
       'A profile is only needed for a server with commands or messages of its own. <button type="button" class="btn small" data-profsrv>Make a profile for ' + esc(srv) + '</button>';
 }
 $('pnow').addEventListener('click', ev => {
@@ -2966,7 +2970,7 @@ function plist() {
 function pedit() {
   const ex = pAt === EXAMPLE, p = ex ? PEXAMPLE : P[pAt];
   if (!p) { $('pedit').innerHTML = '<p class="note">No profiles yet. Start from the example, or make a new one.</p>' + '<div class="row"><button class="btn go" data-copyex>Copy the example to a new profile</button><button class="btn" data-newprof>New empty profile</button></div>'; return; }
-  const ro = ex ? ' readonly' : '', hint = k => '<small class="hint">' + esc(PDOC[k]) + '</small>';
+  const ro = ex ? ' readonly' : '', hint = k => '<small class="hint">' + esc(nm(PDOC[k])) + '</small>';
   const f = (k, label, val, ph, mono) => '<label>' + label + '<input type="text" data-k="' + k + '"' + (mono ? ' class="mono"' : '') + ro + ' value="' + esc(val == null ? '' : val) + '" placeholder="' + esc(ph || '') + '">' + hint(k) + '</label>';
   const ta = (k, label, rows, val) => '<label><span class="label">' + label + '</span><textarea rows="' + rows + '" data-k="' + k + '"' + ro + ' spellcheck="false">' + esc(val) + '</textarea>' + hint(k) + '</label>';
   const table = o => '<table><tbody>' + Object.entries(o).map(([k, v]) => '<tr><td class="mono">' + k + '</td><td>' + esc(v) + '</td></tr>').join('') + '</tbody></table>';
@@ -2975,7 +2979,7 @@ function pedit() {
     '<div class="fields">' + f('name', 'Name', p.name) + f('address', 'Address contains', p.address, 'example.net', 1) +
     f('withCommand', 'Only if the server has command', p.withCommand, 'huskhomes', 1) + f('withoutCommand', 'Only if the server lacks command', p.withoutCommand, '', 1) +
     '<label>Resource pack<select data-k="resourcepack"' + (ex ? ' disabled' : '') + '><option value="accept"' + (p.resourcepack !== 'decline' ? ' selected' : '') + '>accept</option><option value="decline"' + (p.resourcepack === 'decline' ? ' selected' : '') + '>decline</option></select>' + hint('resourcepack') + '</label>' +
-    f('sleepFrom', 'Sleep from tick', p.sleepFrom || '', '12523', 1) +
+    f('sleepFrom', 'Sleep from (game time)', p.sleepFrom ? tickClock(p.sleepFrom) : '', '18:32', 1) +
     f('eventDims', 'Game dimensions', (p.eventDims || []).join(', '), 'events:', 1) + f('voidOk', 'Void allowed in', (p.voidOk || []).join(', '), '', 1) + '</div>' +
     ta('afterJoin', 'After joining, one command a line', 2, (p.afterJoin || []).join('\n')) +
     ta('commands', 'Commands: name = /command', 6, lines(p.commands)) +
@@ -2983,7 +2987,7 @@ function pedit() {
     ta('modules', 'Server modules (JSON)', 3, mods) +
     '<details class="pdoc"' + (ex ? ' open' : '') + '><summary>How it works</summary>' + howItWorks(!ex) + '</details>' +
     '<div class="row">' + (ex ? '<span style="flex:1"></span><button class="btn go" data-copyprof>Copy to a new profile</button>' :
-      '<button class="btn ghost" data-delprof>Remove this profile</button><button class="btn" data-copyprof>Copy to a new profile</button><span style="margin-left:auto" class="note">Saved to buddy.json and used within a second.</span>' +
+      '<button class="btn ghost" data-delprof>Remove this profile</button><button class="btn" data-copyprof>Copy to a new profile</button><span style="margin-left:auto" class="note">Used within a second of saving.</span>' +
       '<button class="btn ghost" data-discard>Discard</button><button class="btn go" data-saveprof>Save profiles</button>') + '</div>';
 }
 /* the editor's fields into P[pAt], keeping what the editor does not show (a field a later version adds); what is wrong, or null */
@@ -2994,11 +2998,12 @@ function readOne() {
   let modules = {}, err = null;
   const mt = g('modules').trim();
   if (mt) { try { modules = JSON.parse(mt); if (!modules || typeof modules !== 'object' || Array.isArray(modules)) throw new Error('not an object'); } catch (e) { err = 'Server modules: not valid JSON (' + e.message + ')'; modules = P[pAt].modules || {}; } }
-  const sl = g('sleepFrom').trim();
+  // a time left as it was shown keeps its tick (12542 shows as 18:33, which would be saved as 12550)
+  const sl = g('sleepFrom').trim(), old = P[pAt] && P[pAt].sleepFrom, slt = !sl ? 0 : old && sl === tickClock(old) ? old : clockTick(sl);
   P[pAt] = {...P[pAt], name: g('name').trim(), address: g('address').trim(), withCommand: g('withCommand').trim(), withoutCommand: g('withoutCommand').trim(),
-    resourcepack: g('resourcepack'), sleepFrom: sl ? Number(sl) : 0, eventDims: list('eventDims'), voidOk: list('voidOk'),
+    resourcepack: g('resourcepack'), sleepFrom: slt || 0, eventDims: list('eventDims'), voidOk: list('voidOk'),
     afterJoin: g('afterJoin').split('\n').map(s => s.trim()).filter(Boolean), commands: unlines(g('commands')), texts: unlines(g('texts')), modules};
-  if (sl && !(Number.isInteger(Number(sl)) && Number(sl) >= 0 && Number(sl) < 24000)) err = err || 'Sleep from tick: a whole number from 0 to 23999';
+  if (sl && slt === null) err = err || 'Sleep from: a time as on a clock, such as 18:32';
   return err;
 }
 async function profiles() {
@@ -3079,11 +3084,11 @@ $('saveallow').addEventListener('click', async () => {
   try { await post('/api/allow', {entries}); note('Access saved'); access(); } catch (e) { note('Not saved: ' + e.message); }
 });
 /* ---------- settings: Telegram (the bridge's telegram.json, bridgecfg.py) ---------- */
-// One bot and one chat: his chat in the game comes in, a line without ! he says. A token never comes to the page: only
-// whether it is set. An empty field keeps it; Remove takes it away.
+// One bot and one chat: the buddy's game chat comes in, a line without ! the buddy says. A token never comes to the page:
+// only whether it is set. An empty field keeps it; Remove takes it away.
 let T = null, TCLEAR = new Set();
 const tgAgo = s => s < 90 ? s + ' s' : ago(s * 1000);
-const tgName = () => (S && S.name) || (G && G.accounts && G.accounts[0]) || 'The buddy';
+const tgName = () => (S && S.name) || (G && G.accounts && G.accounts[0]) || 'the buddy';
 function tgStatus(v) {
   const st = v.status || {}, rows = [], row = (k, t) => rows.push('<div class="' + k + '"><i></i><span>' + t + '</span></div>'), bot = st.bots || {};
   if (v.broken) row('bad', esc(v.broken));
@@ -3104,7 +3109,7 @@ function tgSeen(v) {
   const seen = (v.status && v.status.seen) || [], bots = (v.status && v.status.bots) || {};
   if (!seen.length) { $('tgseen').innerHTML = ''; return; }
   const now = Math.floor(Date.now() / 1000);
-  $('tgseen').innerHTML = '<h3 class="tgsub">Recent messages to the bot</h3><p class="note">Choose the chat they relay to. Trust adds the sender to Trusted players under Access, by the numeric user id (names can change).</p>' +
+  $('tgseen').innerHTML = '<h3 class="tgsub">Recent messages to the bot</h3><p class="note">Choose the chat to use. Trust adds the sender to Trusted players under Access, by the numeric user id (names can change).</p>' +
     '<div class="tbl"><table><thead><tr><th>When</th><th>Chat</th><th>From</th><th></th></tr></thead><tbody>' + seen.map(e =>
       '<tr><td>' + tgAgo(Math.max(0, now - e.at)) + ' ago' + (bots[e.bot] && bots[e.bot].username ? '<br><span class="note">to @' + esc(bots[e.bot].username) + '</span>' : '') + '</td>' +
       '<td>' + esc(e.chat || '–') + ' <span class="note">(' + esc(e.type) + ')</span><br><span class="mono">' + esc(e.chat_id) + '</span></td>' +
@@ -3119,13 +3124,13 @@ function tgForm(v) {
     esc(set ? 'saved (leave empty to keep it)' : ph) + '">' + (set ? '<button type="button" class="btn small ghost" data-tgclear="' + k + '">Remove</button>' : '') + '</span></label>';
   $('tgform').innerHTML =
     '<h3 class="tgsub">The bot and its chat</h3><p class="note">Create a bot with @BotFather and paste its token here. Then message the bot from the chat you want to use (a private chat, or /start in a group) and pick that chat below. ' +
-      esc(tgName()) + ' relays in-game messages to that chat and says whatever you type there. A line that starts with ! is a command for them: type <b>!help</b> there for the list. The bot also answers private messages from trusted players.</p>' +
+      'In that chat, <b>!help</b> lists the commands. The bot also answers private messages from trusted players.</p>' +
     '<div class="fields">' + sec('token', 'Bot token', v.token, '123456789:AAE…') + f('chat_id', 'Chat', v.chat_id, 'pick below, or -1001234567890', 1) + '</div>' +
-    '<p class="note">They only listen to the players with a Telegram user id under <a href="#s-access">Access, Trusted players</a>.</p>' +
+    '<p class="note">Only the people with a Telegram user id under <a href="#s-access">Access, Trusted players</a> can chat as ' + esc(tgName()) + ' and give ! commands.</p>' +
     '<div class="row"><button type="button" class="btn ghost" id="tgtest" title="Asks Telegram which bot the saved token belongs to. Sends nothing.">Check the token</button>' +
       '<button type="button" class="btn ghost" id="tgsend" title="Says a test line in the saved chat, so you can see it arrives.">Send a test line to the chat</button>' +
       '<span class="note" id="tgtested" style="flex:1 1 200px"></span><button type="button" class="btn ghost" id="tgdiscard">Discard</button><button type="button" class="btn go" id="tgsave">Save</button></div>' +
-    '<p class="note">Check the token asks Telegram which bot it is and sends nothing. Send a test line puts one line in the chat, so you see that it arrives. Both use what is saved.</p>';
+    '<p class="note">Both buttons use what is saved: Check the token asks Telegram which bot it is and sends nothing; Send a test line puts one line in the chat.</p>';
 }
 function tgRead() {
   const el = $('tgform'), g = k => { const x = el.querySelector('[data-tg="' + k + '"]'); return x ? x.value.trim() : ''; };
@@ -3141,22 +3146,22 @@ async function telegram(form) {
 }
 /* what comes into the chat, each on or off at once, without a restart of the bridge; !show in the chat sets the same */
 const TGSHOW = [['chat', "Players' chat", 'The lines of players: what the game signs as a player\'s, or what the server profile\'s text <b>chat</b> matches.'],
-  ['pm', 'Private messages', 'To and from the buddy: the profile\'s texts <b>pm</b> and <b>pmOut</b>.'],
+  ['pm', 'Private messages', 'To and from {n}: the profile\'s texts <b>pm</b> and <b>pmOut</b>.'],
   ['joins', 'Joins and leaves', 'Players coming online and going off, from the player list. The server\'s own lines for it stay out when the profile\'s texts <b>join</b> and <b>leave</b> match them; otherwise they come in as a server message too.'],
   ['server', 'Other server messages', 'Everything else the server says: deaths, broadcasts, plugin lines. A line that matches none of the texts above counts as one.'],
-  ['buddy', "The buddy's own news", 'Joining or leaving the server, and what they lack to help.']];
+  ['buddy', "{N}'s own news", 'Joining or leaving the server, and what {n} is missing.']];
 function tgShow(v) {
   const sh = v.show || {};
-  $('tgshow').innerHTML = '<h3 class="tgsub">What comes into the chat</h3><p class="note">Each switch counts at once. In the chat <b>!show</b> lists them and <b>!show joins off</b> switches one. ' +
+  $('tgshow').innerHTML = '<h3 class="tgsub">What comes into the chat</h3><p class="note">Each switch applies at once. In the chat <b>!show</b> lists them and <b>!show joins off</b> switches one. ' +
     'How a line is told apart is in the <a href="#s-prof">server profile</a>: its texts chat, join, leave, pm and pmOut (How it works there explains them, and the Example has the vanilla forms).</p>' +
-    TGSHOW.map(([k, t, d]) => '<button type="button" class="sw wide" role="switch" aria-checked="' + (sh[k] !== false) + '" data-tgshow="' + k + '"><span class="tx"><b>' + t + '</b><span>' + d + '</span></span><span class="track"></span></button>').join('');
+    TGSHOW.map(([k, t, d]) => '<button type="button" class="sw wide" role="switch" aria-checked="' + (sh[k] !== false) + '" data-tgshow="' + k + '"><span class="tx"><b>' + nm(t) + '</b><span>' + nm(d) + '</span></span><span class="track"></span></button>').join('');
 }
 /* the main switch: off, the bridge says nothing and Telegram goes from every part of the page (body.tgoff) */
 function tgMain(v) {
   const on = v.enabled !== false;
   document.body.classList.toggle('tgoff', !on);
   $('tgmain').innerHTML = '<button type="button" class="sw wide" role="switch" aria-checked="' + on + '" id="tgonoff"><span class="tx"><b>Telegram</b><span>' +
-    (on ? 'On: their chat in a Telegram chat, and commands from there' : 'Off: nothing goes to Telegram and nothing comes from it') + '</span></span><span class="track"></span></button>';
+    (on ? esc(nm('On: {n}\'s game chat in a Telegram chat, and commands from there')) : 'Off: nothing goes to Telegram and nothing comes from it') + '</span></span><span class="track"></span></button>';
 }
 async function tgSwitch() {
   const on = !(T && T.enabled !== false);
@@ -3169,7 +3174,7 @@ $('s-tg').addEventListener('click', async ev => {
   if (b.dataset.tgshow) {
     const k = b.dataset.tgshow, on = b.getAttribute('aria-checked') !== 'true';
     b.setAttribute('aria-checked', String(on));
-    try { await post('/api/telegram', {show: {[k]: on}}); note((TGSHOW.find(x => x[0] === k) || [k, k])[1] + (on ? ': on' : ': off')); telegram(); }
+    try { await post('/api/telegram', {show: {[k]: on}}); note(nm((TGSHOW.find(x => x[0] === k) || [k, k])[1]) + (on ? ': on' : ': off')); telegram(); }
     catch (e) { b.setAttribute('aria-checked', String(!on)); note('Not changed: ' + e.message); }
     return;
   }
@@ -3186,7 +3191,7 @@ $('s-tg').addEventListener('click', async ev => {
     try { rows = (await (await fetch('/api/trusted')).json()).rows; } catch (e) { note('Not added: ' + e.message); return; }
     if (rows.some(r => r.telegram === b.dataset.tgadmin)) { note('Already a trusted player'); return; }
     rows.push({name: '', telegram: b.dataset.tgadmin});
-    await saveTrusted(rows, 'Trusted: add their Minecraft name under Access if "to me" should mean someone'); return;
+    await saveTrusted(rows, 'Trusted. Add that person\'s Minecraft name under Access, so that "to me" means someone in the game'); return;
   }
   if (b.id === 'tgdiscard') { telegram(true); return; }
   if (b.id === 'tgsave') {
@@ -3208,7 +3213,7 @@ $('s-tg').addEventListener('click', async ev => {
 setInterval(() => { if (!$('settings').hidden) telegram(); }, 5000);
 
 /* ---------- settings: Game (game.py) ---------- */
-// Setting him up from nothing: install the game, log the account in, fill in the server, start it.
+// Setting the buddy up from nothing: install the game, log the account in, fill in the server, start it.
 let G = null;
 function gRender() {
   const g = G, s = g.settings, rows = [], row = (k, t) => rows.push('<div class="' + k + '"><i></i><span>' + t + '</span></div>');
@@ -3255,7 +3260,8 @@ function gRender() {
 // container was made anew, the page was away meanwhile) reloads the page; otherwise Watchtower's summary is told. Asked
 // from Settings, Status and from the version in the header's corner (b is the button that asked).
 async function imageUpdate(b, was, latest) {
-  if (!confirm((latest ? 'Update to ' + latest + '?' : 'Check for a newer image?') + ' If there is one, the container restarts: they go offline and this page is unavailable for a minute or two.')) return;
+  if (!confirm(latest ? nm('Update to ' + latest + '? {N} goes offline and this page is unreachable for a minute or two while the container restarts.')
+    : nm('Check for a newer image? If there is one, {n} goes offline and this page is unreachable for a minute or two while the container restarts.'))) return;
   const chip = $('ver'), label = chip.lastChild;
   b.disabled = chip.disabled = true;
   if (label) label.textContent = 'Updating…';
@@ -3285,7 +3291,7 @@ function imageUpdateText(u) {
 /* Getting started: what G says of each step, with the one button that takes it further */
 // a server's address without its port, as the profiles name it
 function hostOf(server) { const h = String(server || '').toLowerCase(); return (h.match(/:/g) || []).length === 1 ? h.split(':')[0] : h; }
-// he is on a server by the mod's own state, not older than half a minute
+// the buddy is on a server by the mod's own state, not older than half a minute
 function onServer() { return !!(S && S.online && Date.now() - S.t < 30000); }
 let sOnline = null;
 function sRender() {
@@ -3297,13 +3303,13 @@ function sRender() {
   const steps = [
     {done: installed, t: 'Install the game', d: 'Installs HeadlessMC, Minecraft ' + esc(s.minecraft) + ' with ' + esc(s.loader) + ', the mods and the buddy. Takes a few minutes.',
      a: '<button type="button" class="btn go" data-g="install"' + (busy ? ' disabled' : '') + '>' + (g.headlessmc ? 'Install again' : 'Install') + '</button>'},
-    {done: g.accounts.length > 0, t: 'Log in to their Minecraft account', d: g.accounts.length ? 'Logged in as ' + esc(g.accounts.join(', ')) + '.' : 'A Microsoft sign-in link appears here: open it and sign in with the account they play on.',
+    {done: g.accounts.length > 0, t: 'Log in to the Minecraft account', d: g.accounts.length ? 'Logged in as ' + esc(g.accounts.join(', ')) + '.' : esc(nm('A Microsoft sign-in link appears here: open it and sign in with the account {n} plays on.')),
      a: '<button type="button" class="btn go" data-g="login"' + (busy || !g.headlessmc ? ' disabled' : '') + '>Log in</button>'},
-    {done: !!s.server, t: 'The server they play on', d: (s.server ? 'Current: ' + esc(s.server) + '. ' : '') + 'Optional: a <a href="#s-prof">server profile</a> for a server with its own commands or messages.',
+    {done: !!s.server, t: 'The server to play on', d: (s.server ? 'Current: ' + esc(s.server) + '. ' : '') + 'Optional: a <a href="#s-prof">server profile</a> for a server with its own commands or messages.',
      a: '<input type="text" class="mono" id="sserver" placeholder="play.example.net" value="' + esc(s.server || '') + '" style="flex:1 1 200px;min-width:0" aria-label="Server address"><button type="button" class="btn go" data-s="server">Save</button>'},
-    // the game's service runs a minute or two before he is on the server: the step is done when the mod says he is on
-    {done: playing && online, t: 'Join the server', d: playing && online ? 'They are playing on ' + esc(S.server || s.server) + '. If the game stops it starts again and they rejoin, also after a reboot.'
-       : playing ? 'The game is starting: they are on the server in a minute or two (Minecraft loads, then they connect). This step turns green when they are on.'
+    // the game's service runs a minute or two before the buddy is on the server: the step is done when the mod says so
+    {done: playing && online, t: 'Join the server', d: playing && online ? esc(nm('{N} is playing on ')) + esc(S.server || s.server) + esc(nm('. If the game stops, it starts again and {n} joins again, also after a reboot.'))
+       : playing ? esc(nm('The game is starting. {N} joins the server in a minute or two; this step then turns green.'))
        : 'Starts the game and joins the server.',
      a: '<button type="button" class="btn go" data-g="start"' + (busy || !installed || !g.accounts.length || !s.server || playing ? ' disabled' : '') + '>' + (playing && !online ? 'Joining…' : 'Join') + '</button>'},
   ];
@@ -3347,7 +3353,7 @@ $('logout').addEventListener('click', async () => {
 function gForm(g) {
   const s = g.settings, f = (k, label, val, ph, mono) => '<label>' + label + '<input type="text" data-gs="' + k + '"' + (mono ? ' class="mono"' : '') + ' value="' + esc(val == null ? '' : val) + '" placeholder="' + esc(ph || '') + '"></label>';
   $('gform').innerHTML = '<div class="fields">' + f('server', 'Server', s.server, 'play.example.net', 1) + f('memory', 'Memory', s.memory, '2G', 1) + f('language', 'Game language', s.language, 'en_us', 1) +
-    // how far their game sees
+    // how far the buddy's game sees
     '<label>Render distance (chunks)<input type="number" min="2" max="32" step="1" inputmode="numeric" data-gs="render_distance" class="mono" value="' + esc(String(s.render_distance ?? 10)) + '"></label>' +
     '</div>' +
     // the folders and HeadlessMC's version are the image's business, not the owner's; a Minecraft version only from the
@@ -3379,7 +3385,7 @@ $('s-game').addEventListener('click', async ev => {
     if (k === 'cancel') { await post('/api/game-job', {kind: 'stop'}); note('Cancelled'); gameLoad(); return; }
     if (['install', 'login'].includes(k)) { await post('/api/game-job', {kind: k}); note('Started'); setTimeout(gameLoad, 800); return; }
     if (['start', 'stop', 'restart'].includes(k)) {
-      if (k !== 'start' && !confirm(k === 'stop' ? 'Stop the game? They stay offline until you start it again.' : 'Restart the game? They are offline for about a minute.')) return;
+      if (k !== 'start' && !confirm(k === 'stop' ? nm('Stop the game? {N} stays offline until you start it again.') : nm('Restart the game? {N} is offline for about a minute.'))) return;
       b.disabled = true; await post('/api/game-service', {action: k}); note(k[0].toUpperCase() + k.slice(1) + ': done'); gameLoad(); return;
     }
   } catch (e) { note('Not done: ' + e.message); gameLoad(); }
@@ -3401,14 +3407,14 @@ setInterval(() => { if (!$('settings').hidden && !(G && G.job && G.job.running))
 // the raw commands worth knowing (docs/exchange.md has them all), each with an example to start from
 const RAWCMDS = [
   ['Follow a player', '{"cmd":"follow","player":"Name"}'], ['Stop following', '{"cmd":"follow","on":false}'],
-  ['Stay where they are (and follow again)', '{"cmd":"follow","stay":true}'], ['Walk to a spot, jumps and all', '{"cmd":"goto","x":10,"y":64,"z":-20}'],
+  ['Stay put (and follow again)', '{"cmd":"follow","stay":true}'], ['Walk to a spot, jumps and all', '{"cmd":"goto","x":10,"y":64,"z":-20}'],
   ['Type a line or a command in the game', '{"cmd":"chat","text":"/spawn"}'], ['A job on or off: dig, chop, harvest, chests, give', '{"cmd":"help","dig":true}'],
-  ['Switch their mode: base, follow (with player) or build', '{"cmd":"mode","mode":"base"}'], ['One switch of a mode, by its name', '{"cmd":"setting","name":"baseHarvest","value":false}'],
-  ['What they know: chests or fields', '{"cmd":"chests"}'], ['Forget this server: all, chests, fields, furnaces or home', '{"cmd":"forget","what":"chests"}'],
+  ['Switch the mode: base, follow (with player) or build', '{"cmd":"mode","mode":"base"}'], ['One switch of a mode, by its name', '{"cmd":"setting","name":"baseHarvest","value":false}'],
+  ['Known chests or fields', '{"cmd":"chests"}'], ['Forget this server: all, chests, fields, furnaces or home', '{"cmd":"forget","what":"chests"}'],
   ['Which server profile applies', '{"cmd":"profile"}'], ['Take a hotbar slot in hand (0 to 8)', '{"cmd":"select","slot":2}'],
-  ['Throw a stack from their inventory', '{"cmd":"drop","slot":3}'], ['After /home iron, walk on to a spot', '{"cmd":"homewalk","home":"iron","x":100,"y":64,"z":200}'],
+  ['Throw a stack from the inventory', '{"cmd":"drop","slot":3}'], ['After /home iron, walk on to a spot', '{"cmd":"homewalk","home":"iron","x":100,"y":64,"z":200}'],
   ['How the mob farm stands, or stop it', '{"cmd":"pen","on":false}'], ['Leave the server, or join it again', '{"cmd":"leave"}'],
-  ['Are they there? Answers pong', '{"cmd":"ping"}'],
+  ['Check the connection: answers pong', '{"cmd":"ping"}'],
 ];
 $('rawlist').innerHTML = RAWCMDS.map(([what, ex], i) => '<tr><td>' + esc(what) + '<br><code>' + esc(ex) + '</code></td><td class="b"><button type="button" class="btn small ghost" data-rawuse="' + i + '">Use</button></td></tr>').join('');
 $('rawhelp').addEventListener('click', () => $('rawdlg').showModal());
@@ -3491,7 +3497,7 @@ document.addEventListener('click', async ev => {
     if (![c.x, c.y, c.z].every(Number.isFinite)) { note('Fill in x, y and z'); return; }
     cmd(c, 'Moving the start block of ' + b.dataset.move + ' to ' + c.x + ' ' + c.y + ' ' + c.z);
   } else if (b.dataset.movehere !== undefined) {
-    cmd({cmd: 'placement', action: 'move', name: b.dataset.movehere, here: true}, 'Moving the start block of ' + b.dataset.movehere + ' to where they stand');
+    cmd({cmd: 'placement', action: 'move', name: b.dataset.movehere, here: true}, 'Moving the start block of ' + b.dataset.movehere + nm(' to where {n} stands'));
   } else if (b.dataset.del) {
     if (!confirm('Delete ' + b.dataset.del + '?')) return;
     try { await post('/api/schematic-delete', {name: b.dataset.del}); schematics(); schList(); } catch (e) { note('Not deleted: ' + e.message); }
@@ -3558,7 +3564,7 @@ async function versionCheck() {
   if (!v.version || c.disabled) return;
   c.classList.toggle('new', !!v.newer);
   c.innerHTML = (v.newer ? ARROW_UP : '') + '<span>v' + esc(v.version) + '</span>';
-  const t = v.newer ? 'Version ' + v.latest + ' is out; this buddy runs ' + v.version + '. ' + (v.updater ? 'Click to update.' : 'Updating takes Watchtower: see Settings, Status.')
+  const t = v.newer ? nm('Version ' + v.latest + ' is out; {n} runs ' + v.version + '. ') + (v.updater ? 'Click to update.' : 'Updating takes Watchtower: see Settings, Status.')
     : v.latest ? 'Minecraft Buddy ' + v.version + ', the newest version'
     : v.error ? 'Minecraft Buddy ' + v.version + '. Could not look for a newer version: ' + v.error
     : 'Minecraft Buddy ' + v.version;
@@ -3577,14 +3583,14 @@ const iconsAgain = setInterval(() => {
   if (ICONS._heart_full) { clearInterval(iconsAgain); return; }
   fetch('/icons.json').then(r => r.json()).then(i => { if (i._heart_full) { ICONS = i; hudKey = ''; } }).catch(() => {});
 }, 60000);
-/* ---------- driving him in 3D, in place of the old Drive manually: the buddy is played from the browser as close to the
+/* ---------- Take control in 3D, in place of the old Drive manually: the buddy is played from the browser as close to the
    game's own client as can be, with E for the inventory, T for the chat, Tab for the player list and the rest ----------
    The view is /3d/world3d.js on the pad's own canvas: the pad keeps its keys, mouse and touch buttons, and the camera stands
-   at his eyes looking where padView() says. E, T, / and Tab move the panel's own inventory or chat block over the view (with
+   at the buddy's eyes looking where padView() says. E, T, / and Tab move the panel's own inventory or chat block over the view (with
    all their clicks and keys), and a menu that opens in the game opens the inventory block, as the game opens its screen. */
 let W3 = null, W3start = null, playUi = null, playAuto = false;
 /* One 3D view for the page, behind one button, Take control, and in the normal view too, steered as the map is: in the map
-   card, dragged and zoomed as the flat map, or in the control window, where he is played; its canvas moves with it. */
+   card, dragged and zoomed as the flat map, or in the control window, where the buddy is played; its canvas moves with it. */
 let mapDim = '2d';
 try { mapDim = localStorage.getItem('buddy-map-dim') === '3d' ? '3d' : '2d'; } catch { }
 /* how bright the 3D view is, for this browser; Full by default, so that a dark cave can be seen while watching */
@@ -3603,7 +3609,7 @@ function ensure3d(mode) {
   if (W3) return Promise.resolve(W3);
   if (!W3start) W3start = import('/3d/world3d.js').then(m => {
     W3 = m.start3d({ canvas: $('w3view'), controls: false, mode, look: () => steer.on ? padView() : null, steering: () => steer.on, onMap: mapButtons, brightness: lightLevel,
-      // the buttons held, for his hand through his eyes (a blow, a block put down)
+      // the buttons held, for the buddy's hand through the buddy's eyes (a blow, a block put down)
       held: () => ({ left: steer.on && steer.keys.has('left'), use: steer.on && steer.keys.has('use') }),
       active: () => !$('driver').hidden || map3dShown(), paused: () => $('driver').hidden && !map3dShown(),
       // a container's contents in the hover, with the panel's item names and pictures
@@ -3657,7 +3663,7 @@ function placeCompass(yaw, pitch) {
   }
 }
 addEventListener('resize', mapButtons);
-/* the control window's views: through his eyes (you play him), around him, flying (he stands still then) */
+/* the control window's views: through the buddy's eyes (you play the buddy), around the buddy, flying (the buddy stands still then) */
 function lookButtons() {
   const m = W3 ? W3.mode() : 'orbit';
   $('pad').dataset.look = m;
@@ -3697,7 +3703,7 @@ function showUi(which, auto) {
   playHud();
 }
 function hideUi(keep) {
-  // his inventory shut: the game puts what is on the cursor (and in the crafting grid) back, as closing the screen does
+  // the buddy's inventory shut: the game puts what is on the cursor (and in the crafting grid) back, as closing the screen does
   // (the item stayed hanging on the screen otherwise)
   if (playUi === 'inv') {
     if (steer.on && S && !S.menu) post('/api/menu-close', {}).then(() => quick()).catch(() => {});
@@ -3717,7 +3723,7 @@ function backToGame() {
   const pad = $('pad');
   if (steer.on && pad.requestPointerLock && matchMedia('(pointer:fine)').matches) pad.requestPointerLock();
 }
-/* the hotbar and his health under the view, as the game draws them, while the inventory is not shown */
+/* the hotbar and the buddy's health under the view, as the game draws them, while the inventory is not shown */
 let hudKey = '';
 function playHud() {
   if ($('driver').hidden || !S) return;
@@ -3752,12 +3758,12 @@ function playSide() {
 function playSync() {
   if ($('driver').hidden || !S) return;
   const closing = S.menu && menuClosed.id === S.menu.id && Date.now() < menuClosed.until;
-  // watching: their inventory over the view while the one who plays them has it open, as they see it
-  const theirs = !steer.on && someoneElse() && CTL.ui === 'inv';
+  // watching: the inventory over the view while someone else playing the buddy has it open, as that player sees it
+  const othersInv = !steer.on && someoneElse() && CTL.ui === 'inv';
   // watching with Inventory on: the inventory small in the corner (a menu or someone else's open inventory shows big)
-  const peek = peekInv && !steer.on && !theirs && !(S.menu && !closing);
-  if (((S.menu && !closing) || theirs || peek) && playUi !== 'inv') showUi('inv', true);
-  else if ((!S.menu || closing) && !theirs && !peek && playUi === 'inv' && playAuto) hideUi();
+  const peek = peekInv && !steer.on && !othersInv && !(S.menu && !closing);
+  if (((S.menu && !closing) || othersInv || peek) && playUi !== 'inv') showUi('inv', true);
+  else if ((!S.menu || closing) && !othersInv && !peek && playUi === 'inv' && playAuto) hideUi();
   $('playui').classList.toggle('peek', peek && playUi === 'inv');
   // the coordinates and the clock under the inventory while it is shown small in the corner, else at the top right
   const pu = $('playui'), rtop = (peek && !pu.hidden ? pu.offsetTop + pu.offsetHeight + 8 : 56) + 'px';
@@ -3773,7 +3779,7 @@ try { peekInv = localStorage.getItem('buddy-peek-inv') === '1'; } catch { }
 function peekButton() {
   const b = $('invpeek');
   b.classList.toggle('copper', peekInv); b.setAttribute('aria-pressed', peekInv ? 'true' : 'false');
-  b.title = (peekInv ? 'Hide what ' : 'Show what ') + ((S && S.name) || 'the buddy') + ' carries and wears, small in the corner';
+  b.title = nm((peekInv ? 'Hide' : 'Show') + ' what {n} carries and wears, small in the corner');
 }
 $('invpeek').addEventListener('click', () => {
   peekInv = !peekInv;
@@ -3795,7 +3801,7 @@ $('obpeek').addEventListener('click', () => {
   planButton(); obSide();
 });
 planButton();
-/* the line at the top while you watch: what they do, or who plays them; the keys under it, folded away when asked */
+/* the line at the top while you watch: what the buddy does, or who plays the buddy; the keys under it, folded away when asked */
 let keysShort = false;
 try { keysShort = localStorage.getItem('buddy-keys-short') === '1'; } catch { }
 function watchLine() {
@@ -3806,7 +3812,7 @@ function watchLine() {
     : 'Watching ' + n + ': ' + (S.steered && !steer.on ? 'played from the panel' : doingText(S).replace(/^./, c => c.toLowerCase())) + '.';
   if ($('watchline').textContent !== t) $('watchline').textContent = t;
   obSide();
-  const how = busy ? 'You can take control when they let go.' : 'Click the view to take control.';
+  const how = busy ? 'You can take control once the other one lets go.' : 'Click the view to take control.';
   if ($('watchhow').textContent !== how) $('watchhow').textContent = how;
   h.classList.toggle('busy', busy);
   $('driver').classList.toggle('watching', !steer.on);
@@ -3861,7 +3867,7 @@ $('say').addEventListener('submit', () => { if (!$('driver').hidden && playUi ==
    read, any other by its name. Shown over the panel and over the 3D view, drawn again only when the screen changes, so
    that typing is not lost. ---------- */
 let gKey = '', bookPage = 0, bookPages = null;
-/* A screen shut here (Done, Respawn, Leave Bed) stays shut until his game has shut it too, at most three seconds: the
+/* A screen shut here (Done, Respawn, Leave Bed) stays shut until the buddy's game has shut it too, at most three seconds: the
    state still had it for a moment, the window came back and took the mouse out of the game again (the focus was lost
    after editing or placing a sign). */
 let gClosed = null;
@@ -3879,7 +3885,7 @@ function gscreen() {
   if (steer.on && document.pointerLockElement && sc.kind !== 'bed') { playUi = 'screen'; document.exitPointerLock(); }
   const done = '<button type="button" class="btn go" data-g="done">Done</button>';
   let h = '';
-  if (sc.kind === 'death') h = '<h3>You died!</h3><p class="note">Their things lie where they died.</p><div class="row" style="justify-content:center"><button type="button" class="btn go" data-g="respawn">Respawn</button></div>';
+  if (sc.kind === 'death') h = '<h3>You died!</h3><p class="note">' + esc(nm('{N}\'s things lie where {n} died.')) + '</p><div class="row" style="justify-content:center"><button type="button" class="btn go" data-g="respawn">Respawn</button></div>';
   else if (sc.kind === 'bed') h = '<h3>Sleeping</h3><div class="row"><button type="button" class="btn" data-g="wake">Leave Bed</button></div>';
   else if (sc.kind === 'sign') h = '<h3>Edit ' + (sc.hanging ? 'hanging sign' : 'sign') + ' message</h3><p class="note">' + (sc.front ? 'Front' : 'Back') + ' at ' + sc.x + ' ' + sc.y + ' ' + sc.z + '</p>' +
     [0, 1, 2, 3].map(i => '<input class="signl" maxlength="80" data-line="' + i + '" value="' + esc((sc.lines || [])[i] || '') + '">').join('') + '<div class="row" style="margin-top:10px">' + done + '</div>';
@@ -3936,7 +3942,7 @@ $('gscreen').addEventListener('click', ev => {
     bookShow();
   }
 });
-/* F3 in the 3D view: where he is and what he looks at, as the game's debug screen starts */
+/* F3 in the 3D view: where the buddy is and what the buddy looks at, as the game's debug screen starts */
 function debugLines() {
   if ($('w3debug').hidden || !S) return;
   const h = W3 && W3.hit();
@@ -3959,7 +3965,7 @@ $('w3hover').addEventListener('click', () => {
   if (hv.dataset.nbt) copyText(hv.dataset.nbt, 'Data'); else copyText(hv.innerText.trim(), 'Text');
 });
 $('w3hover').addEventListener('mouseleave', () => { if ($('w3hover').dataset.item) itemInfo(null); });
-/* his coordinates over the view, at the top left, the block he stands in */
+/* the buddy's coordinates over the view, at the top left, the block the buddy stands in */
 setInterval(() => {
   const el = $('w3xyz');
   if ($('driver').hidden || !W3 || !W3.where) { if (el.textContent) el.textContent = ''; return; }
@@ -3967,7 +3973,7 @@ setInterval(() => {
   const t = p ? 'XYZ ' + Math.floor(p[0]) + ' ' + Math.floor(p[1]) + ' ' + Math.floor(p[2]) : '';
   if (el.textContent !== t) el.textContent = t;
 }, 100);
-// four times a second while you play them or watch them in Take control (a chest they open shows as it fills)
+// four times a second while you play or watch the buddy in Take control (a chest the buddy opens shows as it fills)
 setInterval(() => { if (Date.now() < fastUntil || steer.on || !$('driver').hidden) state(); }, 250);
 setInterval(state, 1000);
 setInterval(log, 1500);

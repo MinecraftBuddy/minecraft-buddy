@@ -1,149 +1,209 @@
 # The web panel
 
-The buddy's page in the browser: watch them, steer them, use their inventory, and set everything up.
+The buddy's page in the browser: watch, steer, use the inventory, and set everything up. It is at the buddy's domain
+(the label `caddy` of that buddy's block in `compose.yaml`).
 
 ## What is on it
 
-The buddy's domain (the label `caddy` of their block in `compose.yaml`). The bar at the top shows the buddy's name and their own skin, whether they are online and on which server, what they do **now**, a button to take
-them off the server or back on, the way to **Settings** (in the settings the same button goes back to the **Overview**),
-and in the corner the buddy's version: with an arrow when a newer one is out, and a click on it then updates (see
-[Installing](install.md#updates)). On a phone the parts come one at a time, chosen in a bar at
-the bottom (Map, Inventory, Chat, Settings).
+### The header
 
-- **Priorities**: the steps in the order they get the buddy's hands (stay safe, your instructions, fight, save a player's
-  things, bring things home, tend the base, sleep, help you work, follow). The one that has them now is lit, with what
-  the buddy does; the ones below it wait.
-- **Mode**: the buddy's ways of spending their time, each with its own switches. A mode is chosen with its circle (or its
-  name): that opens it grey, with **Confirm switch** beside its name, so its switches, an amount or a schematic can be set
-  first; only the confirm switches, and the circle again closes it. **AFK** keeps them where they are doing nothing
-  else, for instance to keep a farm's chunks loaded: **Look around** looks at players who come close, **Walk about**
-  takes a few steps and back now and then so that a server's AFK check sees them move (how many blocks and how often are
-  set under it), **Stay crouched**. **Tend the base** (harvest fields, run furnaces, store in chests, fight monsters,
-  sleep at night, shear sheep, herd strays) walks them home and keeps it. **Follow a player** (mine, chop and farm with
-  you, guard you, pick up your drops, farm mobs, dig when blocked, bridge and pillar, crouch along) follows the name you
-  type or pick. **Build a schematic** starts the builder on the placed schematic nearest to them; opened, it places an
-  uploaded file (**Place a schematic**: the file, its **start block** where they stand or at x y z, the turn and the mirror;
-  the start block is the block that lands on that spot, the schematic turns and mirrors around it), and lists each placed
-  schematic with its size, turn and mirror and its start block, which a click shows on the map and the fields under it
-  move, typed or **To where they stand**. **Material list** opens what it takes per item, as Litematica counts it (in all,
-  still missing where it is loaded, what they carry, what the chests they build from held); an item ticked **ignore** is
-  left out when they build. **Remove** takes the placement away; the file stays. **Obtain items** fetches an item for you: search it by
-  its name (with its picture; the list is what the buddy knows a way to from nothing, worked out from the game's own
-  recipes and drops), type how many and who gets it, and **Fetch**. Under it the order's progress: how many they have,
-  the step they are on and for how long, or that they are dug in for the night or to heal; **Stop** ends it, and once it
-  is over how it ended. [Obtain items](obtain.md) has how they go about it. Switching to another mode ends AFK. A **?** beside a
-  mode or switch says how it is set in the game (the bed you tap for their base, the sign to follow, the punch for a mob
-  farm). A switch counts at once and is kept in their config; the switches of a mode that is not on wait for it.
-- **What they are missing**: what the buddy lacks to help (food, a weapon, room, a tool about to break, the right tool or torches for
-  a job), above the map, for as long as it lasts.
-- **Map**, live: 128 by 128 blocks around the buddy, north up, coloured as Xaero's minimap draws it (grass, leaves and water
-  in the biome's colours, shaded by height, deeper water darker). On it their bed, chests and fields, the players and
-  monsters near them, an arrow for the buddy and the way they face, the buddy's position in the top corner, and the
-  game's day and time (as F3 counts the day) in the bottom corner, in 2D and 3D alike. Zoom in, drag to look
-  around, the round button puts them back in the middle. `Auto` shows the layer they are on once they are deep under rock or
-  in the nether (`Surface` and `Cave` choose). Around it, dimmer, what they saw before: always, also with the page shut, they draw the chunks around them into
-  `maptiles/` in the exchange folder, again each time they come by. Zoom out to 512 blocks; **Back to** takes the map to
-  them again, and a coordinate in Problems or Activity takes it there. Click a spot and **Walk there** sends them.
-  **2D / 3D** switches the map: the 3D map is dragged with the left button, turned and tilted with the right (on a
-  touchpad, hold `Shift`, `Option` or `Ctrl` and drag), zoomed with a double click (in) and a double right click (out)
-  on the spot, and by the wheel, two fingers, a pinch and the buttons; the round button puts them in the middle again,
-  north up. A click on a block offers **Walk there** too, also underground, where the map looks through the rock above
-  them; a click beside that menu shuts it.
-  **Take control** opens watching around the buddy (**Around** and the buddy's name). **Play** shows the buddy's own view, with the keys explained at the top (**Hide keys**
-  folds them away): you see them turn, hit, eat and break blocks (cracks, and the bits flying), and the chest or menu
-  they open, as they do it, whether they work by themselves or someone else plays them. `F5`, `F1` and `F3` work while
-  watching too. **Around** and **Fly** look about while the buddy stands still. **Inventory** shows the buddy's inventory and armour small
-  in the top right corner; **Plan** shows an order's plan and timeline at the left (on until you click it off; the button is
-  there only during an order). One person plays them at a time: while
-  another window plays them, a click on the view says "Someone else (at their address) is controlling them at the
-  moment", their inventory shows over the view while that person has it open, and nothing you click there reaches the
-  game (nor the clicks in the overview's inventory). Click the view to take over, `W A S D` walk, the mouse turns them, `Space` jumps, `Shift`
-  sneaks, `R` or `W` twice quickly sprints, the left button hits or breaks, the right button uses (held: eating, a bow, a shield), `1` to
-  `9` or the wheel pick a hotbar slot, `E` the inventory (shut it and what is on the cursor goes back; a click on the
-  world beside it throws what is on the cursor), `T` or `/` the chat, `Tab` who is online, `F5` the view behind and in front of them, `F1` hides the HUD, `F3` what they look at, `Esc`
-  hands them back and you watch again; **← Overview** at the top left and **Done** at the top right end it. The coordinates and the game's
-  day and time stand at the top right, under the inventory while it shows there. **Game**, **Bright** and **Full** set how bright the 3D view is: the game's own
-  brightness, its brightest, or as with Night Vision so that dark caves can be seen into (Full by default; the choice is
-  kept in the browser and holds for the 3D map too). Blocks, light and night, mobs, players with their skins and armour, what each holds and a sign's text
-  are drawn as the game draws them, beacon beams too, and what the buddy holds is in their hands, a blow swinging it and food brought to their
-  mouth. The air bubbles stand above the food under water, as in the game. The hover over a block shows its data, and for a
-  container they had open its items too (`Items`, with names and enchantments), which a click copies for `/data merge block`
-  or `/setblock` on a test server. The line above the hotbar stands in its colours, the scoreboard at the right as the game draws it (`F1` hides it too), and a new chat line shows over the view for ten seconds while
-  the chat is shut, as in the game. The game's screens open over the view: a chest or any menu, a sign (`Enter` goes down a line, `Esc` or Done
-  writes it), a book, the bed, the death screen. The view's frames a second
-  stand in its status line; the buddy's game draws
-  forty frames a second while you play them (their own setting otherwise). On a touch screen: the buttons, and drag on the
-  field to turn. While you play them no job moves them.
-- **Inventory**, as the game draws it: armour beside the buddy (their own skin and the armour they wear, their head following the
-  mouse), the off hand, the crafting grid, the 27 slots and the
-  hotbar with the slot they hold outlined, and under it the game's HUD: armour, hearts, food (from the right), their level
-  and its bar. Hover a slot for the game's tooltip (the name in its rarity's colour, a player's own name in italics,
-  enchantments in gray, curses in red, durability, the item's id). The buddy's effects and what they hold on the cursor stand
-  beside it. **You use it as in the game**: a click picks up or puts down, a right-click takes half or puts one,
-  `Shift`-click moves across, a double click gathers a kind, `1`–`9` over a slot swaps with the hotbar, `F` with the
-  off hand, `Q` drops one (`Ctrl`+`Q` the stack), dragging a held stack over slots shares it out, and a click outside
-  the window throws what you hold. Only what you picked up yourself follows your mouse, and only that is thrown by a
-  click outside the window: what they, or someone else playing them, hold on the cursor stays in the box beside it. The
-  wheel over the hotbar picks what they hold. Every click is one real click in their
-  inventory; meanwhile their jobs wait.
-- **The chat box**: a line goes out as the buddy's chat, a `/command` as their command. While a `/command` is typed, what
-  may come next stands above the box (the game's suggestions, and the server's where it fills them in); `Tab` takes the
-  next, `Shift`+`Tab` the one before, a click that one. Nothing is sent before `Enter`.
-- **A menu they have open** (a chest, or a server's menu such as `/shards` typed in the chat box) takes the inventory's
-  place, as the game's chest screen: the menu's title in its colours, its slots, and their own inventory below. Tooltips
-  show the server's names and lore with their colours; the glass between a menu's buttons has none. Clicks work as in
-  the inventory, so a click on a server's button does what it does in the game (it may spend money or shards). Close or
-  `Esc` over the inventory shuts the menu; while they follow or keep a base they shut one nobody clicked in for a minute.
-- **Players**, a fourth tab beside them: who is online and since when (from the Telegram bridge's `online_since.json`,
-  which keeps it across the buddy's reconnects; "at least since" for who was on before the buddy came).
-- **Chat, Activity, Problems**: the server's chat with names in colour, and a line to type as the buddy (a line or a
-  `/command`) with quick buttons (follow, stay, follow again, go home, stop following, ping); everything they report;
-  and what went wrong, the same trouble in one row with how often, when last and where. Scroll up for older lines,
-  from the panel's own history. The figures of a plugin, whose names are colour codes, do not show as joins and leaves.
-  During an order Activity also has its steps and Soprano's lines: what it starts and finishes, what it does now (once
-  the kind of task changes, so a staircase down is one line), and when one of its chains takes over to keep the buddy
-  alive (told once it held for a second); the order's card shows only the step and what Soprano does at this moment.
-- **Settings**: **Status** installs, logs in, sets the server and starts, stops and updates the buddy (see [Installing](install.md)),
-  and shows the game's own console; a server saved there gets a profile of its own, named after it, when none fits it;
-  **Telegram** is the bridge (below), with a main switch: off, nothing of Telegram shows anywhere in the panel;
-  **Connection** takes them off the server and back, and whether they stay off when their game starts anew;
-  **Server profiles** edits the profiles above (How it works explains every name, the variables and the server modules);
-  **Access** has the password, the trusted IPs and the trusted players; **Schematics** uploads a
-  `.litematic` (up to 8 MB) into their game's schematics folder and deletes one (placing is on the overview); **Behavior** has their **logs** (download each, empty the ones the panel
-  may, and switch recording menus and screens on or off) and a field for any exchange command as JSON, with How it works
-  listing the ones worth knowing.
-- **In the 3D view**, the box at the bottom right shows what the mouse is on; for a chest, barrel, shulker box or furnace
-  that is also what lay in it the last time they had it open, with when. A server sends a container's items only while it
-  is open, so one they never opened says so.
+The bar at the top shows the buddy's name and skin, whether the buddy is online and on which server, and what the
+buddy is doing **now**. Its buttons:
+
+- **Leave** takes the buddy off the server, and the buddy stays off, also when the game starts again, until **Join**.
+  Join goes back to the last server. After a kick or a lost connection the buddy joins again automatically after about
+  half a minute.
+- **Settings**; in Settings the same button goes back to the overview.
+
+Under the buttons stands the buddy's version, with an arrow when a newer release is out. A click on it then updates
+(see [Installing](install.md#updates)).
+
+On a phone the parts come one at a time, chosen in a bar at the bottom (Map, Inventory, Chat, Settings).
+
+### Priorities
+
+The steps in the order they get the buddy's hands: stay safe, your instructions, fight, fetch an order, save a
+player's things, bring things home, tend the base, sleep, help you work, follow. The step in charge is lit, with what
+the buddy is doing; the ones below it wait.
+
+### Modes
+
+A mode is how the buddy spends the time, each with its own switches. Click a mode's circle (or its name): the mode
+opens greyed, so its switches, an amount or a schematic can be set first, and the button beside its name switches to
+it. The circle again closes it. Another mode ends the one that was on.
+
+- **AFK**: the buddy stays put and does nothing else, for example to keep a farm's chunks loaded. Teleport requests
+  from trusted players are accepted. Its switches: **Look around** looks at players who come close, **Walk about** takes
+  a few steps and back now and then so that a server's AFK check sees movement (how far and how often are set under
+  it), **Stay crouched**.
+- **Tend the base** walks the buddy home and keeps the base: harvests fields, runs furnaces, stores in chests, fights
+  monsters, sleeps at night, shears sheep and herds strays back. Set the base in the game: with the buddy within six
+  blocks, tap a bed with an empty hand.
+- **Follow a player** follows the name you type or pick. Its switches: mine, chop and farm with you, guard you, pick up
+  your drops, farm mobs, dig when blocked, bridge and pillar, crouch along.
+- **Build a schematic** builds the placed schematic nearest to the buddy, with what the buddy carries and the chests
+  near where the buddy stands. Upload the file in Settings, Schematics. Opened, the mode places new schematics and
+  lists the placed ones:
+  - **Place a schematic**: the file, its start block (where the buddy stands, or x y z), the turn and the mirror. The
+    start block is the block that lands on that spot; the schematic turns and mirrors around it.
+  - Each placed schematic shows its size, turn, mirror and start block. A click shows it on the map. To move it, type a
+    new start block under it or click **To where the buddy stands**.
+  - **Material list**: what the build takes per item, as Litematica counts it: in all, still missing where the area is
+    loaded, what the buddy carries, and what the building chests held. Tick **ignore** to leave an item out.
+  - **Remove** takes the placement away; the file stays.
+- **Obtain items** fetches an item. Search it by name (the list holds what the buddy knows a way to from nothing,
+  worked out from the game's own recipes and drops), type how many and who gets it, and click **Fetch**. Under it stands
+  the order's progress: how many the buddy has, the current step and for how long, or that the buddy is dug in for the
+  night or to heal. **Stop** ends the order. Once the order is over, the line says how it ended. [Obtain
+  items](obtain.md) has the detail.
+
+A **?** beside a mode or switch says how it is set in the game (the bed you tap for the base, the sign to follow, the
+punch for a mob farm). A switch counts at once and is kept; the switches of a mode that is off wait for it.
+
+### What the buddy is missing
+
+Above the map, for as long as it lasts: what the buddy lacks to help, such as food, a weapon, room in the inventory, a
+tool about to break, or the right tool or torches for a job.
+
+### The map
+
+128 by 128 blocks around the buddy, live, north up, coloured as Xaero's minimap draws it. On it: the bed, chests and
+fields, players and monsters nearby, and an arrow for the buddy. The corners show the buddy's position and the game's
+day and time.
+
+- Drag to look around and zoom out to 512 blocks; **Back to the buddy** or the round button puts the buddy in the middle
+  again. A coordinate in Problems or Activity takes the map there.
+- What was seen before stays on the map, dimmer. The buddy draws the chunks around, also while the page is shut.
+- `Auto` shows the buddy's layer when deep under rock or in the nether; `Surface` and `Cave` choose one.
+- Click a spot and **Walk there** sends the buddy.
+- **2D / 3D** switches the map. In 3D, drag with the left button to move and with the right to turn and tilt (on a
+  touchpad, hold `Shift`, `Option` or `Ctrl` and drag). Zoom with the wheel, two fingers, a pinch, the buttons, a double
+  click (in) or a double right click (out). A click on a block offers **Walk there** too, also underground, where the
+  map looks through the rock overhead.
+- In 3D, the box at the bottom right shows what the mouse is on. For a chest, barrel, shulker box or furnace that is
+  also what lay in it the last time the buddy had it open, with when: a server sends a container's items only while it
+  is open.
+
+### Take control
+
+**Take control** first shows the view around the buddy (**Around** and the buddy's name). **Play** shows the buddy's
+own view, with the keys at the top (**Hide keys** folds them away). Everything shows as it happens: turning, hitting,
+eating, breaking blocks, a chest or menu being opened. In Play, a click on the view takes control.
+
+While you watch:
+
+- **Around the buddy**: drag to turn around the buddy, scroll to zoom. **Fly**: click the view, then `W A S D`, `Space`
+  and `Shift`, at 20 blocks a second (60 with `Ctrl`). The buddy stands still in both.
+- **Inventory** shows the buddy's inventory and armour small in the top right corner until you click it again. While
+  you play the button is gone, and `E` opens the inventory.
+- **Plan** shows an order's plan and timeline at the left until you click it off. The button is there only during an
+  order.
+- `F5`, `F1` and `F3` work as in the game.
+
+While you play:
+
+- `W A S D` walk, the mouse looks, `Space` jumps, `Shift` sneaks, `R` (or `W` twice) sprints, left click hits or breaks,
+  right click uses (held: eating, a bow, a shield), `1`–`9` or the wheel picks a slot, `Q` drops, `F` swaps hands, `E`
+  inventory, `T` or `/` chat, `Tab` player list, `F5` camera, `F1` hides the HUD, `F3` shows what is looked at.
+- `Esc` stops, and you watch again. **← Overview** and **Done** close the window.
+- In the inventory, what is on the cursor goes back when you shut it; a click on the world beside it throws what is on
+  the cursor.
+- No job moves the buddy while you play. On a touch screen: the buttons, and drag on the view to turn.
+
+One person plays at a time. While someone else plays, a click on the view says who (by address), that person's open
+inventory shows over the view, and nothing you click reaches the game, nor do clicks in the overview's inventory.
+
+The view draws what the game draws: blocks, light and night, mobs, players with their skins, armour and what they hold,
+signs, beacon beams, the HUD, the line above the hotbar, the scoreboard, and a new chat line for ten seconds while the
+chat is shut. The game's screens open over it: a chest or any menu, a sign (`Enter` goes down a line, `Esc` or Done
+writes it), a book, the bed, the death screen. The coordinates and the game's day and time stand at the top right,
+under the inventory while it shows there.
+
+- **Game**, **Bright** and **Full** set the brightness: the game's own, its brightest, or as with Night Vision so that
+  dark caves can be seen into. Full is the default; the choice is kept in the browser and holds for the 3D map too.
+- Hovering a block shows its data, and for a container the buddy had open its items too, with names and enchantments.
+  A click copies it for `/data merge block` or `/setblock` on a test server.
+
+### Inventory
+
+The buddy's inventory as the game draws it: the buddy with skin and armour (the head follows the mouse), the off hand,
+the crafting grid, the 27 slots and the hotbar with the held slot outlined, and under it armour, hearts, food and the
+level. Hover a slot for the game's tooltip. Beside it stand the buddy's effects and what the buddy holds on the cursor.
+
+Use it as in the game: a click picks up or puts down, a right click takes half or puts one, `Shift`-click moves across,
+a double click gathers a kind, `1`–`9` over a slot swaps with the hotbar and `F` with the off hand, `Q` drops one
+(`Ctrl`+`Q` the stack), dragging a held stack over slots shares it out, a click outside the window throws what you
+hold, and the wheel over the hotbar picks the held item. Only what you picked up follows your mouse; what the buddy, or
+someone else playing, holds on the cursor stays in the box beside it. Every click is one real click in the buddy's
+inventory, and the jobs wait meanwhile.
+
+**A menu the buddy has open** (a chest, or a menu a server command opens) takes the inventory's place, as the game's
+chest screen: the menu's title, its slots, and the buddy's inventory below, with the server's names and lore in the
+tooltips. Clicks work as in the inventory, so a server's button does what it does in the game (it may spend money).
+Close, or `Esc` over the inventory, shuts the menu. While following or keeping a base, the buddy shuts a menu nobody
+clicked in for a minute.
+
+### Chat, Activity, Problems, Players
+
+- **Chat**: the server's chat with names in colour, a line to type as the buddy (a line or a `/command`), and quick
+  buttons (follow, stay, follow again, go home, stop following, ping). While you type a `/command`, the game's
+  suggestions, and the server's, stand above the box: `Tab` takes the next, `Shift`+`Tab` the one before, a click that
+  one. Nothing is sent before `Enter`.
+- **Activity**: everything the buddy reports. During an order also its steps and Soprano's lines: what Soprano starts
+  and finishes, what it does now (a line when the kind of task changes, so a staircase down is one line), and when one
+  of its chains takes over to keep the buddy alive (once it has held for a second). The order's card shows only the
+  step and what Soprano does at this moment.
+- **Problems**: what went wrong, the same trouble in one row with how often, when last and where.
+- **Players**: who is online and since when, kept across the buddy's reconnects ("at least since" for players who were
+  on before the buddy came).
+
+Scroll up for older lines.
+
+### Settings
+
+- **Getting started**: the four steps of a new machine (see [Installing](install.md)).
+- **Status**: install the game, log in, set the server, start, stop and update the buddy, and read the game's console.
+  A server saved there gets a profile of its own, named after it, when none fits it.
+- **Connection**: **Leave** and **Join**, as in the header, and the switch for joining again after a kick or a restart
+  of the game or the server. Leave turns that switch off, Join on.
+- **Server profiles**: the [server profiles](profiles.md); the editor explains every name, the variables and the
+  server modules.
+- **Access**: the owner password, trusted addresses and trusted players (below).
+- **Telegram**: the [bridge](telegram.md). Off, nothing of Telegram shows anywhere in the panel.
+- **Schematics**: upload a `.litematic` (up to 8 MB) into the game's schematics folder, or delete one. Placing is on the
+  overview.
+- **Behavior**: the buddy's logs (download, empty, and switch the recording of menus and screens on or off), and a
+  field for any [exchange command](exchange.md) as JSON, with the ones worth knowing listed.
 
 ## Who may open it
 
-- **The owner password** opens everything, from anywhere, for thirty days: it is chosen at the first visit with the
-  setup code from the container's log (`docker compose logs <their name>`), and changed in Settings, Access (where Log out is
-  too). Every login is a session the panel keeps (`owner-sessions.json`): Log out ends it there as well, so a copied cookie
-  opens nothing afterwards, and a new password ends every session. Caddy in front gives the page its HTTPS, and the panel trusts the visitor's address only from Caddy, with the secret
-  Caddy sends (`X-Buddy-Proxy`, see [install](install.md)).
-- **Trusted addresses** (Settings, Access): one address or network a line, `#` for a note, that may steer the buddy without a
-  password (your own address has to stay in while you are not logged in).
-- **Anyone else gets the login page and nothing more**: every other request is refused by the panel itself.
+- **The owner password** opens everything, from anywhere, for thirty days. Choose it at the first visit, with the setup
+  code from the container's log (`docker compose logs <name>`); change it in Settings, Access, where Log out is too. Log
+  out ends the session on the panel as well, so a copied cookie opens nothing afterwards; a new password ends every
+  session.
+- **Trusted addresses** (Settings, Access): one address or network a line, `#` for a note. They may steer the buddy
+  without a password. When you are not logged in, the panel refuses a list without your own address.
+- **Anyone else** gets the login page and nothing more.
 
-**Trusted players** (Settings, Access) is one list for the game and Telegram. A Minecraft name counts in the game: that
-player's taps and private-message commands count, the buddy accepts their teleport requests and does not stop for them (the
-mod's `trusted` in `buddy.json`, which changes only while the buddy is on a server). A Telegram user id makes them an admin of
-the bridge (`admins` in `telegram.json`); with a name beside it "to me" in a command means that player. Either may be
-empty. An admin named by a @username counts too; one named by a first and last name only in a private chat with the bot,
-since anyone can give themselves that name in a group.
+Ten wrong passwords from one address in ten minutes (an IPv6 address counts as its /64), and that address waits; a
+hundred from all addresses together, and every password login waits. The panel believes a visitor's address only from
+Caddy (see [Installing](install.md#what-runs)).
 
-The panel takes at most 200 connections, and ten wrong passwords from one address (an IPv6 /64) in ten minutes, a hundred
-from all addresses together. No other site may show it in a frame.
+**Trusted players** (Settings, Access) is one list for the game and Telegram:
+
+- A **Minecraft name**: that player's taps, private-message commands and teleport requests count. Minecraft names can be
+  changed only while the buddy is on a server.
+- A **Telegram user id**: that person can chat as the buddy and give `!` commands in Telegram; "to me" means that
+  person's Minecraft name.
+- Either may be empty.
 
 ## How it is made
 
 The panel is `panel/` in this repo: `server.py` (Python's standard library only, plain HTTP on a port of the container,
 behind Caddy), `owner.py` (the password), `game.py` (the game), `index.html` and its fonts (`fonts/`: IBM Plex Sans and
-Mono and Pixelify Sans, all under the SIL Open Font License, served by the panel itself). It comes with the image, and
-an update of the image is an update of the panel. It talks to the mod only through the exchange folder. The game's pictures and English names are
-not in git (they are Mojang's): the panel makes them itself from the game's client jar once the game has started
-(`make-icons.py`, with Pillow and numpy, and `make-assets.py`).
+Mono and Pixelify Sans, under the SIL Open Font License). It comes with the image, so an update of the image updates
+the panel, and it talks to the mod only through the exchange folder. The game's pictures and English names are not in
+git (they are Mojang's): the panel makes them from the game's client jar once the game has started (`make-icons.py`,
+with Pillow and numpy, and `make-assets.py`).
 
 ← [Back to the README](../README.md)

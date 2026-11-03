@@ -26,8 +26,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 /**
- * What he has seen, kept as a map, and brought up to date when it changes. Always, panel or not, a chunk a tick of the
- * chunks his game has loaded around him is drawn the way {@link MiniMap} draws the surface, and each chunk again after
+ * What the buddy has seen, kept as a map, and brought up to date when it changes. Always, panel or not, a chunk a tick of
+ * the chunks the game has loaded around the buddy is drawn the way {@link MiniMap} draws the surface, and each chunk again after
  * {@link #AGAIN} ms, so that what changed is drawn anew. The drawing is kept in tiles of {@link #TILE} by
  * {@link #TILE} blocks, in the exchange folder as
  * {@code maptiles/<server>/<dimension>/<tx>_<tz>.bin} (the server's profile, {@link Profiles#key()}, with every
@@ -37,8 +37,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
  * and the heights (two bytes a column; -32768 is not seen). The panel's server reads those files and the page draws
  * them under the live map.
  * <p>
- * Underground (rock more than eight blocks above his head, as {@link MiniMap} decides it) and in a dimension with a
- * roof, the cave layer he is in is kept as well, the way the live map draws caves: per column the first floor below his
+ * Underground (rock more than eight blocks above the head, as {@link MiniMap} decides it) and in a dimension with a
+ * roof, the cave layer the buddy is in is kept as well, the way the live map draws caves: per column the first floor below the
  * head, in {@code maptiles/<server>/<dimension>/cave<n>/}, sixteen blocks of height a layer ({@link MiniMap#layer}).
  * A cave layer shows everything of that layer, also zoomed out, so as not to confuse: the page shows the remembered
  * layer of the live map's cave view and no surface around it. A dimension with a roof (the nether) has no surface
@@ -67,22 +67,22 @@ final class MapMemory {
 	private static int next;
 	private static String lastDim = "", lastServer = "";
 	/**
-	 * The cave layer he is in, with a margin: it changes only when his head is two blocks or more outside the layer,
+	 * The cave layer the buddy is in, with a margin: it changes only when the head is two blocks or more outside the layer,
 	 * so a jump or a one-block dip at y 32 does not switch the map between two layers (21 Oct 2026, a review of this
 	 * change). {@link MiniMap} reports the same layer to the page.
 	 */
 	private static int curLayer;
 	private static boolean hasLayer;
-	/** The block he last stood on, and when (his tickCount): during a jump the slice stays at the ground's height. */
+	/** The block last stood on, and when (the player's tickCount): during a jump the slice stays at the ground's height. */
 	private static int groundY = Integer.MIN_VALUE, groundTick;
 
-	/** His head height for the cave view: the ground he stood on a moment ago while he jumps, else where he is. */
+	/** The head height for the cave view: the ground stood on a moment ago during a jump, else where the buddy is. */
 	static int headY(LocalPlayer p) {
 		int y = p.getBlockY();
 		return groundY != Integer.MIN_VALUE && p.tickCount - groundTick < 15 && Math.abs(y - groundY) <= 2 ? groundY : y;
 	}
 
-	/** The cave layer MapMemory keeps for him now; before its first tick, the one of this height. */
+	/** The cave layer MapMemory keeps now; before its first tick, the one of this height. */
 	static int layer(int fallbackY) { return hasLayer ? curLayer : MiniMap.layer(fallbackY); }
 	private static long nextSave;
 

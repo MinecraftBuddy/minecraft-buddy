@@ -54,31 +54,31 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Follow mode, for the alt only: walks after one player with the real keys and keeps finding a way to him while he
- * moves. The way goes as a player goes: level or a step onto a slab, one block up with a jump, up to three down
+ * Follow mode, for the buddy only: walks after one player with the real keys and keeps finding a way to that player at
+ * every move. The way goes as a player goes: level or a step onto a slab, one block up with a jump, up to three down
  * (deeper only into water), up and down ladders and vines, through wooden doors and fence gates (opened with a click
- * and, when he opened them himself, closed behind him), and through water in all directions, under the surface too:
- * there he swims like a player, sprinting where it is deep, and goes up for air before he runs out. It is planned
- * again as soon as the player has moved on. Out of sight (a teleport, a portal, out of range) the alt walks to the spot
- * where he last saw him and waits there until he shows up again: through a portal that is how he comes along,
- * because standing in it takes him across. When the player sits down on a cushion, the alt goes and sits on a free one
- * near him, and gets up when he does. Over a gap he jumps, as far as the game lets a player jump (the arithmetic of
- * server's parkour course): from a standstill at the edge, or with a run-up from a platform of three, onto blocks,
- * wall posts, iron bars and into ladders. Instead of a player he can go to a row of spots, one after the other (the
- * checkpoints of that course). Whom he follows changes only by a command ({@code !follow <name>} or {@code !follow
- * off} in Telegram), and is kept in
- * {@code follow.json} over a restart. The followed player tells him to stay or to follow again by looking at him and
+ * and, when the buddy opened them, closed behind), and through water in all directions, under the surface too:
+ * there swimming like a player, sprinting where it is deep, and up for air before the air runs out. It is planned
+ * again as soon as the player has moved on. Out of sight (a teleport, a portal, out of range) the buddy walks to the
+ * spot where the player was last seen and waits there until the player shows up again: through a portal that is how the
+ * buddy comes along, because standing in it takes you across. When the player sits down on a cushion, the buddy goes and
+ * sits on a free one nearby, and gets up when the player does. Over a gap the buddy jumps, as far as the game lets a
+ * player jump (the arithmetic of the server's parkour course): from a standstill at the edge, or with a run-up from a
+ * platform of three, onto blocks, wall posts, iron bars and into ladders. Instead of a player the buddy can go to a row
+ * of spots, one after the other (the checkpoints of that course). Whom to follow changes only by a command
+ * ({@code !follow <name>} or {@code !follow off} in Telegram), and is kept in
+ * {@code follow.json} over a restart. The followed player says stay or follow again by looking at the buddy and
  * crouching twice; with a weapon in hand a trusted player's sign switches the protection ({@link Guard}) on or off,
- * and held up to the sky, the fighting against players. He fights who hits the followed player, with critical hits.
- * When the player teleports away he asks /tpa, and only that player's /tpahere he accepts; when he sleeps the alt
- * takes a free bed near him, and when he gets into a boat or a minecart the alt gets in with him, or into one of its
- * own. He digs only what {@link Work} lets him (the player's tunnel, trees, crops) and does not build.
+ * and held up to the sky, the fighting against players. The buddy fights whoever hits the followed player, with
+ * critical hits. When the player teleports away the buddy asks /tpa, and accepts only that player's /tpahere; when the
+ * player sleeps the buddy takes a free bed nearby, and when the player gets into a boat or a minecart the buddy gets in
+ * too, or into another one. Digging goes only as far as {@link Work} allows (the player's tunnel, trees, crops); no building.
  * Self-contained on purpose: the builder must stay removable, so none of its walking code is used here.
  */
 final class Follow {
 	/** A Java name, or a Bedrock name with Floodgate's dot in front. */
 	private static final Pattern NAME = Pattern.compile("\\.?[A-Za-z0-9_]{2,16}");
-	/** Stand still once this close, and set off again only beyond FAR: no stop and go at every step he takes. */
+	/** Stand still once this close, and set off again only beyond FAR: no stop and go at every step the player takes. */
 	private static final double NEAR = 2.0, FAR = 3.5;
 	/** How many cells one plan may look at, and how far around you: about as far as the server shows players. */
 	private static final int MAX_NODES = 12_000, RANGE = 140;
@@ -86,25 +86,25 @@ final class Follow {
 	private static int gotoRange = RANGE;
 
 	private static int range() { return spots.isEmpty() ? RANGE : gotoRange; }
-	/** Plan again when he has moved this far from the cell the plan led to. */
+	/** Plan again when the player has moved this far from the cell the plan led to. */
 	private static final double REPLAN_MOVED = 2.5;
 	/** Under water: up for air below this (of 300; one breath lasts fifteen seconds). */
 	private static final int AIR_LOW = 150;
 	private static final double[] BODY = { -0.3, 0.3 };
 
 	private static String target;           // whom; null when off
-	private static Vec3 lastSeen;           // where he was last seen, in lastDim
+	private static Vec3 lastSeen;           // where the player was last seen, in lastDim
 	private static String lastDim;
 	private static boolean lost = false, walking = false, noPathTold = false, breath = false, wet = false, hoverSink = false;
 	private static long pauseUntil = 0;
 
 	private static List<BlockPos> route;    // cells still to walk, nearest first
 	private static BlockPos routeGoal;      // the cell the plan led to
-	private static boolean exactGoal;       // to a spot (where he vanished), not just near him
-	private static boolean airRoute;        // the route leads up to air, not to him
+	private static boolean exactGoal;       // to a spot (where the player vanished), not just near the player
+	private static boolean airRoute;        // the route leads up to air, not to the player
 	private static int idx, still, ticks, nextPlan, jumpTicks, backTicks;
 	private static long idxSince;
-	private static double idxDist;          // how far the cell was when he set off for it
+	private static double idxDist;          // how far the cell was on setting off for it
 	private static Vec3 previous;
 	/** Feet heights worked out during one plan: every cell is looked at from up to eight sides. */
 	private static final Map<BlockPos, Double> feetMemo = new HashMap<>();
@@ -114,18 +114,18 @@ final class Follow {
 	private static BlockPos opening;        // clicked to open, waiting for it to show open
 	private static int openingSince;
 	private static boolean openingSeen;     // it showed open since the click
-	private static BlockPos toClose;        // opened by him: shut it again once through
-	private static boolean toCloseEntered;  // he has been in the doorway since
+	private static BlockPos toClose;        // opened by the buddy: shut it again once through
+	private static boolean toCloseEntered;  // the buddy has been in the doorway since
 	private static int closeTries;
-	private static int closeBlocked;        // ticks an animal or a player stood between him and toClose
-	private static int shutClickAt = -1;    // the tick of his click to shut toClose, -1 for none
-	/** A closed door or gate he waits at because animals stand right behind it, and since when (tick). */
+	private static int closeBlocked;        // ticks an animal or a player stood between the buddy and toClose
+	private static int shutClickAt = -1;    // the tick of the click to shut toClose, -1 for none
+	/** A closed door or gate waited at because animals stand right behind it, and since when (tick). */
 	private static BlockPos doorWait;
 	private static int doorWaitSince;
 	/**
-	 * How long an animal in front of a door he is to shut, or behind one he is to open, is waited for: on the test
+	 * How long an animal in front of a door to shut, or behind one to open, is waited for: on the test
 	 * server's copy of the base a shearing round gave the pen's gate up after three tries of two seconds with sheep in
-	 * the line, and it stood open 80 seconds; walking in with two sheep just inside he stuck in the doorway (23 Oct 2026).
+	 * the line, and it stood open 80 seconds; walking in with two sheep just inside the buddy stuck in the doorway (23 Oct 2026).
 	 */
 	private static final int ANIMAL_WAIT = 300;
 	/**
@@ -136,23 +136,23 @@ final class Follow {
 	 */
 	private static final int DOOR_ANSWER = 6;
 	/**
-	 * Every door and gate he opened himself that may still be open, since when (doors he did not shut behind him let the
-	 * cows and sheep mix and sheep walk free): one he
-	 * did not go through, one he went far from, and the first of two in a row were forgotten and stayed open.
+	 * Every door and gate the buddy opened that may still be open, since when (doors not shut behind let the
+	 * cows and sheep mix and sheep walk free): one not
+	 * gone through, one walked far from, and the first of two in a row were forgotten and stayed open.
 	 */
 	private static final Map<BlockPos, Long> opened = new HashMap<>();
 	/** Walks to a door left open that came to nothing: three and it is told and left. */
 	private static final Map<BlockPos, Integer> closeFails = new HashMap<>();
 	/**
-	 * A gate held open for a while (Herd: the animal he leads follows him into its pen a few steps behind him, and shut
-	 * once he was through, it stayed outside). Null for none. Neither {@link #closeBehind} nor {@link #closeLeftOpen} shuts it.
+	 * A gate held open for a while (Herd: the animal being led follows into its pen a few steps behind the buddy, and with
+	 * the gate shut once the buddy was through, it stayed outside). Null for none. Neither {@link #closeBehind} nor {@link #closeLeftOpen} shuts it.
 	 */
 	private static BlockPos heldOpen;
 
-	/** Hold this gate open, or none (null): shut as always again once he is out of it. */
+	/** Hold this gate open, or none (null): shut as always again once the buddy is out of it. */
 	static void holdOpen(BlockPos gate) { heldOpen = gate; }
 
-	/** Shut this gate now, from where he stands (Herd, from inside the pen), whoever opened it. */
+	/** Shut this gate now, from where the buddy stands (Herd, from inside the pen), whoever opened it. */
 	static void shut(BlockPos gate) {
 		if (gate.equals(toClose)) return;
 		toClose = gate; toCloseEntered = true; closeTries = 0; closeBlocked = 0; shutClickAt = -1;
@@ -161,38 +161,38 @@ final class Follow {
 	/** Doors a click did not open (a claim without trust, a redstone lock): a wall for a minute. */
 	private static final Map<BlockPos, Long> refused = new HashMap<>();
 	/**
-	 * Cells he got stuck on the way to (a bamboo stalk that stands off-centre in the next cell, a corner the plan did
+	 * Cells the buddy got stuck on the way to (a bamboo stalk that stands off-centre in the next cell, a corner the plan did
 	 * not see): left out of the plans for twenty seconds, so the next plan goes another way instead of the same.
 	 */
 	private static final Map<BlockPos, Long> avoid = new HashMap<>();
 
-	// cushions: the free one he goes for while the player sits, the one to click next tick, and how it went
-	private static Entity seat;             // the cushion he goes for
+	// cushions: the free one gone for while the player sits, the one to click next tick, and how it went
+	private static Entity seat;             // the cushion gone for
 	private static Entity clickSeat;        // to right-click at the start of the next tick
 	private static int seatClickedAt = -1;  // tick of that click; -1 when none waits
-	private static long seatSince;          // when he set off for this cushion
-	private static boolean seated;          // sat down himself, so he gets up himself
+	private static long seatSince;          // when the walk to this cushion began
+	private static boolean seated;          // sat down of the buddy's own accord, so up again the same way
 	private static int standTicks;          // shift held this many ticks more: getting up
-	/** Cushions a click did not seat him on (a region at spawn that does not allow it, taken just then): skipped a minute. */
+	/** Cushions a click did not seat the buddy on (a region at spawn that does not allow it, taken just then): skipped a minute. */
 	private static final Map<Integer, Long> seatRefused = new HashMap<>();
-	/** Sit within this distance of him, or not at all. */
+	/** Sit within this distance of the player, or not at all. */
 	private static final double SEAT_RANGE = 8;
-	private static final double GHAST_REACH_UP = 3.5;   // a ghast's underside at most this far above his feet: within a click
-	// His happy ghast while he is off it: the alt stays on and flies it low beside him until he mounts it again, taking
-	// over the steering when he gets off. The first one on steers (HappyGhast.getControllingPassenger), so when he gets off the
-	// alt has the steering, and when he gets on again behind the alt, the alt hands it back: off and on again.
-	private static final double GHAST_SIDE = 3.6;    // its middle this far beside him: its side within his reach, not over him
-	private static final double GHAST_UNDER = 2.4;   // its underside this far above his feet: over his head, within his reach
-	private static boolean chauffeur;       // steering his ghast while he is off it
-	private static boolean driving;         // the ghast under way to its spot beside him
+	private static final double GHAST_REACH_UP = 3.5;   // a ghast's underside at most this far above the buddy's feet: within a click
+	// The player's happy ghast while the player is off it: the alt stays on and flies it low alongside until the player
+	// mounts it again, taking over the steering when the player gets off. The first one on steers (HappyGhast.getControllingPassenger),
+	// so when the player gets off the alt has the steering, and when the player gets on again behind the alt, the alt hands it back: off and on again.
+	private static final double GHAST_SIDE = 3.6;    // its middle this far beside the player: its side within the player's reach, not overhead
+	private static final double GHAST_UNDER = 2.4;   // its underside this far above the player's feet: overhead, within reach
+	private static boolean chauffeur;       // steering the player's ghast while the player is off it
+	private static boolean driving;         // the ghast under way to its spot beside the player
 	private static double ghastBest;        // nearest it came to that spot since ghastBestTick
 	private static int ghastBestTick;
-	private static Vec3 ghastParkedAt;      // got no nearer (a tunnel, a roof): waits until he has moved on from here
+	private static Vec3 ghastParkedAt;      // got no nearer (a tunnel, a roof): waits until the player has moved on from here
 	private static long handoverUntil;      // got off to hand the steering back: getting on again, however long a click takes
-	// Tied up with a lead he may leave it: down to the ground first, off with a crouch (the game sets him on top), and off its top at the edge
+	// Tied up with a lead it may be left: down to the ground first, off with a crouch (the game sets the alt on top), and off its top at the edge
 	// with the shortest drop.
 	private static boolean landing;         // leashed: on the way down to get off
-	private static boolean steppingOff;     // on top of his ghast, on the way to its edge
+	private static boolean steppingOff;     // on top of the player's ghast, on the way to its edge
 
 	// jumps: how each cell of the route is reached from the one before, and the jump under way
 	static final byte WALK = 0, JUMP = 1, RUN = 2;
@@ -206,18 +206,18 @@ final class Follow {
 	private static boolean hurry;           // to a spot: sprint on a straight bit
 	private static boolean canSprint;       // food for sprinting when the plan was made: a run-up takes it
 	/**
-	 * When the plan was made: whether he may jump over a gap at all (not burning, not in lava, more than four hearts),
-	 * how far a jump that goes wrong may let him fall ({@link Miss}), and whether the void under a jump is all right
-	 * (the parkour course, where a miss puts him back at his checkpoint).
+	 * When the plan was made: whether to jump over a gap at all (not burning, not in lava, more than four hearts),
+	 * how far a jump that goes wrong may let the buddy fall ({@link Miss}), and whether the void under a jump is all right
+	 * (the parkour course, where a miss puts the buddy back at the checkpoint).
 	 */
 	private static boolean leapsOk;
 	private static double missFall;
 	private static boolean voidOk;
-	/** At this health or lower no jump over a gap: a miss with the fire or a fight on top of it killed him (18 Oct 2026). */
+	/** At this health or lower no jump over a gap: a miss with the fire or a fight on top of it killed the buddy (18 Oct 2026). */
 	private static final float LEAP_HP = 8f;
 	/**
 	 * How much lower a jump may land. A fall counts from the top of the arc, 1.25 above the take-off, and from four
-	 * blocks it hurts: three lower cost him half a heart at every landing (18 Oct 2026), often while following.
+	 * blocks it hurts: three lower cost half a heart at every landing (18 Oct 2026), often while following.
 	 * Not in the parkour dimension, which takes no fall damage.
 	 */
 	static final double JUMP_DROP = 2.7;
@@ -228,7 +228,7 @@ final class Follow {
 	private static int jumpLooks;
 	/** How each cell was reached, while a plan is made. */
 	private static final Map<BlockPos, Byte> planHow = new HashMap<>();
-	/** Where he stood when the last {@code ga} came: the start of the route its time counts for (Routes). */
+	/** Where the buddy stood when the last {@code ga} came: the start of the route its time counts for (Routes). */
 	private static BlockPos spotsFrom;
 	private static final Map<BlockPos, BlockPos> planFrom = new HashMap<>();
 	private static final double[] ARC = { -0.25, 0.25 };
@@ -239,9 +239,9 @@ final class Follow {
 	private static long spotsSince;
 	private static boolean spotsSeen;
 	private static Vec3 spotsLast;
-	/** The followed player told him to stay: he waits where he is until told to follow again. */
+	/** The followed player said stay: the buddy waits on the spot until told to follow again. */
 	private static boolean staying;
-	// the sign: a player who looks at him and crouches twice within 0.8 s; the answer, a nod (stay) or a hop (follow)
+	// the sign: a player who looks at the buddy and crouches twice within 0.8 s; the answer, a nod (stay) or a hop (follow)
 	private static final Map<String, Boolean> crouchedBefore = new HashMap<>();
 	private static final Map<String, Long> crouchedAt = new HashMap<>();
 	private static int nodTicks, hopTicks;
@@ -263,21 +263,21 @@ final class Follow {
 	private static int answerKind, answerTicks;
 	private static float answerYaw;
 	// The crouches of a sign come in a burst, each within 0.8 s of the one before; what it means is read once the burst
-	// is over: two the sign of old, five or more forgetting. Per player: how many, the last one, and how he stood then.
+	// is over: two the sign of old, five or more forgetting. Per player: how many, the last one, and how that player stood then.
 	private static final Map<String, Integer> burst = new HashMap<>();
 	private static final Map<String, boolean[]> burstHow = new HashMap<>();
 	private static final int HOW_LOOKS = 0, HOW_ARMED = 1, HOW_UP = 2, HOW_EMPTY = 3, HOW_NEAR = 4, HOW_CLOSE = 5;
-	/** Five crouches asked him to forget this server: until then a sign of two confirms it. */
+	/** Five crouches asked the buddy to forget this server: until then a sign of two confirms it. */
 	private static long forgetAskedUntil;
 
 	// teleported away: ask to come along
 	private static long lostAt, lastTpa;
-	private static boolean tpaOpen;         // a /tpa of his waits for an answer
-	private static String acceptFrom;       // a /tpahere to accept once he can stand still
+	private static boolean tpaOpen;         // the buddy's /tpa waits for an answer
+	private static String acceptFrom;       // a /tpahere to accept once standing still is possible
 	private static long acceptUntil;
 
 	// To the AFK zone when the player does not answer the /tpa or goes offline, and wait there; when that fails because
-	// he moves, find the cause and solve it. 0 no, 1 on the way, 2 waiting there.
+	// the buddy moves, find the cause and solve it. 0 no, 1 on the way, 2 waiting there.
 	private static int afk;
 	private static long afkTypedAt, afkNextTry, offlineSince, combatUntil;
 	private static String afkWhy, afkFail;
@@ -285,7 +285,7 @@ final class Follow {
 	private static boolean wasOnline;
 	private static BlockPos dry, aside;
 
-	// a bed near him while he sleeps
+	// a bed near the player while the player sleeps
 	private static BlockPos bed, clickBed;
 	private static int bedClickedAt = -1;
 	private static long bedSince, wokeAt;
@@ -298,22 +298,22 @@ final class Follow {
 
 	static boolean isOn() { return target != null || !spots.isEmpty(); }
 
-	/** The tick he last stood at a closed door on his way, to open it. */
+	/** The tick the buddy last stood at a closed door on the way, to open it. */
 	private static long doorTick = -100;
 
-	/** Whether a door held him up within the last second: no progress then is no failure to get somewhere. */
+	/** Whether a door held the buddy up within the last second: no progress then is no failure to get somewhere. */
 	static boolean atDoor() { return ticks - doorTick <= 20 || opening != null; }
 
-	/** The player he follows and works for, or null. */
+	/** The player followed and worked for, or null. */
 	static String target() { return target; }
 
 	static boolean staying() { return staying; }
 
-	/** Whom the alt works for: the player he follows, or the owner of the base he keeps (Base). */
+	/** Whom the alt works for: the followed player, or the owner of the base kept (Base). */
 	static String boss() { return target != null ? target : Base.keeper(); }
 
 	/**
-	 * On its way to him right now, in water, or busy with a cushion: then the alt's own crouch and jump keys hold off.
+	 * On the way to the player right now, in water, or busy with a cushion: then the alt's own crouch and jump keys hold off.
 	 * Crouched in water you sink, crouched you click no cushion (it takes that as stepping past it), and a crouch
 	 * gets you off it again at once.
 	 */
@@ -335,7 +335,7 @@ final class Follow {
 			return;
 		}
 		if (o.has("stay")) {
-			if (target == null) { Exchange.emit("error", "msg", "follow: the buddy follows nobody"); return; }
+			if (target == null) { Exchange.emit("error", "msg", Needs.named("follow: {me} follows nobody")); return; }
 			setStaying(o.get("stay").getAsBoolean(), "asked");
 			return;
 		}
@@ -347,17 +347,17 @@ final class Follow {
 	}
 
 	/**
-	 * Whom he follows lasts until the next command, also over a restart of the game: kept in {@code follow.json} in the exchange folder.
+	 * Whom to follow lasts until the next command, also over a restart of the game: kept in {@code follow.json} in the exchange folder.
 	 */
 	private static void remember(String name) {
 		try {
 			java.nio.file.Path f = followFile();
 			if (name == null) java.nio.file.Files.deleteIfExists(f);
-			// told to stay lasts over a restart too: else he came back following, sent a /tpa nobody answered and went
-			// to the AFK zone, out of the base he was left in (21 Oct 2026)
+			// told to stay lasts over a restart too: else the buddy came back following, sent a /tpa nobody answered and
+			// went to the AFK zone, out of the base the buddy was left in (21 Oct 2026)
 			else java.nio.file.Files.writeString(f, "{\"player\":\"" + name + "\"" + (staying ? ",\"stay\":true" : "") + "}");
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "follow.json: " + e.getMessage());
+			Exchange.emit("error", "msg", "who to follow not saved: " + e.getMessage());
 		}
 	}
 
@@ -392,14 +392,14 @@ final class Follow {
 
 	private static void start(String name) {
 		LocalPlayer p = AfkHelperClient.mc().player;
-		if (p != null && p.getGameProfile().name().equalsIgnoreCase(name)) { Exchange.emit("error", "msg", "follow: that is the buddy's own name"); return; }
+		if (p != null && p.getGameProfile().name().equalsIgnoreCase(name)) { Exchange.emit("error", "msg", Needs.named("follow: that is {me}'s own name")); return; }
 		if (othersOn()) { Exchange.emit("error", "msg", "follow: switch the farm off first"); return; }
 		Wander.abort("follow");
 		release();
 		target = name;
-		// a new !follow is the newest word to follow, whether he stayed or not: a step back of the pen under way ends at
+		// a new !follow is the newest word to follow, whether staying or not: a step back of the pen under way ends at
 		// its next tick, and the stay a too-dangerous one was to give lapses with it (Pen.stayLifted). Until the review of
-		// the fourth round of 22 Oct 2026 only while he stayed, and he follows during a too-dangerous step back, so typed
+		// the fourth round of 22 Oct 2026 only while staying, and the buddy follows during a too-dangerous step back, so typed
 		// then it still ended in that stay
 		Pen.stayLifted();
 		staying = false; spots.clear(); leap = null; leapFails.clear();
@@ -443,10 +443,10 @@ final class Follow {
 	}
 
 	/**
-	 * Stay where he is, or follow again: by the sign, or by {@code "stay"} in the command. Following again ends a step
-	 * back of the pen under way at its next tick (Pen.stayLifted; before the third review of 22 Oct 2026 he walked on to
+	 * Stay put, or follow again: by the sign, or by {@code "stay"} in the command. Following again ends a step
+	 * back of the pen under way at its next tick (Pen.stayLifted; before the third review of 22 Oct 2026 the buddy walked on to
 	 * its cell first, up to fifteen seconds), and one that would end in a stay (too dangerous) gives none. A new
-	 * {@code !follow} (start) does the same, whether he stayed or not.
+	 * {@code !follow} (start) does the same, whether staying or not.
 	 */
 	private static void setStaying(boolean stay, String by) {
 		if (stay) Pen.stop("stays");
@@ -460,15 +460,15 @@ final class Follow {
 		Exchange.emit("follow", "action", stay ? "stays" : "follows again", "player", target, "by", by);
 	}
 
-	/** The pen ended at his word or for his safety: he waits where he is now (Pen). */
+	/** The pen ended at the player's word or for safety: wait on the spot now (Pen). */
 	static void stayHere(String by) { if (target != null && !staying) setStaying(true, by); }
 
-	/** Staying is no good there (fallen into a pen, shot at with no cover to be had): he follows again (Pen). */
+	/** Staying is no good there (fallen into a pen, shot at with no cover to be had): follow again (Pen). */
 	static void unstay(String by) { if (target != null && staying) setStaying(false, by); }
 
 	/**
 	 * {@code {"cmd":"goto","points":[[x,y,z],...]}}, or one spot as x, y and z: stand on each spot in turn, in the
-	 * dimension he is in now, and say so at each; {@code "on":false} stops. Following a player waits meanwhile.
+	 * dimension the buddy is in now, and say so at each; {@code "on":false} stops. Following a player waits meanwhile.
 	 */
 	static void gotoCommand(JsonObject o) {
 		if (o.has("on") && !o.get("on").getAsBoolean()) {
@@ -509,8 +509,8 @@ final class Follow {
 		spots.clear();
 		spots.addAll(list);
 		Pen.stop("goto");
-		// the dimension the spots are in: given (the parkour course is in events:arenas, and !parkour may come before he
-		// joined the game), or the one he is in now
+		// the dimension the spots are in: given (the parkour course is in events:arenas, and !parkour may come before the
+		// buddy joined the game), or the current one
 		spotsDim = o.has("dim") ? o.get("dim").getAsString() : p == null ? null : p.level().dimension().identifier().toString();
 		spotsSince = System.currentTimeMillis();
 		spotsFrom = p == null ? null : p.blockPosition();
@@ -521,8 +521,8 @@ final class Follow {
 	}
 
 	/**
-	 * A teleport of his own counts down (a /tpa accepted, /home): every step cancels it, so he stands still for it.
-	 * Following goes on from wherever he lands.
+	 * The buddy's own teleport counts down (a /tpa accepted, /home): every step cancels it, so stand still for it.
+	 * Following goes on from wherever the teleport lands.
 	 */
 	static void teleport() {
 		if (!isOn()) return;
@@ -533,11 +533,11 @@ final class Follow {
 		toClose = null; opening = null;
 	}
 
-	/** A new connection is another world: what he saw before means nothing there. Following itself stays on. */
+	/** A new connection is another world: what was seen before means nothing there. Following itself stays on. */
 	static void newConnection() {
 		Work.reset("new connection");
 		Pen.newConnection();
-		// whom he followed before a restart of the game, followed again once the world is there
+		// whom the buddy followed before a restart of the game, followed again once the world is there
 		if (target == null) {
 			String name = remembered();
 			boolean stay = rememberedStaying();
@@ -590,7 +590,7 @@ final class Follow {
 		if (isOn() && sit != null) {
 			LocalPlayer p = mc.player;
 			// only the seat meant, under the crosshair, with room, and not crouched (then a cushion lets you pass, and a
-			// happy ghast takes the click as a use and not a ride). With room, not empty: his own boat or ghast has him in it
+			// happy ghast takes the click as a use and not a ride). With room, not empty: the player's own boat or ghast has the player in it
 			if (p != null && mc.gameMode != null && !p.isShiftKeyDown() && !p.isPassenger() && hasRoom(sit)
 					&& !(sit instanceof HappyGhast && riskyInHand(p.getMainHandItem()))
 					&& mc.hitResult instanceof EntityHitResult hit && hit.getEntity() == sit) {
@@ -600,7 +600,7 @@ final class Follow {
 		}
 		BlockPos want = clickDoor;
 		clickDoor = null;
-		// keeping a base with nobody to follow too: the click never went then, so no door of the base opened or shut for him
+		// keeping a base with nobody to follow too: the click never went then, so no door of the base opened or shut for the buddy
 		if (!(isOn() || Base.keeper() != null) || want == null) return;
 		LocalPlayer p = mc.player;
 		if (p == null || mc.gameMode == null || mc.level == null || p.isShiftKeyDown()) return;
@@ -613,7 +613,7 @@ final class Follow {
 		else if (want.equals(toClose)) shutClickAt = ticks;   // shut once the server's answer is in (closeBehind)
 	}
 
-	/** Every tick. True while it turns or walks by itself. */
+	/** Every tick. True while follow mode turns or walks the buddy. */
 	static boolean tick(Minecraft mc, LocalPlayer p, AfkConfig c) {
 		if (AfkHelperClient.active() && !c.afk) sign(p);
 		boolean keep = Base.wants(p, target != null, staying);
@@ -632,9 +632,9 @@ final class Follow {
 		ticks++;
 		// how long since a bed, against phantoms (Rest)
 		Rest.tick(p);
-		// the corpse guard watches every tick: the moment he dies, and what falls then
+		// the corpse guard watches every tick: the moment the buddy dies, and what falls then
 		if (target != null) { Player seen = find(p); Corpse.watch(p, seen); Carrier.watch(p, seen); Pen.watch(mc, p, seen); }
-		// He lies in bed: the alt goes to sleep at once, a round to his chests can wait (also right after a tpahere)
+		// The player lies in bed: the alt goes to sleep at once, a round to the chests can wait (also right after a tpahere)
 		if (Stash.busy()) { Player sleeper = find(p); if (sleeper != null && sleeper.isSleeping()) Stash.stop("the player sleeps"); }
 		// hit while a screen is open (a chest, a furnace, the crafting grid): shut it and hit back first; behind a screen
 		// nobody fights (the review of 22 Oct 2026)
@@ -647,7 +647,7 @@ final class Follow {
 			Exchange.emit("guard", "action", "menu closed", "reason", "attacked");
 			return true;
 		}
-		// a chest the alt opened itself, to put things in or take them out: the chest screen is his own doing
+		// a chest the alt opened, to put things in or take them out: the chest screen is the alt's own doing
 		if (Stash.inMenu(p)) return Arbiter.at("chest", Stash.menuTick(mc, p));
 		if (Ovens.inMenu(p)) return Arbiter.at("furnace", Ovens.menuTick(mc, p));
 		if (Chores.inMenu(p)) return Arbiter.at("chore", Chores.menuTick(mc, p));
@@ -657,7 +657,7 @@ final class Follow {
 		boolean menu = screen != null && !(screen instanceof net.minecraft.client.gui.screens.ChatScreen)
 			&& !(screen instanceof net.minecraft.client.gui.screens.PauseScreen);
 		// A menu that is nobody's job any more: shut after a minute. Nothing else does, and following waits behind any
-		// menu, so one left open stops him for good (19 Oct 2026: a chest of his own, 27 minutes). A session that clicks
+		// menu, so one left open stops the buddy for good (19 Oct 2026: a chest of the buddy's own, 27 minutes). A session that clicks
 		// in a menu through menuklik keeps it open for a minute after each click.
 		long seen = System.currentTimeMillis();
 		if (!menu || !p.isAlive() || p.containerMenu == p.inventoryMenu) strayMenuSince = 0;   // a container only; the death screen is the respawn's
@@ -682,22 +682,22 @@ final class Follow {
 		Level level = p.level();
 		long now = System.currentTimeMillis();
 		wet = p.isInWater();
-		// teleported (back to a checkpoint of the course after a fall, a /tp): the plan and a jump were of where he was
+		// teleported (back to a checkpoint of the course after a fall, a /tp): the plan and a jump were of the place before
 		if (lastPos != null && p.position().distanceToSqr(lastPos) > 16) { release(); clearRoute(); leap = null; }
 		lastPos = p.position();
 		if (Work.testing()) return Arbiter.at("test", Work.testTick(mc, p));
 		if (nodTicks > 0 || hopTicks > 0 || answerTicks > 0) return Arbiter.at("answer", answer(mc, p));
-		// guarding him, the weapon is in hand already, as a player who walks with someone keeps his sword out
+		// guarding the player, the weapon is in hand already, as a player who walks with someone keeps a sword out
 		// once a second at most, never while eating
 		if (target != null && spots.isEmpty() && Guard.on() && !Work.busy()) Guard.arm(mc, p, false);
-		// the best armour he has on, whatever he does
+		// the best armour on, whatever the buddy does
 		Stash.wearBest(mc, p);
 		if (Arbiter.at("tpahere", acceptTpahere(mc, p, now))) return true;
 		refused.values().removeIf(until -> until < now);
 		avoid.values().removeIf(until -> until < now);
 		fence.values().removeIf(until -> until < now);
 		// stuck: a step back first, out of the corner, and then a new plan; by a pen crouched, so that the step back, which
-		// no plan checks, never takes him over its edge, and its walk round it keeps the crouch it had
+		// no plan checks, never takes the buddy over its edge, and its walk round it keeps the crouch it had
 		if (backTicks > 0) {
 			HeldKeys.set(mc.options.keyUp, false);
 			HeldKeys.set(mc.options.keySprint, false);
@@ -706,7 +706,7 @@ final class Follow {
 			else if (Pen.crouchWalk(p) || Pen.fenceBeside(p.blockPosition())) HeldKeys.set(mc.options.keyShift, true);
 			return true;
 		}
-		// A click that did not open the door within a second, or that the server put back shut: he may not open it here. Plan
+		// A click that did not open the door within a second, or that the server put back shut: not to be opened here. Plan
 		// around it. Open counts once the server has had time to answer ({@link #DOOR_ANSWER}).
 		if (opening != null) {
 			boolean open = isOpen(level.getBlockState(opening));
@@ -729,7 +729,7 @@ final class Follow {
 		if (Alto.inControl()) { if (walking) { release(); clearRoute(); walking = false; } return Arbiter.at("alto", true); }
 		// a task of AltoClef's for the order (food): it walks and works, and only the order's own safety may stop it
 		if (Alto.delegating()) { if (walking) { release(); clearRoute(); walking = false; } Arbiter.at("obtain", true); return Obtain.tick(mc, p); }
-		// Under water with little air left: up first. He follows a player with a turtle helmet or a conduit nowhere.
+		// Under water with little air left: up first. A player with a turtle helmet or a conduit is followed nowhere.
 		if (p.isUnderWater() && p.getAirSupply() < AIR_LOW && !breath) {
 			breath = true;
 			clearRoute();
@@ -750,7 +750,7 @@ final class Follow {
 				return Arbiter.at("creeper", true);
 			}
 		}
-		// hit by a monster: back at it before getting loose, a door or a walk to a spot, which came first and left him to be
+		// hit by a monster: back at it before getting loose, a door or a walk to a spot, which came first and left the buddy to be
 		// hit on (the review of 22 Oct 2026). The fight below as always, and only this one taken early.
 		// an order of items: from monsters it cannot win against it runs before any fight (Obtain, the hardcore rule)
 		if (Obtain.on() && Arbiter.at("edge", ObtainSafe.edge(mc, p))) return true;
@@ -766,12 +766,12 @@ final class Follow {
 		if (!spots.isEmpty()) return Arbiter.at("goto", toSpots(mc, p));
 		hurry = false;
 		Entity foe = Guard.watch(p, find(p));
-		// on his ghast the alt does not get off for a fight: it would fall
-		// keeping a base whose monsters he is told to leave alone (Modes)
+		// on a ghast the alt does not get off for a fight: that would be a fall
+		// keeping a base whose monsters are to be left alone (Modes)
 		if (foe != null && keep && (target == null || staying) && !c.baseFight) foe = null;
-		// a creeper swelling at him while the pen holds his hands: away from it, or the blow that kills it, before the
+		// a creeper swelling at the buddy while the pen holds the hands: away from it, or the blow that kills it, before the
 		// fight, the unloader and the corpse guard, which hold the farm step back (Pen.creeper; the third review of 22 Oct
-		// 2026: a fight with a zombie at his spot left a creeper beside him swelling). Of those only the fight may take the
+		// 2026: a fight with a zombie at the farming spot left a creeper swelling alongside). Of those only the fight may take the
 		// tick from a getaway, as the step below always takes it (the review of the fourth round: the unloader and the
 		// corpse guard got one tick of walking in ten and were walked back to the cell past a block, for two minutes)
 		if (Pen.busy()) {
@@ -780,16 +780,16 @@ final class Follow {
 			if (Arbiter.at("creeper", Pen.creeper(mc, p, held, fight))) return true;
 		}
 		if (foe != null && !(p.getVehicle() instanceof HappyGhast) && !Alto.on()) return Arbiter.at("fight", fight(mc, p, foe));
-		// an order of items (Obtain): after what keeps it alive, before the following, which waits meanwhile
+		// an order of items (Obtain): after what keeps the buddy alive, before the following, which waits meanwhile
 		if (Obtain.on()) { Arbiter.at("obtain", true); return Obtain.tick(mc, p); }
 		if (Obtain.watching()) { Arbiter.at("watch", true); return Obtain.watchTick(mc, p); }
-		// !dump: the unloader walks him to the chests by these paths; meanwhile no following and no looking at the player
+		// !dump: the unloader walks the buddy to the chests by these paths; meanwhile no following and no looking at the player
 		if (Unloader.isBusy()) return Arbiter.at("unload", Unloader.walkTick(mc, p, find(p)));
-		// his things after a death: fetched before he follows on (Corpse)
+		// the buddy's things after a death: fetched before following on (Corpse)
 		if (c.followCarry && Arbiter.at("corpse guard", Corpse.tick(mc, p))) return true;
-		// his taps on blocks: a job on or off, the walk to a new home (Tap)
+		// the player's taps on blocks: a job on or off, the walk to a new home (Tap)
 		if (Arbiter.at("tap", Tap.tick(mc, p))) return true;
-		// the mob farm he showed with a bare-hand punch: the pen (Pen)
+		// the mob farm the player showed with a bare-hand punch: the pen (Pen)
 		if (Arbiter.at("farm mobs", Pen.tick(mc, p, c, find(p)))) return true;
 		// staying, and shot at by a foe the fight leaves be in its pit: out of its sight, and held there while the cover is
 		// fresh, so that the carrier and the base wait (Pen.cover); looking at the player there, as the stay does
@@ -797,11 +797,11 @@ final class Follow {
 			if (Pen.holdsCover()) { Player t = find(p); if (t != null) lookAt(p, t); }
 			return true;
 		}
-		// what he threw at the alt: home with it (Carrier)
+		// what the player threw at the alt: home with it (Carrier)
 		if (target != null && c.followCarry && Arbiter.at("carrier", Carrier.tick(mc, p))) return true;
 		// every tool of a kind nearly worn out and iron at home: home to make a new one, then back (Renew)
 		if (target != null && !staying && Arbiter.at("renew", Renew.tick(mc, p))) return true;
-		// left in his base, not following or told to stay: he keeps it (Base)
+		// left in the base, not following or told to stay: the buddy keeps it (Base)
 		if (keep && spots.isEmpty() && (target == null || staying)) {
 			if (Arbiter.at("base", Base.tick(mc, p))) return true;
 			if (target == null) { halt(); hover(mc, p, p.getY() + 1); return false; }
@@ -824,14 +824,14 @@ final class Follow {
 			offlineSince = 0;
 			if (afk != 0) { afk = 0; Exchange.emit("follow", "action", "back from afk"); }
 			lastSeen = t.position(); lastDim = dim;
-			// a tunnel he digs, trees he chops, his chests: help with it, as long as he does not walk off
+			// what the player works at (a tunnel dug, trees chopped, the chests): help with it, as long as the player does not walk off
 			if (spots.isEmpty()) {
 				Work.watch(p, t);
 				if (Arbiter.at("work", Work.tick(mc, p, t))) return true;
 			}
 			double dh = Math.hypot(t.getX() - p.getX(), t.getZ() - p.getZ());
 			if (Math.abs(t.getY() - p.getY()) < 2.5 && dh <= (walking ? NEAR : FAR)) {
-				// in the water beside him while he stands on land: out onto the bank, not bobbing there (18 Oct 2026)
+				// in the water beside the player, who stands on land: out onto the bank, not bobbing there (18 Oct 2026)
 				if (p.isInWater() && !t.isInWater()) {
 					BlockPos land = landBeside(level, p, t);
 					if (land != null) {
@@ -840,8 +840,8 @@ final class Follow {
 						return true;
 					}
 				}
-				// a monster within twelve blocks of him (step 3 of the plan for fighting, 24 Oct 2026): beside him on its side,
-				// 1.7 blocks off, facing it, so that what comes at him meets the alt first
+				// a monster within twelve blocks of the player (step 3 of the plan for fighting, 24 Oct 2026): beside the player
+				// on its side, 1.7 blocks off, facing it, so that what comes at the player meets the alt first
 				Entity near = !p.isInWater() ? Guard.threat(p, t, 12, false) : null;
 				if (near != null) {
 					Vec3 side = guardSpot(level, t, near);
@@ -876,14 +876,14 @@ final class Follow {
 			else if (now - offlineSince > 10_000) { startAfk(mc, "offline"); return false; }
 		} else offlineSince = 0;
 		if (tpaOpen && now - lastTpa > 70_000) { startAfk(mc, "no answer"); return false; }
-		// Gone while still online, and not through a portal (which he walks into himself) or out of sight by walking off:
+		// Gone while still online, and not through a portal (into which the buddy walks after the player) or out of sight by walking off:
 		// teleported. Ask to come along, once (for instance with /tpa Steve).
 		boolean here = lastSeen != null && dim.equals(lastDim);
 		boolean portal = here && portalAt(level, BlockPos.containing(lastSeen));
 		boolean walkedOff = here && Math.hypot(lastSeen.x - p.getX(), lastSeen.z - p.getZ()) > 90;
-		// a server without /tpa in its profile: he goes to where he saw him last, and waits there
+		// a server without /tpa in its profile: the buddy goes to where the player was seen last, and waits there
 		if (!portal && !walkedOff && !tpaOpen && online(mc) && now - lostAt > 2500 && now - lastTpa > 60_000 && Profiles.cmd("tpa", target) != null) {
-			// ready to stand still first: an accepted /tpa starts a wait of three seconds on him
+			// ready to stand still first: an accepted /tpa starts a wait of three seconds
 			if (fixStill(mc, p, now, null)) return true;
 			halt();
 			lastTpa = now;
@@ -892,7 +892,7 @@ final class Follow {
 			AfkHelperClient.sendTyped(Profiles.cmd("tpa", target), null);
 			Exchange.emit("follow", "action", "tpa", "player", target);
 		}
-		// gone: to the spot where he was last seen, in this dimension; there stand and wait (in a portal that takes you along)
+		// gone: to the spot where the player was last seen, in this dimension; there stand and wait (in a portal that takes you along)
 		if (lastSeen == null || !dim.equals(lastDim)) { halt(); hover(mc, p, p.getY() + 1); return false; }
 		if (Math.hypot(lastSeen.x - p.getX(), lastSeen.z - p.getZ()) < 0.6 && Math.abs(lastSeen.y - p.getY()) < 1.5) {
 			lastSeen = null;
@@ -904,7 +904,7 @@ final class Follow {
 		return Arbiter.at("search", true);
 	}
 
-	/** The crouches of the players near him, read as a sign once a burst of them is over. */
+	/** The crouches of the players near the buddy, read as a sign once a burst of them is over. */
 	private static void sign(LocalPlayer p) {
 		long now = System.currentTimeMillis();
 		for (Player o : p.level().players()) {
@@ -912,7 +912,7 @@ final class Follow {
 			String name = o.getGameProfile().name();
 			boolean down = o.isShiftKeyDown();
 			Boolean before = crouchedBefore.put(name, down);
-			if (!down || before == null || before) continue;   // only the moment he goes down
+			if (!down || before == null || before) continue;   // only the moment of going down
 			Long prev = crouchedAt.put(name, now);
 			burst.put(name, prev != null && now - prev <= 800 ? burst.getOrDefault(name, 1) + 1 : 1);
 			burstHow.put(name, new boolean[] { looksAt(o, p), Guard.isSignWeapon(o.getMainHandItem()), o.getXRot() < -55f,
@@ -931,11 +931,11 @@ final class Follow {
 	}
 
 	/**
-	 * The sign: a player looks at him from within ten blocks and crouches twice within 0.8 s. Without a weapon only the
-	 * one he follows counts: stay, or follow again. With a weapon (a sword, spear, mace or trident: Guard.isSignWeapon;
+	 * The sign: a player looks at the buddy from within ten blocks and crouches twice within 0.8 s. Without a weapon only
+	 * the followed player counts: stay, or follow again. With a weapon (a sword, spear, mace or trident: Guard.isSignWeapon;
 	 * a tool is none) only a trusted player counts (the protection). A sign
-	 * never makes him follow someone else: that is a command. Five crouches or more, looking at him with nothing in the
-	 * hands, ask him to forget what he knows of this server (a wipe of his memory): he shakes his head and crouches once, and a sign of two within the next seconds confirms it.
+	 * never makes the buddy follow someone else: that is a command. Five crouches or more, looking at the buddy with nothing in the
+	 * hands, ask to forget what the buddy knows of this server (a wipe of the memory): a head shake and one crouch answer it, and a sign of two within the next seconds confirms it.
 	 */
 	private static void signed(String name, int count, boolean[] how, long now) {
 		AfkConfig c = AfkConfig.get();
@@ -955,8 +955,8 @@ final class Follow {
 			nodTicks = 12;
 			return;
 		}
-		// While he farms a pen, two crouches of the player he follows within six blocks end it, without looking at him
-		// then he waits there, and in a base keeps it. A weapon held up to the sky stays the sign for fighting players.
+		// While the buddy farms a pen, two crouches of the followed player within six blocks end it, no look needed: then
+		// the buddy waits there, and in a base keeps it. A weapon held up to the sky stays the sign for fighting players.
 		if (his && spots.isEmpty() && Pen.on() && how[HOW_CLOSE] && !(how[HOW_ARMED] && how[HOW_UP])) {
 			Pen.stop("sign", true);
 			setStaying(true, "sign");
@@ -965,7 +965,7 @@ final class Follow {
 		}
 		if (!(c.isTrusted(name) || his)) return;
 		boolean armed = how[HOW_ARMED];
-		// protection only by a trusted player, staying and following again only by the one he follows: who he follows
+		// protection only by a trusted player, staying and following again only by the followed player: whom to follow
 		// changes by !follow alone
 		if (armed && !c.isTrusted(name)) return;
 		if (!armed && !his) return;
@@ -975,7 +975,7 @@ final class Follow {
 			return;
 		}
 		if (!how[HOW_LOOKS]) return;
-		// a weapon in hand, looking at him: protection on or off
+		// a weapon in hand, looking at the buddy: protection on or off
 		if (armed) {
 			answer(Guard.toggle("sign") ? ANS_GUARD_ON : ANS_GUARD_OFF);
 			return;
@@ -986,7 +986,7 @@ final class Follow {
 		}
 	}
 
-	/** Does that player look at him: his line of sight through the alt's body, a little widened. */
+	/** Does that player look at the buddy: that player's line of sight through the buddy's body, a little widened. */
 	private static boolean looksAt(Player o, LocalPlayer p) {
 		Vec3 eye = o.getEyePosition();
 		return p.getBoundingBox().inflate(0.4).clip(eye, eye.add(o.getViewVector(1f).scale(12))).isPresent();
@@ -1047,13 +1047,13 @@ final class Follow {
 		return true;
 	}
 
-	/** To the spots one after the other: a spot counts once he stands on it, then the next. */
+	/** To the spots one after the other: a spot counts once stood on, then the next. */
 	private static boolean toSpots(Minecraft mc, LocalPlayer p) {
 		String dim = p.level().dimension().identifier().toString();
 		if (spotsDim != null && !dim.equals(spotsDim)) {
-			// Not there (yet): sent before he joined the game, he waits until he is in it, so that a !parkour sent early
-			// starts as soon as it can. Out of it again, or never there in ten minutes: the game
-			// is over or did not go ahead, and he follows again.
+			// Not there (yet): sent before the buddy joined the game, the wait lasts until the buddy is in it, so that a
+			// !parkour sent early starts as soon as it can. Out of it again, or never there in ten minutes: the game
+			// is over or did not go ahead, and following resumes.
 			if (spotsSeen || System.currentTimeMillis() - spotsSince > 10 * 60_000L) {
 				spots.clear(); leap = null; release(); clearRoute();
 				Exchange.emit("goto", "action", "stop", "reason", spotsSeen ? "out of the dimension" : "never in the dimension");
@@ -1061,7 +1061,7 @@ final class Follow {
 			return false;
 		}
 		spotsSeen = true;
-		// Moved more than four blocks in a tick: a teleport (the game putting him on its start, out of the waiting room,
+		// Moved more than four blocks in a tick: a teleport (the game putting the buddy on its start, out of the waiting room,
 		// where there was no way to the spot). Plan from here at once: waiting for the next plan cost up to two seconds.
 		if (spotsLast != null && spotsLast.distanceToSqr(p.position()) > 16) {
 			release(); clearRoute(); leap = null;
@@ -1075,7 +1075,7 @@ final class Follow {
 			Exchange.emit("goto", "action", "point", "x", s.getX(), "y", s.getY(), "z", s.getZ(), "left", spots.size());
 			clearRoute();
 			leap = null;
-			nextPlan = ticks;   // plan at once: he may be running, and waiting for a plan would stop him dead
+			nextPlan = ticks;   // plan at once: the buddy may be running, and waiting for a plan would stop the run dead
 			if (spots.isEmpty()) { halt(); release(); Routes.arrived(spotsDim, spotsFrom, s, System.currentTimeMillis() - spotsSince); return false; }
 			s = spots.get(0);
 		}
@@ -1097,7 +1097,7 @@ final class Follow {
 	/** {@code "trace": true} in a {@code goto} command: the trace above. */
 	static boolean trace;
 
-	/** From his eye to the nearest point of its box: within 2.7 the fight hits, beyond it walks. */
+	/** From the buddy's eye to the nearest point of its box: within 2.7 the fight hits, beyond it walks. */
 	static double reach(LocalPlayer p, Entity e) {
 		AABB b = e.getBoundingBox();
 		Vec3 eye = p.getEyePosition();
@@ -1105,7 +1105,7 @@ final class Follow {
 	}
 
 	/**
-	 * Why the fight leaves a foe be, or null: out of his reach in a closed space that is a drop below him or a farm, so
+	 * Why the fight leaves a foe be, or null: out of the buddy's reach in a closed space that is a drop below or a farm, so
 	 * that the way to it is a fall into it (Pen.enclosedWhy; 0.4.80, the pen). Guard asks it before it picks a foe, every
 	 * time, so one that comes out and attacks is fought at once.
 	 */
@@ -1114,14 +1114,14 @@ final class Follow {
 	}
 
 	/**
-	 * Fighting: to the enemy the way he follows, and in reach the best weapon, the crosshair on him and a blow at full
-	 * strength, as a critical hit where it can be: a jump timed so that he falls, not sprinting,
+	 * Fighting: to the enemy the way of following, and in reach the best weapon, the crosshair on the enemy and a blow at
+	 * full strength, as a critical hit where it can be: a jump timed so that the blow comes while falling, not sprinting,
 	 * when the strength is back. In water, on a ladder or under a low ceiling the plain blow.
 	 */
 	private static boolean fight(Minecraft mc, LocalPlayer p, Entity e) {
 		var o = mc.options;
 		// a foe out of reach in a pit or a farm's cell is not walked to (pitFoe); Guard picks none, so this only meets
-		// one that came to lie there within the tick. Before the flag of walking, which would pull him to NEAR next tick
+		// one that came to lie there within the tick. Before the flag of walking, which would pull the buddy to NEAR next tick
 		String pit = pitFoe(p, e);
 		if (pit != null) { Guard.stop(pit); return false; }
 		walking = true;
@@ -1135,7 +1135,7 @@ final class Follow {
 		// at four hearts or less with a golden apple or food: away from it and a bite first (heal)
 		if (heal(mc, p, e)) return true;
 		double dist = reach(p, e);
-		// one he cannot or should not hit: the bow, standing (Bow; the plan for fighting of 24 Oct 2026, step 2)
+		// one the buddy cannot or should not hit: the bow, standing (Bow; the plan for fighting of 24 Oct 2026, step 2)
 		if (Bow.wanted(p, e, dist, System.currentTimeMillis() - Guard.lastBlowAt(e))) {
 			release();
 			clearRoute();
@@ -1145,19 +1145,19 @@ final class Follow {
 		AABB b = e.getBoundingBox();
 		Vec3 eye = p.getEyePosition();
 		boolean onIt = mc.hitResult instanceof EntityHitResult h && h.getEntity() == e;
-		// one that aims a bow or a crossbow at him: the shield up on the way to it too (Shield)
+		// one that aims a bow or a crossbow at the buddy: the shield up on the way to it too (Shield)
 		if (Shield.aims(e)) Shield.want("archer");
-		// a player is hit from 2.9 (PvP point 3 of 24 Oct 2026; the game's reach is 3): his blow lands before the other's
+		// a player is hit from 2.9 (PvP point 3 of 24 Oct 2026; the game's reach is 3): the buddy's blow lands before the other's
 		boolean player = e instanceof Player;
 		double hitAt = player ? PLAYER_REACH : 2.7;
 		long now0 = System.currentTimeMillis();
 		// the opener is due: a player, the strength back, none in the last three seconds (PvP point 2)
 		boolean openDue = player && now0 - openedAt > 3000 && p.getAttackStrengthScale(0.5f) >= 0.9f && !p.isUsingItem();
 		if (dist > hitAt) {
-			// not hit for twenty seconds while he goes for it: out of his reach (on a pillar, over water), left alone
+			// not hit for twenty seconds while gone for: out of reach (on a pillar, over water), left alone
 			if (now0 - Guard.lastBlowAt(e) > Guard.NO_BLOW) { Guard.outOfReach(e); release(); clearRoute(); return false; }
-			// the run-in for the opener: within six blocks, in sight, on the ground and nothing unsafe ahead, straight at him
-			// at a run, looking at him (a route lets go of the sprint over its last cells, so he came in walking, 24 Oct 2026)
+			// the run-in for the opener: within six blocks, in sight, on the ground and nothing unsafe ahead, straight at the
+			// foe at a run, looking at the foe (a route lets go of the sprint over its last cells, so the buddy came in walking, 24 Oct 2026)
 			if (openDue && dist < 6 && p.hasLineOfSight(e) && p.onGround() && !p.isInWater() && p.getFoodData().getFoodLevel() > 6
 				&& !Pen.unsafeAhead(p) && Math.abs(e.getY() - p.getY()) < 1.1) {
 				clearRoute();
@@ -1187,8 +1187,8 @@ final class Follow {
 		boolean sprinting = p.isSprinting();
 		long now = System.currentTimeMillis();
 		float strength0 = p.getAttackStrengthScale(0.5f);
-		// the opener against a player (PvP point 2): come in at a run, the first blow still sprinting, which knocks him back
-		// (no critical hit then), so that his own first blow falls short; once in three seconds at most
+		// the opener against a player (PvP point 2): come in at a run, the first blow still sprinting, which knocks the foe
+		// back (no critical hit then), so that the foe's own first blow falls short; once in three seconds at most
 		if (openDue && sprinting && strength0 >= 0.9f) {
 			HeldKeys.set(o.keyUp, true);
 			HeldKeys.set(o.keySprint, true);
@@ -1207,7 +1207,7 @@ final class Follow {
 		boolean creeper = e instanceof Creeper, sweep = !creeper && sweeps(p, e);
 		boolean away = now < backOffUntil && safeBehind(p);
 		// keeping a blow's length off a monster that hits in reach (a zombie): a step back while it is closer than 1.3, where
-		// it is safe behind him, so that its blow falls short and his does not
+		// it is safe behind, so that its blow falls short and the buddy's does not
 		boolean tooClose = !creeper && (player ? dist < 2.0 : dist < 1.3) && safeBehind(p);
 		boolean knock = creeper && dist <= 2.7 && p.getFoodData().getFoodLevel() > 6 && !away;
 		// a step closer, never sprinting but for the knock: a sprinting blow is a knock back and no critical hit
@@ -1217,7 +1217,7 @@ final class Follow {
 		HeldKeys.set(o.keyDown, away || tooClose);
 		float strength = p.getAttackStrengthScale(0.5f), delay = Math.max(6f, p.getCurrentItemAttackStrengthDelay());
 		// strafing against a player (PvP point 2): sideways while the strength comes back, one way for 0.6 to 1.2 s, the
-		// other way where that side is not safe; harder to hit than one who stands still between his blows
+		// other way where that side is not safe; harder to hit than a fighter who stands still between blows
 		boolean strafe = player && strength < 0.9f && !away && !tooClose;
 		if (strafe) {
 			if (now > strafeUntil) {
@@ -1232,7 +1232,7 @@ final class Follow {
 		HeldKeys.set(o.keyRight, strafe && !strafeLeft);
 		// the shield between two blows (the plan for fighting of 24 Oct 2026): up while the strength comes back, down from
 		// seven tenths, a few ticks before the blow, which no client can strike with a shield up. Not at a creeper, whose
-		// blast the reflex above blocks, and it walks no closer: a raised shield slows him to a fifth
+		// blast the reflex above blocks, and it walks no closer: a raised shield slows the buddy to a fifth
 		if (!(e instanceof Creeper) && strength < 0.7f && dist <= 2.7) Shield.want("between blows");
 		boolean jumpable = !p.isInWater() && !p.onClimbable() && passable(p.level(), p.blockPosition().above(2), false)
 			&& !Pen.near(p, Pen.NO_JUMP) && !Pen.enclosed(p, e) && !sweep && !creeper;
@@ -1248,7 +1248,7 @@ final class Follow {
 			}
 		}
 		if (knock) {
-			// the knock: the blow once he runs, then a second and a half away from it
+			// the knock: the blow once running, then a second and a half away from it
 			if (sprinting && strength >= 0.95f && onIt) { Guard.queueHit(e); backOffUntil = now + 1500; }
 			return true;
 		}
@@ -1263,9 +1263,9 @@ final class Follow {
 
 	private static long backOffUntil, openedAt, runInAt, strafeUntil, strafeToldAt;
 	private static boolean strafeLeft;
-	/** The reach he hits a player from: the game's is 3, from the eye to the box. */
+	/** The reach a player is hit from: the game's is 3, from the eye to the box. */
 	static final double PLAYER_REACH = 2.9;
-	/** He holds an axe for a shield until this moment: Guard.arm leaves it in his hand. */
+	/** An axe held for a shield until this moment: Guard.arm leaves it in hand. */
 	static long axeUntil;
 
 	/**
@@ -1283,7 +1283,7 @@ final class Follow {
 	}
 
 	/**
-	 * A step back is safe: the cell behind him (away from where he looks) has room for his feet and head, a floor at most
+	 * A step back is safe: the cell behind (away from the look) has room for feet and head, a floor at most
 	 * a block down, and nothing that burns or hurts.
 	 */
 	private static boolean safeBehind(LocalPlayer p) {
@@ -1291,7 +1291,7 @@ final class Follow {
 		return safeAt(p, Math.sin(yaw) * 0.8, -Math.cos(yaw) * 0.8);
 	}
 
-	/** A step to his left or his right is safe, as {@link #safeBehind}: left is (cos yaw, sin yaw) in the game's turning. */
+	/** A step to the left or the right is safe, as {@link #safeBehind}: left is (cos yaw, sin yaw) in the game's turning. */
 	private static boolean safeSide(LocalPlayer p, boolean left) {
 		double yaw = Math.toRadians(p.getYRot()), s = left ? 0.8 : -0.8;
 		return safeAt(p, Math.cos(yaw) * s, Math.sin(yaw) * s);
@@ -1316,13 +1316,13 @@ final class Follow {
 	private static boolean healEating;
 
 	/**
-	 * Healing in a fight (the plan for fighting, step 1: below 8 hp he walks away from the foe, toward the player or the
-	 * base, eats a golden apple or good food, and only then goes back): at four hearts or
-	 * less, with a golden apple, or food while his belly is not full (hearts come back from food only on a full one), he
-	 * walks away from the foe until it is five blocks off or three seconds have passed, sprinting where the way allows, and
-	 * eats: a golden apple first (an enchanted one under two hearts or when he has no plain one), else his best food. The
+	 * Healing in a fight (the plan for fighting, step 1: below 8 hp the buddy walks away from the foe, toward the player or
+	 * the base, eats a golden apple or good food, and only then goes back): at four hearts or
+	 * less, with a golden apple, or food while the belly is not full (hearts come back from food only on a full one), a
+	 * walk away from the foe until it is five blocks off or three seconds have passed, sprinting where the way allows, and
+	 * a bite: a golden apple first (an enchanted one under two hearts or when there is no plain one), else the best food. The
 	 * fight goes on after the bite. Not from a creeper (the shield is for that), and not again within ten seconds of a bite,
-	 * so that a foe that keeps up does not make him run for ever; what does not get going within six seconds is given up.
+	 * so that a foe that keeps up does not make the buddy run for ever; what does not get going within six seconds is given up.
 	 */
 	private static boolean heal(Minecraft mc, LocalPlayer p, Entity e) {
 		long now = System.currentTimeMillis();
@@ -1334,7 +1334,7 @@ final class Follow {
 			Exchange.emit("guard", "action", "has eaten", "hp", Math.round(p.getHealth()));
 			return false;
 		}
-		// begun at four hearts, it goes on while he heals on the way out (a full belly heals half a heart a second), until seven
+		// begun at four hearts, it goes on while healing on the way out (a full belly heals half a heart a second), until seven
 		if ((healFrom == 0 ? p.getHealth() > 8 : p.getHealth() > 14) || now < healNext || e instanceof Creeper) { healFrom = 0; return false; }
 		var inv = p.getInventory();
 		boolean apple = false, gold = false, food = false;
@@ -1348,8 +1348,8 @@ final class Follow {
 		if (!apple && !gold && !canFood) return false;
 		if (healFrom == 0) { healFrom = now; Exchange.emit("guard", "action", e instanceof Player ? "eats at once" : "backs off", "hp", Math.round(p.getHealth()), "goal", Guard.nameOf(e)); }
 		if (now - healFrom > 6000) { healNext = now + 10_000; healFrom = 0; return false; }
-		// from a player no walk away first (PvP point 4): a sprinting player catches up and hits him in the back; the bite at
-		// once, with the totem in his off hand under four hearts (Stash.totem) as the net
+		// from a player no walk away first (PvP point 4): a sprinting player catches up and hits the buddy in the back; the bite
+		// at once, with the totem in the off hand under four hearts (Stash.totem) as the net
 		if (!(e instanceof Player) && reach(p, e) < 5 && now - healFrom < 3000 && !p.isInWater()) {
 			Vec3 away = p.position().subtract(e.position());
 			away = new Vec3(away.x, 0, away.z);
@@ -1379,13 +1379,13 @@ final class Follow {
 	}
 
 	/**
-	 * Where to stand between him and a monster: 1.7 blocks from him towards it, on the cell there or one up or down, with
-	 * room for feet and head and a floor; null when there is none (then he stays where he is and faces it).
+	 * Where to stand between the player and a monster: 1.7 blocks from the player towards it, on the cell there or one up
+	 * or down, with room for feet and head and a floor; null when there is none (then the buddy stays put and faces it).
 	 */
 	private static Vec3 guardSpot(Level level, Player t, Entity mob) {
 		Vec3 dir = new Vec3(mob.getX() - t.getX(), 0, mob.getZ() - t.getZ());
 		if (dir.lengthSqr() < 1e-4) return null;
-		// 1.7 and not two: within NEAR of him, or the follow walk would pull him back to his side every other tick
+		// 1.7 and not two: within NEAR of the player, or the follow walk would pull the buddy back to the player's side every other tick
 		Vec3 at = t.position().add(dir.normalize().scale(1.7));
 		for (int dy : new int[] { 0, 1, -1 }) {
 			BlockPos c = BlockPos.containing(at.x, t.getY() + 0.01 + dy, at.z);
@@ -1407,10 +1407,10 @@ final class Follow {
 	}
 
 	/**
-	 * Sleeping: while he sleeps, a free bed near him (within eight blocks), walked to and right-clicked; up again as
-	 * soon as he is, the way the button in bed does it. A bed that does not take him within a second (monsters near, not
-	 * yet night for the server) or that he does not reach in fifteen is skipped for a minute. Lying down in a bed also
-	 * sets his own spawn point there, as for any player.
+	 * Sleeping: while the player sleeps, a free bed near the player (within eight blocks), walked to and right-clicked; up
+	 * again as soon as the player is, the way the button in bed does it. A bed that does not take the buddy within a second
+	 * (monsters near, not yet night for the server) or is not reached in fifteen is skipped for a minute. Lying down in a
+	 * bed also sets the buddy's own spawn point there, as for any player.
 	 */
 	private static boolean sleep(Minecraft mc, LocalPlayer p) {
 		long now = System.currentTimeMillis();
@@ -1438,8 +1438,8 @@ final class Follow {
 	private static long nightCheckedAt;
 
 	/**
-	 * The base's bed when it is night and the player he follows is in that base with him (until then only the player's
-	 * own sleep took him to bed while he followed). He gets up when that player leaves the base, or in the morning. Looked up once a second: the base is
+	 * The base's bed when it is night and the followed player is in that base too (until then only the player's
+	 * own sleep sent the buddy to bed while following). Up again when that player leaves the base, or in the morning. Looked up once a second: the base is
 	 * a file.
 	 */
 	private static BlockPos baseNight(LocalPlayer p, Player t) {
@@ -1454,8 +1454,8 @@ final class Follow {
 	}
 
 	/**
-	 * The night in his base (Base), also when he is there alone: when it is dark, to a free bed near the base's bed (that bed itself
-	 * first) the same way as with him, and lying there until the morning wakes him. A bed the server refuses (monsters
+	 * The night in the buddy's base (Base), also when alone there: when it is dark, to a free bed near the base's bed (that bed itself
+	 * first) the same way as with the player, and lying there until the morning wakes the buddy. A bed the server refuses (monsters
 	 * near, not dark enough yet for it) is tried again after a minute; meanwhile the base's work goes on.
 	 */
 	static boolean sleepInBase(Minecraft mc, LocalPlayer p, BlockPos baseBed) {
@@ -1481,10 +1481,10 @@ final class Follow {
 
 	/**
 	 * Time for bed: from 18:45 on the game's clock (tick 12750) until the morning, or in a thunderstorm. The game's
-	 * own "dark outside" came some 700 ticks before the server lets anyone sleep, so the bed refused him at dusk.
+	 * own "dark outside" came some 700 ticks before the server lets anyone sleep, so the bed refused the buddy at dusk.
 	 * Once someone else sleeps, from the tick the server lets anyone sleep ({@link Profiles#sleepFrom}, the game's own
 	 * unless the server's profile says later): two players lay down
-	 * at that tick, the night went five seconds later, and he stood by his bed waiting for 12750 (23 Oct 2026).
+	 * at that tick, the night went five seconds later, and the buddy stood by the bed waiting for 12750 (23 Oct 2026).
 	 */
 	static boolean bedtime(Level level) {
 		long t = Math.floorMod(level.getOverworldClockTime(), 24000L);
@@ -1496,9 +1496,9 @@ final class Follow {
 
 
 	/**
-	 * The server lays a player in a bed only with his feet within 3 blocks across and 2 up or down of the bottom of one of
-	 * its halves (Player.isReachableBedBlock), here with a margin. He clicked only within 3.4 blocks of its middle from the
-	 * eye, while the spot by the bed was chosen with the reach for blocks: on a real server he stood 23 s by his bed, 3.8 off, while
+	 * The server lays a player in a bed only with the feet within 3 blocks across and 2 up or down of the bottom of one of
+	 * its halves (Player.isReachableBedBlock), here with a margin. The click went only within 3.4 blocks of its middle from
+	 * the eye, while the spot by the bed was chosen with the reach for blocks: on a real server the buddy stood 23 s by the bed, 3.8 off, while
 	 * three others slept, and lay down only when another bed came free nearer (22 Oct 2026).
 	 */
 	private static boolean bedReach(Level level, Vec3 feet, BlockPos bed) {
@@ -1528,7 +1528,7 @@ final class Follow {
 		return null;
 	}
 
-	/** A cell by the bed from where he may lie down and sees a point of it: the nearest to him. */
+	/** A cell by the bed from where lying down goes and a point of it is in sight: the nearest to the buddy. */
 	private static BlockPos bedStand(Level level, LocalPlayer p, BlockPos bed) {
 		BlockPos best = null;
 		double bd = Double.MAX_VALUE;
@@ -1546,7 +1546,7 @@ final class Follow {
 		return best;
 	}
 
-	/** Whether he sees the player he follows within 32 blocks: in the base then he is not alone. */
+	/** Whether the followed player is in sight within 32 blocks: in the base then the buddy is not alone. */
 	static boolean sees(LocalPlayer p) {
 		Player t = find(p);
 		return t != null && t.distanceTo(p) <= 32;
@@ -1559,15 +1559,15 @@ final class Follow {
 	static boolean sleepAt(Minecraft mc, LocalPlayer p, BlockPos bed) { return toBed(mc, p, bed, true); }
 
 	/**
-	 * {@code base}: from the base's work, where the follow walk does not run, so he walks the way his jobs do, to a cell
-	 * beside the bed (21 Oct 2026: with {@code baseSleepOthers} he was at a field when the others lay down, and chose a
+	 * {@code base}: from the base's work, where the follow walk does not run, so the walk goes the way the jobs' walks do, to
+	 * a cell beside the bed (21 Oct 2026: with {@code baseSleepOthers} the buddy was at a field when the others lay down, and chose a
 	 * new bed every fifteen seconds without a step).
 	 */
 	private static boolean toBed(Minecraft mc, LocalPlayer p, BlockPos near, boolean base) {
 		long now = System.currentTimeMillis();
 		Level level = p.level();
 		if (bedClickedAt >= 0) {
-			// two seconds: the server took 1.2 to lay him down, and one second called a good bed a refusal (17 Oct 2026)
+			// two seconds: the server took 1.2 to lay the buddy down, and one second called a good bed a refusal (17 Oct 2026)
 			if (ticks - bedClickedAt <= 40) { HeldKeys.set(mc.options.keyUp, false); HeldKeys.set(mc.options.keySprint, false); return true; }
 			if (bed != null) {
 				refuseBed(level, bed, now);
@@ -1576,14 +1576,14 @@ final class Follow {
 			bed = null;
 			bedClickedAt = -1;
 		}
-		long walkFor = base ? 40_000 : 15_000;   // in the base he may come from the far side of it
+		long walkFor = base ? 40_000 : 15_000;   // in the base the walk may come from the far side of it
 		if (bed != null && (!freeBed(level, bed) || now - bedSince > walkFor)) {
 			if (now - bedSince > walkFor) refuseBed(level, bed, now);
 			bed = null;
 		}
 		if (bed == null) {
 			bed = findBed(level, near);
-			if (bed == null) return false;   // no free bed near him: stand by him as always
+			if (bed == null) return false;   // no free bed near the player: stand by the player as always
 			bedSince = now;
 			clearRoute();
 			Exchange.emit("follow", "action", "goes to sleep", "x", bed.getX(), "y", bed.getY(), "z", bed.getZ());
@@ -1595,7 +1595,7 @@ final class Follow {
 			HeldKeys.set(mc.options.keyShift, false);
 			aimExact(p, pt);
 			// this bed's own halves: within a block of it took the bed beside it, which the turn sweeps over (an occupied one
-			// gave "bed refuses" on his own free bed a moment later; the review of 22 Oct 2026)
+			// gave "bed refuses" on the buddy's own free bed a moment later; the review of 22 Oct 2026)
 			if (mc.hitResult instanceof BlockHitResult bh && bh.getType() == HitResult.Type.BLOCK && bedHalves(level, bed).contains(bh.getBlockPos())
 					&& level.getBlockState(bh.getBlockPos()).getBlock() instanceof AbstractBedBlock) clickBed = bed;
 			return true;
@@ -1639,8 +1639,8 @@ final class Follow {
 	}
 
 	/**
-	 * A line of chat: a /tpahere of the player he follows he accepts (of a trusted one while he follows nobody); the answer to his /tpa; how a
-	 * /afk of his went; the start and end of a fight's tag (PvPManager).
+	 * A line of chat: a /tpahere of the followed player, to accept (of a trusted one while following nobody); the answer to
+	 * the buddy's /tpa; how the buddy's /afk went; the start and end of a fight's tag (PvPManager).
 	 */
 	static void chat(String line) {
 		if (!AfkHelperClient.active()) return;
@@ -1669,14 +1669,14 @@ final class Follow {
 		if (!m.find()) return;
 		String from = m.group(1);
 		if (target != null ? !from.equalsIgnoreCase(target) : !AfkConfig.get().isTrusted(from)) return;
-		// accepted once he can stand still the three seconds: in water a bob cancels the teleport (17 Oct 2026)
+		// accepted once standing still for the three seconds is possible: in water a bob cancels the teleport (17 Oct 2026)
 		acceptFrom = from;
 		acceptUntil = now + 50_000;
 		Exchange.emit("follow", "action", "tpahere", "from", from);
 	}
 
 	/**
-	 * A request of the player he follows that the server's own button in chat accepts, on a server whose profile has
+	 * A request of the followed player that the server's own button in chat accepts, on a server whose profile has
 	 * no line for it: accepted the same way as a /tpahere.
 	 */
 	static void requestByClick(String from) {
@@ -1686,7 +1686,7 @@ final class Follow {
 		Exchange.emit("follow", "action", "request by click", "from", from);
 	}
 
-	/** Every tick, also when he follows no one: a /tpahere to accept, once he can stand still for it. */
+	/** Every tick, also when following no one: a /tpahere to accept, once the buddy can stand still for it. */
 	private static boolean acceptTpahere(Minecraft mc, LocalPlayer p, long now) {
 		if (acceptFrom == null) return false;
 		if (now > acceptUntil) { acceptFrom = null; return false; }
@@ -1703,7 +1703,7 @@ final class Follow {
 	// ---------- to the AFK zone ----------
 
 	private static void startAfk(Minecraft mc, String why) {
-		// a server without an AFK zone in its profile: he waits where he stands, as he would in the zone
+		// a server without an AFK zone in its profile: the buddy waits on the spot, as in the zone
 		afk = Profiles.cmd("afk", null) == null ? 2 : 1;
 		afkWhy = why;
 		afkTries = 0;
@@ -1719,11 +1719,11 @@ final class Follow {
 	}
 
 	/**
-	 * On the way to the AFK zone, or waiting there. On the way: first whatever keeps him from standing still three
-	 * seconds put right (out of bed, off a seat, the one who attacks him dead, out of an event, a fight's tag waited
-	 * out, out of water or lava onto the nearest dry block, a step aside from whatever pushes him), then /afk, standing
-	 * still; a /afk that fails says why in chat, and that is put right before the next try. Waiting there: when he comes
-	 * back online, one /tpa, so that he can take the alt along; seen again, the alt follows him as ever.
+	 * On the way to the AFK zone, or waiting there. On the way: first whatever keeps the buddy from standing still three
+	 * seconds put right (out of bed, off a seat, the attacker dead, out of an event, a fight's tag waited
+	 * out, out of water or lava onto the nearest dry block, a step aside from whatever pushes), then /afk, standing
+	 * still; a /afk that fails says why in chat, and that is put right before the next try. Waiting there: when the player
+	 * comes back online, one /tpa, so that the player can take the alt along; seen again, the alt follows as ever.
 	 */
 	private static boolean afkTick(Minecraft mc, LocalPlayer p, long now) {
 		var o = mc.options;
@@ -1752,7 +1752,7 @@ final class Follow {
 			Exchange.emit("follow", "action", "afk failed", "reason", afkFail, "times", afkTries);
 			if (afkTries % 5 == 0) { afkNextTry = now + 30_000; return false; }
 		}
-		// what keeps him from standing still, put right first
+		// what keeps the buddy from standing still, put right first
 		String leave = Profiles.cmd("eventLeave", null);
 		if (leave != null && Profiles.inEvent(p.level().dimension().identifier().toString())) {
 			AfkHelperClient.sendTyped(leave, null);
@@ -1770,15 +1770,15 @@ final class Follow {
 	}
 
 	/**
-	 * Whatever keeps him from standing still three seconds (the wait of a teleport, of a /tpa accepted, of /afk), put
-	 * right: out of bed, off a seat, the one who attacks him dead, a fight's tag waited out (no teleport goes in a fight),
-	 * out of water or lava onto the nearest dry block (a bob in water cancels a teleport), a step aside from what pushes
-	 * him, his speed run off. True while it is at it, false once he can stand still.
+	 * Whatever keeps the buddy from standing still three seconds (the wait of a teleport, of a /tpa accepted, of /afk), put
+	 * right: out of bed, off a seat, the attacker dead, a fight's tag waited out (no teleport goes in a fight),
+	 * out of water or lava onto the nearest dry block (a bob in water cancels a teleport), a step aside from what pushes,
+	 * the speed run off. True while it is at it, false once standing still is possible.
 	 */
 	private static boolean fixStill(Minecraft mc, LocalPlayer p, long now, String fail) {
 		var o = mc.options;
 		if (p.isSleeping()) { p.connection.send(new ServerboundPlayerCommandPacket(p, ServerboundPlayerCommandPacket.Action.STOP_SLEEPING)); return true; }
-		// on his ghast: not off it (in the air that is a fall), only still; a teleport takes him off it itself
+		// on a ghast: not off it (in the air that is a fall), only still; a teleport takes the buddy off it by itself
 		if (p.getVehicle() instanceof HappyGhast g) { release(); return g.getDeltaMovement().length() > 0.02; }
 		if (p.isPassenger()) { HeldKeys.set(o.keyShift, !o.keyShift.isDown()); return true; }
 		HeldKeys.set(o.keyShift, false);
@@ -1815,12 +1815,12 @@ final class Follow {
 		return true;
 	}
 
-	/** Something living close enough to push him while he stands still. */
+	/** Something living close enough to push the buddy while standing still. */
 	private static boolean pushed(LocalPlayer p) {
 		return !p.level().getEntitiesOfClass(LivingEntity.class, p.getBoundingBox().inflate(0.6), e -> e != p).isEmpty();
 	}
 
-	/** A few blocks aside, away from what pushes him, onto ground to stand on. */
+	/** A few blocks aside, away from what pushes, onto ground to stand on. */
 	private static boolean stepAside(Minecraft mc, LocalPlayer p) {
 		Level level = p.level();
 		if (aside == null) {
@@ -1839,7 +1839,7 @@ final class Follow {
 		return true;
 	}
 
-	/** Is he online on this server or the one linked to it, as far as the player list says? */
+	/** Is the followed player online on this server or the one linked to it, as far as the player list says? */
 	private static boolean online(Minecraft mc) {
 		return target != null && mc.getConnection() != null && mc.getConnection().getPlayerInfo(target) != null;
 	}
@@ -1868,7 +1868,7 @@ final class Follow {
 	private static boolean breathe(Minecraft mc, LocalPlayer p) {
 		if (!p.isUnderWater()) {
 			// Only full bubbles end it. Bobbing at the surface with jump held lifts you clean out of the water for a tick,
-			// and that used to count as done: at about half his air he dived again, was out of it within a second and went
+			// and that used to count as done: at about half the air the buddy dived again, was out of it within a second and went
 			// back up, over and over at the same spot (17 Oct 2026).
 			if (p.getAirSupply() >= p.getMaxAirSupply() - 4) { breath = false; clearRoute(); return true; }
 			HeldKeys.set(mc.options.keyUp, false);
@@ -1894,11 +1894,12 @@ final class Follow {
 	}
 
 	/**
-	 * A door he opened himself, out of the doorway: turn round and shut it, as he found it. Through it and a step past it;
-	 * or not through it, once his way no longer leads through it (he sheared a sheep from the gate, or the sheep he went
-	 * for walked off, and the gate stayed open). Whoever else stands in the doorway, a player or an animal, he shuts it all
-	 * the same; only he himself out of it, because animals he waits for get out (until then he waited for players). Too
-	 * far to click, or no crosshair on it in two seconds: the round in the base fetches it ({@link #closeLeftOpen}).
+	 * A door the buddy opened, out of the doorway: turn round and shut it, as it was found. Through it and a step past it;
+	 * or not through it, once the way no longer leads through it (a sheep was sheared from the gate, or the sheep gone
+	 * for walked off, and the gate stayed open). Whoever else stands in the doorway, a player or an animal, it is shut all
+	 * the same; only the buddy has to be out of it, because animals that are waited for get out (until then there was a
+	 * wait for players). Too far to click, or no crosshair on it in two seconds: the round in the base fetches it
+	 * ({@link #closeLeftOpen}).
 	 */
 	private static boolean closeBehind(Minecraft mc, LocalPlayer p) {
 		if (toClose == null) return false;
@@ -1907,7 +1908,7 @@ final class Follow {
 		// the base, not forgotten as shut (the review of 22 Oct 2026)
 		if (!level.isLoaded(toClose)) { toClose = null; return false; }
 		if (toClose.equals(heldOpen)) return false;
-		// after his click to shut it: the server's answer first ({@link #DOOR_ANSWER})
+		// after the click to shut it: the server's answer first ({@link #DOOR_ANSWER})
 		if (shutClickAt >= 0 && ticks - shutClickAt < DOOR_ANSWER) return true;
 		BlockState st = level.getBlockState(toClose);
 		Vec3 mid = Vec3.atCenterOf(toClose);
@@ -1921,7 +1922,7 @@ final class Follow {
 			shutClickAt = -1;
 			return false;
 		}
-		shutClickAt = -1;   // still open after his click: the server put it back, or it was never shut; click again
+		shutClickAt = -1;   // still open after the click: the server put it back, or it was never shut; click again
 		if (closeTries > 40) {
 			// no crosshair on it in two seconds: a strike, as a walk to it that came to nothing. Without it the round in the
 			// base took the door up again at once, with a fresh count, for ever (the review of 22 Oct 2026). A gate with
@@ -1936,8 +1937,8 @@ final class Follow {
 		}
 		if (p.getEyePosition().distanceTo(mid) > 4.2) { toClose = null; return false; }
 		if (p.getBoundingBox().intersects(doorway)) { toCloseEntered = true; return false; }
-		// out of the doorway is enough: he wanted 0.9 from its middle as well, while a walk to the cell beside it counts him
-		// there 0.65 off, and there he stood (the review of 22 Oct 2026)
+		// out of the doorway is enough: 0.9 from its middle was wanted as well, while a walk to the cell beside it counts as
+		// there 0.65 off, and there the buddy stood (the review of 22 Oct 2026)
 		double away = Math.hypot(mid.x - p.getX(), mid.z - p.getZ());
 		if (!toCloseEntered && (away < 1.5 || onRoute(toClose))) return false;
 		walking = true;
@@ -1960,7 +1961,7 @@ final class Follow {
 	/**
 	 * Where to click a door or gate: a point on its outline, the lower half first, with nothing in front of it, a block, an
 	 * animal or a player ({@link Work#aimPoint}). Null when there is none. It aimed at the middle of the cell first, which
-	 * is on a gate but beside an open door, whose outline is a panel along one side: the crosshair never came on a door he
+	 * is on a gate but beside an open door, whose outline is a panel along one side: the crosshair never came on a door the buddy
 	 * had gone through, and only gates and doors on a pressure plate were shut (the review of 22 Oct 2026). The sheep crowd
 	 * at the pen's gate, and a crosshair on the gate's middle took a sheep while three walked out (22 Oct 2026).
 	 */
@@ -1971,7 +1972,7 @@ final class Follow {
 		return pt;
 	}
 
-	/** His way still leads through this cell (a door's lower half, or the cell above it). */
+	/** The way still leads through this cell (a door's lower half, or the cell above it). */
 	private static boolean onRoute(BlockPos c) {
 		if (route == null) return false;
 		for (int i = idx; i < route.size(); i++) if (route.get(i).equals(c) || route.get(i).equals(c.above())) return true;
@@ -1979,8 +1980,8 @@ final class Follow {
 	}
 
 	/**
-	 * Keeping a base: a door or gate he opened and that is still open, within 16 blocks, is walked to and shut from his side
-	 * of it, unless his way leads through it now. Three walks to it that come to nothing: told (`deur blijft open`) and left.
+	 * Keeping a base: a door or gate the buddy opened and that is still open, within 16 blocks, is walked to and shut from
+	 * the buddy's side of it, unless the way leads through it now. Three walks to it that come to nothing: told (`deur blijft open`) and left.
 	 */
 	private static boolean closeLeftOpen(Minecraft mc, LocalPlayer p) {
 		if (opened.isEmpty() || toClose != null || Base.keeper() == null) return false;
@@ -2005,8 +2006,8 @@ final class Follow {
 			return closeBehind(mc, p);
 		}
 		BlockPos stand = beside(level, p, best);
-		// the far part of that cell, 1.3 from the door's middle: a walk counts him there within 0.35, and from its middle he
-		// could stop with his box still in the doorway, where the hand-over never came (the review of 22 Oct 2026)
+		// the far part of that cell, 1.3 from the door's middle: a walk counts as there within 0.35, and from its middle the
+		// buddy could stop with the box still in the doorway, where the hand-over never came (the review of 22 Oct 2026)
 		Vec3 goal = stand == null ? null : Vec3.atBottomCenterOf(stand).add((stand.getX() - best.getX()) * 0.3, 0, (stand.getZ() - best.getZ()) * 0.3);
 		if (stand == null || !Work.approach(mc, p, "door-" + best.toShortString(), goal, now)) {
 			if (closeFails.merge(best, 1, Integer::sum) >= 3 && !animalsBy(level, best)) {
@@ -2021,8 +2022,8 @@ final class Follow {
 	}
 
 	/**
-	 * A door held open by redstone: a pressure plate he stands on, a button, a lever. The redstone shuts it, a click of his
-	 * does not (the house door with a plate inside: on the plate to shut it, he opened it again and called it left open,
+	 * A door held open by redstone: a pressure plate stood on, a button, a lever. The redstone shuts it, a click of the
+	 * buddy's does not (the house door with a plate inside: on the plate to shut it, the buddy opened it again and called it left open,
 	 * 22 Oct 2026, on the test server).
 	 */
 	private static boolean powered(BlockState st) {
@@ -2030,7 +2031,7 @@ final class Follow {
 	}
 
 	/**
-	 * A cell in front of or behind this door or gate to stand in, the one nearest to him; null when neither will do. Not on
+	 * A cell in front of or behind this door or gate to stand in, the one nearest to the buddy; null when neither will do. Not on
 	 * a pressure plate, which would open it again.
 	 */
 	private static BlockPos beside(Level level, LocalPlayer p, BlockPos g) {
@@ -2049,14 +2050,14 @@ final class Follow {
 	// ---------- riding: cushions, boats, minecarts, happy ghasts ----------
 
 	/**
-	 * Riding along: while the player sits on a cushion, in a boat or in a minecart, the alt does the same. In his boat
-	 * when it has room (a boat two seats, a chest boat one), otherwise the free one of the same kind nearest to him
-	 * within eight blocks, walked to and right-clicked as a player does; in a boat of his own it steers after him. Out
-	 * again with a crouch as soon as he gets out, or is gone. True while this holds the alt's keys. On anything else
+	 * Riding along: while the player sits on a cushion, in a boat or in a minecart, the alt does the same. In the player's
+	 * boat when it has room (a boat two seats, a chest boat one), otherwise the free one of the same kind nearest to the
+	 * player within eight blocks, walked to and right-clicked as a player does; in a boat of the alt's own, steered after the
+	 * player. Out again with a crouch as soon as the player gets out, or is gone. True while this holds the alt's keys. On anything else
 	 * the alt rides (a horse, say) it is left alone.
-	 * A happy ghast (0.4.40) only when it is his, never a
-	 * free one: on a ghast of his own the alt would be the one who steers, sit still while the player flies off, and
-	 * get off in the air. It is tried only while its underside is within reach of the ground he stands on; flying high,
+	 * A happy ghast (0.4.40) only when it is the player's, never a
+	 * free one: on a ghast of the alt's own the alt would be the one who steers, sit still while the player flies off, and
+	 * get off in the air. It is tried only while its underside is within reach of the ground the alt stands on; flying high,
 	 * the alt follows below as always. The click goes with an empty hand where it can, because a lead, a name tag, a
 	 * harness or a spawn egg in hand is used on the ghast instead of riding it.
 	 */
@@ -2086,7 +2087,7 @@ final class Follow {
 				else { release(); lookAt(p, t); }
 				return true;
 			}
-			// he got out or went away: out as well, the way a player gets off, with a crouch
+			// the player got out or went away: out as well, the way a player gets off, with a crouch
 			seated = false;
 			release();
 			standTicks = 4;
@@ -2097,15 +2098,15 @@ final class Follow {
 		seated = false;
 		if (stepOffGhast(mc, p, t)) return true;
 		if (kind == null) { seat = null; seatClickedAt = -1; return false; }
-		// his ghast up in the air: nothing to reach, follow below as always (and let go of one being walked to)
+		// the player's ghast up in the air: nothing to reach, follow below as always (and let go of one being walked to)
 		if ("ghast".equals(kind) && his.getBoundingBox().minY - p.getY() > GHAST_REACH_UP) {
 			if (seat == his) { seat = null; seatClickedAt = -1; }
 			return false;
 		}
-		// a click went out: it seats him within a second, or this one will not have him
+		// a click went out: it seats the buddy within a second, or this one will not take a rider
 		if (seatClickedAt >= 0) {
 			if (ticks - seatClickedAt <= 20) { HeldKeys.set(mc.options.keyUp, false); HeldKeys.set(mc.options.keySprint, false); return true; }
-			// handing the steering back he stands on top of the ghast, which keeps it still for him: click again, not refuse
+			// handing the steering back the buddy stands on top of the ghast, which keeps it still meanwhile: click again, not refuse
 			if (seat == his && seat instanceof HappyGhast && now < handoverUntil) { seatClickedAt = -1; return true; }
 			if (seat != null) {
 				seatRefused.put(seat.getId(), now + 60_000);
@@ -2114,7 +2115,7 @@ final class Follow {
 			seat = null;
 			seatClickedAt = -1;
 		}
-		// the one he went for taken, gone, too far from him, or not reached in fifteen seconds: another
+		// the one gone for taken, gone, too far from the player, or not reached in fifteen seconds: another
 		if (seat != null && (seat.isRemoved() || !hasRoom(seat) || (seat != his && seat.distanceTo(t) > SEAT_RANGE) || now - seatSince > 15_000)) {
 			if (now - seatSince > 15_000 && hasRoom(seat)) seatRefused.put(seat.getId(), now + 60_000);
 			seat = null;
@@ -2122,7 +2123,7 @@ final class Follow {
 		if (seat == null) {
 			seat = !"cushion".equals(kind) && hasRoom(his) && !seatRefused.containsKey(his.getId()) ? his
 				: "ghast".equals(kind) ? null : freeVehicle(p, t, kind);
-			if (seat == null) return false;   // none free: stand by him as always
+			if (seat == null) return false;   // none free: stand by the player as always
 			seatSince = now;
 			clearRoute();
 			Exchange.emit("follow", "action", "sits down", "in", kind, "by_him", seat == his, "x", Math.round(seat.getX()), "y", Math.round(seat.getY()), "z", Math.round(seat.getZ()));
@@ -2144,9 +2145,10 @@ final class Follow {
 	}
 
 	/**
-	 * On his happy ghast. With him on it too: seated and looking at him, and when the alt is the first one on (he got
-	 * off and on again) off it with a crouch, which sets the alt on top, and on again behind him, so that he steers.
-	 * Without him: the alt stays on and flies it low beside him until he gets on (see GHAST_SIDE).
+	 * On the player's happy ghast. With the player on it too: seated and looking at the player, and when the alt is the
+	 * first one on (the player got off and on again) off it with a crouch, which sets the alt on top, and on again behind
+	 * the player, who then steers. Without the player: the alt stays on and flies it low alongside until the player gets on
+	 * (see GHAST_SIDE).
 	 */
 	private static boolean onGhast(Minecraft mc, LocalPlayer p, HappyGhast g, Player t) {
 		seat = null;
@@ -2191,11 +2193,11 @@ final class Follow {
 	}
 
 	/**
-	 * Fly his ghast to a spot beside him: its middle GHAST_SIDE away from him on the side it is on, its underside
-	 * GHAST_UNDER above his feet. A ghast goes where its rider looks while forward is held, up and down too
+	 * Fly the player's ghast to a spot beside the player: its middle GHAST_SIDE away on the side it is on, its underside
+	 * GHAST_UNDER above the player's feet. A ghast goes where its rider looks while forward is held, up and down too
 	 * (HappyGhast.getRiddenInput), and turns after the rider slowly, so forward only while it roughly faces the spot.
-	 * Against a wall or a hill it climbs; when it gets no nearer for three seconds (he is in a tunnel or under a roof)
-	 * it stays where it is until he has moved on four blocks. Out of sight it hovers where it is.
+	 * Against a wall or a hill it climbs; when it gets no nearer for three seconds (the player is in a tunnel or under a
+	 * roof) it stays where it is until the player has moved on four blocks. Out of sight it hovers where it is.
 	 */
 	private static void driveGhast(Minecraft mc, LocalPlayer p, HappyGhast g, Player t) {
 		var o = mc.options;
@@ -2242,7 +2244,7 @@ final class Follow {
 	}
 
 	/**
-	 * Tied up with a lead while he is off it: fly it straight down (looking down with forward held is down,
+	 * Tied up with a lead while the player is off it: fly it straight down (looking down with forward held is down,
 	 * HappyGhast.getRiddenInput) until its underside is just above what is under it, or it gets no lower for two
 	 * seconds, then off with a crouch.
 	 */
@@ -2276,7 +2278,7 @@ final class Follow {
 
 	/**
 	 * Standing on top of a happy ghast the player does not ride (got off it because it was tied up): walk off the edge
-	 * with the shortest drop, toward him when two are alike. True while he is on it.
+	 * with the shortest drop, toward the player when two are alike. True while the buddy is on it.
 	 */
 	private static boolean stepOffGhast(Minecraft mc, LocalPlayer p, Player t) {
 		if (System.currentTimeMillis() < handoverUntil) return false;
@@ -2333,7 +2335,7 @@ final class Follow {
 		return best;
 	}
 
-	/** In a boat of his own: turn the boat toward him with left and right, forward while it roughly faces him and he is not near. */
+	/** In a boat of the buddy's own: turn the boat toward the player with left and right, forward while it roughly faces the player, not near yet. */
 	private static void steerBoat(Minecraft mc, LocalPlayer p, Entity boat, Player t) {
 		var o = mc.options;
 		double dx = t.getX() - boat.getX(), dz = t.getZ() - boat.getZ(), d = Math.hypot(dx, dz);
@@ -2347,7 +2349,7 @@ final class Follow {
 	}
 
 	/**
-	 * What he can ride along on: a cushion, a boat (a raft too), a minecart that seats one, a grown happy ghast in a
+	 * What the buddy can ride along on: a cushion, a boat (a raft too), a minecart that seats one, a grown happy ghast in a
 	 * harness (without one a click does not seat anyone); null for anything else.
 	 */
 	private static String rideKind(Entity e) {
@@ -2387,7 +2389,7 @@ final class Follow {
 		if (pick >= 0 && inv.getSelectedSlot() != pick) inv.setSelectedSlot(pick);
 	}
 
-	/** The free one of this kind nearest to him, within eight blocks of him. */
+	/** The free one of this kind nearest to the player, within eight blocks of the player. */
 	private static Entity freeVehicle(LocalPlayer p, Player t, String kind) {
 		Entity best = null;
 		double bestD = Double.MAX_VALUE;
@@ -2416,7 +2418,7 @@ final class Follow {
 			clearRoute();
 			canSprint = p.getFoodData().getFoodLevel() > 6;
 			leapsOk = mayLeap(p);
-			// keeping a base there is no hurry: a jump that can go wrong only where a miss costs nothing (he fell and took
+			// keeping a base there is no hurry: a jump that can go wrong only where a miss costs nothing (the buddy fell and took
 			// fall damage on the way to some wool); following, up to two hearts
 			missFall = Base.keeper() != null ? 3 : Miss.maxFall(p.getHealth());
 			voidOk = Profiles.voidAllowed(level.dimension().identifier().toString());
@@ -2433,7 +2435,7 @@ final class Follow {
 		if (route == null || airRoute || idx >= route.size()) {
 			halt();
 			hover(mc, p, p.getY() + 1);
-			// waiting for a plan on the pen's walk round it: still crouched, as he walks there (Pen.crouchWalk)
+			// waiting for a plan on the pen's walk round it: still crouched, as on the walk there (Pen.crouchWalk)
 			if (!p.isInWater() && Pen.crouchWalk(p)) HeldKeys.set(mc.options.keyShift, true);
 			return;
 		}
@@ -2454,7 +2456,7 @@ final class Follow {
 			if (idx < routeMoves.size()) routeMoves.set(idx, WALK);
 		}
 		if (move(idx) != WALK) {
-			// burning, in lava or low since the plan was made: no new jump (one under way he finishes), plan again
+			// burning, in lava or low since the plan was made: no new jump (one under way is finished), plan again
 			if ((leap == null || !leap.to.equals(route.get(idx))) && !mayLeap(p)) {
 				Exchange.emit("follow", "action", "no jump", "reason", p.isOnFire() ? "burning" : p.isInLava() ? "lava" : "low hp",
 					"hp", round(p.getHealth()), "x", p.getBlockX(), "y", p.getBlockY(), "z", p.getBlockZ());
@@ -2478,7 +2480,7 @@ final class Follow {
 		if (Double.isNaN(wf)) { clearRoute(); return; }   // the world changed under the plan
 		long now = System.currentTimeMillis();
 		if (idxSince == 0) { idxSince = now; idxDist = p.position().distanceTo(Vec3.atBottomCenterOf(wp)); }
-		// a cell he cannot reach (something above his head, a step too high) had him jump and circle: another way. The
+		// a cell out of reach (something above the head, a step too high) set the buddy jumping and circling: another way. The
 		// time it may take goes by how far it was, slower in water.
 		long limit = 2500 + (long) (idxDist * (p.isInWater() ? 2000 : 1000));
 		if (now - idxSince > limit) { stuck(wp, "too long"); return; }
@@ -2493,13 +2495,13 @@ final class Follow {
 		boolean inWater = p.isInWater(), climbing = p.onClimbable();
 		boolean deep = wpWater && !surface(level, wp);
 		// Down over an edge: off it at a walk and kept over the cell in the air, and the cell reached only on its floor.
-		// At walking speed he came down a block and a half past the edge, over the next step of a cave, and fell five and
+		// At walking speed the buddy came down a block and a half past the edge, over the next step of a cave, and fell five and
 		// nine blocks in all (18 Oct 2026).
 		boolean drop = !inWater && !climbing && !wpWater && !wpLadder && rise < -0.6;
 
-		// Under the surface he always swims (sprint in water): lying down he is 0.6 high and goes through a gap of one,
-		// the way a player goes through an underwater cave. Upright he is 1.8 high, and a passage of two only takes him
-		// with his feet at its bottom: floating half a block higher he hit its edge and stuck there (17 Oct 2026).
+		// Under the surface always swim (sprint in water): lying down the body is 0.6 high and goes through a gap of one,
+		// the way a player goes through an underwater cave. Upright it is 1.8 high, and a passage of two only takes it
+		// with the feet at its bottom: floating half a block higher the buddy hit its edge and stuck there (17 Oct 2026).
 		boolean food = p.getFoodData().getFoodLevel() > 6;
 		boolean swim = inWater && p.isUnderWater() && deep && food;
 		// up and down
@@ -2521,19 +2523,19 @@ final class Follow {
 		} else if (rise > 0.6 && d < 1.6 && p.onGround() && jumpTicks == 0) {
 			HeldKeys.set(mc.options.keyJump, true); jumpTicks = 3;
 		}
-		// beside a pen he farms (or farmed a moment ago) crouched: the edge keeps a crouched player on his block; on the
+		// beside a pen being farmed (or farmed a moment ago) crouched: the edge keeps a crouched player on the block; on the
 		// pen's own walk round it (Pen.crouchWalk) the whole way, also through a corner beside none of its columns, where
-		// he let go of crouch at every corner of a small pen (the third review of 22 Oct 2026); never for a drop, in water
-		// or on a ladder, nor while he gets away from a creeper (Pen.gettingAway: at a sneak's pace a creeper in the pit
-		// kept him in its sight and went off, the test of 22 Oct 2026)
+		// the buddy let go of crouch at every corner of a small pen (the third review of 22 Oct 2026); never for a drop, in
+		// water or on a ladder, nor while getting away from a creeper (Pen.gettingAway: at a sneak's pace a creeper in the
+		// pit kept the buddy in its sight and went off, the test of 22 Oct 2026)
 		if (!inWater && !drop && !Pen.gettingAway() && (Pen.fenceBeside(wp) || Pen.fenceBeside(p.blockPosition())
 				|| (!climbing && !wpLadder && Pen.crouchWalk(p)))) sneak = true;
 		HeldKeys.set(mc.options.keyShift, sneak);
 
-		// Past this cell already, on the way to the next: on. Swimming carries you on, and he used to turn round for a
-		// cell he had shot past by half a block (17 Oct 2026); after a new plan the first cell can lie just behind him.
+		// Past this cell already, on the way to the next: on. Swimming carries you on, and the buddy used to turn round for a
+		// cell shot past by half a block (17 Oct 2026); after a new plan the first cell can lie just behind.
 		// Only where the straight way to the next cell is free: from half a block off the middle a turn round a corner
-		// cut across the cell beside it, and a bamboo stalk standing off-centre there caught him (17 Oct 2026).
+		// cut across the cell beside it, and a bamboo stalk standing off-centre there caught the buddy (17 Oct 2026).
 		BlockPos next = last || move(idx + 1) != WALK ? null : route.get(idx + 1);
 		boolean straight = next != null && (wpWater ? clearWater(level, p.position(), next) : clearLine(level, p.position(), next));
 		if (straight && !wpLadder && !climbing && !drop && (wpWater || rise <= 0.6)) {
@@ -2541,8 +2543,8 @@ final class Follow {
 			Vec3 ab = b.subtract(a);
 			if (me.distanceTo(a) < 1.8 && me.subtract(a).dot(ab) > 0.25 * ab.lengthSqr()) { idx++; idxSince = 0; cellsWalked++; return; }
 		}
-		// the cell a jump starts from: in it is enough, the run toward the landing starts from wherever he is (he
-		// circled the middle of a checkpoint's edge cell for a second before the jump, 17 Oct 2026)
+		// the cell a jump starts from: in it is enough, the run toward the landing starts from wherever the buddy is (the
+		// middle of a checkpoint's edge cell was circled for a second before the jump, 17 Oct 2026)
 		boolean beforeJump = !last && move(idx + 1) != WALK && !wpWater && !wpLadder && !climbing && p.onGround() && Math.abs(rise) < 0.3;
 		boolean arrived = wpWater ? d < (straight || last ? 0.6 : 0.3) && Math.abs(rise) < 0.9
 			: (wpLadder || climbing) ? d < 0.5 && Math.abs(rise) < 0.45
@@ -2570,8 +2572,8 @@ final class Follow {
 		} else pitch = 10f;
 		// on a ladder straight above or below there is nowhere to walk to: only keep in the cell
 		boolean push = !(climbing && d < 0.25 && Math.abs(rise) > 0.3);
-		// Going up a ladder: pushed against the wall it hangs on, which climbs as fast and keeps him in it. Left to
-		// himself the speed he came with carried him off its side twice in one climb (17 Oct 2026).
+		// Going up a ladder: pushed against the wall it hangs on, which climbs as fast and keeps the climber in it. Left
+		// alone the speed of coming in carried the buddy off its side twice in one climb (17 Oct 2026).
 		if (climbing && rise > 0.3) {
 			BlockState ls = level.getBlockState(p.blockPosition());
 			if (ls.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) {
@@ -2602,7 +2604,7 @@ final class Follow {
 		previous = p.position();
 	}
 
-	/** He does not get to this cell: back off a step, leave it out of the plans for a while and plan anew. */
+	/** This cell is not to be reached: back off a step, leave it out of the plans for a while and plan anew. */
 	private static void stuck(BlockPos wp, String why) {
 		avoid.put(wp.immutable(), System.currentTimeMillis() + 20_000);
 		release();
@@ -2616,7 +2618,7 @@ final class Follow {
 
 	/**
 	 * A closed door or gate in the next cell: walk up to it, stop, get the crosshair on it and click it open at the
-	 * start of the next tick. True while the door holds him up.
+	 * start of the next tick. True while the door holds the buddy up.
 	 */
 	private static boolean door(Minecraft mc, LocalPlayer p, BlockPos wp) {
 		Level level = p.level();
@@ -2635,11 +2637,11 @@ final class Follow {
 		HeldKeys.set(mc.options.keySprint, false);
 		HeldKeys.set(mc.options.keyShift, false);   // crouched, a click with a block in hand places it against the door
 		aimAt(p, mid.add(0, 0.1, 0));
-		// animals right behind it (the sheep of a pen): not opened until they have moved, or they walk out past him while he
-		// pushes through; after a while the route is dropped and planned anew, the door still shut, and a chore gives up its
+		// animals right behind it (the sheep of a pen): not opened until they have moved, or they walk out past the buddy while
+		// pushing through; after a while the route is dropped and planned anew, the door still shut, and a chore gives up its
 		// goal by its own clock. No wall in `refused`: the first version made it one for twenty seconds, and a herding round
 		// that came within them could not get its stray in, and failed again at once the next time (23 Oct 2026). Not while
-		// he leads an animal into its pen, which waits behind the gate on purpose.
+		// leading an animal into its pen, which waits behind the gate on purpose.
 		if (!Herd.active() && animalsBehind(level, p, base)) {
 			if (!base.equals(doorWait)) {
 				doorWait = base; doorWaitSince = ticks;
@@ -2659,7 +2661,7 @@ final class Follow {
 	}
 
 	/**
-	 * An animal within a block of this closed door or gate on its far side from him: the cell behind it along the way
+	 * An animal within a block of this closed door or gate on its far side from the buddy: the cell behind it along the way
 	 * through, and the half of the doorway on that side.
 	 */
 	private static boolean animalsBehind(Level level, LocalPlayer p, BlockPos door) {
@@ -2674,7 +2676,7 @@ final class Follow {
 		BlockPos behind = door.relative(away);
 		AABB box = new AABB(behind).minmax(new AABB(door)).expandTowards(0, 1, 0).inflate(0.3, 0, 0.3);
 		if (level.getEntitiesOfClass(net.minecraft.world.entity.animal.Animal.class, box, a -> a.isAlive()).isEmpty()) return false;
-		// only into a closed space (a pen): out of one, onto open ground, the animals by its gate outside held him in the
+		// only into a closed space (a pen): out of one, onto open ground, the animals by its gate outside held the buddy in the
 		// sheep pen on the test server, both its gates (23 Oct 2026)
 		return Herd.closedSide(level, behind);
 	}
@@ -2689,14 +2691,14 @@ final class Follow {
 		float yaw = (float) Math.toDegrees(Math.atan2(-(m.x - p.getX()), m.z - p.getZ()));
 		float delta = Mth.wrapDegrees(yaw - p.getYRot());
 		float pitch = p.getXRot() + Mth.clamp(wantPitch - p.getXRot(), -8f, 8f) * 0.5f;
-		// as fast as a player turns with the mouse: at ten degrees a tick a corner of ninety stood him still for nine ticks
+		// as fast as a player turns with the mouse: at ten degrees a tick a corner of ninety stood the buddy still for nine ticks
 		float step = distance > 2 ? 30f : 24f;
 		if (distance > 0.15) MouseTurn.toward(p, p.getYRot() + Mth.clamp(delta, -step, step), pitch);
 		else MouseTurn.toward(p, p.getYRot(), pitch);
 		HeldKeys.set(mc.options.keyUp, push && Math.abs(delta) < 60);
 		// Walking on while the head still turns (21 Oct 2026, after SoulFire's MovementAction, which picks the keys from
 		// the angle to the target): on firm ground a cell off to the side gets the strafe key with or without forward,
-		// so a sharp turn no longer stands him still while he turns. Not on a ladder, in water or by a drop (walk's own
+		// so a sharp turn no longer means standing still while turning. Not on a ladder, in water or by a drop (walk's own
 		// handling of those keys), and never near the cell, where a strafe overshoots it.
 		boolean side = push && strafeOk && p.onGround() && !p.isInWater() && !p.onClimbable() && distance > 0.6;
 		HeldKeys.set(mc.options.keyRight, side && delta > 25 && delta < 115);
@@ -2717,7 +2719,7 @@ final class Follow {
 		MouseTurn.toward(p, p.getYRot() + Mth.clamp(Mth.wrapDegrees(yaw - p.getYRot()), -14f, 14f), p.getXRot() + Mth.clamp(pitch - p.getXRot(), -10f, 10f));
 	}
 
-	/** Standing beside him: turn toward his face now and then, the way a player who waits does. */
+	/** Standing beside the player: turn toward the player's face now and then, the way a player who waits does. */
 	private static void lookAt(LocalPlayer p, Player t) {
 		Vec3 eye = p.getEyePosition(), to = t.getEyePosition();
 		double dx = to.x - eye.x, dy = to.y - eye.y, dz = to.z - eye.z;
@@ -2728,7 +2730,7 @@ final class Follow {
 	}
 
 	/**
-	 * Waiting in water: afloat at the surface, or under it at about his height, instead of sinking to the bottom.
+	 * Waiting in water: afloat at the surface, or under it at about the player's height, instead of sinking to the bottom.
 	 * On land, nothing.
 	 */
 	private static void hover(Minecraft mc, LocalPlayer p, double y) {
@@ -2744,7 +2746,7 @@ final class Follow {
 
 	private static void holdJump(Minecraft mc) { HeldKeys.set(mc.options.keyJump, true); jumpTicks = 3; }
 
-	// ---------- for the work along with him ----------
+	// ---------- for the work along with the player ----------
 
 	static int ticks() { return ticks; }
 
@@ -2756,7 +2758,7 @@ final class Follow {
 
 	private static int cellsWalked;
 
-	/** Walk to that cell exactly, on the same plans and jumps as after him. */
+	/** Walk to that cell exactly, on the same plans and jumps as when following. */
 	static void goTo(Minecraft mc, LocalPlayer p, Vec3 goal) { walking = true; walkTo(mc, p, goal, true, null); }
 
 	/**
@@ -2765,7 +2767,7 @@ final class Follow {
 	 */
 	static void planNow() { nextPlan = ticks; }
 
-	/** Stand still where he is. */
+	/** Stand still where the buddy is. */
 	static void stand() { halt(); }
 
 	static void aim(LocalPlayer p, Vec3 at) { aimAt(p, at); }
@@ -2778,7 +2780,7 @@ final class Follow {
 		MouseTurn.toward(p, p.getYRot() + Mth.clamp(Mth.wrapDegrees(yaw - p.getYRot()), -14f, 14f), p.getXRot() + Mth.clamp(pitch - p.getXRot(), -10f, 10f), 0.1f);
 	}
 
-	/** Where the feet are standing in this cell, NaN if he cannot stand there. */
+	/** Where the feet are standing in this cell, NaN if there is no standing there. */
 	static double floor(Level level, BlockPos f) { return floorY(level, f, false); }
 
 	/** Stop walking but stay on. */
@@ -2803,7 +2805,7 @@ final class Follow {
 	}
 
 	/**
-	 * Cells no plan may enter, until a moment (0.4.80): the columns of the pen he farms, from under its floor to over its
+	 * Cells no plan may enter, until a moment (0.4.80): the columns of the pen being farmed, from under its floor to over its
 	 * shaft, and its doors and gates. Not the avoid map, which a new plan, a command and getting loose clear and fill.
 	 */
 	private static final Map<BlockPos, Long> fence = new HashMap<>();
@@ -2819,12 +2821,12 @@ final class Follow {
 		return until != null && until > System.currentTimeMillis();
 	}
 
-	/** Every fence down at once: he fell into the pen, and may dig or pillar out of it. */
+	/** Every fence down at once: the buddy fell into the pen, and may dig or pillar out of it. */
 	static void unfence() { fence.clear(); }
 
 	/**
 	 * Cells the walk away from a swelling creeper keeps out of (Pen's getaway, Getaway.refused): nearer to one of them
-	 * than he stood when its cell was picked. No plan enters them and no corner is cut across them, so that the planner's
+	 * than the buddy stood when its cell was picked. No plan enters them and no corner is cut across them, so that the planner's
 	 * own way to that cell keeps off the creeper as the search that found the cell did: its shortest way to a cell the
 	 * search reached round the creeper went straight past it (the review of the fourth round, 22 Oct 2026). Pen sets them
 	 * every tick of that walk, until a moment, and clears them when it ends. Not the fence: beside a fenced cell the
@@ -2836,18 +2838,18 @@ final class Follow {
 	/** Keep the walk out of these cells until then (replacing the last set). */
 	static void shun(Set<BlockPos> cells, long until) { shun = cells; shunUntil = until; }
 
-	/** No cells kept out of any more: the getaway's walk is over, or something else walks him. */
+	/** No cells kept out of any more: the getaway's walk is over, or something else steers the walk. */
 	static void unshun() { shun = Set.of(); shunUntil = 0; }
 
 	private static boolean shunned(BlockPos c) {
 		return !shun.isEmpty() && shunUntil > System.currentTimeMillis() && shun.contains(c);
 	}
 
-	/** Is the player he follows online, as far as the player list says (Pen: the player away). */
+	/** Is the followed player online, as far as the player list says (Pen: the player away). */
 	static boolean ownerOnline() { return online(AfkHelperClient.mc()); }
 
 	/**
-	 * Whether the sleep step would take him to bed now: the player he follows asleep within sixteen blocks, or the
+	 * Whether the sleep step would send the buddy to bed now: the followed player asleep within sixteen blocks, or the
 	 * base's bed at night with that player in the base (Pen pauses for the night and lets it).
 	 */
 	static boolean bedWanted(LocalPlayer p) {
@@ -2856,7 +2858,7 @@ final class Follow {
 		return baseNight(p, t) != null;
 	}
 
-	/** Unstuck shuffled him loose: these cells out of the plans for a minute, and plan anew. */
+	/** Unstuck shuffled the buddy loose: these cells out of the plans for a minute, and plan anew. */
 	static void unstuckDone(java.util.Collection<BlockPos> cells) {
 		long until = System.currentTimeMillis() + 60_000;
 		for (BlockPos c : cells) avoid.put(c.immutable(), until);
@@ -2867,7 +2869,7 @@ final class Follow {
 	/** A step of the plan (a dig, a pillar, a bridge) that does not come off: as if stuck there. */
 	static void stuckAt(BlockPos wp, String why) { stuck(wp, why); }
 
-	/** He has a way planned and means to walk it. */
+	/** A way is planned and to be walked. */
 	static boolean routing() { return route != null && idx < route.size(); }
 
 	private static void clearRoute() {
@@ -2962,7 +2964,7 @@ final class Follow {
 		if (here == null) return;
 		for (int dx = -5; dx <= 5; dx++) for (int dz = -5; dz <= 5; dz++) {
 			int flat2 = dx * dx + dz * dz;
-			if (flat2 < 4 || flat2 > 29) continue;   // beside him is a step; beyond five no jump reaches
+			if (flat2 < 4 || flat2 > 29) continue;   // right beside is a step; beyond five no jump reaches
 			if (Math.abs(cur.getX() + dx - start.getX()) > range() || Math.abs(cur.getZ() + dz - start.getZ()) > range()) continue;
 			for (int dy = 1; dy >= -3; dy--) {
 				BlockPos c = cur.offset(dx, dy, dz);
@@ -2976,15 +2978,15 @@ final class Follow {
 				if (need < 0.05) continue;   // the tops touch: that is a step, no jump
 				if (!voidOk && rise < -JUMP_DROP) continue;   // lands so low that the fall hurts
 				// the arithmetic is for a sprinting jump: without food for sprinting only the smallest gaps. A run-up is two
-				// cells of one height behind, or the speed of a jump just made the same way (21 Oct 2026: over iron bars he
-				// may skip one: from a bar he lands running, with no cell behind him)
+				// cells of one height behind, or the speed of a jump just made the same way (21 Oct 2026: over iron bars the
+				// buddy may skip one: from a bar the landing is a running one, with no cell behind)
 				boolean carried = carried(cur, dx, dz);
 				byte how = need <= (canSprint ? reach(rise, false) - SPARE : 0.4) ? JUMP
 					: canSprint && ((need <= reach(rise, true) - SPARE_RUN && runway(level, cur, fc, dx, dz) >= 2)
 						|| (carried && need <= reach(rise, true) - SPARE_CARRIED)) ? RUN : WALK;
 				int dist = (int) Math.ceil(Math.sqrt(flat2));
 				if (how != WALK && clearArc(level, cur, fc, c, fh)) {
-					if (!missSafe(level, cur, fc, c, fh)) continue;   // a miss would land him in lava or too deep
+					if (!missSafe(level, cur, fc, c, fh)) continue;   // a miss would land in lava or too deep
 					// a run that carries the speed on is cheaper than stopping for two short jumps (25 against 2 x 20 + 10 a block)
 					relax(open, closed, cost, from, cur, c, base + 10 * dist + (how == RUN ? (carried ? 25 : 40) : 20), goal, how);
 					break;
@@ -3014,14 +3016,14 @@ final class Follow {
 		return floor.isEmpty() ? null : floor.bounds().move(b);
 	}
 
-	/** Where a jump into this cell lands: its support, or for a ladder the block itself (his middle has to get into it). */
+	/** Where a jump into this cell lands: its support, or for a ladder the block itself (the jumper's middle has to get into it). */
 	private static AABB landing(Level level, BlockPos c) {
 		if (ladderCell(level, c) && Double.isNaN(floorY(level, c, false)))
 			return new AABB(c.getX() + 0.3, c.getY(), c.getZ() + 0.3, c.getX() + 0.7, c.getY() + 1, c.getZ() + 0.7);
 		return support(level, c);
 	}
 
-	/** How far his middle has to travel: from 0.3 over one edge to 0.3 short of the other, as the parkour course's arithmetic counts it. */
+	/** How far the jumper's middle has to travel: from 0.3 over one edge to 0.3 short of the other, as the parkour course's arithmetic counts it. */
 	private static double need(AABB a, AABB b) {
 		double gx = Math.max(0, Math.max(b.minX - a.maxX, a.minX - b.maxX));
 		double gz = Math.max(0, Math.max(b.minZ - a.maxZ, a.minZ - b.maxZ));
@@ -3029,10 +3031,10 @@ final class Follow {
 	}
 
 	/**
-	 * How far the middle of a jumping player travels before the tick in which he lands {@code rise} blocks above where
-	 * he left (below, when negative); 0 when he does not get that high. The parkour course's reach(), in its own numbers: a
+	 * How far the middle of a jumping player travels before the tick of landing {@code rise} blocks above the take-off
+	 * (below, when negative); 0 when the jump does not get that high. The parkour course's reach(), in its own numbers: a
 	 * sprinting jump from a standstill moves 0.3274 in the first tick (0.4806 with a run-up), then 0.546 of it plus
-	 * 0.02548 and after that 0.91 of it plus 0.02548 a tick; he leaves the ground at 0.42 a tick, which becomes 0.98 of
+	 * 0.02548 and after that 0.91 of it plus 0.02548 a tick; the jump leaves the ground at 0.42 a tick, which becomes 0.98 of
 	 * it less 0.08 each tick.
 	 */
 	static double reach(double rise, boolean run) {
@@ -3041,7 +3043,7 @@ final class Follow {
 			double before = height;
 			height += climb;
 			// the top of the arc under the landing first: no jump gets there. The other order returned the distance at the
-			// top for a landing 1.5 up, the top of a fence, and he jumped at the pen's posts again and again, the last time
+			// top for a landing 1.5 up, the top of a fence, and the buddy jumped at the pen's posts again and again, the last time
 			// into the pit beside them (22 Oct 2026)
 			if (height < before && before < rise) return 0;
 			if (height < before && height < rise) return travelled;
@@ -3052,7 +3054,7 @@ final class Follow {
 		return 0;
 	}
 
-	/** He comes into this cell by a jump or a run in about the same direction as the next one: he lands running. */
+	/** Into this cell by a jump or a run in about the same direction as the next one: a running landing. */
 	private static boolean carried(BlockPos cur, int dx, int dz) {
 		Byte how = planHow.get(cur);
 		BlockPos prev = planFrom.get(cur);
@@ -3096,14 +3098,14 @@ final class Follow {
 		return true;
 	}
 
-	/** How far he walks to water while burning: so many steps, and no further: only when it is close enough. */
+	/** How far to walk to water while burning: so many steps, and no further: only when it is close enough. */
 	static final int DOUSE_STEPS = 8;
-	private static BlockPos douse;          // the water he walks into
+	private static BlockPos douse;          // the water being walked into
 	private static long douseUntil, douseLookAt;
 
 	/**
 	 * On fire (out of lava, not in water) and no bucket that can put it out here: the nearest water within
-	 * {@link #DOUSE_STEPS} steps, looked for once a second, walked into by the usual paths; he gives up after six
+	 * {@link #DOUSE_STEPS} steps, looked for once a second, walked into by the usual paths; given up after six
 	 * seconds. Events {@code volg}: naar water, geblust (in the water), brandt niet meer (out by itself on the way),
 	 * water niet gehaald.
 	 */
@@ -3137,7 +3139,7 @@ final class Follow {
 
 	/**
 	 * The nearest water within this many steps, by walking only: a step on level ground, one up, a drop of up to three
-	 * (no jumps over gaps: he is burning). Null when there is none that close.
+	 * (no jumps over gaps: the buddy is burning). Null when there is none that close.
 	 */
 	private static BlockPos nearWater(Level level, BlockPos start, int steps) {
 		feetMemo.clear();
@@ -3161,7 +3163,7 @@ final class Follow {
 					double dy = fh - fc;
 					if (dy > 1.25 || dy < -3.2) continue;
 					if (dy > 0.6 && !waterCell(level, cur) && !roomToJump(level, cur, fc, dy)) continue;
-					// a drop: the cells he falls past have to be open
+					// a drop: the cells fallen past have to be open
 					if (dy < -0.6 && (!passable(level, h, true) || !passable(level, h.above(), false))) continue;
 					dist.put(cand.immutable(), d + 1);
 					queue.add(cand.immutable());
@@ -3179,7 +3181,7 @@ final class Follow {
 
 	/** The dimension of the server's parkour course and the other games: the void under a jump is no death there. */
 
-	/** A jump from this cell to that one that goes wrong lands him on something he lives through ({@link Miss}). */
+	/** A jump from this cell to that one that goes wrong lands on something the buddy lives through ({@link Miss}). */
 	private static boolean missSafe(Level level, BlockPos cur, double fc, BlockPos c, double fh) {
 		return Miss.safe((x, y, z) -> fallBlock(level, x, y, z), cur.getX(), cur.getZ(), fc, c.getX(), c.getZ(), fh, missFall, voidOk);
 	}
@@ -3211,7 +3213,7 @@ final class Follow {
 		Round.Plan plan;
 		/** Before a jump round a pillar: land near the corner it starts from, not in the middle. */
 		Vec3 corner;
-		/** A running jump from a cell without a run-up behind it: only the speed he landed with carries it. */
+		/** A running jump from a cell without a run-up behind it: only the speed of the landing before carries it. */
 		boolean carried;
 		/** Round a pillar: the running take-off from the landing was given up, the corner it is. */
 		boolean noRun;
@@ -3229,12 +3231,12 @@ final class Follow {
 			AABB s = landing(level, to);
 			box = s != null ? s : new AABB(to.getX() + 0.3, to.getY() - 1, to.getZ() + 0.3, to.getX() + 0.7, to.getY(), to.getZ() + 0.7);
 			top = ladder ? to.getY() : box.maxY;
-			// the lowest block of the ladder below the cell it was planned into: down to there it still catches him
+			// the lowest block of the ladder below the cell it was planned into: down to there it still catches the buddy
 			int f = to.getY();
 			while (ladder && f > to.getY() - 6 && ladderCell(level, new BlockPos(to.getX(), f - 1, to.getZ()))) f--;
 			foot = f;
 			// Running is the first try, into a ladder too, to be as fast as a good player in parkour:
-			// the pillar behind the ladder stops him, so a running jump cannot go too far, where the careful way from the
+			// the pillar behind the ladder stops the buddy, so a running jump cannot go too far, where the careful way from the
 			// edge cost two and a half seconds a ladder.
 			phase = 8;
 			AABB fromBox = round == 0 ? null : support(level, from);
@@ -3253,8 +3255,8 @@ final class Follow {
 
 	/**
 	 * A jump into the last cell of a route that ends short of the spot (a plan stops at RANGE, at MAX_NODES or after
-	 * 30 ms): the way on from that cell is planned now and added, so that he lands on it running into the next jump, as
-	 * anywhere else on the course. At the route's end he braked to the middle of the landing, stopped there crouched and
+	 * 30 ms): the way on from that cell is planned now and added, so that the landing there runs on into the next jump, as
+	 * anywhere else on the course. At the route's end the buddy braked to the middle of the landing, stopped there crouched and
 	 * only then planned on: in one run of the parkour, the first plan ended on the block before the
 	 * long jump at 1630, and the stop cost 0.6 s (33.60 where the rig gives 32.8). On the rig the plan happened to end on
 	 * a checkpoint, where a route that ends on a walk is planned on without a stop. Only on a {@code ga}: following plans
@@ -3279,9 +3281,9 @@ final class Follow {
 
 	/**
 	 * One tick of the jump into the next cell of the route. From a standstill: crouched to the edge (a crouched player
-	 * stops there with his middle 0.3 over it, where the course's arithmetic starts), up for a tick, then forward,
+	 * stops there with the middle 0.3 over it, where the course's arithmetic starts), up for a tick, then forward,
 	 * sprint and jump in one tick, sprinting on through the air toward the middle of the landing, and crouched again the
-	 * moment he lands, so the speed left does not carry him off a narrow top. With a run-up: first back to the far end
+	 * moment of landing, so the speed left does not carry the buddy off a narrow top. With a run-up: first back to the far end
 	 * of the platform, then run and jump in the last tick on the edge.
 	 */
 	private static void leapTick(Minecraft mc, LocalPlayer p, BlockPos wp, byte how) {
@@ -3329,8 +3331,8 @@ final class Follow {
 				else if (l.phaseTicks > 100) failLeap(p, "rand");
 			}
 			case 1 -> {
-				// Still crouched, the walk key let go until the speed is gone: the edge stops where he goes, not his speed,
-				// and getting up with 0.036 a tick left carried him off the edge before he jumped (17 Oct 2026).
+				// Still crouched, the walk key let go until the speed is gone: the edge stops the walking, not the speed,
+				// and getting up with 0.036 a tick left carried the buddy off the edge before the jump (17 Oct 2026).
 				HeldKeys.set(o.keyShift, true);
 				HeldKeys.set(o.keyUp, false);
 				face(p, aim, 20f);
@@ -3356,10 +3358,10 @@ final class Follow {
 			}
 			case 3 -> {
 				// A sprinting jump always carries about 2.6 blocks, and an iron bar 1.8 off was overshot (17 Oct 2026): in
-				// the air he runs on, lets go or brakes, whichever lands him nearest the middle of the landing.
+				// the air the buddy runs on, lets go or brakes, whichever comes down nearest the middle of the landing.
 				// with a running jump after this one that has no run-up, the speed is what carries it: land as far on as the
 				// landing allows instead of braking to its middle (21 Oct 2026: from the first iron bar to the third)
-				// the racing line: keys and turn for the rest of the flight that land him where the next jump goes at once
+				// the racing line: keys and turn for the rest of the flight that come down where the next jump goes at once
 				Line line = l.left && !p.onGround() ? racePlan(level, p, l) : null;
 				int air, side, land = ticksToLand(p, l.top);
 				if (line != null) {
@@ -3371,7 +3373,7 @@ final class Follow {
 					air = l.ladder ? 1 : airControl(p, l.top, carriedNext(level, l) || narrowChain(l) ? farAim(p, l, aim)
 						: on != null ? onFar(l, aim, on) : chainOn(level, l) ? onAim(p, l, aim) : aim, l.ux, l.uz);
 					// sideways as well: the speed across the line, from a jump that came in at an angle, is steered out with the
-					// strafe keys, the way a player corrects in the air (17 Oct 2026: the only brake with him looking straight)
+					// strafe keys, the way a player corrects in the air (17 Oct 2026: the only brake while looking straight)
 					side = l.ladder || !l.left ? 0 : airStrafe(p, aim, land, l.box, air > 0);
 				}
 				HeldKeys.set(o.keyUp, air > 0);
@@ -3386,8 +3388,8 @@ final class Follow {
 						"line", line == null ? -1 : line.tier, "rotate", line != null && line.turn); }
 				HeldKeys.set(o.keyLeft, side > 0);
 				HeldKeys.set(o.keyRight, side < 0);
-				// the last two ticks before the landing: turned toward the next jump already, so that he can take off from
-				// a narrow top at once (four careful jumps of the 17th came from turning on the block itself)
+				// the last two ticks before the landing: turned toward the next jump already, so that the take-off from
+				// a narrow top goes at once (four careful jumps of the 17th came from turning on the block itself)
 				BlockPos after = l.left && land <= 2 && move(idx + 1) != WALK && route != null && idx + 1 < route.size() ? route.get(idx + 1) : null;
 				AABB nextBox = after == null ? null : landing(level, after);
 				if (line == null) {
@@ -3396,20 +3398,20 @@ final class Follow {
 				}
 				if (!p.onGround()) l.left = true;
 				if (l.ladder && l.left && p.onClimbable() && p.getBlockX() == wp.getX() && p.getBlockZ() == wp.getZ()) { doneLeap(mc, false); return; }
-				// before a jump round a pillar he stops: that jump starts crouched at the corner
+				// before a jump round a pillar a stop: that jump starts crouched at the corner
 				if (l.left && p.onGround() && !p.isInWater() && ((move(idx + 1) != WALK && !isRound(move(idx + 1))) || runOn(level, p))
 						&& (onLanding(p, l) || onWalkOn(p, l, walkOn(level, l)))) {
-					// another jump straight after: no stop, he runs on and jumps again from the run (the next Leap)
+					// another jump straight after: no stop, run on and jump again from the run (the next Leap)
 					boolean carriedOn = carriedNext(level, l), narrow = narrowChain(l);
 					int onTo = walkedOn(level, p, l);
 					doneLeap(mc, true);
 					// down further on, in a cell of the walk after the landing: the route on from there, and in the cell the next
-					// jump goes from that jump at once (two ticks of walking on its plan first had him at cp3's edge, too late for
+					// jump goes from that jump at once (two ticks of walking on its plan first left the buddy at cp3's edge, too late for
 					// the running take-off, and the careful jump from a standstill fell short, 24 Oct 2026)
 					if (onTo > 0) idx = onTo;
 					// Down on an iron bar with another jump to come: on, at once, when a jump from where one tick of running
-					// takes him reaches the next landing; else crouched, and the bar's edge holds him for the careful jump.
-					// He stopped on the bar before every time, half a second (24 Oct 2026).
+					// takes the buddy reaches the next landing; else crouched, and the bar's edge holds for the careful jump.
+					// The buddy stopped on the bar before every time, half a second (24 Oct 2026).
 					if (narrow && !carriedOn) {
 						if (runsOffNarrow(level, p)) { HeldKeys.set(o.keyUp, true); HeldKeys.set(o.keySprint, true); HeldKeys.set(o.keyDown, false); HeldKeys.set(o.keyShift, false); }
 						else { HeldKeys.set(o.keyUp, false); HeldKeys.set(o.keySprint, false); HeldKeys.set(o.keyShift, true); }
@@ -3417,11 +3419,11 @@ final class Follow {
 					}
 					// On a whole block the run goes on from the landing tick: the keys as the air left them (often braking
 					// toward the middle) cost the sprint and a tick of push back on the ground before the take-off (24 Oct
-					// 2026). On a post or a bar the speed would carry him off; there the next jump stops him as before, but for a
-					// running jump on the speed he landed with: that one goes from the tick after, and needs all of it.
+					// 2026). On a post or a bar the speed would carry the buddy off; there the next jump stops as before, but for a
+					// running jump on the speed of the landing: that one goes from the tick after, and needs all of it.
 					if (RUN_ON && (whole(l.box) || carriedOn) && !l.ladder) { HeldKeys.set(o.keyUp, true); HeldKeys.set(o.keySprint, true); HeldKeys.set(o.keyDown, false); }
-					// and that jump's first tick now, in the tick he lands: its take-off is worked out and the key goes down for
-					// the next tick, so he stands one tick on the ground, as a player who keeps the jump key down. It began a tick
+					// and that jump's first tick now, in the landing tick: its take-off is worked out and the key goes down for
+					// the next tick, so one tick is spent on the ground, as by a player who keeps the jump key down. It began a tick
 					// later, two on the ground a jump, about two seconds over the parkour course (against a player's record, 23 Oct 2026)
 					if (EARLY && route != null && idx < route.size() && plainHop(level, l, route.get(idx)) && mayLeap(p)) {
 						landingTick = true;
@@ -3436,7 +3438,7 @@ final class Follow {
 					HeldKeys.set(o.keyLeft, false);
 					HeldKeys.set(o.keyRight, false);
 					HeldKeys.set(o.keyShift, true);
-					// the jump round a pillar starts crouched from wherever he stands on it: no waiting for the speed to go
+					// the jump round a pillar starts crouched from wherever the buddy stands on it: no waiting for the speed to go
 					// not crouched yet: the jump round may go straight from this landing, running, and a crouch takes the sprint
 					// (Round's running take-off); if not, the corner way crouches by itself
 					if (isRound(move(idx + 1)) && !p.isInWater() && onLanding(p, l)) { doneLeap(mc, false); HeldKeys.set(o.keyShift, false); return; }
@@ -3444,7 +3446,7 @@ final class Follow {
 				} else if (p.getY() < l.top - 4 || l.phaseTicks > 60) failLeap(p, "dropped");
 			}
 			case 4 -> {
-				// crouched until the speed of the jump is gone, as at the edge: up with speed left, he slid off the top
+				// crouched until the speed of the jump is gone, as at the edge: up with speed left, the buddy slid off the top
 				HeldKeys.set(o.keyShift, true);
 				HeldKeys.set(o.keyUp, false);
 				Vec3 v = p.getDeltaMovement();
@@ -3480,8 +3482,8 @@ final class Follow {
 			case 8 -> {
 				// Running: the way a player strings jumps together, a checkpoint much faster by jumping one after the
 				// other and running on. Sprint on toward the landing and jump in the
-				// first tick in which a jump from here, at this speed, comes down on it; would the next tick take him off the
-				// edge before that, brake crouched (the edge holds him) and jump the careful way from there.
+				// first tick in which a jump from here, at this speed, comes down on it; would the next tick take the buddy off the
+				// edge before that, brake crouched (the edge holds) and jump the careful way from there.
 				HeldKeys.set(o.keyShift, false);
 				HeldKeys.set(o.keyDown, false);
 				if (!p.onGround()) {
@@ -3492,8 +3494,8 @@ final class Follow {
 				face(p, aim, 35f);
 				double yawErr = Mth.wrapDegrees((float) Math.toDegrees(Math.atan2(-(aim.x - p.getX()), aim.z - p.getZ())) - p.getYRot());
 				boolean facing = Math.abs(yawErr) < 15;
-				// Turned away (just after a checkpoint, a new plan while he still ran the other way): turn round crouched
-				// before running, or the run takes him off the side; he ran off a checkpoint that way (17 Oct 2026).
+				// Turned away (just after a checkpoint, a new plan while still running the other way): turn round crouched
+				// before running, or the run goes off the side; the buddy ran off a checkpoint that way (17 Oct 2026).
 				float off = Math.abs(Mth.wrapDegrees((float) Math.toDegrees(Math.atan2(-(aim.x - p.getX()), aim.z - p.getZ())) - p.getYRot()));
 				if (off > 45f) {
 					if (trace) Exchange.emit("jump", "take-off", "no", "tick", ticks, "landing", landingTick, "x", round3(p.getX()), "z", round3(p.getZ()),
@@ -3510,7 +3512,7 @@ final class Follow {
 				Vec3 dir = new Vec3(aim.x - p.getX(), 0, aim.z - p.getZ()).normalize();
 				boolean lastTick = !supported(level, p, new Vec3(v.x + dir.x * 0.13, 0, v.z + dir.z * 0.13));
 				boolean can = l.ladder ? ladderTakeOff(p, l, aim, lastTick) : canTakeOff(p, l, aim, yawErr);
-				// a tick on the ground without the take-off, and why: what stands between him and a jump every landing tick
+				// a tick on the ground without the take-off, and why: what stands in the way of a jump every landing tick
 				if (trace && !(facing && can))
 					Exchange.emit("jump", "take-off", "no", "tick", ticks, "landing", landingTick, "x", round3(p.getX()), "z", round3(p.getZ()),
 						"v", round3(Math.hypot(v.x, v.z)), "sprint", p.isSprinting(), "yaw_error", Math.round(yawErr), "looks", facing,
@@ -3526,8 +3528,8 @@ final class Follow {
 					l.left = false;
 					l.next(3);
 				} else if ((lastTick || l.phaseTicks > 60) && l.carried && !l.ladder) {
-					// a run on the speed he landed with that does not come off: no careful jump from a standstill, which this
-					// gap never allows (he fell short into the water every time), but stop on the edge and plan without it
+					// a run on the speed of the landing that does not come off: no careful jump from a standstill, which this
+					// gap never allows (the buddy fell short into the water every time), but stop on the edge and plan without it
 					Exchange.emit("jump", "brake", true, "tick", ticks, "goal", l.to.getX() + "," + l.to.getY() + "," + l.to.getZ(),
 						"v", round3(Math.hypot(v.x, v.z)), "reason", "no speed: " + takeOffWhy);
 					avoid.put(l.to, System.currentTimeMillis() + 60_000);
@@ -3554,13 +3556,14 @@ final class Follow {
 
 	/**
 	 * One tick of the jump round a pillar ({@link Round}): crouched to the corner of the block, against its edge on the
-	 * side he passes, 0.15 back from its middle; still; up; then the jump at the angle that leaves most over, and in the
-	 * air every tick the direction to look in worked out anew from where he is (sprinting on, the facing direction is
-	 * where the air pushes him). Landed, as any jump.
+	 * side passed, 0.15 back from its middle; still; up; then the jump at the angle that leaves most over, and in the
+	 * air every tick the direction to look in worked out anew from the buddy's place (sprinting on, the facing direction
+	 * is where the air pushes). Landed, as any jump.
 	 */
 	/**
-	 * The jump round the pillar straight from the run he landed with: the take-off angles he can turn to this tick,
-	 * worked out with the speed he has now; turned, and worked out again for the yaw he really got. True when he jumped.
+	 * The jump round the pillar straight from the run the buddy landed with: the take-off angles within reach of a turn
+	 * this tick, worked out with the present speed; turned, and worked out again for the yaw actually reached. True when
+	 * the jump went.
 	 */
 	private static boolean runningRound(LocalPlayer p, Leap l, Round.Frame fr, Vec3 v, String kind) {
 		double cur = fr.rel(p.getYRot());
@@ -3571,7 +3574,7 @@ final class Follow {
 		var o = AfkHelperClient.mc().options;
 		MouseTurn.toward(p, fr.yaw(want.first), 25f);
 		if (Math.abs(fr.rel(p.getYRot()) - want.first) > 3) {
-			// a turn this large does not come through within the tick of the jump (the jump went straight on and he came
+			// a turn this large does not come through within the tick of the jump (the jump went straight on and came
 			// down on the same block): turn first, standing (no crouch, that takes the sprint), and look again next tick
 			MouseTurn.toward(p, fr.yaw(want.first), 25f);
 			HeldKeys.set(o.keyShift, false);
@@ -3612,12 +3615,12 @@ final class Follow {
 		switch (l.phase) {
 			case 20 -> {
 				// Running on: in the first ticks on the block, still sprinting from the jump onto it, a jump from right here
-				// at this speed may come off already, with the same room to spare as from the corner (21 Oct 2026: he
+				// at this speed may come off already, with the same room to spare as from the corner (21 Oct 2026: the buddy
 				// waited needlessly at the obsidian jump). Then no crouching to the corner and no standing up.
 				if (l.phaseTicks <= 2 && trace) Exchange.emit(kind, "action", "round", "how", "running?", "tick", ticks, "ground", p.onGround(),
 					"crouching", p.isCrouching(), "sprint", p.isSprinting(), "v", round3(Math.hypot(v.x, v.z)), "u", round3(u), "w", round3(w), "looks", round3(fr.rel(p.getYRot())));
 				if (l.phaseTicks <= 3 && !l.noRun && p.onGround() && !p.isCrouching() && p.getFoodData().getFoodLevel() > 6 && runningRound(p, l, fr, v, kind)) return;
-				// crouched (the edge holds him), looking straight on, the side key toward the outside and the walk keys to
+				// crouched (the edge holds), looking straight on, the side key toward the outside and the walk keys to
 				// 0.15 back from the middle
 				HeldKeys.set(o.keySprint, false);
 				HeldKeys.set(o.keyShift, true);
@@ -3627,14 +3630,14 @@ final class Follow {
 				double ue = Round.START_U - u;
 				HeldKeys.set(o.keyUp, facing && ue > 0.04);
 				HeldKeys.set(o.keyDown, facing && ue < -0.04);
-				// outward only until near the edge: the speed toward it stays in him while the crouch holds him there, and
-				// standing up for the jump would carry him off with it
+				// outward only until near the edge: the speed toward it stays in the body while the crouch holds it there, and
+				// standing up for the jump would carry it off with it
 				boolean outLeft = fr.sideIsLeft(), out = facing && w < 0.7;
 				HeldKeys.set(o.keyLeft, out && outLeft);
 				HeldKeys.set(o.keyRight, out && !outLeft);
-				// Off as soon as a jump from where he will stand, standing up, comes off with room to spare: up first (no edge
-				// holds him then, so what speed he has left still moves him), and the jump two ticks later, once he stands (a
-				// crouched player cannot sprint). The speed toward the edge stays in him while the crouch holds him: let it go.
+				// Off as soon as a jump from where the buddy will stand, standing up, comes off with room to spare: up first (no
+				// edge holds then, so the speed that is left still moves the buddy), and the jump two ticks later, once standing
+				// (a crouched player cannot sprint). The speed toward the edge stays in the body while the crouch holds: let it go.
 				double k2 = 1 + 0.546, nx = p.getX() + v.x * k2, nz = p.getZ() + v.z * k2;
 				if (p.onGround() && l.phaseTicks > 1 && Math.hypot(v.x, v.z) < 0.08
 						&& Math.abs(fr.u(nx, nz)) < 0.7999 && Math.abs(fr.w(nx, nz)) < 0.7999) {
@@ -3673,8 +3676,8 @@ final class Follow {
 				if (l.phaseTicks >= 2) l.next(23);
 			}
 			case 23 -> {
-				// the angle that leaves most over from where he stands; turned to it, and the jump worked out again for the
-				// yaw he really has (the mouse turns in whole pixels). Up first: a crouched player cannot sprint.
+				// the angle that leaves most over from where the buddy stands; turned to it, and the jump worked out again for
+				// the yaw actually reached (the mouse turns in whole pixels). Up first: a crouched player cannot sprint.
 				HeldKeys.set(o.keyShift, false);
 				if (p.isCrouching() || !p.onGround()) {
 					if (l.phaseTicks > 4) failLeap(p, "round the wall: not upright");
@@ -3756,7 +3759,7 @@ final class Follow {
 		}
 	}
 
-	/** Ticks until he sinks back to this height, falling as the game has it. */
+	/** Ticks until sinking back to this height, falling as the game has it. */
 	private static int ticksToLand(LocalPlayer p, double top) {
 		double y = p.getY(), vy = p.getDeltaMovement().y;
 		int n = 0;
@@ -3770,8 +3773,8 @@ final class Follow {
 	}
 
 	/**
-	 * In the air: 1 to strafe left, -1 right, 0 neither, by where coasting would land him beside the middle of the
-	 * landing. Left of where he looks is (cos yaw, sin yaw), as the game turns the strafe key into movement.
+	 * In the air: 1 to strafe left, -1 right, 0 neither, by where coasting would come down beside the middle of the
+	 * landing. Left of the look is (cos yaw, sin yaw), as the game turns the strafe key into movement.
 	 */
 	private static int airStrafe(LocalPlayer p, Vec3 aim, int n, AABB box, boolean pushing) {
 		Vec3 v = p.getDeltaMovement();
@@ -3784,8 +3787,8 @@ final class Follow {
 		if (Math.abs(left) < 0.06) return 0;
 		// With the run key down a strafe key costs reach: the game spreads the air's push over both keys, 0.018 a tick
 		// forward where it gave 0.0255. That took the last few hundredths off two jumps at the parkour that only just
-		// reached the next block (24 Oct 2026). So while he pushes on he strafes only when coasting sideways would take
-		// him off the landing: his middle more than 0.15 past its side.
+		// reached the next block (24 Oct 2026). So while pushing on the buddy strafes only when coasting sideways would
+		// take the buddy off the landing: the middle more than 0.15 past its side.
 		if (pushing && box != null && STRAFE_FIX) {
 			double cx = (box.minX + box.maxX) / 2, cz = (box.minZ + box.maxZ) / 2;
 			double half = 0.5 * (Math.abs(box.getXsize() * lx) + Math.abs(box.getZsize() * lz));
@@ -3808,7 +3811,7 @@ final class Follow {
 	}
 
 	/**
-	 * How far the strafe keys move him sideways in this many ticks of air, taken at half: diagonal input gives 0.018 a
+	 * How far the strafe keys move the buddy sideways in this many ticks of air, taken at half: diagonal input gives 0.018 a
 	 * tick to the side, kept 0.91 a tick.
 	 */
 	private static double strafeCap(double n) {
@@ -3816,23 +3819,23 @@ final class Follow {
 		return 0.5 * a / 0.09 * Math.max(0, n - (1 - Math.pow(0.91, n)) / 0.09);
 	}
 
-	/** Does he stand on the landing: his middle within 0.3 of its top, at its height? */
+	/** Does the buddy stand on the landing: the middle within 0.3 of its top, at its height? */
 	private static boolean onLanding(LocalPlayer p, Leap l) {
 		return p.getX() > l.box.minX - 0.3 && p.getX() < l.box.maxX + 0.3 && p.getZ() > l.box.minZ - 0.3
 			&& p.getZ() < l.box.maxZ + 0.3 && Math.abs(p.getY() - l.top) < 0.6;
 	}
 
 	/**
-	 * Would a jump taken in the next tick, at the speed he has, come down on the landing? Along the line to its middle:
-	 * the first tick carries his speed, 0.1274 of sprinting on the ground and the jump's 0.2, after that the air with the
-	 * key down at the most and braking at the least, and that span has to meet the stretch of the line where his middle
-	 * may come down and still stand (the landing widened by 0.3, less a margin). His speed across the line must not
-	 * drift him off it on the way.
+	 * Would a jump taken in the next tick, at the present speed, come down on the landing? Along the line to its middle:
+	 * the first tick carries the speed there is, 0.1274 of sprinting on the ground and the jump's 0.2, after that the air
+	 * with the key down at the most and braking at the least, and that span has to meet the stretch of the line where the
+	 * buddy's middle may come down and still stand (the landing widened by 0.3, less a margin). The speed across the line
+	 * must not drift the buddy off it on the way.
 	 */
 	private static String takeOffWhy = "";
 	/**
-	 * The take-off is weighed in the tick he lands: the jump then has to come down {@link #EARLY_SPARE} further onto the
-	 * landing than the nearest place it may, or he runs a tick first, as before. Without that spare he took off on the
+	 * The take-off is weighed in the landing tick: the jump then has to come down {@link #EARLY_SPARE} further onto the
+	 * landing than the nearest place it may, or a tick of running comes first, as before. Without that spare the buddy took off on the
 	 * landing tick for jumps that only just reached the next block's edge, and fell four laps of five (23 Oct 2026).
 	 */
 	private static boolean landingTick;
@@ -3846,9 +3849,9 @@ final class Follow {
 	private static double predIn0, predIn1, predNear, predFar;
 
 	/**
-	 * A jump that may go in the tick he lands: a plain one, from a whole block onto a whole block, no running jump on
-	 * carried speed (the iron bars: with the early take-off he came down on the bar in between and found no way on) and no
-	 * ladder, nor a jump after it that lives on his speed. Everything else keeps its tick of running first.
+	 * A jump that may go in the landing tick: a plain one, from a whole block onto a whole block, no running jump on
+	 * carried speed (the iron bars: with the early take-off the buddy came down on the bar in between and found no way on)
+	 * and no ladder, nor a jump after it that lives on the speed carried. Everything else keeps its tick of running first.
 	 */
 	private static boolean plainHop(Level level, Leap from, BlockPos to) {
 		if (move(idx) != JUMP || from.ladder || !wide(from.box)) return false;
@@ -3866,8 +3869,8 @@ final class Follow {
 	private static boolean NARROW = true;
 
 	/**
-	 * In the tick he lands on a narrow top: would a running jump, one tick of running from here, reach the next landing
-	 * (route at idx, the jump after this one)? The tick worked out as the game does it: his speed and 0.1274 of sprinting
+	 * In the landing tick on a narrow top: would a running jump, one tick of running from here, reach the next landing
+	 * (route at idx, the jump after this one)? The tick worked out as the game does it: the speed there is and 0.1274 of sprinting
 	 * toward the landing, 0.546 of it kept; then canTakeOff's arithmetic from there, with a spare of 0.15.
 	 */
 	private static boolean runsOffNarrow(Level level, LocalPlayer p) {
@@ -3880,7 +3883,7 @@ final class Follow {
 		double ux = aim.x - p.getX(), uz = aim.z - p.getZ(), r = Math.hypot(ux, uz);
 		if (r < 0.3) return false;
 		ux /= r; uz /= r;
-		// the run's push goes where he looks; the next tick he turns 35 degrees more before the take-off, which has to
+		// the run's push goes along the look; the next tick turns 35 degrees more before the take-off, which has to
 		// be within 15 of the landing (phase 8)
 		double yaw = Math.toRadians(p.getYRot()), fx = -Math.sin(yaw), fz = Math.cos(yaw);
 		double off = Math.toDegrees(Math.atan2(fx * uz - fz * ux, fx * ux + fz * uz));
@@ -3897,7 +3900,7 @@ final class Follow {
 
 	/**
 	 * Wide enough to run on from and jump again at once: a whole block, or a wall post (half a block). Not an iron bar
-	 * (an eighth): there the early take-off put him on the bar in between and he found no way on (23 Oct 2026). With
+	 * (an eighth): there the early take-off put the buddy on the bar in between, with no way on (23 Oct 2026). With
 	 * {@code "posts": false} in a goto, whole blocks only, as before 24 Oct 2026.
 	 */
 	private static boolean wide(AABB b) { return POSTS ? b.getXsize() >= 0.4 && b.getZsize() >= 0.4 : whole(b); }
@@ -3908,7 +3911,7 @@ final class Follow {
 		return takeOff(p.getX(), p.getY(), p.getZ(), v.x, v.z, p.isSprinting(), yawErr, l.box, l.top, aim, landingTick ? EARLY_SPARE : 0);
 	}
 
-	/** canTakeOff from a place and speed of one's own: where he stands, or where a tick of running will take him. */
+	/** canTakeOff from a place and speed of one's own: where the buddy stands, or where a tick of running will take the buddy. */
 	private static boolean takeOff(double px, double py, double pz, double vx, double vz, boolean sprinting, double yawErr,
 			AABB lbox, double ltop, Vec3 aim, double spare) {
 		double ux = aim.x - px, uz = aim.z - pz, r = Math.hypot(ux, uz);
@@ -3929,7 +3932,7 @@ final class Follow {
 		if (in == null) return false;
 		double drift = across * (1 - Math.pow(0.91, far[1])) / 0.09;
 		double bare = Math.min(lbox.getXsize(), lbox.getZsize()) / 2 + 0.15;
-		// drift past what he can land on unsteered is steered out in the air, which costs reach (airStrafe)
+		// drift past what the landing can take unsteered is steered out in the air, which costs reach (airStrafe)
 		double reach = far[0] - strafeLoss(drift - bare, far[1]);
 		takeOffWhy = String.format(java.util.Locale.ROOT, "in %.2f-%.2f near %.2f far %.2f reach %.2f", in[0], in[1], near[0], far[0], reach);
 		if (Math.max(in[0], near[0]) + spare > Math.min(in[1], reach)) return false;
@@ -3940,10 +3943,10 @@ final class Follow {
 	}
 
 	/**
-	 * Into a ladder: the pillar behind it stops him, so too far is never a danger, and too short is. A running jump
-	 * from here, pushing on through the air, has to get his middle 0.4 into the ladder's block before he sinks to a
-	 * block above its foot. As late as it goes, so that he catches it high: when the jump from here gets him there
-	 * before he sinks below where he left, or when this is the last tick on the edge.
+	 * Into a ladder: the pillar behind it stops the buddy, so too far is never a danger, and too short is. A running jump
+	 * from here, pushing on through the air, has to get the buddy's middle 0.4 into the ladder's block before sinking to
+	 * a block above its foot. As late as it goes, so that the ladder is caught high: when the jump from here gets there
+	 * before sinking below the take-off, or when this is the last tick on the edge.
 	 */
 	private static boolean ladderTakeOff(LocalPlayer p, Leap l, Vec3 aim, boolean lastTick) {
 		Vec3 v = p.getDeltaMovement();
@@ -3981,15 +3984,15 @@ final class Follow {
 		if (sp < 0.05) return true;
 		double dx = b.getX() - a.getX(), dz = b.getZ() - a.getZ(), dl = Math.hypot(dx, dz);
 		if ((vx * dx + vz * dz) / (sp * dl) > 0.7) return true;
-		// another way, but the floor goes on a block further where the speed carries him: no edge to slide off
+		// another way, but the floor goes on a block further where the speed carries: no edge to slide off
 		BlockPos ahead = BlockPos.containing(p.getX() + vx / sp * 1.2, p.getY() + 0.5, p.getZ() + vz / sp * 1.2);
 		double fh = floorY(level, ahead, false);
 		return !Double.isNaN(fh) && Math.abs(fh - fa) < 0.1;
 	}
 
 	/**
-	 * How far his middle travels before the tick in which he comes down {@code rise} above where he took off, with this
-	 * first tick and then {@code accel} a tick in the air, and in how many ticks; null when he does not get that high.
+	 * How far the buddy's middle travels before the tick of coming down {@code rise} above the take-off, with this
+	 * first tick and then {@code accel} a tick in the air, and in how many ticks; null when the jump does not get that high.
 	 * reach() with a first tick of one's own.
 	 */
 	private static double[] flight(double first, double rise, double accel) {
@@ -4032,8 +4035,8 @@ final class Follow {
 
 	/**
 	 * Another jump straight after this one, the same way or near it, off a whole block: then the middle of the landing is
-	 * no place to aim for. Braking toward it took the key off every other tick, and with the key the sprint, so he came
-	 * down at 0.19 a tick and without the sprint where he left at 0.26 (24 Oct 2026, the parkour's first jump); the next
+	 * no place to aim for. Braking toward it took the key off every other tick, and with the key the sprint, so the buddy came
+	 * down at 0.19 a tick and without the sprint where the take-off had 0.26 (24 Oct 2026, the parkour's first jump); the next
 	 * take-off then had to make up for it on the ground.
 	 */
 	private static boolean chainOn(Level level, Leap l) {
@@ -4048,11 +4051,11 @@ final class Follow {
 	/**
 	 * The landing and the walk after it as one floor (24 Oct 2026, from a fast player's runs). Onto a
 	 * checkpoint's platform the jump lands on its middle row, the farthest it reaches, and the next jump goes from its far
-	 * row: he braked in the air toward the middle of the landing and ran across at 0.15 a tick, where a player keeps the
+	 * row: the buddy braked in the air toward the middle of the landing and ran across at 0.15 a tick, where a player keeps the
 	 * run key down and crosses at 0.28 (4 to 9 ticks on each platform; the fast player is ahead there). The cells the route walks
 	 * after the landing, along the jump's own way and at the landing's height, up to the cell the next jump goes from:
-	 * one box with the landing, which he aims along as far as that cell's middle ({@link #onFar}), and a landing anywhere on it is no miss (he shot past the
-	 * middle row at cp7 and stopped crouched for "ernaast", 8 ticks). Only on a {@code ga}, as the racing line; null
+	 * one box with the landing, aimed along as far as that cell's middle ({@link #onFar}), and a landing anywhere on it is no
+	 * miss (the buddy shot past the middle row at cp7 and stopped crouched for "ernaast", 8 ticks). Only on a {@code ga}, as the racing line; null
 	 * when the route goes on another way.
 	 */
 	private static AABB walkOn(Level level, Leap l) {
@@ -4075,9 +4078,9 @@ final class Follow {
 	}
 
 	/**
-	 * Where the route goes on from when he came down in a cell of the walk after the landing ({@link #walkOn}): that
+	 * Where the route goes on from after coming down in a cell of the walk after the landing ({@link #walkOn}): that
 	 * cell's index, or for the cell the next jump goes from, the index of that jump's landing, so that it goes in the
-	 * landing tick. 0 when he is not on the walk, or still on the landing itself.
+	 * landing tick. 0 when not on the walk, or still on the landing itself.
 	 */
 	private static int walkedOn(Level level, LocalPlayer p, Leap l) {
 		if (walkOn(level, l) == null) return 0;
@@ -4101,7 +4104,7 @@ final class Follow {
 
 	/**
 	 * Along the jump's way through the landing's middle, as far on as the middle of the cell the walk after it ends in,
-	 * where the next jump goes from. Not its far side: at cp3 he came down on the platform's very edge, stopped there
+	 * where the next jump goes from. Not its far side: at cp3 the buddy came down on the platform's very edge, stopped there
 	 * crouched with no room left to run, and the jump to 1571 fell short in four laps of five (24 Oct 2026).
 	 */
 	private static Vec3 onFar(Leap l, Vec3 aim, AABB on) {
@@ -4120,16 +4123,16 @@ final class Follow {
 	/** Switch for strafing only when needed and counting its cost: {@code "strafe": false} in a goto. */
 	private static boolean STRAFE_FIX = true;
 
-	/** Near the far side of the landing along the jump, 0.15 inside its edge: he lands with his speed and still on it. */
+	/** Near the far side of the landing along the jump, 0.15 inside its edge: the buddy lands at full speed and still on it. */
 	private static Vec3 onAim(LocalPlayer p, Leap l, Vec3 aim) {
 		double half = 0.5 * (Math.abs((l.box.maxX - l.box.minX) * l.ux) + Math.abs((l.box.maxZ - l.box.minZ) * l.uz));
 		return aim.add(l.ux * (half - 0.15), 0, l.uz * (half - 0.15));
 	}
 
-	/** The far side of the landing along his way, as far on as he still stands on it (his middle 0.25 past its edge). */
+	/** The far side of the landing along the way, as far on as the buddy still stands on it (the middle 0.25 past its edge). */
 	private static Vec3 farAim(LocalPlayer p, Leap l, Vec3 aim) {
-		// along the jump's own way: the line from where he is turned round once he was over the middle, and near an iron
-		// bar a tenth beside its middle made it a slant, which sent him on past the bar (24 Oct 2026)
+		// along the jump's own way: the line from the buddy's place turned round once over the middle, and near an iron
+		// bar a tenth beside its middle made it a slant, which sent the buddy on past the bar (24 Oct 2026)
 		double ux = l.ux, uz = l.uz;
 		if (ux == 0 && uz == 0) {
 			ux = aim.x - p.getX(); uz = aim.z - p.getZ();
@@ -4143,24 +4146,24 @@ final class Follow {
 
 	/**
 	 * What racePlan chose for the rest of a flight: the run key (1), let go (0) or brake (-1); strafe left (1), right
-	 * (-1) or not; whether he turns toward the next landing; and whether the next jump then goes in the landing tick (0)
+	 * (-1) or not; whether to turn toward the next landing; and whether the next jump then goes in the landing tick (0)
 	 * or after a tick of running (1).
 	 */
 	private record Line(int fwd, int side, boolean turn, int tier, Vec3 next) {}
 
 	/** The racing line on or off, to measure with and without: {@code "line": false} in a goto. */
 	private static boolean LINE = true;
-	/** How far he turns toward the next landing a tick in the air on the racing line, in degrees. */
+	/** How far to turn toward the next landing a tick in the air on the racing line, in degrees. */
 	private static final float LINE_TURN = 20f;
 
 	/**
-	 * The racing line (24 Oct 2026: a fast player skips the obsidian jump; how can he get faster?).
-	 * Aiming at the middle of each landing, or near its far side along the jump, he came down where the next jump did not
-	 * reach yet: 32 ticks more on the ground in a lap than one a jump, 21 of them outside the wall, which is what the fast player is
-	 * ahead of him there. Of the refused take-offs in a landing tick, nearly all said that the reach fell short of the
-	 * landing ("reach" under "in"). So each tick of the flight he tries every way of holding the keys for the rest of
-	 * it (the run key, let go or brake; strafe left, right or not; turning toward the next landing or not), works out
-	 * with the game's numbers where and how fast each brings him down, and takes the one from which the next jump goes in
+	 * The racing line (24 Oct 2026: a fast player skips the obsidian jump; how can the buddy get faster?).
+	 * Aiming at the middle of each landing, or near its far side along the jump, the buddy came down where the next jump
+	 * did not reach yet: 32 ticks more on the ground in a lap than one a jump, 21 of them outside the wall, which is what
+	 * the fast player is ahead there. Of the refused take-offs in a landing tick, nearly all said that the reach fell short
+	 * of the landing ("reach" under "in"). So each tick of the flight racePlan tries every way of holding the keys for the
+	 * rest of it (the run key, let go or brake; strafe left, right or not; turning toward the next landing or not), works
+	 * out with the game's numbers where and how fast each comes down, and takes the one from which the next jump goes in
 	 * the landing tick (takeOff with the early spare), the fastest along it with some room to spare; failing that, the
 	 * one from which it goes after a tick of running. None of either: the old way. Only on a {@code ga}, between plain
 	 * jumps off and onto blocks or wall posts: no ladder, no run-up, no jump round a pillar, no iron bar.
@@ -4181,8 +4184,8 @@ final class Follow {
 			float yaw = p.getYRot();
 			// letting go of the run key ends the sprint, and with it the air's 0.026 and the next jump's push
 			boolean sprint = p.isSprinting() && fwd > 0, down = false;
-			// the game's flight: the keys' push (0.98 of the input, kept to a length of one) where he looks, the move, then
-			// 0.91 of the speed kept; down in the tick he sinks to the landing's top, as ticksToLand
+			// the game's flight: the keys' push (0.98 of the input, kept to a length of one) along the look, the move, then
+			// 0.91 of the speed kept; down in the tick of sinking to the landing's top, as ticksToLand
 			for (int i = 0; i < 40 && !down; i++) {
 				if (turn) yaw += Mth.clamp(Mth.wrapDegrees(yawTo(x, z, next) - yaw), -LINE_TURN, LINE_TURN);
 				double len = Math.hypot(fwd, side);
@@ -4199,9 +4202,9 @@ final class Follow {
 				vx *= 0.91;
 				vz *= 0.91;
 			}
-			// down on it, with a tenth to spare of the 0.3 his middle may be past its edge
+			// down on it, with a tenth to spare of the 0.3 the buddy's middle may be past its edge
 			if (!down || x < l.box.minX - 0.2 || x > l.box.maxX + 0.2 || z < l.box.minZ - 0.2 || z > l.box.maxZ + 0.2) continue;
-			// in the landing tick he turns up to 35 degrees toward the next landing (phase 8), and jumps within 15 of it
+			// in the landing tick the buddy turns up to 35 degrees toward the next landing (phase 8), and jumps within 15 of it
 			double err = Math.max(0, Math.abs(Mth.wrapDegrees(yawTo(x, z, next) - yaw)) - 35);
 			double ux = next.x - x, uz = next.z - z, ul = Math.hypot(ux, uz);
 			if (err >= 15 || ul < 0.3) continue;
@@ -4229,8 +4232,8 @@ final class Follow {
 	private static float yawTo(double x, double z, Vec3 at) { return (float) Math.toDegrees(Math.atan2(-(at.x - x), at.z - z)); }
 
 	/**
-	 * In the air: 1 to run on, 0 to let go, -1 to brake (back), by where each lands him along the line to the middle of
-	 * the landing. Worked out with the game's numbers: falling as it does until he sinks to the landing's top, 0.91 of
+	 * In the air: 1 to run on, 0 to let go, -1 to brake (back), by where each comes down along the line to the middle of
+	 * the landing. Worked out with the game's numbers: falling as it does until sinking to the landing's top, 0.91 of
 	 * the speed kept each tick, and 0.02548 a tick more or less with the key down.
 	 */
 	private static int airControl(LocalPlayer p, double top, Vec3 aim, double wx, double wz) {
@@ -4245,9 +4248,9 @@ final class Follow {
 		}
 		double ux = aim.x - p.getX(), uz = aim.z - p.getZ(), r = Math.hypot(ux, uz);
 		if (r < 0.05) return -1;   // above the middle already: brake
-		// Measured along the jump's own way when it has one: the line from where he is turns slant near a narrow landing
-		// (a tenth beside an iron bar's middle) and round once he is over it, and along that his own speed looked like
-		// little, so he ran on past the bar (24 Oct 2026). Along the way, the distance to the aim is signed.
+		// Measured along the jump's own way when it has one: the line from the buddy's place turns slant near a narrow
+		// landing (a tenth beside an iron bar's middle) and round once over it, and along that line the speed looked like
+		// little, so the buddy ran on past the bar (24 Oct 2026). Along the way, the distance to the aim is signed.
 		if (wx != 0 || wz != 0) { r = ux * wx + uz * wz; ux = wx; uz = wz; }
 		else { ux /= r; uz /= r; }
 		double coast = 0, fwd = 0, back = 0, vc = v.x * ux + v.z * uz, vf = vc, vb = vc;
@@ -4262,7 +4265,7 @@ final class Follow {
 		return ec <= eb ? 0 : -1;
 	}
 
-	/** Turn toward the point, at most maxStep degrees this tick, looking a little down. True once he roughly faces it. */
+	/** Turn toward the point, at most maxStep degrees this tick, looking a little down. True once roughly facing it. */
 	private static boolean face(LocalPlayer p, Vec3 at, float maxStep) {
 		float yaw = (float) Math.toDegrees(Math.atan2(-(at.x - p.getX()), at.z - p.getZ()));
 		float delta = Mth.wrapDegrees(yaw - p.getYRot());
@@ -4271,7 +4274,7 @@ final class Follow {
 		return Math.abs(Mth.wrapDegrees(yaw - p.getYRot())) < 8f;
 	}
 
-	/** The far end of the platform, behind him away from the jump: where a run-up starts. Up to three cells back. */
+	/** The far end of the platform, behind the buddy, away from the jump: where a run-up starts. Up to three cells back. */
 	private static Vec3 runStart(Level level, LocalPlayer p, Vec3 aim) {
 		double dx = aim.x - p.getX(), dz = aim.z - p.getZ();
 		boolean alongX = Math.abs(dx) >= Math.abs(dz);
@@ -4286,14 +4289,14 @@ final class Follow {
 		return Vec3.atBottomCenterOf(far);
 	}
 
-	/** Would he still stand on something this much further on? */
+	/** Would the buddy still stand on something this much further on? */
 	private static boolean supported(Level level, LocalPlayer p, Vec3 ahead) {
 		AABB box = p.getBoundingBox().move(ahead.x, 0, ahead.z);
 		return !level.noCollision(p, new AABB(box.minX, box.minY - 0.1, box.minZ, box.maxX, box.minY, box.maxZ));
 	}
 
 	/**
-	 * Landed: the next cell. Running on into another jump, the keys stay down; after a careful landing he stays crouched
+	 * Landed: the next cell. Running on into another jump, the keys stay down; after a careful landing the crouch stays
 	 * (the next jump starts as it likes, and a walk lets go of the crouch itself).
 	 */
 	private static void doneLeap(Minecraft mc, boolean running) {
@@ -4310,13 +4313,13 @@ final class Follow {
 		HeldKeys.set(mc.options.keySprint, false);
 	}
 
-	/** The jump did not come off: say so, plan anew from wherever he is; a landing missed three times is left out a minute. */
+	/** The jump did not come off: say so, plan anew from wherever the buddy is; a landing missed three times is left out a minute. */
 	private static void failLeap(LocalPlayer p, String why) {
 		BlockPos to = leap.to;
 		int n = leapFails.merge(to, 1, Integer::sum);
 		Exchange.emit(spots.isEmpty() ? "follow" : "goto", "action", "jump failed", "reason", why, "times", n,
 			"x", to.getX(), "y", to.getY(), "z", to.getZ());
-		// three times missed: a minute another way, then he tries again
+		// three times missed: a minute another way, then another try
 		if (n >= 3) { avoid.put(to, System.currentTimeMillis() + 60_000); leapFails.remove(to); }
 		release();
 		clearRoute();
@@ -4331,14 +4334,14 @@ final class Follow {
 	private static long lastMs;
 
 	/**
-	 * A* over the cells you can be in. Leads to him, or else to the cell nearest to him that can be reached (the rest
+	 * A* over the cells you can be in. Leads to the goal, or else to the cell nearest to it that can be reached (the rest
 	 * is not loaded yet, or closed off): from there it plans on. Null when that is the cell you are already in.
 	 */
 	private static List<BlockPos> plan(Level level, BlockPos start, BlockPos goal, boolean exact) {
 		return plan(level, start, goal, exact, null, WALK);
 	}
 
-	/** As above, from a cell he will come into from {@code cameFrom} by {@code cameHow}: a jump from it may go on his speed (carried). */
+	/** As above, from a cell entered from {@code cameFrom} by {@code cameHow}: a jump from it may go on the speed brought along (carried). */
 	private static List<BlockPos> plan(Level level, BlockPos start, BlockPos goal, boolean exact, BlockPos cameFrom, byte cameHow) {
 		feetMemo.clear();
 		planHow.clear();
@@ -4353,7 +4356,7 @@ final class Follow {
 		open.add(new Node(start, guess(start, goal)));
 		BlockPos best = start;
 		int bestGuess = guess(start, goal);
-		// beside a player on land he ends on land, not afloat beside the bank (18 Oct 2026): land
+		// beside a player on land the plan ends on land, not afloat beside the bank (18 Oct 2026): land
 		// always goes before water
 		boolean landGoal = !waterCell(level, goal), reached = false;
 		BlockPos bestWet = null;
@@ -4374,7 +4377,7 @@ final class Follow {
 			double fc = feet(level, cur, goal, exact);
 			if (Double.isNaN(fc)) fc = cur.getY();   // where you start may be no cell (in a jump, on a chest)
 			boolean wet = waterCell(level, cur), ladder = ladderCell(level, cur);
-			// on a block he is to put down himself, or on a full block: from there he can dig, climb or bridge
+		// on a block the buddy is to put down, or on a full block: from there the buddy can dig, climb or bridge
 			byte came = planHow.getOrDefault(cur, WALK);
 			boolean placed = came == PILLAR || came == BRIDGE;
 			if (placed) fc = cur.getY();
@@ -4432,7 +4435,7 @@ final class Follow {
 				}
 			}
 		}
-		// not there within the search: on toward him through the water when land gets him no nearer (an island across the sea)
+		// not there within the search: on toward the goal through the water when land gets no nearer (an island across the sea)
 		if (!reached && bestWet != null && wetGuess + 30 < bestGuess) best = bestWet;
 		lastNodes = closed.size(); lastLooks = JUMP_LOOKS - jumpLooks; lastMs = (System.nanoTime() - started) / 1_000_000;
 		if (best.equals(start)) return null;
@@ -4448,7 +4451,7 @@ final class Follow {
 		return way != null ? way : planToAir(level, start, false);
 	}
 
-	/** Around the cells he just got stuck at, or (when that leaves no way) through them all the same. */
+	/** Around the cells the buddy just got stuck at, or (when that leaves no way) through them all the same. */
 	private static List<BlockPos> planToAir(Level level, BlockPos start, boolean shun) {
 		feetMemo.clear();
 		Map<BlockPos, BlockPos> from = new HashMap<>();
@@ -4505,15 +4508,15 @@ final class Follow {
 
 	/** The cell to walk to for a spot: where you would be there, or the ground under it. */
 	/**
-	 * A drop where coming down a little long goes on down: the cell beyond the landing, in the direction he goes,
-	 * open to the body and with no floor within the fall that is left (three blocks in all). He takes such a drop
-	 * slowly, and the plan takes another way where there is one: in a cave he came down a step long and fell five and
+	 * A drop where coming down a little long goes on down: the cell beyond the landing, in the direction of travel,
+	 * open to the body and with no floor within the fall that is left (three blocks in all). Such a drop is taken
+	 * slowly, and the plan takes another way where there is one: in a cave the buddy came down a step long and fell five and
 	 * nine blocks (18 Oct 2026).
 	 */
 	private static int overshoot(Level level, BlockPos landing, Direction d, double fallen, BlockPos goal, boolean exact) {
 		if (fallen < 1.5) return 0;
 		BlockPos b = landing.relative(d);
-		if (!passable(level, b, true) || !passable(level, b.above(), false)) return 0;   // a wall: it stops him
+		if (!passable(level, b, true) || !passable(level, b.above(), false)) return 0;   // a wall: the buddy stops at it
 		for (int k = 0; k <= Math.max(0, (int) Math.floor(3.2 - fallen)); k++) {
 			BlockPos q = b.below(k);
 			if (waterCell(level, q) || !Double.isNaN(feet(level, q, goal, exact))) return 0;
@@ -4523,8 +4526,8 @@ final class Follow {
 	}
 
 	/**
-	 * A cell on land beside the player: within three blocks of him, two up or down, not in water and not in his own
-	 * cell; the nearest to the alt. Null where there is none.
+	 * A cell on land beside the player: within three blocks of the player, two up or down, not in water and not in the
+	 * player's own cell; the nearest to the alt. Null where there is none.
 	 */
 	private static BlockPos landBeside(Level level, LocalPlayer p, Player t) {
 		BlockPos at = t.blockPosition(), best = null;
@@ -4562,8 +4565,8 @@ final class Follow {
 		if (!Double.isNaN(floorY(level, at, false))) return at;
 		if (!Double.isNaN(floorY(level, at.above(), false)) && floorY(level, at.above(), false) - p.getY() < 0.2) return at.above();
 		if (!p.onGround()) for (int k = 1; k <= 2; k++) if (!Double.isNaN(floorY(level, at.below(k), false))) return at.below(k);
-		// on the edge of a cell he cannot be in (his middle over a fence post, his feet on a chest beside it): a cell
-		// his body also stands in, whose floor is where his feet are (21 Oct 2026, wedged by the sheep pen, "no path"
+		// on the edge of a cell the buddy cannot be in (the middle over a fence post, the feet on a chest beside it): a cell
+		// the body also stands in, whose floor is where the feet are (21 Oct 2026, wedged by the sheep pen, "no path"
 		// with one cell looked at, for good)
 		for (double dx : new double[] { -0.3, 0.3 }) for (double dz : new double[] { -0.3, 0.3 }) {
 			BlockPos c = BlockPos.containing(p.getX() + dx, p.getY() + 0.01, p.getZ() + dz);
@@ -4590,17 +4593,17 @@ final class Follow {
 	/**
 	 * The height your feet are at when you stand in this cell, or NaN if you cannot stand there: on a full block
 	 * below, on a low block in the cell itself (a slab, carpet, snow) or on a tall one below (a fence or wall). A door
-	 * or gate he can open, and a ladder at the bottom, are no obstacle. Never in a portal, unless it is the spot he
-	 * vanished at: walking through every portal on the way would send you somewhere else.
+	 * or gate the buddy can open, and a ladder at the bottom, are no obstacle. Never in a portal, unless it is the spot
+	 * the player vanished at: walking through every portal on the way would send you somewhere else.
 	 */
 	private static double floorY(Level level, BlockPos f, boolean portalOk) {
 		BlockState here = level.getBlockState(f);
 		// a pressure plate is no obstacle (the checkpoints and the finish of the parkour course are plates); a tripwire is
 		if (here.getBlock() instanceof net.minecraft.world.level.block.TripWireBlock) return Double.NaN;
 		if (here.is(Blocks.COBWEB)) return Double.NaN;
-		// a bed is no floor to stand or walk on (21 Oct 2026: he chose the top of a bed in his room as a place to stand,
-		// walked onto the beds and could not get off them or to the bed beside, "cannot get there" and "no path" by the
-		// beds every night); he goes round them, as a player does, and clicks a bed from beside it
+		// a bed is no floor to stand or walk on (21 Oct 2026: the buddy chose the top of a bed in the bedroom as a place to
+		// stand, walked onto the beds and could not get off them or to the bed beside, "cannot get there" and "no path" by
+		// the beds every night); the plan goes round them, as a player does, and a bed is clicked from beside it
 		if (here.getBlock() instanceof AbstractBedBlock) return Double.NaN;
 		if (!portalOk && (here.is(Blocks.NETHER_PORTAL) || here.is(Blocks.END_PORTAL) || here.is(Blocks.END_GATEWAY))) return Double.NaN;
 		boolean through = opensBy(level, f) || climbable(here);
@@ -4621,8 +4624,8 @@ final class Follow {
 			if (floor.isEmpty()) return Double.NaN;
 			double top = floor.max(Direction.Axis.Y);
 			// a low block below (a slab, up to 0.6): you stand in that cell, not in this one. Anything higher is floor for
-			// this cell: a chest or soul sand is 0.875 high, and with 0.9 as the line he stood on a chest sunk into the
-			// floor of his field and found no way off it (21 Oct 2026)
+			// this cell: a chest or soul sand is 0.875 high, and with 0.9 as the line the buddy stood on a chest sunk into the
+			// floor of the field and found no way off it (21 Oct 2026)
 			if (top <= 0.6) return Double.NaN;
 			feet = b.getY() + top; under = b;
 		}
@@ -4668,7 +4671,7 @@ final class Follow {
 	}
 
 	/**
-	 * A door or gate he can get through here: openable, not one a click failed to open a moment ago, and with
+	 * A door or gate the buddy can get through here: openable, not one a click failed to open a moment ago, and with
 	 * {@code basePenGates} off not a pen's ({@link Herd#penGate}): that is a wall, and its fence a way over only where
 	 * carpets lie on it.
 	 */
@@ -4695,7 +4698,7 @@ final class Follow {
 		return false;
 	}
 
-	/** Free to walk through; at foot height a carpet or pressure plate may lie there. Doors he opens and ladders too. */
+	/** Free to walk through; at foot height a carpet or pressure plate may lie there. Doors the buddy opens and ladders too. */
 	static boolean passable(Level level, BlockPos q, boolean feet) {
 		BlockState st = level.getBlockState(q);
 		if (st.is(Blocks.COBWEB) || st.is(Blocks.LAVA)) return false;

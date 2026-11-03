@@ -5,15 +5,15 @@ import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
 import net.minecraft.stats.Stats;
 
 /**
- * How long since he last lay in a bed, against phantoms (the plan for fighting, step 1: on 23 Oct a phantom killed him
- * in his base at 03:21 and phantoms hit him 109 times that day). The server spawns phantoms only
+ * How long since the buddy last lay in a bed, against phantoms (the plan for fighting, step 1: on 23 Oct a phantom killed
+ * the buddy in the base at 03:21 and phantoms struck 109 times that day). The server spawns phantoms only
  * for a player whose statistic {@code time_since_rest} is past 72000 ticks, three game days, and the chance grows past
- * that (PhantomSpawner); it is counted every tick and set to 0 the moment he lies down in a bed (ServerPlayer.startSleeping)
+ * that (PhantomSpawner); it is counted every tick and set to 0 the moment the player lies down in a bed (ServerPlayer.startSleeping)
  * or dies (read in 26.3). The client knows the statistic only when it asks, as the statistics screen does
  * ({@code REQUEST_STATS}): asked ten seconds after a join and every ten minutes, and counted on from the answer.
  * <p>
- * Past two days ({@link #DUE}) he lies down in the base's bed at night also when nobody else sleeps (Sleepers): a moment
- * in bed sets the count to 0, and he gets up after a second, long before the server's sleep plugin would skip the
+ * Past two days ({@link #DUE}) the buddy lies down in the base's bed at night also when nobody else sleeps (Sleepers): a
+ * moment in bed sets the count to 0, and the buddy gets up after a second, long before the server's sleep plugin would skip the
  * night (it needs a hundred ticks). Past two and a half days outside a base it is a need on the panel and in Telegram.
  */
 final class Rest {
@@ -33,7 +33,7 @@ final class Rest {
 	/** The connection of the last tick: a new one is a new join (a respawn keeps it, a new player object does not). */
 	private static Object connection;
 
-	/** Every tick of the alt: ask, read the answer, and 0 the moment he lies in a bed or is dead. */
+	/** Every tick of the alt: ask, read the answer, and 0 the moment the alt lies in a bed or is dead. */
 	static void tick(LocalPlayer p) {
 		long now = System.currentTimeMillis();
 		if (p.connection != connection) { connection = p.connection; joinedAt = now; askedAt = 0; pending = test >= 0; value = -1; }
@@ -76,7 +76,7 @@ final class Rest {
 	static boolean due() { return estimate() >= DUE; }
 
 	/**
-	 * Whether he goes to bed, or stays in it, for the count alone (Sleepers, with baseSleepOthers on): out of bed when it
+	 * Whether to go to bed, or stay in it, for the count alone (Sleepers, with baseSleepOthers on): out of bed when it
 	 * is due, and in bed for a second, by which time the server has set it to 0.
 	 */
 	static boolean wantsBed(LocalPlayer p) {

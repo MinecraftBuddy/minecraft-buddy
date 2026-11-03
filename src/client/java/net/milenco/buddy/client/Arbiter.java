@@ -1,9 +1,9 @@
 package net.milenco.buddy.client;
 
 /**
- * Which step of his chain has his hands this tick, by name (21 Oct 2026: the first point of the look at other bots,
+ * Which step of the buddy's chain has the hands this tick, by name (21 Oct 2026: the first point of the look at other bots,
  * Player2's chains and Botcraft's tree, which show what runs and why). The chain itself is the order of
- * {@link Follow#tick}: staying alive (air, fire, getting loose), the menus he is in, a fight, the corpse guard, a tap,
+ * {@link Follow#tick}: staying alive (air, fire, getting loose), the menus open, a fight, the corpse guard, a tap,
  * the carrier, the base, sleeping, riding, the work along, and following. The first that wants the tick takes it, and
  * whatever was going on carries on as soon as nothing above it wants the tick any more. Here that order gets names:
  * {@link #doing()} for the panel, and the event {@code doing} once a step has held for a second.
@@ -15,7 +15,7 @@ final class Arbiter {
 	private static boolean seen;
 	private static int stableTicks;
 
-	/** This step took the tick (call it when a step returns that it moved him). */
+	/** This step took the tick (call it when a step returns that it moved the buddy). */
 	static boolean at(String step, boolean took) {
 		if (took) { now = step; seen = true; }
 		// any step of the chain before the order's own (a fight, a flight, a meal, getting loose) takes the keys: Baritone,
@@ -41,6 +41,6 @@ final class Arbiter {
 		}
 	}
 
-	/** What he does now, for the panel. */
+	/** What the buddy does now, for the panel. */
 	static String doing() { return now; }
 }

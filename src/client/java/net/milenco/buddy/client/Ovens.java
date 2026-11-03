@@ -40,12 +40,12 @@ import net.milenco.buddy.version.Game;
  * smelted and may smelt that combination itself from then on (coal with raw iron, for instance).
  *
  * <p>A tap on a furnace (or a blast furnace, a smoker) takes it and the furnaces of the same kind beside it in a row
- * (up to eight), and the alt opens the tapped one to read what is in it: what lies on top is something he may smelt, what
- * lies below is fuel he may use. Nothing in it: he shakes his head. A tap on one of them once more stops it. While it
- * is on he visits each furnace now and then when there is nothing else to do: takes out what is done (his chests or the
- * player get it as ever), puts in more of what he learned to smelt, and more of the fuel he learned. What to smelt and
- * the fuel he takes from the player's chests ({@link Stash}), and keeps on him. Kept in {@code furnaces.json}, per server
- * profile and per player.
+ * (up to eight), and the alt opens the tapped one to read what is in it: what lies on top is something the alt may smelt,
+ * what lies below is fuel to use. Nothing in it: a shake of the head. A tap on one of them once more stops it. While it
+ * is on the alt visits each furnace now and then when there is nothing else to do: takes out what is done (the player's
+ * chests or the player get it as ever), puts in more of what was learned to smelt, and more of the fuel learned. What to
+ * smelt and the fuel come from the player's chests ({@link Stash}), and stay in the alt's inventory. Kept in
+ * {@code furnaces.json}, per server profile and per player.
  */
 final class Ovens {
 	private Ovens() {}
@@ -124,7 +124,7 @@ final class Ovens {
 		onFor.put(key(owner), true);
 		save();
 		Exchange.emit("furnaces", "action", "on", "for", owner, "furnaces", row.size(), "x", pos.getX(), "y", pos.getY(), "z", pos.getZ());
-		// read what is in the tapped one: that is what he may smelt, with that fuel
+		// read what is in the tapped one: that is what may be smelted, with that fuel
 		Oven o = find(level, pos, owner);
 		if (o != null) { if (step != IDLE) stop("new tap"); go(o, true); }
 	}
@@ -135,9 +135,9 @@ final class Ovens {
 		return null;
 	}
 
-	// ---------- for Stash: what he fetches from the chests and keeps ----------
+	// ---------- for Stash: what the buddy fetches from the chests and keeps ----------
 
-	/** Something he smelts or burns for the player he follows, and has less than a stack of. */
+	/** Something the buddy smelts or burns for the followed player, and has less than a stack of. */
 	static boolean wants(LocalPlayer p, ItemStack st) {
 		String owner = Follow.boss();
 		if (!on(owner) || st.isEmpty()) return false;
@@ -148,7 +148,7 @@ final class Ovens {
 		return have < 64;
 	}
 
-	/** Something he smelts or burns: he keeps it, no chest takes it back. */
+	/** Something the buddy smelts or burns: kept, no chest takes it back. */
 	static boolean keeps(ItemStack st) {
 		String owner = Follow.boss();
 		return on(owner) && !st.isEmpty() && uses(owner, AfkHelperClient.itemId(st));
@@ -189,7 +189,7 @@ final class Ovens {
 		if (t != null && t.distanceTo(p) > 28) { stop("you leave"); return false; }
 		Vec3 eye = p.getEyePosition();
 		Vec3 point = Work.aimPoint(level, p, eye, visit.pos);
-		if (point != null && eye.distanceTo(point) > Work.REACH) point = null;   // the reach his spot was chosen with (Work.standCell)
+		if (point != null && eye.distanceTo(point) > Work.REACH) point = null;   // the reach the spot was chosen with (Work.standCell)
 		switch (step) {
 			case WALK -> {
 				if (point != null) { Follow.stand(); step = OPEN; stepSince = now; clicks = 0; clickedAt = -1; return true; }
@@ -245,8 +245,8 @@ final class Ovens {
 	}
 
 	/**
-	 * The furnace is open. Learning: read it and close. Tending: what is done out, more of what he may smelt in (only
-	 * what lies on top already, or anything he learned when the top is empty), more of the fuel likewise, then close.
+	 * The furnace is open. Learning: read it and close. Tending: what is done out, more of what may be smelted in (only
+	 * what lies on top already, or anything learned when the top is empty), more of the fuel likewise, then close.
 	 * The game's own shift click puts a thing to smelt on top and a fuel below.
 	 */
 	static boolean menuTick(Minecraft mc, LocalPlayer p) {
@@ -302,7 +302,7 @@ final class Ovens {
 
 	private static void pause(long now) { nextClick = now + ThreadLocalRandom.current().nextLong(200, 400); }
 
-	/** A slot of his own (in the menu's numbers) with one of these items, the same as what lies there if anything does. */
+	/** A slot of the buddy's own (in the menu's numbers) with one of these items, the same as what lies there if anything does. */
 	private static int playerSlot(AbstractContainerMenu m, Set<String> may, ItemStack there) {
 		for (int s = 3; s < m.slots.size(); s++) {
 			ItemStack st = m.slots.get(s).getItem();
@@ -338,7 +338,7 @@ final class Ovens {
 
 	// ---------- forgetting and the file ----------
 
-	/** Forget the furnaces and what he learned for this player on this server; how many furnaces. */
+	/** Forget the furnaces and what was learned for this player on this server; how many furnaces. */
 	static int forget(String owner) {
 		load();
 		String server = Profiles.key(), who = owner.toLowerCase(Locale.ROOT);
@@ -382,7 +382,7 @@ final class Ovens {
 			}
 			for (var e : root.get("on").getAsJsonObject().entrySet()) onFor.put(e.getKey(), e.getValue().getAsBoolean());
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "furnaces.json: " + e.getMessage());
+			Exchange.emit("error", "msg", "furnaces not read: " + e.getMessage());
 		}
 	}
 
@@ -410,7 +410,7 @@ final class Ovens {
 			Files.writeString(tmp, new GsonBuilder().setPrettyPrinting().create().toJson(root));
 			Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "writing furnaces.json: " + e.getMessage());
+			Exchange.emit("error", "msg", "furnaces not saved: " + e.getMessage());
 		}
 	}
 

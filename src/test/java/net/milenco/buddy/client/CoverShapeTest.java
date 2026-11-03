@@ -22,7 +22,7 @@ import net.minecraft.world.phys.Vec3;
 /**
  * Cover from foes in pits, drawn in characters (the third review of 22 Oct 2026). A cell is one character: '#' a full
  * block, '.' air (also everything never set), '|' a thin post (0.2 wide, a block high). The ground is stone with its top
- * at y 10, where he stands; a pit is dug into it. {@code stand} is Follow.floorY's rule for these blocks: a block under
+ * at y 10, where the buddy stands; a pit is dug into it. {@code stand} is Follow.floorY's rule for these blocks: a block under
  * the cell, 1.8 of head room.
  */
 class CoverShapeTest {
@@ -99,7 +99,7 @@ class CoverShapeTest {
 
 	@Test
 	void theFarWallSeesWhatTheMiddleDoesNot() {
-		// four blocks south of the pit his eye is under the line over the rim from the middle of the column, not from its
+		// four blocks south of the pit the eye is under the line over the rim from the middle of the column, not from its
 		// far wall, where knockback and crowding put a skeleton
 		Chars w = ground();
 		Vec3 eye = new Vec3(7.5, 10 + PenShape.STAND_EYE, 11.5);
@@ -221,17 +221,17 @@ class CoverShapeTest {
 
 	@Test
 	void aBlowWhileItSearchesIsNoBlowAtACell() {
-		// a second and a half of grace from his first arrival at the cell, as Pen.COVER_GRACE; two seconds on, a blow at the
-		// cell, or on his way back to it after a push, says that it is seen after all
+		// a second and a half of grace from the first arrival at the cell, as Pen.COVER_GRACE; two seconds on, a blow at the
+		// cell, or on the way back to it after a push, says that it is seen after all
 		long grace = 1500;
 		assertTrue(CoverShape.seenAfterAll(true, false, 2000, grace, true, true), "at the cell");
-		assertTrue(CoverShape.seenAfterAll(true, false, 2000, grace, false, false), "on his way back after a push");
-		// knocked farther off than an arrow's knockback while he holds it: not at it
-		assertFalse(CoverShape.seenAfterAll(true, false, 2000, grace, false, true), "out of the cell he holds");
-		// on his first walk there, or within the grace: what hit him was in the air before
+		assertTrue(CoverShape.seenAfterAll(true, false, 2000, grace, false, false), "on the way back after a push");
+		// knocked farther off than an arrow's knockback while holding it: not at it
+		assertFalse(CoverShape.seenAfterAll(true, false, 2000, grace, false, true), "out of the cell held");
+		// on the first walk there, or within the grace: what hit the buddy was in the air before
 		assertFalse(CoverShape.seenAfterAll(true, true, 60_000, grace, false, false), "on the first walk there");
 		assertFalse(CoverShape.seenAfterAll(true, false, 1000, grace, true, true), "within the grace");
-		// the search for the next cell under way, his first arrival at the last one long ago: no cell to blame, and the
+		// the search for the next cell under way, the first arrival at the last one long ago: no cell to blame, and the
 		// search goes on (the review of the fourth round of 22 Oct 2026: it began anew as "hit again")
 		assertFalse(CoverShape.seenAfterAll(false, false, 60_000, grace, false, false), "while it searches");
 	}

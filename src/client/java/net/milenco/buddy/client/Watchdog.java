@@ -15,7 +15,7 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * Until now the farm hit straight through all that: a human who suddenly sits in a boat stops and says
  * something about it, the mod kept hitting blazes. That is the moment you get caught. Now the farm goes
- * off and an alarm goes to the second screen, so the owner can take over themselves.
+ * off and an alarm goes to the second screen, so the owner can take over by hand.
  */
 public class Watchdog {
 	private static long lastAlarm = 0;
@@ -58,8 +58,8 @@ public class Watchdog {
 		if (Builder.fromSchematic(pos, st)) return false;   // your own wall going up around you
 		/*
 		 * A crop is no wall. On farmland you stand a little lower than a whole block, so "head height" here is the
-		 * height the crops grow at: every seed planted beside the buddy counted as a block against him, and the second one
-		 * within ten minutes switched the wheat field off while the owner stood planting next to him (3 Oct).
+		 * height the crops grow at: every seed planted beside the buddy counted as a block against the buddy, and the second
+		 * one within ten minutes switched the wheat field off while the owner stood planting right beside (3 Oct).
 		 */
 		if (st.getBlock() instanceof net.minecraft.world.level.block.CropBlock) return false;
 		return true;
@@ -72,14 +72,14 @@ public class Watchdog {
 
 		// put in a boat or minecart: that does not just happen to you while you stand farming
 		if (p.isPassenger()) {
-			if (!wasInVehicle) { wasInVehicle = true; String v = vehicle(p); alarm("you have been put in a " + v, p); }
+			if (!wasInVehicle) { wasInVehicle = true; String v = vehicle(p); alarm("put in a " + v, p); }
 		} else wasInVehicle = false;
 
 		// water or a cobweb over you is the classic test
 		boolean wet = p.isInWater() || p.level().getBlockState(p.blockPosition()).is(Blocks.COBWEB);
 		if (wet) {
 			// water the builder just poured itself is no test
-			if (!wasWet) { wasWet = true; if (!(p.isInWater() && Builder.ownWater(p))) alarm(p.isInWater() ? "you are suddenly standing in water" : "you are standing in a cobweb", p); }
+			if (!wasWet) { wasWet = true; if (!(p.isInWater() && Builder.ownWater(p))) alarm(p.isInWater() ? "suddenly standing in water" : "standing in a cobweb", p); }
 		} else wasWet = false;
 
 		// The recovery pause only makes sense once the situation is over: if you are still in that boat or
@@ -93,7 +93,7 @@ public class Watchdog {
 			nextMeasure = now + 1000;
 			BlockPos block = p.blockPosition();
 			int m = walls(p, block);
-			if (block.equals(prevBlock) && prevWalls >= 0 && m > prevWalls && now >= graceUntil) alarm("someone is building against you", p);
+			if (block.equals(prevBlock) && prevWalls >= 0 && m > prevWalls && now >= graceUntil) alarm("being walled in", p);
 			prevBlock = block; prevWalls = m;
 		}
 	}
@@ -129,7 +129,7 @@ public class Watchdog {
 	public static void pushed(LocalPlayer p, double blocks) {
 		if (!AfkConfig.get().watchdogAlarm) return;
 		double rounded = Math.round(blocks * 10) / 10.0;
-		alarm("you are being pushed away (" + rounded + " blocks)", p);
+		alarm("pushed away (" + rounded + " blocks)", p);
 	}
 
 	private static String vehicle(LocalPlayer p) {

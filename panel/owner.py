@@ -128,7 +128,7 @@ class Owner:
     def set(self, word):
         word = str(word or "")
         if not MIN_LEN <= len(word) <= MAX_LEN:
-            return "a password of %d to %d characters" % (MIN_LEN, MAX_LEN)
+            return "the password needs %d to %d characters" % (MIN_LEN, MAX_LEN)
         salt = os.urandom(16).hex()
         write_private(self.path, json.dumps({"salt": salt, "iterations": ITERATIONS, "hash": self.hashed(word, salt),
                                              "set": int(time.time())}) + "\n")
@@ -144,7 +144,7 @@ class Owner:
         """The first password, with the code of the container's log. None, or what is wrong."""
         with self.lock:
             if not self.needs_setup():
-                return "the owner is set already: log in"
+                return "a password is set already: log in"
             if self.waiting(addr):
                 return "too many tries: wait ten minutes"
             right = self.setup_code() or ""
@@ -165,7 +165,7 @@ class Owner:
         with self.hashing:
             with self.lock:
                 if not self.matches(old):
-                    return "the present password is not right"
+                    return "the current password is wrong"
                 return self.set(new)
 
     def matches(self, word):

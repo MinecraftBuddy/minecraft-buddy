@@ -51,7 +51,7 @@ class RoundTest {
 
 	@Test
 	void notThroughAPillarStraightAhead() {
-		// straight on from the middle of the block, with no steering, he runs into the pillar
+		// straight on from the middle of the block, with no steering, the jumper runs into the pillar
 		Round.Frame fr = new Round.Frame(START, A, B, 1);
 		double x = fr.x(0, 0), z = fr.z(0, 0);
 		assertTrue(Double.isNaN(Round.sim(List.of(START, PILLAR, LAND), fr, x, Y + 1, z, 0, 0, 0, true, 0, 0, 1, 0, LAND, Y + 1, null)));

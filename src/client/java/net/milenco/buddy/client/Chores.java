@@ -39,21 +39,21 @@ import net.minecraft.world.phys.AABB;
 import net.milenco.buddy.version.Game;
 
 /**
- * The chores of a base, when there is nothing else to do and the alt is in one: chests fill up, so he crafts blocks to
- * make room (iron ingots into blocks, wheat into hay bales), dumps surplus seeds in a composter, shears sheep, and
- * makes new tools from the storage while some ingots stay over.
+ * The chores of a base, for a buddy in one with nothing else to do: chests fill up, so blocks are crafted to make
+ * room (iron ingots into blocks, wheat into hay bales), surplus seeds go to a composter, sheep are shorn, and new
+ * tools are made from the storage while some ingots stay over.
  *
  * <ul>
  * <li>Compacting: when the base's chests run full (one that holds the item has two free slots or fewer, or all of them
  * together six), what goes nine to a block (ingots, raw ore, diamonds, wheat to hay bales and the like) is made into
- * blocks at a crafting table of the base, what he carries and what he fetches from those chests for it.</li>
+ * blocks at a crafting table of the base, from what the buddy carries and fetches from those chests for it.</li>
  * <li>Seeds beyond a stack of a kind go to a composter of the base: into a hopper on it, or a chest on that hopper, and
  * otherwise in by hand; ripe bone meal is taken out.</li>
  * <li>Sheep of the base with wool are shorn (shears from a chest, or made from two iron ingots), the wool picked up.</li>
- * <li>A tool kind he has none of, with none in the chests, is made at the crafting table: of iron while nine iron
- * ingots stay over, else of copper while nine copper ingots stay over, else of stone; never of diamonds, which he
- * asked about as ingots. Sticks from planks and planks from logs in his own grid. A pickaxe, an axe and a shovel
- * always, a sword while he guards, a hoe while the fields are on.</li>
+ * <li>A tool kind the buddy has none of, with none in the chests, is made at the crafting table: of iron while nine
+ * iron ingots stay over, else of copper while nine copper ingots stay over, else of stone; never of diamonds, which
+ * were asked about as ingots. Sticks from planks and planks from logs in the inventory's own grid. A pickaxe, an axe
+ * and a shovel always, a sword while guarding, a hoe while the fields are on.</li>
  * </ul>
  */
 final class Chores {
@@ -61,10 +61,10 @@ final class Chores {
 
 	static final double REACH = 20;
 	static final long PLAN_EVERY = 5000, SCAN_EVERY = 30_000;
-	/** The iron he leaves over when he makes something of it (keepIron, set on the panel; 9 until 24 Oct 2026). */
+	/** The iron left over when something is made of it (keepIron, set on the panel; 9 until 24 Oct 2026). */
 	static int ingotsLeft() { return Math.max(0, AfkConfig.get().keepIron); }
 
-	/** The gold he leaves over when he makes golden apples (keepGold, set on the panel). */
+	/** The gold left over when golden apples are made (keepGold, set on the panel). */
 	static int goldLeft() { return Math.max(0, AfkConfig.get().keepGold); }
 
 	/** Nine of these make the block after it. */
@@ -83,7 +83,7 @@ final class Chores {
 	private static BlockPos table, composter;
 	private static long nextScan, nextPlan;
 	private static final Map<Integer, Long> skipSheep = new HashMap<>();
-	/** A table, composter or inlet he could not get to: left alone for two minutes, so the next chore gets its turn. */
+	/** A table, composter or inlet the buddy could not get to: left alone for two minutes, so the next chore gets its turn. */
 	private static final Map<BlockPos, Long> skipBlock = new HashMap<>();
 	static final long SKIP_FOR = 120_000;
 
@@ -95,18 +95,18 @@ final class Chores {
 	private static String material;    // the tool's material
 	private static BlockPos at;        // the table, the composter or its inlet
 	private static Sheep sheep;
-	/** Where he stands to shear it, and where the sheep was when that was chosen (a sheep walks on). */
+	/** Where to stand to shear it, and where the sheep was when that was chosen (a sheep walks on). */
 	private static BlockPos sheepStand;
 	private static Vec3 sheepAt = Vec3.ZERO;
 	static final long SHEEP_FOR = 30_000;
-	// the shearing round: shorn so far, the wool phase, the piece he goes for and where he stands for it, and what he left
+	// the shearing round: shorn so far, the wool phase, the piece gone for and where to stand for it, and what was left
 	private static int shorn;
 	private static boolean collecting;
 	private static ItemEntity wool;
 	private static BlockPos woolStand;
 	private static long woolNearSince;
 	private static final Set<Integer> gaveUpWool = new HashSet<>();
-	/** How far round him the wool of a round is looked for: the pen by the base is three by seven. */
+	/** How far round the buddy the wool of a round is looked for: the pen by the base is three by seven. */
 	static final double WOOL_NEAR = 12;
 	private static BlockPos stand, clickBlock;
 	private static boolean clickEntity;
@@ -116,15 +116,15 @@ final class Chores {
 
 	static boolean busy() { return step != IDLE; }
 
-	/** The table or the inlet he opened is open: its clicks run through {@link #menuTick} until they are done. */
+	/** The table or the inlet the buddy opened is open: its clicks run through {@link #menuTick} until they are done. */
 	static boolean inMenu(LocalPlayer p) { return (step == OPEN || step == MENU) && p.containerMenu != p.inventoryMenu; }
 
 	private static String owner() { return Follow.boss(); }
 
-	/** In a base of the player he works for: the chores are his. */
+	/** In a base of the player the buddy works for: the chores there are the buddy's. */
 	private static boolean inBase(LocalPlayer p) { return inBase(p.level(), p.position()); }
 
-	/** This place lies in the base he keeps. */
+	/** This place lies in the base the buddy keeps. */
 	private static boolean inBase(Level level, Vec3 at) {
 		String boss = owner();
 		var e = Tap.baseAt(Work.dimOf(level), at, Base.RADIUS);
@@ -138,13 +138,13 @@ final class Chores {
 	static int spare(LocalPlayer p, String id) {
 		int keep = Ovens.uses(id) ? 64 : 0;
 		if (id.equals("coal") || id.equals("charcoal")) keep = Math.max(keep, 32);
-		if (id.equals("wheat")) keep = Math.max(keep, 1);   // the wheat he lures with (Herd)
+		if (id.equals("wheat")) keep = Math.max(keep, 1);   // the wheat to lure with (Herd)
 		return count(p, id) + Stash.inChests(id) - keep;
 	}
 
 	// ---------- for Stash: what to fetch, what to keep ----------
 
-	/** Something a chore needs that he has too little of: Stash takes it from a chest. */
+	/** Something a chore needs and the buddy has too little of: Stash takes it from a chest. */
 	static boolean wants(LocalPlayer p, ItemStack st) {
 		if (st.isEmpty() || !inBase(p)) return false;
 		ensureScan(p);
@@ -159,11 +159,11 @@ final class Chores {
 					&& (st.is(ItemTags.PLANKS) || st.is(ItemTags.LOGS))) return true;
 		}
 		if (st.is(Items.SHEARS) && count(p, "shears") == 0 && woolly(p) != null) return true;
-		// wheat on him always, to lure an animal back into its pen (Herd; Stash keeps a stack of it)
+		// wheat in the inventory always, to lure an animal back into its pen (Herd; Stash keeps a stack of it)
 		if (st.is(Items.WHEAT) && count(p, "wheat") == 0 && herds() && Herd.hasPens()) return true;
-		// iron ingots for what he makes of iron (shears, a tool, armour); when no chest has enough loose ingots, a block,
-		// which he makes into nine (21 Oct 2026: 91 sheep by the base, 54 iron blocks in its chests and not one ingot, so
-		// he never sheared)
+		// iron ingots for what is made of iron (shears, a tool, armour); when no chest has enough loose ingots, a block,
+		// made into nine (21 Oct 2026: 91 sheep by the base, 54 iron blocks in its chests and not one ingot, so
+		// not one sheep was shorn)
 		int need = ironNeed(p);
 		if (need > 0 && st.is(Items.IRON_INGOT) && count(p, "iron_ingot") < need) return true;
 		if (need > 0 && st.is(Items.IRON_BLOCK) && count(p, "iron_ingot") + Stash.inChests("iron_ingot") < need && count(p, "iron_block") == 0) return true;
@@ -184,18 +184,18 @@ final class Chores {
 		return false;
 	}
 
-	/** Sheep with wool near, no shears with him or in a chest, and iron for a pair with nine ingots over. */
+	/** Sheep with wool near, no shears carried or in a chest, and iron for a pair with nine ingots over. */
 	private static boolean shearsToMake(LocalPlayer p) {
 		return AfkConfig.get().baseShear && count(p, "shears") == 0 && !Stash.chestHasTool("shears") && woolly(p) != null
 			&& iron(p) >= 2 + ingotsLeft();
 	}
 
-	/** All his iron in ingots: loose, and nine to a block, with him and in his chests. */
+	/** All the buddy's iron in ingots: loose, and nine to a block, carried and in the chests. */
 	static int iron(LocalPlayer p) {
 		return count(p, "iron_ingot") + Stash.inChests("iron_ingot") + 9 * (count(p, "iron_block") + Stash.inChests("iron_block"));
 	}
 
-	/** The iron ingots the next thing he makes of iron takes: armour or a tool first, then shears; 0 for none. */
+	/** The iron ingots the next thing made of iron takes: armour or a tool first, then shears; 0 for none. */
 	private static int ironNeed(LocalPlayer p) {
 		ToolPlan t = toolPlan(p);
 		if (t != null && t.material.equals("iron_ingot")) return t.cost;
@@ -241,15 +241,15 @@ final class Chores {
 	private static final Map<String, int[]> COST = Map.of("pickaxe", new int[] { 3, 2 }, "axe", new int[] { 3, 2 },
 		"shovel", new int[] { 1, 2 }, "sword", new int[] { 2, 1 }, "how", new int[] { 2, 2 });
 
-	/** The tool to make, if any: a kind he lacks and no chest holds, of the best material that leaves enough over. */
+	/** The tool to make, if any: a kind the buddy lacks and no chest holds, of the best material that leaves enough over. */
 	private static ToolPlan toolPlan(LocalPlayer p) {
 		if (table == null) return null;
 		List<String> kinds = new ArrayList<>(List.of("pickaxe", "axe", "shovel"));
 		if (Guard.on()) kinds.add("sword");
-		// a hoe while the fields are on, with him or in the base, and one to mend a trampled field with (Work)
+		// a hoe while the fields are on, along with the player or in the base, and one to mend a trampled field with (Work)
 		if (Work.farm || AfkConfig.get().baseHarvest || Work.trampled()) kinds.add("how");
 		for (String k : kinds) {
-			// all he carries of it nearly worn out (baseRenew): a new one of iron, unless a chest has a good one he fetches
+			// all the buddy carries of it nearly worn out (baseRenew): a new one of iron, unless a chest has a good one to fetch
 			boolean renew = Stash.renewing(p, k);
 			if (renew ? Stash.chestHasFreshTool(k) : (Stash.hasUsable(p, k) || Stash.chestHasTool(k))) continue;
 			int[] c = COST.get(k);
@@ -265,9 +265,9 @@ final class Chores {
 	}
 
 	/**
-	 * The tool kind a trip home renews ({@link Renew}): every one of it he carries nearly worn out ({@code baseRenew}), and a
-	 * fresh one in a chest of the base to fetch, or iron enough for a new one with {@code keepIron} left. The kinds he
-	 * carries when he follows; the table is looked for when he is home.
+	 * The tool kind a trip home renews ({@link Renew}): every one of it carried nearly worn out ({@code baseRenew}), and a
+	 * fresh one in a chest of the base to fetch, or iron enough for a new one with {@code keepIron} left. The kinds
+	 * carried while following; the table is looked for at home.
 	 */
 	static String renewKind(LocalPlayer p) {
 		List<String> kinds = new ArrayList<>(List.of("pickaxe", "axe", "shovel"));
@@ -282,7 +282,7 @@ final class Chores {
 		return m + "_" + kind;
 	}
 
-	/** Sticks short for the tool he makes, and no planks or logs with him or in his chests: wood to chop. */
+	/** Sticks short for the tool to make, and no planks or logs carried or in the chests: wood to chop. */
 	static boolean woodWanted(LocalPlayer p) {
 		if (busy() || !inBase(p)) return false;
 		ensureScan(p);
@@ -302,7 +302,7 @@ final class Chores {
 
 	/**
 	 * A piece of iron armour to make from the base's iron: for a slot
-	 * where what he wears or carries is worse than iron and no chest holds a piece of iron or better that he may take,
+	 * where what the buddy wears or carries is worse than iron and no chest holds a piece of iron or better to take,
 	 * while nine ingots stay over. An elytra counts as better: it stays on.
 	 */
 	private static ArmourPlan armourPlan(LocalPlayer p) {
@@ -310,7 +310,7 @@ final class Chores {
 		for (EquipmentSlot slot : SLOTS) {
 			String id = switch (slot) { case HEAD -> "iron_helmet"; case CHEST -> "iron_chestplate"; case LEGS -> "iron_leggings"; default -> "iron_boots"; };
 			double iron = Stash.armour(new ItemStack(switch (slot) { case HEAD -> Items.IRON_HELMET; case CHEST -> Items.IRON_CHESTPLATE; case LEGS -> Items.IRON_LEGGINGS; default -> Items.IRON_BOOTS; }), slot);
-			// what he wears there nearly worn out, iron or worse (baseRenew): a new iron piece, unless a chest has a fresh one
+			// the piece in that slot nearly worn out, iron or worse (baseRenew): a new iron piece, unless a chest has a fresh one
 			boolean renew = Stash.renewingArmour(p, slot) && Stash.armour(p.getItemBySlot(slot), slot) <= iron;
 			if (renew ? Stash.chestHasFreshArmour(slot, iron) : (Stash.bestArmourFor(p, slot) >= iron || Stash.chestHasArmour(slot, iron))) continue;
 			int cost = switch (slot) { case HEAD -> 5; case CHEST -> 8; case LEGS -> 7; default -> 4; };
@@ -328,10 +328,10 @@ final class Chores {
 
 	// ---------- for the fight: a shield and golden apples ----------
 
-	/** Golden apples he wants with him or in his chests (the plan for fighting of 24 Oct 2026, step 1). */
+	/** Golden apples wanted, carried or in the chests (the plan for fighting of 24 Oct 2026, step 1). */
 	static final int APPLES_WANTED = 4;
 
-	/** All his gold in ingots: loose, and nine to a block, with him and in his chests. */
+	/** All the buddy's gold in ingots: loose, and nine to a block, carried and in the chests. */
 	static int gold(LocalPlayer p) {
 		return count(p, "gold_ingot") + Stash.inChests("gold_ingot") + 9 * (count(p, "gold_block") + Stash.inChests("gold_block"));
 	}
@@ -340,7 +340,7 @@ final class Chores {
 
 	private static int logs(LocalPlayer p) { return countMatching(p, x -> x.is(ItemTags.LOGS)); }
 
-	/** A shield he can block with, in his off hand or his inventory: not about to break. */
+	/** A shield to block with, in the off hand or the inventory: not about to break. */
 	static boolean hasShield(LocalPlayer p) {
 		if (p.getOffhandItem().is(Items.SHIELD) && !Work.nearlyBroken(p.getOffhandItem())) return true;
 		for (int i = 0; i < 36; i++) if (p.getInventory().getItem(i).is(Items.SHIELD) && !Work.nearlyBroken(p.getInventory().getItem(i))) return true;
@@ -348,9 +348,9 @@ final class Chores {
 	}
 
 	/**
-	 * A shield to make (the plan for fighting: six planks and one iron ingot): while he guards, none he can use with him
+	 * A shield to make (the plan for fighting: six planks and one iron ingot): while guarding, no usable one carried
 	 * or in a chest, one iron ingot while keepIron stays over, at the
-	 * base's crafting table. The planks come from what he carries, the chests, or a log made into four.
+	 * base's crafting table. The planks come from what the buddy carries, the chests, or a log made into four.
 	 */
 	static boolean shieldToMake(LocalPlayer p) {
 		return table != null && Guard.on() && !hasShield(p) && !Stash.chestHasTool("shield") && iron(p) >= 1 + ingotsLeft();
@@ -358,17 +358,17 @@ final class Chores {
 
 	/**
 	 * Golden apples to make, leaving a settable amount of gold: fewer than
-	 * {@link #APPLES_WANTED} with him and in his chests, an apple, and eight gold ingots while keepGold stays over.
+	 * {@link #APPLES_WANTED} carried and in the chests, an apple, and eight gold ingots while keepGold stays over.
 	 */
 	static boolean applesToMake(LocalPlayer p) {
 		return table != null && count(p, "golden_apple") + Stash.inChests("golden_apple") < APPLES_WANTED
 			&& count(p, "apple") + Stash.inChests("apple") >= 1 && gold(p) >= 8 + goldLeft();
 	}
 
-	/** Arrows he wants with him and in his chests, made four to a flint, a stick and a feather. */
+	/** Arrows wanted, carried and in the chests, made four to a flint, a stick and a feather. */
 	static final int ARROWS_WANTED = 32;
 
-	/** A bow he can shoot with, with him. */
+	/** A bow to shoot with, carried. */
 	static boolean hasBow(LocalPlayer p) {
 		for (int i = 0; i < 36; i++) if (p.getInventory().getItem(i).is(Items.BOW) && !Work.nearlyBroken(p.getInventory().getItem(i))) return true;
 		return false;
@@ -380,14 +380,14 @@ final class Chores {
 
 	/**
 	 * A bow to make (the plan for fighting, step 2: a bow against phantoms and skeletons on posts): while
-	 * he guards, none with him or in a chest, three string with him and in his chests, and three sticks or the wood for them.
+	 * guarding, none carried or in a chest, three string carried and in the chests, and three sticks or the wood for them.
 	 */
 	static boolean bowToMake(LocalPlayer p) {
 		return table != null && Guard.on() && !hasBow(p) && !Stash.chestHasTool("bow")
 			&& count(p, "string") + Stash.inChests("string") >= 3;
 	}
 
-	/** Arrows to make: while he guards and has or makes a bow, fewer than {@link #ARROWS_WANTED}, a flint and a feather. */
+	/** Arrows to make: while guarding, with a bow at hand or to be made, fewer than {@link #ARROWS_WANTED}, a flint and a feather. */
 	static boolean arrowsToMake(LocalPlayer p) {
 		return table != null && Guard.on() && (hasBow(p) || Stash.chestHasTool("bow") || bowToMake(p)) && arrows(p) < ARROWS_WANTED
 			&& count(p, "flint") + Stash.inChests("flint") >= 1 && count(p, "feather") + Stash.inChests("feather") >= 1;
@@ -408,7 +408,7 @@ final class Chores {
 			return plan(mc, p, now);
 		}
 		// out of the base (a /tpahere, a teleport home): the chore stays there. A shearing round went on with whatever sheep
-		// stood by him at the other end (the review of 22 Oct 2026)
+		// stood by the buddy at the other end (the review of 22 Oct 2026)
 		if (!inBase(p)) { done("no longer in the base"); return false; }
 		// a switch turned off on the panel ends its round at once
 		if ((kind == Kind.SHEAR && !AfkConfig.get().baseShear) || (kind == Kind.HERD && !herds())) { done("switched off"); return false; }
@@ -425,7 +425,7 @@ final class Chores {
 		// to the table or the composter's inlet
 		Vec3 eye = p.getEyePosition();
 		Vec3 point = Work.aimPoint(level, p, eye, at);
-		if (point != null && eye.distanceTo(point) > Work.REACH) point = null;   // the reach his spot was chosen with (Work.standCell)
+		if (point != null && eye.distanceTo(point) > Work.REACH) point = null;   // the reach the spot was chosen with (Work.standCell)
 		switch (step) {
 			case WALK -> {
 				if (point != null) { Follow.stand(); step = OPEN; stepSince = now; clicks = 0; clickedAt = -1; return true; }
@@ -447,8 +447,8 @@ final class Chores {
 	}
 
 	/**
-	 * Herding strays back in (Herd): its switch, and only through the pens' gates (basePenGates). With the gates shut to
-	 * him nothing gets out that way, and he leaves the pens' animals be.
+	 * Herding strays back in (Herd): its switch, and only through the pens' gates (basePenGates). With the gates closed to
+	 * the buddy nothing gets out that way, and the pens' animals are left be.
 	 */
 	private static boolean herds() { return AfkConfig.get().baseHerd && AfkConfig.get().basePenGates; }
 
@@ -467,9 +467,9 @@ final class Chores {
 				if (reach) return start(Kind.COMPOST_HAND, s, composter, now);
 			}
 		}
-		// a tool first, so that compacting does not turn the ingots for it into blocks: sticks and planks in his own grid, then the table
+		// a tool first, so that compacting does not turn the ingots for it into blocks: sticks and planks in the inventory's own grid, then the table
 		boolean tableOk = table != null && !skipBlock.containsKey(table);
-		// iron that is in blocks: one made into nine ingots in his own grid
+		// iron that is in blocks: one made into nine ingots in that grid
 		int need = ironNeed(p);
 		if (need > 0 && count(p, "iron_ingot") < need && count(p, "iron_block") >= 1) return startGrid(Kind.UNPACK, now);
 		ToolPlan plan = toolPlan(p);
@@ -508,7 +508,7 @@ final class Chores {
 			if (count(p, "gold_ingot") < 8 && count(p, "gold_block") >= 1) return startGrid(Kind.UNPACK_GOLD, now);
 			if (count(p, "gold_ingot") >= 8 && count(p, "apple") >= 1 && tableOk) return start(Kind.GAPPLE, "golden_apple", table, now);
 		}
-		// full chests: what he carries into blocks
+		// full chests: what the buddy carries into blocks
 		if (tableOk) for (var e : NINE.entrySet()) if (count(p, e.getKey()) >= 9 && tight(p, e.getKey()) && spare(p, e.getKey()) >= 9) return start(Kind.COMPACT, e.getKey(), table, now);
 		// sheep with wool: shears first, made from two iron ingots if there are none and enough iron stays over
 		Sheep s = AfkConfig.get().baseShear ? woolly(p) : null;
@@ -527,14 +527,14 @@ final class Chores {
 		kind = k; what = w; at = target; step = WALK; stepSince = now; stand = null; clickedAt = -1; clicks = 0;
 		shorn = 0; collecting = false; wool = null; woolStand = null; gaveUpWool.clear();
 		queue.clear();
-		// with what he has of the iron or gold it uses, with him and in his chests: what keepIron and keepGold are checked against
+		// with what there is of the iron or gold it uses, carried and in the chests: what keepIron and keepGold are checked against
 		LocalPlayer me = AfkHelperClient.mc().player;
 		int stock = me == null ? -1 : k == Kind.GAPPLE ? gold(me) : k == Kind.SHIELD || k == Kind.ARMOUR || (k == Kind.TOOL && "iron_ingot".equals(material)) ? iron(me) : -1;
 		Exchange.emit("chore", "action", "starts", "what", k.name().toLowerCase(), "item", w, "material", k == Kind.TOOL || k == Kind.ARMOUR ? material : "", "stock", stock);
 		return true;
 	}
 
-	/** A recipe in his own 2x2 grid: no table and no screen, real clicks on the inventory menu. */
+	/** A recipe in the inventory's own 2x2 grid: no table and no screen, real clicks on the inventory menu. */
 	private static boolean startGrid(Kind k, long now) {
 		kind = k; what = k.name().toLowerCase(); step = ACT; stepSince = now; nextClick = now;
 		queue.clear();
@@ -562,7 +562,7 @@ final class Chores {
 		queue.add(() -> Game.click(mc.gameMode, menu, from, 0, false, p));
 	}
 
-	/** One item into each of these cells, from as many of his stacks of it as it takes. */
+	/** One item into each of these cells, from as many stacks of it as it takes. */
 	private static void spread(Minecraft mc, LocalPlayer p, int menu, java.util.function.IntUnaryOperator inv, Predicate<ItemStack> what, int[] cells) {
 		int c = 0;
 		for (int i = 0; i < 36 && c < cells.length; i++) {
@@ -669,7 +669,7 @@ final class Chores {
 			spread(mc, p, menu, inv, st -> st.is(Items.STRING), new int[] { 3, 6, 9 });
 			queue.add(() -> Game.quickMove(mc.gameMode, menu, 0, p));
 		} else if (kind == Kind.ARROWS) {
-			// flint over a stick over a feather, as many at once as make the arrows he lacks (eight at most)
+			// flint over a stick over a feather, as many at once as make the arrows lacking (eight at most)
 			int sets = Math.min(8, Math.min(count(p, "flint"), Math.min(count(p, "feather"), count(p, "stick"))));
 			sets = Math.min(sets, Math.max(1, (ARROWS_WANTED - arrows(p) + 3) / 4));
 			if (sets < 1) return;
@@ -690,7 +690,7 @@ final class Chores {
 			placeOne(mc, p, menu, inv.applyAsInt(apple), 5);
 			queue.add(() -> Game.quickMove(mc.gameMode, menu, 0, p));
 		}
-		// whatever stayed in the grid back into his inventory
+		// whatever stayed in the grid back into the inventory
 		queue.add(() -> { for (int g = 1; g <= 9; g++) if (!m.slots.get(g).getItem().isEmpty()) Game.quickMove(mc.gameMode, menu, g, p); });
 	}
 
@@ -701,8 +701,8 @@ final class Chores {
 		int lvl = st.getValue(ComposterBlock.LEVEL);
 		if (count(p, what) <= 64 && lvl < 8) { done("done"); return false; }
 		if (lvl == 7) return true;   // it turns to bone meal by itself in a moment
-		// the seed he has too much of in hand, and only that: with wheat seeds in hand he composted those whatever was over,
-		// also below the stack his fields need (the review of 22 Oct 2026)
+		// the seed there is too much of in hand, and only that: with wheat seeds in hand those were composted whatever was over,
+		// also below the stack the fields need (the review of 22 Oct 2026)
 		if (lvl < 8 && !AfkHelperClient.itemId(p.getMainHandItem()).equals(what)) {
 			AfkHelperClient.toHotbar(p, mc, s -> AfkHelperClient.itemId(s).equals(what), Comparator.comparingInt(ItemStack::getCount), "seeds");
 			for (int i = 0; i < 9; i++) if (AfkHelperClient.itemId(p.getInventory().getItem(i)).equals(what)) { p.getInventory().setSelectedSlot(i); break; }
@@ -719,8 +719,8 @@ final class Chores {
 	// ---------- shearing ----------
 
 	/**
-	 * A round in the pen: every sheep with wool he can get to is shorn first, one after the other, and then all the wool
-	 * is picked up (until then he sheared one, went for its wool, gave up, and carried it to a chest before the next). The round is
+	 * A round in the pen: every sheep with wool that can be got to is shorn first, one after the other, and then all the wool
+	 * is picked up (until then the buddy sheared one, went for its wool, gave up, and carried it to a chest before the next). The round is
 	 * one chore, so
 	 * no chest visit comes in between. The clock of the chore runs per sheep and per piece of wool.
 	 */
@@ -750,22 +750,22 @@ final class Chores {
 			return true;
 		}
 		// to a cell from where it is in reach, not to where it stands: the walk took the post of the pen's fence beside it for
-		// a place to stand, and he stood 45 s at the edge of the pit by the pen (22 Oct 2026)
+		// a place to stand, and the buddy stood 45 s at the edge of the pit by the pen (22 Oct 2026)
 		if (sheepStand == null || sheep.position().distanceTo(sheepAt) > 1.0) { sheepStand = shearCell(p.level(), p, sheep); sheepAt = sheep.position(); }
 		if (sheepStand == null) { skipSheep.put(sheep.getId(), now + 300_000); nextSheep(p, now); return true; }
 		if (!Work.approach(mc, p, sheepStand, Vec3.atBottomCenterOf(sheepStand), now)) { Work.badStand(sheepStand); sheepStand = null; }
 		return true;
 	}
 
-	/** Nothing but air between his eye and the sheep: the click hits the sheep, not the fence between. */
+	/** Nothing but air between the buddy's eye and the sheep: the click hits the sheep, not the fence between. */
 	private static boolean sheepClear(Level level, Vec3 eye, Vec3 at) {
 		return level.clip(new net.minecraft.world.level.ClipContext(eye, at, net.minecraft.world.level.ClipContext.Block.OUTLINE,
 			net.minecraft.world.level.ClipContext.Fluid.NONE, AfkHelperClient.mc().player)).getType() == HitResult.Type.MISS;
 	}
 
 	/**
-	 * A cell to shear this sheep from: the sheep within reach of his eye there and nothing in between, never on a fence,
-	 * wall or gate; the nearest to him. Outside the pen over its fence, or inside through its gate: the walk decides.
+	 * A cell to shear this sheep from: the sheep within reach of the eye there and nothing in between, never on a fence,
+	 * wall or gate; the nearest to the buddy. Outside the pen over its fence, or inside through its gate: the walk decides.
 	 */
 	private static BlockPos shearCell(Level level, LocalPlayer p, Sheep s) {
 		Vec3 aim = s.position().add(0, s.getBbHeight() * 0.6, 0);
@@ -787,7 +787,7 @@ final class Chores {
 	/**
 	 * Standing in this cell is standing on a fence, a wall or a gate, or in a gate or a doorway ({@link Work#inDoorway}): no
 	 * place to walk to, and a jump does not get onto a post. The post is the block under the cell: it stands half a block into the cell above it, so the feet
-	 * are in the cell (the first version looked at the block at the feet, the air, and he jumped at the pen's posts four
+	 * are in the cell (the first version looked at the block at the feet, the air, and the buddy jumped at the pen's posts four
 	 * times on the test server).
 	 */
 	private static boolean onPost(Level level, BlockPos c, double feet) {
@@ -799,7 +799,7 @@ final class Chores {
 		return false;
 	}
 
-	/** The next sheep with wool, or, when there is none he can get to, the wool. */
+	/** The next sheep with wool, or, when there is none to get to, the wool. */
 	private static void nextSheep(LocalPlayer p, long now) {
 		sheep = count(p, "shears") > 0 ? woolly(p) : null;
 		sheepStand = null;
@@ -813,7 +813,7 @@ final class Chores {
 		Exchange.emit("chore", "action", "picking up wool", "sheep", shorn);
 	}
 
-	/** After the shearing: each piece of wool, from a cell where the game hands it to him. */
+	/** After the shearing: each piece of wool, from a cell where the game hands it over. */
 	private static boolean collectWool(Minecraft mc, LocalPlayer p, long now) {
 		Level level = p.level();
 		if (wool != null && (!wool.isAlive() || now - stepSince > 20_000)) {
@@ -834,9 +834,9 @@ final class Chores {
 			woolNearSince = 0;
 			woolStand = null;
 		}
-		// On the ground he walks into it, as into a drop of the dig-along; on a post, to the cell beside it nearest to it.
+		// On the ground the buddy walks into it, as into a drop of the dig-along; on a post, to the cell beside it nearest to it.
 		// Not standing still at the edge of the game's reach: there the client and the server disagree and a sheep pushes
-		// him out of it, and he stood waiting for no reason.
+		// the buddy out of it, which left a wait for no reason.
 		BlockPos lies = wool.blockPosition();
 		boolean ground = !onPost(level, lies, 0) && !Double.isNaN(Follow.floor(level, lies));
 		if (!ground && woolStand == null) {
@@ -845,14 +845,14 @@ final class Chores {
 		}
 		Vec3 goal = ground ? wool.position() : Vec3.atBottomCenterOf(woolStand);
 		// within a step and a half and still not picked up in three seconds (a fence between, full, or the server sees it
-		// elsewhere): the next piece, where he would stand "close enough" until the chore's clock ran out
+		// elsewhere): the next piece, where the buddy would stand "close enough" until the chore's clock ran out
 		if (Math.hypot(goal.x - p.getX(), goal.z - p.getZ()) < 1.6) {
 			if (woolNearSince == 0) woolNearSince = now;
 			else if (now - woolNearSince > 3000) { gaveUpWool.add(wool.getId()); wool = null; return true; }
 		} else woolNearSince = 0;
 		if (!Work.approach(mc, p, ground ? (Object) ("wool-" + wool.getId()) : woolStand, goal, now)) {
 			if (ground) { gaveUpWool.add(wool.getId()); wool = null; return true; }
-			// that cell gets him nowhere: another one beside the wool, else the wool is left
+			// that cell gets nowhere: another one beside the wool, else the wool is left
 			Work.badStand(woolStand);
 			woolStand = pickupCell(level, p, wool);
 			if (woolStand == null) { gaveUpWool.add(wool.getId()); wool = null; }
@@ -861,8 +861,8 @@ final class Chores {
 	}
 
 	/**
-	 * A cell to stand in where the game picks this item up (its box within his, one block wider all round and half a
-	 * block higher and lower), the one nearest to the item, then to him, so that it lies well within his reach and not at
+	 * A cell to stand in where the game picks this item up (its box within the buddy's, one block wider all round and half a
+	 * block higher and lower), the one nearest to the item, then to the buddy, so that it lies well within reach and not at
 	 * its edge; never on top of a fence, wall or gate. Wool that lay on the posts of
 	 * the pen was walked to as it lay, and the jump onto a post went beside it into the pit by the pen, a heart of fall
 	 * damage (22 Oct 2026).
@@ -888,14 +888,14 @@ final class Chores {
 	static void startTick(Minecraft mc) {
 		LocalPlayer p = mc.player;
 		if (p == null || mc.gameMode == null || step == IDLE || p.isShiftKeyDown()) return;
-		// a bite comes first: the shears taken into his hand took the food out of it, and starving at food 0 by the pen he
+		// a bite comes first: the shears taken into the hand took the food out of it, and starving at food 0 by the pen the buddy
 		// tried twice and ate nothing for forty seconds (the scenarios of 23 Oct 2026)
 		if (AfkHelperClient.isEating()) { clickEntity = false; clickBlock = null; return; }
 		if (clickEntity && kind == Kind.SHEAR && sheep != null) {
 			clickEntity = false;
 			if (clickedAt >= 0) return;
 			if (!p.getMainHandItem().is(Items.SHEARS)) {
-				// the shears in his hotbar first: fetched from the backpack each time he held something else, six pairs filled
+				// the shears in the hotbar first: fetched from the backpack each time something else was held, six pairs filled
 				// the hotbar and no food could come into it (the scenarios of 23 Oct 2026)
 				int at = -1;
 				for (int i = 0; i < 9 && at < 0; i++) if (p.getInventory().getItem(i).is(Items.SHEARS)) at = i;
@@ -922,7 +922,7 @@ final class Chores {
 
 	/**
 	 * The table and the composter, looked for again every 30 s. Stash comes before the chores in Work's chain and asks
-	 * what to keep the moment he is in the base, so they have to be known then: seeds stored before the first look
+	 * what to keep the moment the buddy is in the base, so they have to be known then: seeds stored before the first look
 	 * never reached the composter.
 	 */
 	private static void ensureScan(LocalPlayer p) {
@@ -932,7 +932,7 @@ final class Chores {
 		scan(p.level(), p);
 	}
 
-	/** The crafting table and the composter nearest to him, within reach and in the base. */
+	/** The crafting table and the composter nearest to the buddy, within reach and in the base. */
 	private static void scan(Level level, LocalPlayer p) {
 		BlockPos me = p.blockPosition();
 		BlockPos t = null, c = null;
@@ -957,11 +957,11 @@ final class Chores {
 		return level.getBlockEntity(above) instanceof Container && !(level.getBlockEntity(above) instanceof HopperBlockEntity) ? above : h;
 	}
 
-	/** A sheep of the base with wool, grown, within reach: the nearest, not one he could not get to lately. */
+	/** A sheep of the base with wool, grown, within reach: the nearest, not one that could not be got to lately. */
 	/**
-	 * The nearest sheep with wool in the base. In the whole base, not within {@link #REACH} of him: on a real server he stands by
-	 * his bed, 21 blocks from the sheep pen, and in a quarter of an hour with shearing on and seventeen sheep in wool he
-	 * never sheared (23 Oct 2026); on the test server the scripts had set him down by the pen.
+	 * The nearest sheep with wool in the base. In the whole base, not within {@link #REACH}: on a real server the buddy stands by
+	 * the bed, 21 blocks from the sheep pen, and in a quarter of an hour with shearing on and seventeen sheep in wool not
+	 * one was shorn (23 Oct 2026); on the test server the scripts had set the buddy down by the pen.
 	 */
 	private static Sheep woolly(LocalPlayer p) {
 		Sheep best = null;
@@ -1004,6 +1004,6 @@ final class Chores {
 
 	static void stop(String why) { if (step != IDLE) done(why); }
 
-	/** He no longer keeps a base (a teleport, a /tpahere): a chore under way is left, unless he is still in the base. */
+	/** No base kept any more (a teleport, a /tpahere): a chore under way is left, unless the buddy is still in the base. */
 	static void leftBase(LocalPlayer p) { if (step != IDLE && !inBase(p)) done("no longer in the base"); }
 }

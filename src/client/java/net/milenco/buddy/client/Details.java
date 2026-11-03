@@ -39,14 +39,14 @@ import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.milenco.buddy.version.Game;
 
 /**
- * What the alt has and is, for the web panel: typing commands, reading the buddy's chat and typing for them, throwing
+ * What the alt has and is, for the web panel: typing commands, reading the buddy's chat and typing in it, throwing
  * things out of the inventory, and seeing the enchantments on items and armour and the effects the buddy has. While
  * the panel asks for it
  * ({@code {"cmd":"state"}}, every few seconds while it is open) the alt writes {@code state.json} in the exchange folder
  * once a second when it changed: every slot with its name, count, durability and enchantments (in the game's own
- * words, in his game's language), the armour and the off hand, his effects, health, food, experience and where he is.
- * {@code {"cmd":"drop","slot":n}} throws the stack of that slot (0 to 35 the inventory, 36 to 39 boots to helmet, 40 the
- * off hand) where he looks.
+ * words, in the language of the buddy's game), the armour and the off hand, the buddy's effects, health, food,
+ * experience and place. {@code {"cmd":"drop","slot":n}} throws the stack of that slot (0 to 35 the inventory, 36 to 39
+ * boots to helmet, 40 the off hand) where the buddy looks.
  */
 final class Details {
 	private Details() {}
@@ -73,8 +73,8 @@ final class Details {
 	}
 
 	/**
-	 * The panel's hands in his inventory: moving items, throwing them out or selecting a hotbar slot, the way the game
-	 * does it rather than with separate buttons. Every click on the page is one real click in his inventory screen, as
+	 * The panel's hands in the buddy's inventory: moving items, throwing them out or selecting a hotbar slot, the way the
+	 * game does it rather than with separate buttons. Every click on the page is one real click in the inventory screen, as
 	 * the game makes it: {@code invclick}
 	 * with {@code slot} (the panel's numbers, -999 outside the window), {@code button} and {@code mode}: pickup (left 0
 	 * takes or puts the stack, right 1 half or one), quick (shift), swap (button = hotbar slot 0-8, or 40 the off hand),
@@ -83,7 +83,7 @@ final class Details {
 	 * {@code slot} 0-8 takes that hotbar slot in hand. With another menu open (a chest, a server menu such as /shards) a
 	 * click carries {@code menu}, that menu's id, and {@code slot} is the menu's own number (the page has it from
 	 * {@code menu} in state.json); without it the click is refused then. The jobs wait meanwhile (a lease of three
-	 * seconds on his inventory, renewed by every click).
+	 * seconds on the inventory, renewed by every click).
 	 */
 	private static void inventory(String cmd, JsonObject o, Minecraft mc) {
 		LocalPlayer p = mc.player;
@@ -142,7 +142,7 @@ final class Details {
 		return switch (i) { case 36 -> 8; case 37 -> 7; case 38 -> 6; case 39 -> 5; case 40 -> 45; case 41 -> 1; case 42 -> 2; case 43 -> 3; case 44 -> 4; case 45 -> 0; default -> -1; };
 	}
 
-	/** Not in a world: state.json says so, for the panel's button to bring him back. */
+	/** Not in a world: state.json says so, for the panel's button to bring the buddy back. */
 	static void offline() {
 		wantedUntil = System.currentTimeMillis() + 30_000;
 		Map<String, Object> out = new LinkedHashMap<>();
@@ -165,7 +165,7 @@ final class Details {
 		MiniMap.tick(mc, now <= wantedUntil);
 		MapMemory.tick(mc);
 		if (p == null || now > wantedUntil || now < nextWrite) return;
-		// four times a second while he is played or a Take control window watches him (a chest he opens shows live there)
+		// four times a second while the buddy is played or watched by a Take control window (an opened chest shows live there)
 		nextWrite = now + (Steer.active() || World3d.watched() ? 250 : 1000);
 		Map<String, Object> s = new LinkedHashMap<>();
 		List<Object> slots = new ArrayList<>();
@@ -210,7 +210,7 @@ final class Details {
 		s.put("air", p.getAirSupply());
 		s.put("max_air", p.getMaxAirSupply());
 		if (p.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)) s.put("underwater", true);
-		// what he holds the button for now (eating, a drawn bow, a raised shield), for the panel's view of him
+		// what the button is held for now (eating, a drawn bow, a raised shield), for the panel's view of the buddy
 		s.put("using", p.isUsingItem() ? net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(p.getUseItem().getItem()).getPath() : null);
 		s.put("using_ticks", p.isUsingItem() ? p.getTicksUsingItem() : 0);
 		s.put("blocking", p.isBlocking());
@@ -227,8 +227,8 @@ final class Details {
 		// the scoreboard at the right of the screen, for the 3D view, as the game shows it
 		Map<String, Object> side = sidebar(mc, p);
 		if (side != null) s.put("sidebar", side);
-		// his skin and what he wears, for the figure in the panel's inventory and beside his name; the same fields the 3D
-		// view's figures carry
+		// the buddy's skin and what is worn, for the figure in the panel's inventory and beside the name; the same fields
+		// the 3D view's figures carry
 		Map<String, Object> me = new java.util.LinkedHashMap<>();
 		World3d.skin(p, me);
 		World3d.gear(p, me);
@@ -248,7 +248,7 @@ final class Details {
 		s.put("x", p.getBlockX()); s.put("y", p.getBlockY()); s.put("z", p.getBlockZ());
 		s.put("yaw", Math.round(Mth.wrapDegrees(p.getYRot()))); s.put("pitch", Math.round(p.getXRot()));
 		s.put("steered", Steer.active());
-		// what the crosshair is on, for whoever steers him from the panel without a picture
+		// what the crosshair is on, for whoever steers the buddy from the panel without a picture
 		if (mc.hitResult instanceof BlockHitResult bh && bh.getType() == HitResult.Type.BLOCK) {
 			Map<String, Object> k = new LinkedHashMap<>();
 			k.put("block", BuiltInRegistries.BLOCK.getKey(p.level().getBlockState(bh.getBlockPos()).getBlock()).getPath());
@@ -264,7 +264,7 @@ final class Details {
 		s.put("profile", Profiles.key());
 		s.put("follows", Follow.target() == null ? "" : Follow.target());
 		s.put("base", Base.keeper() == null ? "" : Base.keeper());
-		// the pen he farms, for the panel's follow card (0.4.80)
+		// the pen being farmed, for the panel's follow card (0.4.80)
 		Map<String, Object> pen = Pen.details(p);
 		if (pen != null) s.put("pen", pen);
 		// the order it fetches, or how the last one ended
@@ -281,15 +281,15 @@ final class Details {
 			Files.writeString(tmp, GSON.toJson(out), StandardCharsets.UTF_8);
 			Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "state.json: " + e.getMessage());
+			Exchange.emit("error", "msg", "state for the panel not saved: " + e.getMessage());
 		}
 	}
 
 	/**
 	 * The menu open in the game, for the panel to draw and click in (a chest menu a server opens, such as a shop): its
 	 * id (a click names it, so that a click meant for a closed menu lands nowhere), kind, title with its colours, and the
-	 * slots above his own 36, each as the server made it. His own 36 the panel takes from {@code slots}: the bottom of
-	 * every menu is his inventory, 9 to 35 and then the hotbar.
+	 * slots above the buddy's own 36, each as the server made it. Those 36 the panel takes from {@code slots}: the bottom
+	 * of every menu is the buddy's inventory, 9 to 35 and then the hotbar.
 	 */
 	private static Map<String, Object> menu(Minecraft mc, LocalPlayer p) {
 		AbstractContainerMenu m = p.containerMenu;
@@ -315,7 +315,7 @@ final class Details {
 		List<Object> slots = new ArrayList<>();
 		for (int i = 0; i < top; i++) { ItemStack st = m.slots.get(i).getItem(); if (!st.isEmpty()) slots.add(item(i, st, true)); }
 		o.put("slots", slots);
-		// where each slot stands on the game's screen (its own and his 36 below), so that the panel can draw the screen
+		// where each slot stands on the game's screen (its own and the buddy's 36 below), so that the panel can draw the screen
 		// as the game does; and what the screen shows besides its slots (MenuExtra)
 		List<int[]> pos = new ArrayList<>();
 		for (var sl : m.slots) pos.add(new int[] { sl.x, sl.y });
@@ -326,7 +326,7 @@ final class Details {
 
 	/**
 	 * The scoreboard the game draws at the right of the screen, as {@code Hud.displayScoreboardSidebar} builds it: the
-	 * objective of his team's colour if there is one, else the sidebar's; its title, and at most fifteen lines, highest
+	 * objective of the buddy's team's colour if there is one, else the sidebar's; its title, and at most fifteen lines, highest
 	 * score first and then by name, each with its name as the team writes it and its score in the objective's format
 	 * (red by default, blank or a fixed text when the server says so). Null when the game draws none.
 	 */
@@ -360,11 +360,11 @@ final class Details {
 	/** An item as the panel draws it, outside a slot (a villager's trade, a stonecutter's choice). */
 	static Map<String, Object> itemOf(ItemStack st) { return item(-1, st, true); }
 
-	/** Write his state again at once (a menu's button changed what it shows). */
+	/** Write the state again at once (a menu's button changed what it shows). */
 	private static volatile Component actionBarText;
 	private static volatile long actionBarAt;
 
-	/** The game shows a line above his hotbar: kept for the panel's view for three seconds, as the game fades it. */
+	/** The game shows a line above the hotbar: kept for the panel's view for three seconds, as the game fades it. */
 	static void actionBar(net.minecraft.network.chat.Component msg) {
 		actionBarText = msg;
 		actionBarAt = System.currentTimeMillis();

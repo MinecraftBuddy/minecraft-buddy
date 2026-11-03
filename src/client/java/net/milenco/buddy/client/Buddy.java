@@ -11,14 +11,14 @@ import net.minecraft.client.player.LocalPlayer;
 public final class Buddy {
 	private Buddy() {}
 
-	/** The dimension he is in, as "namespace:path", or "" without a world. */
+	/** The dimension the buddy is in, as "namespace:path", or "" without a world. */
 	public static String dimension() {
 		LocalPlayer p = AfkHelperClient.mc().player;
 		return p == null ? "" : p.level().dimension().identifier().toString();
 	}
 
 	/**
-	 * This module's settings in the profile of the server he is on, or null when that profile does not name the module:
+	 * This module's settings in the profile of the server the buddy is on, or null when that profile does not name the module:
 	 * then the module is off here.
 	 */
 	public static JsonObject settings(String moduleId) {
@@ -38,8 +38,8 @@ public final class Buddy {
 	public static void emit(String type, Object... kv) { Exchange.emit(type, kv); }
 
 	/**
-	 * Walks him to a block in a dimension, jumping where he has to (the goto): outside that dimension he waits up to ten
-	 * minutes, a teleport into it sets him going, and once he leaves it again the walk ends and he follows as before.
+	 * Walks the buddy to a block in a dimension, jumping where needed (the goto): outside that dimension the walk waits up to
+	 * ten minutes, a teleport into it sets it going, and once the buddy leaves it again the walk ends and the following goes on as before.
 	 */
 	public static void walkTo(String dim, int x, int y, int z) {
 		JsonObject o = new JsonObject();
@@ -51,12 +51,12 @@ public final class Buddy {
 	}
 
 	/**
-	 * Another player in his world: where the server last put him (not where the client draws him, which trails the
-	 * server's positions by the interpolation's ticks), whether he stood on the ground, sprinted, and where he looked.
+	 * Another player in the buddy's world: where the server last put that player (not where the client draws the player,
+	 * which trails the server's positions by the interpolation's ticks), whether on the ground, sprinting, and where looking.
 	 */
 	public record Other(String name, double x, double y, double z, boolean ground, boolean sprinting, float yaw) {}
 
-	/** The other players in his world within this many blocks of him. */
+	/** The other players in the buddy's world within this many blocks of the buddy. */
 	public static java.util.List<Other> others(double within) {
 		var mc = AfkHelperClient.mc();
 		LocalPlayer me = mc.player;
@@ -71,7 +71,7 @@ public final class Buddy {
 		return out;
 	}
 
-	/** Himself, as {@link Other}: his own position, which is the one he sends the server. */
+	/** The buddy, as {@link Other}: the buddy's own position, which is the one sent to the server. */
 	public static Other self() {
 		LocalPlayer me = AfkHelperClient.mc().player;
 		if (me == null) return null;

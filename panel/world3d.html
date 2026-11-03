@@ -31,21 +31,24 @@
 <canvas id="view"></canvas>
 <div class="bar">
   <div class="card"><h1 id="title">The buddy in 3D</h1></div>
-  <button id="orbit" class="on" title="Turn around them with the mouse, zoom with the wheel">Around them</button>
-  <button id="eyes" title="Where they stand, looking where they look">Their eyes</button>
-  <button id="fly" title="Click in the view, then W A S D, Space and Shift; Esc releases the mouse">Fly</button>
-  <button id="refresh" title="A new copy of the world around them">Refresh</button>
+  <button id="orbit" class="on" data-nm title="Drag to turn around the buddy, scroll to zoom">Around the buddy</button>
+  <button id="eyes" data-nm title="The buddy's own view">The buddy's eyes</button>
+  <button id="fly" title="Click the view, then W A S D, Space and Shift; Esc releases the mouse">Fly</button>
+  <button id="refresh" data-nm title="A new copy of the world around the buddy">Refresh</button>
   <a href="/" style="margin-left:auto"><button>Panel</button></a>
 </div>
-<div id="help" class="card">Click in the view to look around with the mouse. <b>W A S D</b> to move, <b>space</b> up, <b>shift</b> down, <b>ctrl</b> faster. <b>Esc</b> lets the mouse go.</div>
+<div id="help" class="card">Click the view to look around with the mouse. <b>W A S D</b> move, <b>Space</b> up, <b>Shift</b> down, <b>Ctrl</b> faster. <b>Esc</b> lets the mouse go.</div>
 <div id="cross"></div>
 <div id="hover" class="card"></div>
 <div id="status" class="card">Starting…</div>
 <script type="module">
   import { start3d } from '/3d/world3d.js';
-  // the buddy's own name in the title
+  // the buddy's own name in the title, and in the buttons' texts (data-nm) where they say "the buddy"
   fetch('/api/state', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(s => {
-    if (s && s.name) { document.title = s.name + ' in 3D'; document.getElementById('title').textContent = s.name + ' in 3D'; }
+    if (!s || !s.name) return;
+    document.title = s.name + ' in 3D'; document.getElementById('title').textContent = s.name + ' in 3D';
+    const fill = t => t.replace(/[Tt]he buddy/g, s.name);
+    for (const e of document.querySelectorAll('[data-nm]')) { e.textContent = fill(e.textContent); if (e.title) e.title = fill(e.title); }
   }).catch(() => {});
   start3d({ canvas: document.getElementById('view'), ids: { status: 'status', hover: 'hover', help: 'help', cross: 'cross', orbit: 'orbit', eyes: 'eyes', fly: 'fly', refresh: 'refresh' } });
 </script>

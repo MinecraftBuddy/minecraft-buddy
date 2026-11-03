@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * A mob took a blow: the server's damage event, with who dealt it and how (0.4.80). The pen's gesture is read from it
- * (Pen): the player he follows punches a monster in a mob farm with his bare hand. Only plain values are copied there,
+ * (Pen): the followed player punches a monster in a mob farm with a bare hand. Only plain values are copied there,
  * for the next tick; the event itself is the game's as ever.
  */
 @Mixin(LivingEntity.class)

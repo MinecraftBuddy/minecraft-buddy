@@ -20,13 +20,13 @@ public class MouseTurn {
 
 	/**
 	 * With a dead zone of its own: a click on a chest with an item frame on it has a strip of a sixteenth to hit, about
-	 * half a degree at three blocks, so there he aims to a pixel (22 Oct 2026). The target does not move, so no stutter.
+	 * half a degree at three blocks, so there the aim goes to a pixel (22 Oct 2026). The target does not move, so no stutter.
 	 */
 	public static boolean toward(LocalPlayer p, float yaw, float pitch, float dead) {
 		double e = perPixel(), deg = e * 0.15;
 		float dy = Mth.wrapDegrees(yaw - p.getYRot()), dp = Mth.clamp(pitch, -90f, 90f) - p.getXRot();
 		/*
-		 * Dead zone of half a degree. Without it he stuttered while planting: the target got a fresh
+		 * Dead zone of half a degree. Without it the buddy stuttered while planting: the target got a fresh
 		 * half-degree noise every tick, and at a normal sensitivity that is already a few mouse pixels
 		 * back and forth, twenty times per second (26 Sep).
 		 */

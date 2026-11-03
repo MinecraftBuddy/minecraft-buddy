@@ -74,7 +74,7 @@ class FuseTest {
 
 	@Test
 	void aCreeperThatDroppedDownAShaftIsCountedAsTheServerCountsIt() {
-		// walking the spawning floor for two seconds, twenty blocks down, then four ticks before it sees him and swells
+		// walking the spawning floor for two seconds, twenty blocks down, then four ticks before it sees the buddy and swells
 		Drop d = new Drop(40, 80, 60, 30);
 		Server s = new Server();
 		Fuse.Count n = new Fuse.Count();
@@ -158,7 +158,7 @@ class FuseTest {
 
 	@Test
 	void theOldCountWouldHaveStruckAJustLandedCreeper() {
-		// the review's drop farm: twenty blocks, at one heart, it sees him two ticks after it landed. Its fall's damage
+		// the review's drop farm: twenty blocks, at one heart, it sees the buddy two ticks after it landed. Its fall's damage
 		// event set the cooldown on the client too (handleDamageEvent: 20), which runs down a tick at a time
 		Drop d = new Drop(40, 80, 60, 30);
 		Server s = new Server();
@@ -171,7 +171,7 @@ class FuseTest {
 			n.tick(d.ground[t], false, d.y[t], dir, client);
 		}
 		int cooldown = 20 - (swellFrom - d.landing);
-		// turned to it already, a full blow not needed, the reaction, the cooldown, his ping of two ticks, the margin
+		// turned to it already, a full blow not needed, the reaction, the cooldown, a ping of two ticks, the margin
 		int sum = Fuse.sum(6, 0, 5, Fuse.cooldownWait(cooldown), 0, 2, 3);
 		assertEquals(Fuse.FUSE - s.swell, Fuse.fuse(client, n.est), "the server's fuse");
 		assertFalse(Fuse.strike(false, 0, false, false, sum, Fuse.fuse(client, n.est), false, 3), "it goes off first: away from it");
@@ -199,16 +199,16 @@ class FuseTest {
 		assertTrue(Fuse.strike(true, 6, false, false, Fuse.sum(0, 0, 0, 0, 6, 2, 3), 14, true, 3));
 		// a new one waits for no hitch at all
 		assertFalse(Fuse.strike(false, 6, false, false, Fuse.sum(0, 0, 0, 0, 6, 2, 3), 14, false, 3));
-		// a mob in the line early on, while getting away still clears him: waited for while it fits and is not late
+		// a mob in the line early on, while getting away still clears the buddy: waited for while it fits and is not late
 		assertTrue(Fuse.strike(true, 0, true, false, Fuse.sum(0, 0, 0, 0, 2, 2, 3), 25, false, 3));
-		// ... and given up as getting away stops clearing him, while that is still in time
+		// ... and given up as getting away stops clearing the buddy, while that is still in time
 		assertFalse(Fuse.strike(true, 0, true, false, Fuse.sum(0, 0, 0, 0, 2, 2, 3), 22, true, 3));
 		// a mob in the line once it was late already: kept while it fits but for the margin
 		assertTrue(Fuse.strike(true, 0, true, true, Fuse.sum(0, 0, 0, 0, 2, 2, 3), 7, true, 3));
 		assertFalse(Fuse.strike(true, 0, true, true, Fuse.sum(0, 0, 0, 0, 2, 2, 3), 5, true, 3));
-		// late, no hitch, the sum over the fuse by less than the margin: the walk off gets him nowhere clear, kept
+		// late, no hitch, the sum over the fuse by less than the margin: the walk off leads nowhere clear, kept
 		assertTrue(Fuse.strike(true, 0, false, false, 12, 10, true, 3));
-		// not late: away from it while that still clears him
+		// not late: away from it while that still clears the buddy
 		assertFalse(Fuse.strike(true, 0, false, false, 12, 10, false, 3));
 	}
 
@@ -217,13 +217,13 @@ class FuseTest {
 		int grace = Pen.URGENT_GRACE;
 		// the creeper out of the client's own sight for a tick, or a second one swelling: its plan still fits
 		assertTrue(Fuse.keeps(true, true, false, true, false, 0, grace), "alone");
-		assertTrue(Fuse.keeps(true, true, true, false, true, 0, grace), "a second one swells and the walk off clears him of nothing");
-		assertFalse(Fuse.keeps(true, true, false, false, false, 0, grace), "a second one swells and the walk off clears him of both");
+		assertTrue(Fuse.keeps(true, true, true, false, true, 0, grace), "a second one swells and the walk off clears the buddy of nothing");
+		assertFalse(Fuse.keeps(true, true, false, false, false, 0, grace), "a second one swells and the walk off clears the buddy of both");
 		assertFalse(Fuse.keeps(true, false, true, true, true, 0, grace), "no longer in time: the strike says so");
 		// no plan for a moment (a bystander in a sword's sweep): held while late, for the grace
 		assertTrue(Fuse.keeps(false, false, false, true, true, grace, grace));
 		assertFalse(Fuse.keeps(false, false, false, true, true, grace + 1, grace), "the grace over");
-		assertFalse(Fuse.keeps(false, false, false, true, false, 1, grace), "not late: away from it while that clears him");
+		assertFalse(Fuse.keeps(false, false, false, true, false, 1, grace), "not late: away from it while that clears the buddy");
 		assertFalse(Fuse.keeps(false, false, false, false, true, 1, grace), "and not beside a second one");
 	}
 
@@ -232,7 +232,7 @@ class FuseTest {
 		assertEquals(0, Fuse.walkOut(6.5, 6));
 		assertEquals(Fuse.WALK_START + 18, Fuse.walkOut(2.5, 6));
 		// upright beside the fence of a pit too (the test of 22 Oct 2026): from 2.5 off a creeper in it, a walk off at once
-		// clears him within its fuse, where with the first block crouched it never did, and every strike there was late
+		// clears the walker within its fuse, where with the first block crouched it never did, and every strike there was late
 		assertTrue(Fuse.walkOut(2.5, 6) < Fuse.FUSE);
 	}
 

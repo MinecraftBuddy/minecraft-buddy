@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * In which order the builder places, the way players go about a build. Placing strictly the lowest layer by what
- * was nearest walled him out of corners and rooms he still had to fill. Five rules now work together:
+ * was nearest walled the builder out of corners and rooms still to fill. Five rules now work together:
  * <ol>
  *   <li>Never shut yourself out: a block that seals another remaining block off from open space, or takes away
  *       the last spot from where it can be reached, waits ({@link #closesOff}).</li>

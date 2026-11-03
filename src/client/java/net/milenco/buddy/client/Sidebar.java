@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 /**
  * The server's sidebar as label and value ("Ruby" -> "20K", "Shards" -> "41"), in the order the server shows it,
  * written to the event {@code scorebord} whenever it changes. What the alt has in money, shards and claim blocks
- * could otherwise only be seen by logging in as him; the Telegram bridge shows it in its status.
+ * could otherwise only be seen by logging in as the alt; the Telegram bridge shows it in its status.
  */
 final class Sidebar {
 	private Sidebar() {}

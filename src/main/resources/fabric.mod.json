@@ -3,7 +3,7 @@
 	"id": "minecraft-buddy",
 	"version": "${version}",
 	"name": "Minecraft Buddy",
-	"description": "A buddy in the game: a second account that follows you, guards you, works along with you and keeps your base. He runs without a screen, steered from a web panel or Telegram.",
+	"description": "A second Minecraft account that plays alongside you: follows you, guards you, works with you and tends your base. Runs without a screen, steered from a web panel or Telegram.",
 	"authors": [
 		"Minecraft Buddy contributors"
 	],

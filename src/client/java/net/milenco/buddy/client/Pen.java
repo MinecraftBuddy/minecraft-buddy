@@ -91,27 +91,26 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 /**
  * Farming mobs at a pen of a mob farm (0.4.80, "farm mobs" in the chain of {@link Follow#tick}): the player the buddy
  * follows punches a mob with a bare hand, the buddy then kills the mobs in that pen and waits for new ones when there
- * are none for a while; two crouches end it, and the buddy goes idle (in a base it keeps the base).
+ * are none for a while; two crouches end it, and the buddy goes idle (in a base, back to keeping the base).
  * <ul>
- * <li><b>The gesture</b>: the player he follows punches a monster with his bare hand, near him. The server's damage
+ * <li><b>The gesture</b>: the followed player punches a monster with a bare hand, near the buddy. The server's damage
  * event says who hit what and how (DamageEventMixin); a hand that still holds nothing three ticks later is no slot
  * switched in the same server tick. Where the mob stands is a pen when {@link PenShape} finds a closed space of at most
- * 3 by 3 with two points of evidence and a place to hit it from: a nod, and he goes. A closed space that is no farm, or
- * one he cannot hit from anywhere: a shake. Open ground: nothing, and the punch is an ordinary blow that {@link Guard}
+ * 3 by 3 with two points of evidence and a place to hit it from: a nod, and the buddy goes. A closed space that is no farm, or
+ * one that cannot be hit from anywhere: a shake. Open ground: nothing, and the punch is an ordinary blow that {@link Guard}
  * helps with.</li>
- * <li><b>The farm</b>: he walks to a spot round the pen (the planner, never over the pen: {@link Follow#fence}), leans
+ * <li><b>The farm</b>: the buddy walks to a spot round the pen (the planner, never over the pen: {@link Follow#fence}), leans
  * in, crouched on an edge, and kills what comes in, at a human pace and only with the crosshair on the mob; with a
- * sword and someone else in the reach of its sweep he takes an axe of his hotbar, which does not sweep, or holds off.
- * He walks round now and then, and to another side for a mob he cannot reach. Empty, he waits and looks.</li>
+ * sword and someone else in the reach of its sweep, an axe of the hotbar takes its place, which does not sweep, or the blow
+ * waits. Now and then a walk round, and to another side for a mob out of reach. Empty, the buddy waits and looks.</li>
  * <li><b>The end</b>: two quick crouches of that player within six blocks ({@link Follow}'s sign, without looking at
- * him): he steps back to where the pen's mobs do not see
- * him and waits there; in a base the base keeps him busy. A tap, a mode, a job, a stop of the following end it as
- * well, and he follows again.</li>
- * <li><b>Danger</b>: low after a blow, a swelling creeper (the pen's he strikes when his blow lands in time, any other
- * he gets away from), a spear, no food; and where he stays after it, cover from a foe the fight leaves be.</li>
+ * the buddy): a step back out of the sight of the pen's mobs, and a wait there; in a base the base keeps the buddy busy.
+ * A tap, a mode, a job, a stop of the following end it as well, and following resumes.</li>
+ * <li><b>Danger</b>: low after a blow, a swelling creeper (the pen's struck when the blow lands in time, any other
+ * fled), a spear, no food; and during a stay after it, cover from a foe the fight leaves be.</li>
  * </ul>
  * It is no {@link Jobs.Job}: a job that is on pauses the whole chain, and staying alive, the fight, the corpse guard,
- * the taps and the answers have to go on while he stands at a pit.
+ * the taps and the answers have to go on while the buddy stands at a pit.
  */
 final class Pen {
 	private Pen() {}
@@ -129,13 +128,13 @@ final class Pen {
 	static final float RETREAT_HP = 10, RESUME_HP = 16;
 	static final long RETREAT_MAX = 60_000, RETREAT_WINDOW = 600_000, DAMAGE_RECENT = 5000;
 	static final int RETREATS = 3;
-	/** Backing off and still hit after this long, or hit again on the way at this health or less: he gives up and goes. */
+	/** Backing off and still hit after this long, or hit again on the way at this health or less: give up and go. */
 	static final long RETREAT_HIT = 10_000;
 	static final float RETREAT_LOW = 6;
 	/**
-	 * A creeper swells at its target within three and goes on within seven while it sees him (SwellGoal), and goes off
+	 * A creeper swells at its target within three and goes on within seven while it sees the target (SwellGoal), and goes off
 	 * when its fuse of 30 ticks is full (Creeper.maxSwell); its blast reaches twice its radius of three, twice that when
-	 * charged. A creeper he could not strike within this of a spot (its swell's three and one more) makes it no spot to
+	 * charged. A creeper that could not be struck within this of a spot (its swell's three and one more) makes it no spot to
 	 * go back to; it was 3.5 until the third review of 22 Oct 2026.
 	 */
 	static final double CREEPER_SWELL = 4;
@@ -145,8 +144,8 @@ final class Pen {
 	/** A hitch of unknown length under a strike (a mob in the line, nothing of it in reach): counted as this many ticks a look. */
 	static final int UNSEEN_HITCH = 2;
 	/**
-	 * The creepers whose swell is counted (Fuse.Count) round him: sideways, and up a drop of seventeen, which is what a
-	 * landing's count needs to be full, over a floor four under him.
+	 * The creepers whose swell is counted (Fuse.Count) round the buddy: sideways, and up a drop of seventeen, which is what a
+	 * landing's count needs to be full, over a floor four below.
 	 */
 	static final double COUNT_SIDE = 16, COUNT_UP = 24, COUNT_DOWN = 8;
 	/** Away from a swelling creeper at least this long; waiting there longer, or driven off by one creeper this often within it: too dangerous. */
@@ -155,15 +154,15 @@ final class Pen {
 	/** Where to get away from a swelling creeper: a cell within this, past its blast and a half or out of its sight. */
 	static final int CREEPER_RANGE = 8;
 	/**
-	 * Cover where he stays: a cell out of sight within this (by the walk there); hit there after the grace once he got
-	 * there, it is seen after all; he holds it this long from when he first got there.
+	 * Cover during a stay: a cell out of sight within this (by the walk there); hit there after the grace from the arrival,
+	 * it is seen after all; it is held this long from the first arrival there.
 	 */
 	static final int COVER_RANGE = 10;
 	static final long COVER_GRACE = 1500, COVER_FORGET = 30_000;
 	/**
-	 * Cells he tries in one bout of cover before there is none (a walk that did not get there, a cell seen after all);
+	 * Cells tried in one bout of cover before there is none (a walk that did not get there, a cell seen after all);
 	 * covers from one foe within COVER_REPEAT that tell that a base keeper is shot at again and again; how far from the
-	 * cell a hit still counts as there (an arrow's knockback), and how far off it a push takes him back to it; how far
+	 * cell a hit still counts as there (an arrow's knockback), and how far off it a push takes the buddy back to it; how far
 	 * off other foes the fight leaves be count as ones to hide from.
 	 */
 	static final int COVER_TRIES = 3, COVER_REPEATS = 3;
@@ -180,7 +179,7 @@ final class Pen {
 	 * A player or a pet beside the mob: the sweep's reach is widened by this sideways (anything else by SWEEP_MARGIN),
 	 * as the client draws them a few ticks late and they are the ones a blow must never push over the pit; up and down
 	 * by as much only while one is off the ground (a jump, a step off a ledge, a ladder), and by a hair
-	 * (SWEEP_MARGIN_GROUND) while it stands, as a foot on the ground does not sink. With 0.3 for one that stands he took
+	 * (SWEEP_MARGIN_GROUND) while it stands, as a foot on the ground does not sink. With 0.3 for one that stands the buddy took
 	 * the axe for the owner on the rim of a pit two deep on hoppers, out of the sweep's reach (the test of 22 Oct 2026).
 	 */
 	static final double SWEEP_MARGIN_MOVER = 1.0, SWEEP_MARGIN = 0.3, SWEEP_MARGIN_GROUND = 0.05;
@@ -199,7 +198,7 @@ final class Pen {
 	private static final int OFF = 0, RESUMING = 1, GOING = 2, LEAN_IN = 3, FARMING = 4, SWITCHING = 5, RETREAT = 6, NIGHT = 7, BACKOFF_STATE = 8;
 	private static final String[] PHASE = { "off", "resuming", "going", "leaning", "farming", "switching", "retreat", "night", "backoff" };
 
-	/** Stops that come of what happens to him, not of what someone says: "geeft op". */
+	/** Stops that come of what happens to the buddy, not of what someone says: "geeft op". */
 	private static final Set<String> GIVES_UP = Set.of("dead", "teleported", "another dimension", "away from the pen", "fell into the pen",
 		"pen gone", "cannot reach it", "too dangerous", "no food", "is seated");
 
@@ -237,7 +236,7 @@ final class Pen {
 		 * farm does not take (never), and either down in the pen in the farm's own band (F + 1.2, a spider on the wall up
 		 * to h + 1, as huntable), on the ground or knocked up, or over it on its way down the shaft: one that cannot fly,
 		 * falling. One that stands on the rim with its box over the edge, or a phantom or a vex over the pen in the open
-		 * band where he stands, is none: the farm never hits it, so it stays Guard's, and its blows on him are answered.
+		 * band where the buddy stands, is none: the farm never hits it, so it stays Guard's, and its blows are answered.
 		 */
 		boolean holds(AABB b, boolean onGround, boolean spider, boolean never, boolean flier, double dy) {
 			if (never || !column((b.minX + b.maxX) / 2, (b.minZ + b.maxZ) / 2) || b.minY < floor() - 1 || b.minY > top) return false;
@@ -261,12 +260,12 @@ final class Pen {
 	private static Hok hok;
 	private static int state = OFF;
 	private static long stateSince;
-	/** Since when the chain is in its own pause while the pen holds him (held), or 0: watch ends a pen held too long. */
+	/** Since when the chain is in its own pause while the pen holds the buddy (held), or 0: watch ends a pen held too long. */
 	private static long heldSince;
 	private static PenShape.Spot spot;
 	private static String goWhy = "to a spot";
 	private static long goSince, goLimit;
-	/** When he began to eat on a walk to a spot, 0 when he does not: the walk's time stands still meanwhile. */
+	/** When eating began on a walk to a spot, 0 when not eating: the walk's time stands still meanwhile. */
 	private static long eatFrom;
 	private static final Map<BlockPos, Long> badSpot = new HashMap<>();
 	private static int leanTicks, leanStill;
@@ -277,9 +276,9 @@ final class Pen {
 	private static final Random R = new Random();
 	private static final PenShape.Pace pace = new PenShape.Pace();
 	private static long nextHit, lastHitSeen;
-	// with a sword and someone beside the mob: the axe he took for it (Guard.arm leaves it in his hand), when he takes it
-	// (a moment's reaction after he saw him), when someone was last seen in the sweep's reach, how long that has to be
-	// clear before the sword comes back, and whether his holding off for want of an axe was said
+	// with a sword and someone beside the mob: the axe taken for it (Guard.arm leaves it in hand), when it is taken
+	// (a moment's reaction after the sighting), when someone was last seen in the sweep's reach, how long that has to be
+	// clear before the sword comes back, and whether the holding off for want of an axe was said
 	private static boolean axeHeld, heldOffTold;
 	private static long axeAt, bystanderAt, axeBack;
 	private static int hits, killed, hitsTotal, killedTotal;
@@ -293,57 +292,57 @@ final class Pen {
 	private static long unreachableSince, inReachAt, nextRound, lastSwitch;
 	private static int threatId = -1;
 	private static long threatAt;
-	// damage to him (any drop of his health) and a blow (one with an attacker, damageTick); the damage event last seen
-	// on him, and the newest one since his health last dropped
+	// damage to the buddy (any drop of health) and a blow (one with an attacker, damageTick); the damage event last
+	// taken, and the newest one since the health last dropped
 	private static long lastDamageAt, lastBlowAt;
 	private static float lastHealth = -1;
 	private static DamageSource lastSource, freshSource;
-	// a swelling creeper: the one of the pen he strikes (from when his blow may go out, a moment's reaction after he
-	// saw it; the look under way that turns to it), or the one he gets away from (the cell, since and until when, whether
-	// his waiting for the spot to clear was said), and when which creepers drove him off lately
+	// a swelling creeper: the one of the pen to strike (from when the blow may go out, a moment's reaction after it was
+	// seen; the look under way that turns to it), or the one to get away from (the cell, since and until when, whether
+	// the waiting for the spot to clear was said), and when which creepers drove the buddy off lately
 	private static Creeper urgent;
 	private static long urgentAt;
 	private static int urgentTurn = -1;
 	// the strike begun, kept through a moment it is out of near (kept, strikeOn): the tick its swell was last seen (the
-	// server's direction), the tick its blow last went ahead, and whether a walk off cleared him of nothing by then
+	// server's direction), the tick its blow last went ahead, and whether a walk off cleared the buddy of nothing by then
 	private static int urgentSwellTick, urgentPlanTick;
 	private static boolean urgentLate;
 	private static int evadeId = -1;
 	private static BlockPos evadeCell;
-	// that cell: his feet there, whether it is a fallback (seen by design: Getaway.pick)
+	// that cell: the feet there, whether it is a fallback (seen by design: Getaway.pick)
 	private static double evadeFeet;
 	private static boolean evadeFallback;
 	private static long evadeSince, evadeUntil;
 	private static boolean evadeWaitTold;
 	private static final Map<Integer, ArrayDeque<Long>> evades = new HashMap<>();
-	// the swell of the creepers about him as the server counts it, as the most it can be (Fuse.Count), every tick while
-	// the pen holds him (watch)
+	// the swell of the creepers about the buddy as the server counts it, as the most it can be (Fuse.Count), every tick while
+	// the pen holds the buddy (watch)
 	private static final Map<Integer, Fuse.Count> counts = new HashMap<>();
 	// the urgent one struck: whose death is waited for (no second blow at it, no getting away from it for swelling on)
 	// and until when; the blow of Guard's last looked at
 	private static int struckId = -1;
 	private static long struckUntil, creeperHitSeen;
 	// a hitch of unknown length under a strike (a line not clear, nothing of it in reach), and whether it began only once
-	// a walk out of its blast could no longer clear him
+	// a walk out of its blast could no longer get clear
 	private static boolean unseenHitch, unseenLate;
 	/** The tick creeperTick last ran in (the creeper step of the chain, or Pen.tick's own): once a tick. */
 	private static int creeperRanAt = -1000;
-	/** The last tick in which a creeper swelled at him, or a strike or a walk away from one was under way. */
+	/** The last tick in which a creeper swelled at the buddy, or a strike or a walk away from one was under way. */
 	private static int dangerAt = -1000;
 	/**
-	 * The last tick a creeper swelled within its reach of him, seen or not (anySwelling, the server's swell direction),
+	 * The last tick a creeper swelled within its reach of the buddy, seen or not (anySwelling, the server's swell direction),
 	 * or a strike at one was under way.
 	 */
 	private static int swellAt = -1000;
-	// getting away: the creepers it is for (whether each stopped swelling at him since), the cells given up, when the walk
-	// to its cell began (Follow.ticks), whether he stood at it, too dangerous once he is clear of them (the need), and
+	// getting away: the creepers it is for (whether each stopped swelling at the buddy since), the cells given up, when the walk
+	// to its cell began (Follow.ticks), whether the buddy stood at it, too dangerous once clear of them (the need), and
 	// whether one of them was no creeper of the pen
 	private static final Map<Integer, Boolean> evadeFor = new HashMap<>();
 	private static final Set<BlockPos> evadeTried = new HashSet<>();
 	private static int evadePlanTick;
 	private static boolean evadeAtCell, evadeOutside;
 	private static String evadeDanger;
-	// the walk to the cell: when a fallback was last looked past (replan), when he first got to this cell (kept over
+	// the walk to the cell: when a fallback was last looked past (replan), when this cell was first reached (kept over
 	// a knock off it), the cells its walk keeps out of (Follow.shun), and whether the last creeper step gave the tick to
 	// a fight (yieldAt: the tick it did)
 	private static int evadeLookTick;
@@ -353,14 +352,14 @@ final class Pen {
 	private static int yieldAt = -1000;
 	private static final ArrayDeque<Long> retreats = new ArrayDeque<>();
 	// the cell to back off to, worked out from the pen's start: out of the sight of its columns (hidden), or only the
-	// farthest one within ten; when he got there in a retreat
+	// farthest one within ten; when it was reached in a retreat
 	private static BlockPos retreatCell;
 	private static boolean retreatHidden;
 	private static RetreatSearch retreatSearch;
 	private static boolean retreatSearched;
 	private static String retreatWhy = "";
 	private static long retreatSince, retreatUntil, retreatArrived;
-	/** A bout began over a gap (overGap): its pick when he lands (evadeTick). */
+	/** A bout began over a gap (overGap): its pick on landing (evadeTick). */
 	private static boolean evadePickDue;
 	/**
 	 * The tick a walk to a spot was last set up in (go, goTo: a switch for a spear too), and the one "terug naar hok" was
@@ -368,7 +367,7 @@ final class Pen {
 	 */
 	private static long wentTick = -1, backToldTick = -1;
 	// this retreat's own: another cell where a creeper stood by its cell (retreatTo, looked for by retreatAround) or
-	// where he got to (retreatStays); a cell away from the pen while no cell is known (retreatAway, looked for once); the
+	// the place reached (retreatStays); a cell away from the pen while no cell is known (retreatAway, looked for once); the
 	// goal it last walked to, whose change begins the walk anew
 	private static BlockPos retreatTo, retreatAway, retreatGoal;
 	private static boolean retreatStays, retreatAwayLooked;
@@ -379,25 +378,25 @@ final class Pen {
 	private static int blockHash, recheckFails;
 	private static PenShape.Search research;
 	private static long nightSince;
-	/** The walk to the retreat cell for the night did not come off: he waits where he is. */
+	/** The walk to the retreat cell for the night did not come off: the buddy waits in place. */
 	private static boolean nightStays;
 	private static BlockPos backoffCell;
 	private static long backoffSince, backoffLimit, backoffSeen;
-	/** The stay that comes once he is at the cell the step back goes to (too dangerous), or null: none, or set already. */
+	/** The stay that comes once the buddy is at the cell the step back goes to (too dangerous), or null: none, or set already. */
 	private static String backoffStay;
 	/**
-	 * Where he stood in the last tick of the step back and which tick that was, and the dimension it began in: a teleport
+	 * Where the buddy stood in the last tick of the step back and which tick that was, and the dimension it began in: a teleport
 	 * or another dimension ends it (watch), a walk off it does not. The dimension is its own, as the pen of a moment ago
 	 * (tail) lapses.
 	 */
 	private static Vec3 backoffPos;
 	private static int backoffPosTick;
 	private static String backoffDim;
-	// cover where he stays, from foes the fight leaves be: the foe a bout began for, the search under way and why it
-	// looks (the reason of no cover when it finds none), the cell and his feet there, since and until when he walks
-	// there, when he got there (the grace) and since when he holds it (its half minute, from his first arrival there),
-	// whether he holds it this tick and whether that first arrival is still to come, when cover was last asked for, the
-	// damage event it answered last, the cells that let him down this bout and how many he tried, the covers per foe lately
+	// cover during a stay, from foes the fight leaves be: the foe a bout began for, the search under way and why it
+	// looks (the reason of no cover when it finds none), the cell and the feet there, since and until when the walk goes
+	// there, the arrival there (the grace) and since when it is held (its half minute, from the first arrival there),
+	// whether it is held this tick and whether that first arrival is still to come, when cover was last asked for, the
+	// damage event it answered last, the cells that failed this bout and how many were tried, the covers per foe lately
 	private static int coverFoe = -1;
 	private static CoverShape.Search coverSearch;
 	private static String coverWhy = "";
@@ -413,7 +412,7 @@ final class Pen {
 	private static String resumeBy = "restart";
 	private static long ownerAwaySince;
 	private static boolean waitSpotTold;
-	// the fall into the pen: its columns, kept until he has been out of them five seconds
+	// the fall into the pen: its columns, kept until the buddy has been out of them five seconds
 	private static Set<Long> fellCols;
 	private static long fellOutSince;
 	// the pen of a moment ago: its fence and the caution near it stay a while after it stopped
@@ -423,7 +422,7 @@ final class Pen {
 	/** Farming: walking to the pen, at it, or waiting there through the night. */
 	static boolean on() { return state >= GOING && state <= NIGHT; }
 
-	/** The pen holds his hands: also while it comes back after a restart and while he steps back after the end. */
+	/** The pen keeps the buddy busy: also while it comes back after a restart and during the step back after the end. */
 	static boolean busy() { return state != OFF; }
 
 	static int hits() { return hitsTotal; }
@@ -463,7 +462,7 @@ final class Pen {
 		}
 	}
 
-	/** A mob died (DeathEventMixin): counted as a kill when he hit it within the last three seconds. */
+	/** A mob died (DeathEventMixin): counted as a kill when the buddy hit it within the last three seconds. */
 	static void mobDied(int id) {
 		deaths.add(id);
 		while (deaths.size() > 200) deaths.poll();
@@ -515,9 +514,9 @@ final class Pen {
 	private static long lastIgnored;
 
 	/**
-	 * Guard leaves a mob of the pen alone: the one just punched while it is recognised, and every mob in the pen he farms
-	 * or dropping down its shaft (Hok.holds); one on the rim is not the pen's. No mob of the pen he farms once he stands
-	 * in one of its columns himself: knocked in, he is defended down there in that very tick.
+	 * Guard leaves a mob of the pen alone: the one just punched while it is recognised, and every mob in the pen being
+	 * farmed or dropping down its shaft (Hok.holds); one on the rim is not the pen's. No mob of the pen being farmed once
+	 * the buddy stands in one of its columns: knocked in, Guard defends down there in that very tick.
 	 */
 	static boolean claims(Entity e) {
 		if (e == null) return false;
@@ -537,15 +536,15 @@ final class Pen {
 		return e != null && pending != null && pending.falling && pending.blow != null && e.getId() == pending.blow.id();
 	}
 
-	/** A mob of the pen hit him or the player he follows: it goes first. */
+	/** A mob of the pen hit the buddy or the followed player: it goes first. */
 	static void threat(Entity e) {
 		threatId = e.getId();
 		threatAt = System.currentTimeMillis();
 	}
 
 	/**
-	 * Every tick while he follows (Follow.tick), also while he is dead and while the chain is held before the farm step
-	 * (a fight, AFK mode, another job, a menu): the kills, his death, the fall into the pen (also the one of a moment
+	 * Every tick while following (Follow.tick), also while dead and while the chain is held before the farm step
+	 * (a fight, AFK mode, another job, a menu): the kills, the buddy's death, the fall into the pen (also the one of a moment
 	 * ago) and its fence, a pen held in the chain's own pause for a while, the step back ended by a teleport or another
 	 * dimension and given up for cover, the punches, the recognition under way.
 	 */
@@ -560,7 +559,7 @@ final class Pen {
 		hitMobs.values().removeIf(at -> now - at > 30_000);
 		victims.values().removeIf(at -> now - at > DEDUPE);
 		// dead: the pen ends there and is written off, so that it never comes back after a death (the owner's choice).
-		// Follow.tick pauses before the farm step while he is dead, so the pen's own guard never saw it
+		// Follow.tick pauses before the farm step while the buddy is dead, so the pen's own guard never saw it
 		if (!p.isAlive()) {
 			if (state == RESUMING) { setState(OFF, now); notBack("dead"); }   // no pen yet to write off: its entry
 			if (busy() || pending != null) stop("dead", false);
@@ -568,19 +567,19 @@ final class Pen {
 			return;
 		}
 		if (hok != null && Work.dimOf(p.level()).equals(hok.dim)) {
-			// every tick, not in the farm step, which a fight holds back: knocked into the pen he stops at once (the fence
-			// goes, so that he may dig or pillar out, and Guard defends him down there), and the fence never lapses
+			// every tick, not in the farm step, which a fight holds back: knocked into the pen, the pen stops at once (the fence
+			// goes, so that digging or pillaring out is possible, and Guard defends down there), and the fence never lapses
 			if (fellInto(hok, p)) {
 				fellCols = new HashSet<>(hok.cols);
 				stop("fell into the pen", false);
-				Needs.want("pen_stuck", "{me} fell into the mob farm and cannot get out by themselves.");
+				Needs.want("pen_stuck", "{me} fell into the mob farm and cannot get out without help.");
 				fellOutSince = 0;
 			} else Follow.fence(hok.fence, now + 2000);
 		} else if (hok == null && tail != null && now < tailUntil && Work.dimOf(p.level()).equals(tail.dim) && fellInto(tail, p)) fellInTail(p);
 		// the chain held in its own pause (AFK mode, the mod not allowed here, another job): the farm step never comes, and
 		// a pen on without its tick would hold AFK mode's own moves off and refuse !farm, so after STALL it ends, as an off
 		// with that cause. A fight, the corpse guard, a menu, a walk of the unloader or the panel only pause it: after them
-		// it goes on, and back to his spot within the leash (after the fall test, so that a fall in a hold is told as one)
+		// it goes on, and back to the spot within the leash (after the fall test, so that a fall in a hold is told as one)
 		String why = busy() ? held() : null;
 		if (why == null) heldSince = 0;
 		else if (heldSince == 0) heldSince = now;
@@ -589,24 +588,24 @@ final class Pen {
 			if (state == RESUMING) { setState(OFF, now); notBack(why); }
 			else stop(why, false);
 		}
-		// stepping back after the end: a teleport (an accepted /tpahere) or another dimension takes him off it, also under
+		// stepping back after the end: a teleport (an accepted /tpahere) or another dimension ends it, also under
 		// a fight or a creeper's getaway, which only hold it up (backoffWatch)
 		if (state == BACKOFF_STATE) backoffWatch(p, tick, now);
 		// stepping back after the end, told to stay, and hit by a foe the fight leaves be: the step back ends, and taking
-		// cover (cover, the chain's next step for one who stays) gets him out of its sight instead
+		// cover (cover, the chain's next step during a stay) gets the buddy out of its sight instead
 		if (state == BACKOFF_STATE && Follow.staying() && Guard.leftBeHit(now) != null) endBackoff();
 		Blow b;
 		while ((b = blows.poll()) != null) consider(p, owner, b, now, tick);
 		if (pending != null) pendingTick(mc, p, owner, now, tick);
 		fellTick(p, now);
-		// the swell of the creepers about him as the server counts it, every tick while the pen holds him, also while the
+		// the swell of the creepers about the buddy as the server counts it, every tick while the pen is busy, also while the
 		// chain is held: a landing is seen only as it happens
 		if (busy()) countSwell(p, tick);
 		else if (!counts.isEmpty()) counts.clear();
 	}
 
 	/**
-	 * The creepers about him counted as the server counts their swell (Fuse.Count): what a landing adds only the server
+	 * The creepers about the buddy counted as the server counts their swell (Fuse.Count): what a landing adds only the server
 	 * counts, and a drop farm's creeper lands at 25 of its 30, where the client's own count began at 0 (the third review
 	 * of 22 Oct 2026). Its height as the server last sent it, its standing as the server's packets say.
 	 */
@@ -630,11 +629,11 @@ final class Pen {
 	}
 
 	/**
-	 * His feet in a column of this pen, down at that column's floor: from a block under it (the band Hok.box and claims
+	 * The feet in a column of this pen, down at that column's floor: from a block under it (the band Hok.box and claims
 	 * take, F - 1) up to the mob's height over it. Without the lower bound a walk on a floor of the base under the pen's
 	 * columns, below its fence, was a fall into the pen: the need, the fence down and the stay lifted, also for the running
 	 * pen, which then ended (the third review of 22 Oct 2026). A real fall passes that band: the flood refuses holes, and in
-	 * a hopper's bowl his feet are a third of a block under its rim.
+	 * a hopper's bowl the feet are a third of a block under its rim.
 	 */
 	private static boolean fellInto(Hok h, LocalPlayer p) {
 		Double floor = h.flood.floorOf().get(PenShape.key(Mth.floor(p.getX()), Mth.floor(p.getZ())));
@@ -642,10 +641,10 @@ final class Pen {
 	}
 
 	/**
-	 * Knocked into the pen of a moment ago (while he steps back from it, waits by it, or walks off after a stop): as a
-	 * fall into the pen he farms. The step back ends, the fence and its caution go at once (so that he may dig or pillar
-	 * out, or Unstuck get him loose), the need is raised, and a stay is lifted, so that the walker tries to get him out
-	 * rather than keep him at the floor of the kill chamber.
+	 * Knocked into the pen of a moment ago (during the step back from it, a wait by it, or a walk off after a stop): as a
+	 * fall into the pen being farmed. The step back ends, the fence and its caution go at once (so that digging or
+	 * pillaring out is possible, or Unstuck can get the buddy loose), the need is raised, and a stay is lifted, so that the
+	 * walker tries a way out rather than staying at the floor of the kill chamber.
 	 */
 	private static void fellInTail(LocalPlayer p) {
 		Hok h = tail;
@@ -655,7 +654,7 @@ final class Pen {
 		Follow.unfence();
 		tail = null;
 		tailUntil = 0;
-		Needs.want("pen_stuck", "{me} fell into the mob farm and cannot get out by themselves.");
+		Needs.want("pen_stuck", "{me} fell into the mob farm and cannot get out without help.");
 		Exchange.emit("pen", "action", "fell into the pen", "x", p.getBlockX(), "y", p.getBlockY(), "z", p.getBlockZ());
 		Follow.unstay("fell into the pen");
 	}
@@ -664,16 +663,16 @@ final class Pen {
 		if (now - b.at() > EVENT_OLD) return;
 		String target = Follow.target();
 		if (target == null || b.causeName() == null || !b.causeName().equalsIgnoreCase(target)) return;
-		// his own fist: no arrow, no mace smash, no spear, nothing in his hand
+		// the owner's own fist: no arrow, no mace smash, no spear, nothing in the hand
 		if (b.causeId() != b.directId() || !b.playerAttack() || !b.causeHandEmpty()) return;
 		if (!b.enemy() || b.named() || b.tamed() || b.excluded()) return;
-		// a mob of the pen he farms or looks at: several punches kill a mob, so a punch there is no new gesture (by the
+		// a mob of the pen being farmed or looked at: several punches kill a mob, so a punch there is no new gesture (by the
 		// test of claims: one on the rim, or one flying over the pen, is a punch like any other)
 		if (hok != null && hok.holds(b.box(), b.onGround(), b.spider(), b.never(), b.flier(), b.dy())) return;
 		if (pending != null && pending.flood != null && pendingMeets(b.box())) return;
 		Long before = victims.put(b.id(), now);
 		if (before != null && now - before < DEDUPE) return;
-		// where it stands first: open ground is no gesture at all, so nothing is said of it, whatever he is doing, and the
+		// where it stands first: open ground is no gesture at all, so nothing is said of it, whatever the buddy is doing, and the
 		// punch is a blow like any other that Guard helps with this very tick
 		Level level = p.level();
 		LevelWorld w = new LevelWorld(level);
@@ -685,7 +684,7 @@ final class Pen {
 		if (falling && (level.getEntity(b.id()) == null || !PenShape.inShaft(w, m))) return;
 		PenShape.Flood f = falling ? null : PenShape.flood(w, m, F);
 		if (f != null && !f.closed()) return;
-		// Grinder's farm does not hold the gesture back (the start ends it: his newest instruction wins), nor a pour of
+		// Grinder's farm does not hold the gesture back (the start ends it: the owner's newest instruction wins), nor a pour of
 		// the water bucket, which ends by itself well within the time a recognition takes
 		String held = held(Jobs.Job.MOB_FARM, Jobs.Job.WATER);
 		String no = !AfkConfig.get().followMobFarm ? "switched off"
@@ -699,7 +698,7 @@ final class Pen {
 		Pending pd = new Pending();
 		pd.blow = b; pd.mob = m; pd.world = w; pd.mobId = b.type(); pd.eventTick = tick; pd.owner = target;
 		if (falling) {
-			// dropping down a shaft: wait for it to land, holding it from Guard meanwhile (a fight would walk him into it)
+			// dropping down a shaft: wait for it to land, holding it from Guard meanwhile (a fight would walk the buddy into it)
 			pd.falling = true;
 			pd.fallUntil = tick + FALL_WAIT;
 			replacePending(pd);
@@ -744,11 +743,11 @@ final class Pen {
 			"x", Mth.floor((b.box().minX + b.box().maxX) / 2), "y", Mth.floor(b.box().minY), "z", Mth.floor((b.box().minZ + b.box().maxZ) / 2));
 	}
 
-	/** The checks of a recognition in their order: the landing, the hand, where they stand, his own state, the evidence, the spots. */
+	/** The checks of a recognition in their order: the landing, the hand, where they stand, the buddy's own state, the evidence, the spots. */
 	private static void pendingTick(Minecraft mc, LocalPlayer p, Player owner, long now, int tick) {
 		Pending pd = pending;
 		Level level = p.level();
-		// the hand still empty three ticks on: the damage event comes at once, a change of what he holds with his own next
+		// the hand still empty three ticks on: the damage event comes at once, a change of what the owner holds with the owner's next
 		// tick, so a sword taken out in the server tick of the punch shows only now. Read at that tick also while the mob
 		// still falls, and kept: a sword taken out after it is no answer to the punch
 		if (!pd.handChecked && !pd.test && !pd.probe && tick >= pd.eventTick + HAND_CONFIRM) {
@@ -771,7 +770,7 @@ final class Pen {
 		}
 		if (!pd.handChecked && !pd.test && !pd.probe) return;
 		// a hand that was not empty: told once it is known to be a closed space (a mob that fell is held from Guard until
-		// then, so that the fight does not walk him into the shaft)
+		// then, so that the fight does not walk the buddy into the shaft)
 		if (pd.handFull) {
 			Exchange.emit("pen", "action", "gesture ignored", "reason", "hand not empty", "mob", pd.mobId);
 			release(pd);
@@ -814,11 +813,12 @@ final class Pen {
 	}
 
 	/**
-	 * A closed space that is no pen he can farm: a shake, and the mob is fought as ever. Not while Grinder's farm holds
+	 * A closed space that is no pen the buddy can farm: a shake, and the mob is fought as ever. Not while Grinder's farm holds
 	 * the chain (the gesture is not refused for it, as a pen's start ends it): the shake and the help would wait behind
-	 * its pause and come long after the punch, so only the line in his chat says why.
+	 * its pause and come long after the punch, so only the line in chat says why.
 	 */
 	private static void refuse(Pending pd, String why, LocalPlayer p) {
+		why = Needs.named(why);
 		pending = null;
 		PenShape.Flood f = pd.flood;
 		Exchange.emit("pen", "action", "no pen here", "reason", why, "size", f == null ? "" : f.size(), "mob", pd.mobId,
@@ -936,7 +936,7 @@ final class Pen {
 		hits = 0; killed = 0; started = now;
 		badSpot.clear(); retreats.clear(); research = null; recheckFails = 0;
 		// where to go when it gets dangerous is worked on from the start, a little each tick: a retreat on the way to the
-		// first spot, the night, too dangerous all want it, and without it he only backed off straight from the pen
+		// first spot, the night, too dangerous all want it, and without it the buddy only backed off straight from the pen
 		retreatCell = null; retreatHidden = false; retreatSearched = false; retreatSearch = null;
 		Level level = AfkHelperClient.mc().level;
 		if (level != null) { retreatSearch = new RetreatSearch(level, h); retreatSearched = true; }
@@ -976,7 +976,7 @@ final class Pen {
 	/**
 	 * Off; with {@code backoff} (the sign, the panel's off, the player away) to the cell the retreat's search found:
 	 * the one no column of the pen sees, or with none the farthest it found within ten. Two blocks back the pen's mobs
-	 * still see him, and the fight leaves them be there; the plain step back of two blocks only while that search is not
+	 * still see the buddy, and the fight leaves them be there; the plain step back of two blocks only while that search is not
 	 * done yet.
 	 */
 	static void stop(String why, boolean backoff) {
@@ -985,11 +985,11 @@ final class Pen {
 	}
 
 	/**
-	 * Off. With {@code backoff} he first steps back from the pen (the sign, the panel's off, the player away: then he
-	 * waits; too dangerous: then he waits once he is there), to {@code to} when that is given (the cell out of its mobs'
-	 * sight, as the walk's own time allows); otherwise the chain takes over and he follows again. The fence stays half a
-	 * minute more, so the first steps after it do not go over the pen; after a fall into it at once, so that he may dig
-	 * or pillar out.
+	 * Off. With {@code backoff} the buddy first steps back from the pen (the sign, the panel's off, the player away: then a
+	 * wait; too dangerous: then a wait once there), to {@code to} when that is given (the cell out of its mobs' sight, as
+	 * the walk's own time allows); otherwise the chain takes over and following resumes. The fence stays half a minute
+	 * more, so the first steps after it do not go over the pen; after a fall into it at once, so that digging or
+	 * pillaring out is possible.
 	 */
 	private static void stop(String why, boolean backoff, BlockPos to) {
 		if (pending != null && !pending.probe) pending = null;
@@ -998,8 +998,8 @@ final class Pen {
 		Minecraft mc = AfkHelperClient.mc();
 		LocalPlayer p = mc.player;
 		if (state == BACKOFF_STATE) {
-			// the stay that comes with the sign, the panel's off or the player away: he steps back first, and the stay
-			// holds him after it; anything else that stops him now ends the step back
+			// the stay that comes with the sign, the panel's off or the player away: a step back first, and the stay
+			// holds after it; anything else that stops the buddy now ends the step back
 			if (!why.equals("stays")) endBackoff();
 			return;
 		}
@@ -1009,11 +1009,11 @@ final class Pen {
 		HeldKeys.set(mc.options.keyDown, false);
 		HeldKeys.set(mc.options.keyLeft, false);
 		HeldKeys.set(mc.options.keyRight, false);
-		// crouched on an edge he stays crouched until the walker takes the keys again: let go there and he steps off
+		// crouched on an edge, the crouch stays until the walker takes the keys again: let go there and the buddy steps off
 		boolean onEdge = p != null && spot != null && spot.edge() && spot.at().distanceTo(p.position()) < 0.6;
 		if (!onEdge) HeldKeys.set(mc.options.keyShift, false);
 		look.stop();
-		axeHeld = false;   // the axe he took for someone beside the mob: Guard.arm brings his best weapon back
+		axeHeld = false;   // the axe taken for someone beside the mob: Guard.arm brings the best weapon back
 		if (h != null) {
 			long minutes = (now - started) / 60_000;
 			if (GIVES_UP.contains(why)) {
@@ -1069,17 +1069,17 @@ final class Pen {
 
 	/**
 	 * The stay is lifted (Follow.setStaying(false): the follow sign, {@code volg blijf:false}, an unstay), or a new
-	 * {@code !follow} (Follow.start) is the newest word to follow, whether he stayed or not: a step back under way ends at
+	 * {@code !follow} (Follow.start) is the newest word to follow, whether staying or not: a step back under way ends at
 	 * its next tick (backoffTick), after a creeper's getaway that is under way, and one that was to end in a stay (too
-	 * dangerous) ends without it. Until the third review of 22 Oct 2026 he walked on to the cell out of the pen's sight
+	 * dangerous) ends without it. Until the third review of 22 Oct 2026 the buddy walked on to the cell out of the pen's sight
 	 * first, up to fifteen seconds away from the player; until the review of the fourth round that day a {@code !follow}
-	 * did nothing here unless he stayed, and during a too-dangerous step back he follows, so that one still ended in its
-	 * stay. Not Pen.stop: that would end a pen the panel started while he stayed. Outside a step back nothing reads
+	 * did nothing here unless staying, and during a too-dangerous step back the buddy follows, so that one still ended in its
+	 * stay. Not Pen.stop: that would end a pen the panel started during a stay. Outside a step back nothing reads
 	 * backoffStay.
 	 */
 	static void stayLifted() { backoffStay = null; }
 
-	/** A new connection: what he did means nothing in the new world; a pen that was on comes back once he stands at it. */
+	/** A new connection: what was done means nothing in the new world; a pen that was on comes back once the buddy stands at it. */
 	static void newConnection() {
 		if (state != OFF) stop("new connection", false);
 		state = OFF;
@@ -1099,7 +1099,7 @@ final class Pen {
 		AfkHelperClient.later(RESUME_AT, Pen::tryResume);
 	}
 
-	/** Forget the pen of this player on this server: the entry goes, and a pen of his that runs stops. */
+	/** Forget the pen of this player on this server: the entry goes, and a pen of that player's that runs stops. */
 	static boolean forget(String owner) {
 		if (hok != null && hok.owner.equalsIgnoreCase(owner)) stop("forgotten", false);
 		JsonObject all = read();
@@ -1111,14 +1111,14 @@ final class Pen {
 	// ---------- every tick ----------
 
 	/**
-	 * The farm step of the chain (after the taps, before the carrier): true while it holds his hands. Paused for the
-	 * night without a bed to go to, it gives the tick back, so that the sleep step can take him to bed.
+	 * The farm step of the chain (after the taps, before the carrier): true while it keeps the buddy busy. Paused for the
+	 * night without a bed to go to, it gives the tick back, so that the sleep step can go to bed.
 	 */
 	static boolean tick(Minecraft mc, LocalPlayer p, AfkConfig c, Player owner) {
 		if (state == OFF) return false;
 		long now = System.currentTimeMillis();
 		int tick = Follow.ticks();
-		// a swelling creeper first, in every state that holds him: away from it, while it would go off before he kills it.
+		// a swelling creeper first, in every state of the pen: away from it, while it would go off before the blow kills it.
 		// The chain's creeper step (creeper) has done it already this tick, before the fight; here for a tick without it
 		if ((state == RESUMING || state == BACKOFF_STATE) && creeperRanAt != tick && creeperTick(mc, p, now, false)) return true;
 		if (state == RESUMING) return resumeTick(mc, p, owner, now);
@@ -1130,7 +1130,7 @@ final class Pen {
 		}
 		// the fence and a fall into the pen are watch's, every tick
 		if (tick % 20 == 0 && state != NIGHT) every20(mc, p, owner, now);
-		if (hok == null) return state != OFF;   // stopped by the re-check, or the player away (then he steps back next tick)
+		if (hok == null) return state != OFF;   // stopped by the re-check, or the player away (then a step back next tick)
 		damageTick(p, now);
 		if (trace && tick % TRACE_EVERY == 0) trace(p, now);
 		if (now >= nextStatus) {
@@ -1139,11 +1139,11 @@ final class Pen {
 				"phase", PHASE[state]);
 		}
 		if (creeperRanAt != tick && creeperTick(mc, p, now, false)) return true;
-		// no farming under a getting away that is still on: the creeper step gives its tick to a fight only (while he waits
-		// out a creeper, or on his walk to the cell), and the fight step always takes it, so this is a guard
+		// no farming under a getting away that is still on: the creeper step gives its tick to a fight only (while waiting
+		// out a creeper, or on the walk to the cell), and the fight step always takes it, so this is a guard
 		if (creeperRanAt == tick && evadeId != -1) return true;
 		if (state == OFF || hok == null) return state != OFF;   // too dangerous: stopped, and stepping back next tick
-		// not while he strikes a swelling creeper: the pause stops the look, and the strike would end in a walk off with
+		// not while striking a swelling creeper: the pause stops the look, and the strike would end in a walk off with
 		// too little of its fuse left (the third review of 22 Oct 2026)
 		if (state != NIGHT && state != RETREAT && urgent == null && nightCheck(p, now)) return nightTick(mc, p, now);
 		return switch (state) {
@@ -1157,8 +1157,8 @@ final class Pen {
 	}
 
 	/**
-	 * What ends the pen whatever he does: someone else followed, death, another world, a teleport, too far. Death and a
-	 * fall into the pen are watch's too, which comes every tick, also while a fight or his death holds this step back.
+	 * What ends the pen whatever happens: someone else followed, death, another world, a teleport, too far. Death and a
+	 * fall into the pen are watch's too, which comes every tick, also while a fight or a death holds this step back.
 	 */
 	private static String guard(LocalPlayer p, Player owner, long now, int tick) {
 		Hok h = hok;
@@ -1175,7 +1175,7 @@ final class Pen {
 		return null;
 	}
 
-	/** Once a second: the weapon, what he lacks, whether the pen still is one, the player away. */
+	/** Once a second: the weapon, what is lacking, whether the pen still is one, the player away. */
 	private static void every20(Minecraft mc, LocalPlayer p, Player owner, long now) {
 		Hok h = hok;
 		Guard.arm(mc, p, false);
@@ -1186,7 +1186,7 @@ final class Pen {
 		if (changed || now >= nextRecheck) {
 			nextRecheck = now + RECHECK;
 			recheck(p, changed);
-			// a pen that changed: the second look within seconds (it was ten, in which he walked to spots the blast had taken)
+			// a pen that changed: the second look within seconds (it was ten, in which the buddy walked to spots the blast had taken)
 			if (recheckFails > 0) nextRecheck = now + RECHECK_AGAIN;
 		}
 		if (hok == null) return;
@@ -1217,7 +1217,7 @@ final class Pen {
 	/**
 	 * The pen once more: from its own columns with a mob of its size, on its floor. Another set of columns, a floor that
 	 * moved, or no farm any more, twice in a row: it is gone. Changed but the same pen: the spots worked out again, while
-	 * he farms on.
+	 * the farming goes on.
 	 */
 	private static void recheck(LocalPlayer p, boolean changed) {
 		Hok h = hok;
@@ -1261,8 +1261,8 @@ final class Pen {
 
 	/**
 	 * The spot's ground as it was worked out. A creeper that blew the rim away, a block broken under it or a slab put on
-	 * it make it no spot to walk to: he takes another, while the recheck tells the pen gone or works its spots out anew.
-	 * Without this he walked after an explosion to a spot over the crater, was held at the arrival by the edge of the
+	 * it make it no spot to walk to: another is taken, while the recheck tells the pen gone or works its spots out anew.
+	 * Without this the buddy walked after an explosion to a spot over the crater, was held at the arrival by the edge of the
 	 * block beside it, and fell in (the test of 22 Oct 2026).
 	 */
 	private static boolean grounded(Level level, PenShape.Spot s) {
@@ -1278,7 +1278,7 @@ final class Pen {
 	}
 
 	/**
-	 * The best free spot: none within swelling distance of a creeper he could not strike in time, nor of two creepers
+	 * The best free spot: none within swelling distance of a creeper that could not be struck in time, nor of two creepers
 	 * (noSpot), while another is free, no creeper's spot while a creeper is in the pen, then what it reaches of the mobs
 	 * there now, then nearest.
 	 */
@@ -1308,7 +1308,7 @@ final class Pen {
 		PenShape.Spot s = choose(p, now, null);
 		if (s == null) {
 			if (allBad(now)) { giveUpNoSpot(now); return; }
-			// every spot taken: stand where he is and look again in a second
+			// every spot taken: stand in place and look again in a second
 			if (!waitSpotTold) { waitSpotTold = true; Exchange.emit("pen", "action", "waits for a spot"); }
 			spot = null;
 			setState(GOING, now);
@@ -1347,21 +1347,21 @@ final class Pen {
 		if (early) Follow.respond(Follow.NO);
 	}
 
-	/** The middle of the cell's floor: where the walker brings him; the lean does the last part. */
+	/** The middle of the cell's floor: where the walker goes; the lean does the last part. */
 	private static Vec3 cellAt(PenShape.Spot s) { return new Vec3(s.cell().getX() + 0.5, s.feet(), s.cell().getZ() + 0.5); }
 
 	private static boolean goTick(Minecraft mc, LocalPlayer p, long now) {
 		if (p.isPassenger()) { HeldKeys.set(mc.options.keyShift, !mc.options.keyShift.isDown()); return true; }
-		// on the way round the pen too: low after a blow, a spear that reaches him; not under a strike (safety)
+		// on the way round the pen too: low after a blow, a spear that reaches the buddy; not under a strike (safety)
 		if (urgent == null && safety(mc, p, mobs(p), now)) return true;
-		// a swelling creeper of the pen that his blow kills in time (creeperTick): he stops, turns to it and strikes
+		// a swelling creeper of the pen that a blow kills in time (creeperTick): stop, turn to it and strike
 		if (urgent != null) {
 			standOnWalk(mc, p);
 			look.tick(p);
 			strike(mc, p, now);
 			return true;
 		}
-		// eating on the way: he stands and eats, and neither the walk's time nor the walker's clock runs meanwhile (a
+		// eating on the way: stand and eat, and neither the walk's time nor the walker's clock runs meanwhile (a
 		// walk at a fifth of the speed while eating ran out its time and marked the spot bad, the test of 22 Oct 2026)
 		if (AfkHelperClient.isEating()) {
 			standOnWalk(mc, p);
@@ -1379,8 +1379,8 @@ final class Pen {
 		}
 		Vec3 at = cellAt(spot);
 		// in the spot's own cell, at its height, on its own ground: the lean does the rest, as far as the middle and on.
-		// The walker stops as he enters a goal's cell, at its edge as often as not: with only the cell's middle as there
-		// he stood five seconds in it and gave the spot up as not reached (the test of 22 Oct 2026)
+		// The walker stops on entering a goal's cell, at its edge as often as not: with only the cell's middle as there
+		// the buddy stood five seconds in it and gave the spot up as not reached (the test of 22 Oct 2026)
 		boolean inCell = Mth.floor(p.getX()) == spot.cell().getX() && Mth.floor(p.getZ()) == spot.cell().getZ();
 		if (inCell && Math.abs(at.y - p.getY()) < ARRIVE_V && p.onGround() && grounded(p.level(), spot)) { startLean(p, now); return true; }
 		if (!free(p, spot, now)) { go(goWhy, now); return true; }
@@ -1413,7 +1413,7 @@ final class Pen {
 
 	/**
 	 * Round the pen crouched, as a player walks round a pit: its walk to a spot and the lean, from the first step to the
-	 * end of the lean, within CROUCH_NEAR of it (a walk from farther off from there on), never while he gets away from a
+	 * end of the lean, within CROUCH_NEAR of it (a walk from farther off from there on), never while getting away from a
 	 * creeper. The walker (Follow.walk) crouches then, also in a cell beside none of the pen's columns, where it let go of
 	 * crouch at every corner of a small pen, three or four times a second on a round (the test of 22 Oct 2026); it still
 	 * stands up for a drop, in water and on a ladder.
@@ -1422,14 +1422,14 @@ final class Pen {
 		Hok h = hok;
 		if (h == null || p == null || evadeId != -1 || !(state == GOING || state == SWITCHING || state == LEAN_IN)) return false;
 		// the pen's own walk, this tick or the last: a fight's, the corpse guard's or a tap's walk in those states is not
-		// crouched (the check of the third review of 22 Oct 2026: he chased a zombie at a sneak's speed)
+		// crouched (the check of the third review of 22 Oct 2026: the buddy chased a zombie at a sneak's speed)
 		if (Follow.ticks() - walkTick > 1) return false;
 		return Work.dimOf(p.level()).equals(h.dim) && h.flat(p.position()) <= CROUCH_NEAR && Math.abs(p.getY() - h.floor()) < CROUCH_NEAR + 4;
 	}
 
 	/**
-	 * The getaway's own walk drives him this tick: the walker does not crouch beside the pen then (Follow.walk). At a
-	 * sneak's pace off a pit's rim he stayed in the sight of the creeper in it for half a second and more, and it went off
+	 * The getaway's own walk drives the buddy this tick: the walker does not crouch beside the pen then (Follow.walk). At a
+	 * sneak's pace off a pit's rim, getting out of the sight of the creeper in it took half a second and more, and it went off
 	 * (the test of 22 Oct 2026); the walk off was meant to stand up all along (evadeTick), and the walker crouched it
 	 * again. Not the whole getaway: a fight's walk in a tick it gives to the fight crouches beside the fence as any walk.
 	 */
@@ -1438,16 +1438,16 @@ final class Pen {
 	/** The tick the getaway's own walk last drove the walker (evadeTick, before its Work.approach): gettingAway. */
 	private static int evadeWalkTick = -10;
 
-	/** A drop he walks down and back up again (Pen.walkable): more than this under him in the air is a gap. */
+	/** A drop walked down and back up again (Pen.walkable): more than this below the feet in the air is a gap. */
 	static final double GAP = 1.25;
 
 	/**
-	 * In the air over a gap: more than GAP over the floor under him, or none within four (a jump the walker makes across
+	 * In the air over a gap: more than GAP over the floor below, or none within four (a jump the walker makes across
 	 * a ditch, a fall). A
-	 * getaway's pick there measured his walk from the ditch's floor, where no cell he walks to lies, took a cell down
-	 * there, and the walk begun anew let go of the jump's keys, so that he dropped in (the review of 22 Oct 2026): no
-	 * pick over a gap, the walk goes on, and a bout that begins there picks once he lands (evadePickDue). A hop on flat
-	 * ground or a step down is no gap, and a pick then measures from where he lands (Getaway.standing).
+	 * getaway's pick there measured the walk from the ditch's floor, where no walkable cell lies, took a cell down
+	 * there, and the walk begun anew let go of the jump's keys, so that the buddy dropped in (the review of 22 Oct 2026): no
+	 * pick over a gap, the walk goes on, and a bout that begins there picks on landing (evadePickDue). A hop on flat
+	 * ground or a step down is no gap, and a pick then measures from the landing (Getaway.standing).
 	 */
 	private static boolean overGap(LocalPlayer p) {
 		if (p.onGround() || p.isInWater() || p.onClimbable()) return false;
@@ -1455,7 +1455,7 @@ final class Pen {
 		return Double.isNaN(g) || p.getY() - g > GAP;
 	}
 
-	/** He stands still on a walk of the pen (to eat, to strike, to wait for a spot), crouched where the walk would be. */
+	/** Standing still on a walk of the pen (to eat, to strike, to wait for a spot), crouched where the walk would be. */
 	private static void standOnWalk(Minecraft mc, LocalPlayer p) {
 		walkTick = Follow.ticks();
 		Follow.stand();
@@ -1463,7 +1463,7 @@ final class Pen {
 	}
 
 	/**
-	 * The last bit, crouched (vanilla's edge keeps a crouched player on his block): onto the spot as it was worked out,
+	 * The last bit, crouched (vanilla's edge keeps a crouched player on the block): onto the spot as it was worked out,
 	 * up to 0.3 nearer the pen than the middle of the cell, by the keys as the head points.
 	 */
 	private static boolean leanTick(Minecraft mc, LocalPlayer p, long now) {
@@ -1473,7 +1473,7 @@ final class Pen {
 		look.tick(p);
 		HeldKeys.set(o.keyShift, true);
 		HeldKeys.set(o.keySprint, false);
-		// a swelling creeper of the pen that his blow kills in time: the lean waits, crouched where he is, for the strike
+		// a swelling creeper of the pen that a blow kills in time: the lean waits, crouched in place, for the strike
 		if (urgent != null) {
 			HeldKeys.set(o.keyUp, false); HeldKeys.set(o.keyDown, false); HeldKeys.set(o.keyLeft, false); HeldKeys.set(o.keyRight, false);
 			strike(mc, p, now);
@@ -1505,7 +1505,7 @@ final class Pen {
 
 	// ---------- farming ----------
 
-	/** The mobs he may kill in the pen now. */
+	/** The mobs the buddy may kill in the pen now. */
 	private static List<LivingEntity> mobs(LocalPlayer p) {
 		Hok h = hok;
 		if (h == null) return List.of();
@@ -1514,7 +1514,7 @@ final class Pen {
 	}
 
 	/**
-	 * A mob of the pen he may kill: Grinder's kinds (hostile, not named, no pet, no villager or player), less the bosses,
+	 * A mob of the pen the buddy may kill: Grinder's kinds (hostile, not named, no pet, no villager or player), less the bosses,
 	 * the warden, a shulker, a ghast, a phantom and a creaking; a guardian only when a blow kills it; a mob that is only
 	 * angry when hit (an enderman, a zombified piglin, a piglin) only when it already is, or when a blow kills it; no
 	 * zombie villager being cured. In the pen: its box over the columns, its feet at the floor (a spider climbs higher),
@@ -1542,11 +1542,11 @@ final class Pen {
 	}
 
 	/**
-	 * What one blow with what he holds does at full strength: one, the attack modifiers of the item, and those of
-	 * Strength (+3 a level) and Weakness (-4 a level) on him, never under nothing, as Player.attack takes the attribute.
+	 * What one blow with what is in hand does at full strength: one, the attack modifiers of the item, and those of
+	 * Strength (+3 a level) and Weakness (-4 a level) on the buddy, never under nothing, as Player.attack takes the attribute.
 	 * The client counts the effects itself: it applies no effect's modifiers to its own attributes
-	 * (LivingEntity.onEffectAdded) and is not sent attack damage. Without them a witch's Weakness had him stay beside a
-	 * creeper his blow did not kill (the third review of 22 Oct 2026).
+	 * (LivingEntity.onEffectAdded) and is not sent attack damage. Without them a witch's Weakness had the buddy stay beside a
+	 * creeper a blow did not kill (the third review of 22 Oct 2026).
 	 */
 	private static double blow(LocalPlayer p) {
 		double damage = 1;
@@ -1562,7 +1562,7 @@ final class Pen {
 	private static boolean farmTick(Minecraft mc, LocalPlayer p, long now) {
 		var o = mc.options;
 		Hok h = hok;
-		// knocked off his spot, or a fight took him away: back to it
+		// knocked off the spot, or a fight took the buddy away: back to it
 		if (Math.hypot(spot.at().x - p.getX(), spot.at().z - p.getZ()) > 0.9 || Math.abs(spot.feet() - p.getY()) > 0.9) {
 			go("to a spot", now);
 			return true;
@@ -1574,7 +1574,7 @@ final class Pen {
 		if (!eating) look.tick(p);
 		else look.stop();
 		retreatCell(p, 2_000_000L);
-		// someone in his spot: another side
+		// someone in the spot: another side
 		for (Player other : p.level().players()) {
 			if (other == p) continue;
 			if (Math.hypot(other.getX() - spot.at().x, other.getZ() - spot.at().z) < 1.0 && Math.abs(other.getY() - spot.feet()) < 1.5) {
@@ -1587,7 +1587,7 @@ final class Pen {
 		}
 		List<LivingEntity> mobs = mobs(p);
 		if (urgent == null && safety(mc, p, mobs, now)) return true;
-		// the swelling creeper of the pen that his blow kills in time (creeperTick chose it): before anything else
+		// the swelling creeper of the pen that a blow kills in time (creeperTick chose it): before anything else
 		if (urgent != null) { strike(mc, p, now); return true; }
 		if (mobs.isEmpty()) { waiting(p, now); return true; }
 		if (waitTold) {
@@ -1597,7 +1597,7 @@ final class Pen {
 		emptySince = 0;
 		centreLooked = false;
 		Vec3 eye = p.getEyePosition();
-		// the six nearest, then: what hurt him or the player lately, a swelling creeper, any creeper, what shoots, the
+		// the six nearest, then: what hurt the buddy or the player lately, a swelling creeper, any creeper, what shoots, the
 		// weakest, the smallest turn
 		List<LivingEntity> near = new ArrayList<>(mobs);
 		near.sort(Comparator.comparingDouble(e -> e.distanceToSqr(eye)));
@@ -1639,7 +1639,7 @@ final class Pen {
 		return true;
 	}
 
-	/** A point of its box he sees within reach, the one nearest to where he looks; an enderman only low, never at its eyes. */
+	/** A point of its box in sight within reach, the one nearest to the look; an enderman only low, never at its eyes. */
 	private static Vec3 aimAt(LocalPlayer p, LivingEntity e) {
 		AABB b = e.getBoundingBox();
 		Vec3 eye = p.getEyePosition();
@@ -1662,9 +1662,9 @@ final class Pen {
 
 	/**
 	 * The blow: with the crosshair on a mob of the pen, the strength back at STRONG and the pace's gap gone by, standing,
-	 * not sprinting, not eating, no menu, and what he holds may hit (no sword beside a bystander: {@link #handReady}); the
+	 * not sprinting, not eating, no menu, and what is in hand may hit (no sword beside a bystander: {@link #handReady}); the
 	 * hit itself at the start of the next tick, where vanilla hits, and only if the crosshair is still on it then
-	 * (Guard.startTick). No jumps for critical hits at the pen: a jump at its edge is a fall. A swelling creeper that his
+	 * (Guard.startTick). No jumps for critical hits at the pen: a jump at its edge is a fall. A swelling creeper that a
 	 * blow kills in time (urgent) is the one exception to the strength and the pace: struck as soon as the strength
 	 * kills it, with nothing else hit meanwhile.
 	 */
@@ -1685,9 +1685,9 @@ final class Pen {
 		if (p.isUsingItem() || AfkHelperClient.isEating() || p.containerMenu != p.inventoryMenu || !p.onGround() || p.isSprinting()) return;
 		LivingEntity on = mc.hitResult instanceof EntityHitResult eh && eh.getEntity() instanceof LivingEntity le && huntable(le, hok, p) ? le : null;
 		if (urgent != null) {
-			// the swelling creeper: that one only, a moment's reaction after he saw it swell, as soon as the strength kills
-			// it (a player's click at a creeper is no rhythm: no pace), with what he holds and no switch. Once: struck, its
-			// death is waited for (struckId); never sooner than a person clicks after his last blow at anything; and not
+			// the swelling creeper: that one only, a moment's reaction after its swell was seen, as soon as the strength kills
+			// it (a player's click at a creeper is no rhythm: no pace), with what is in hand and no switch. Once: struck, its
+			// death is waited for (struckId); never sooner than a person clicks after the last blow at anything; and not
 			// while a hurt of its own would absorb it (Fuse.cooldownWait). It went out once a tick until the client learnt
 			// of the death, five at twenty a second (the third review of 22 Oct 2026)
 			if (on == urgent && now >= urgentAt && urgent.getId() != struckId && now - Guard.lastHitAt() >= PenShape.MIN_GAP
@@ -1701,10 +1701,10 @@ final class Pen {
 	}
 
 	/**
-	 * Whether what he holds may hit now. A sword's full blow sweeps (Player.isSweepAttack: a sword, at full strength, on
-	 * the ground), and the sweep would hit the one beside the mob too and push him over the pit: then, a moment's
-	 * reaction after he sees him, an axe of his hotbar (none sweeps), at full strength and the pace as ever; without one
-	 * no blow until the sweep's reach is clear. The sword (his best weapon, Guard.arm) again two to five seconds after
+	 * Whether what is in hand may hit now. A sword's full blow sweeps (Player.isSweepAttack: a sword, at full strength, on
+	 * the ground), and the sweep would hit the one beside the mob too and push that one over the pit: then, a moment's
+	 * reaction after seeing the bystander, an axe of the hotbar (none sweeps), at full strength and the pace as ever; without
+	 * one no blow until the sweep's reach is clear. The sword (the best weapon, Guard.arm) again two to five seconds after
 	 * it is clear. Not a sword blow at half strength, which does not sweep either: a window missed took a swing at the
 	 * air to start the strength again, and a blow that soon after a miss is one vanilla does not let through
 	 * (Minecraft.startAttack's missTime of ten ticks).
@@ -1739,7 +1739,7 @@ final class Pen {
 		if (axeHeld) {
 			boolean worn = Work.nearlyBroken(p.getMainHandItem());
 			if (by && worn) {
-				// about to break beside someone: another axe of the hotbar, or no blow (never his axe broken at a farm)
+				// about to break beside someone: another axe of the hotbar, or no blow (never an axe broken at a farm)
 				int other = axeSlot(p);
 				if (other >= 0) { p.getInventory().setSelectedSlot(other); paceFromSwitch(p, now); }
 				else if (!heldOffTold) { heldOffTold = true; Exchange.emit("pen", "action", "holds off", "reason", "no axe"); }
@@ -1757,7 +1757,7 @@ final class Pen {
 	}
 
 	/**
-	 * The first blow after a switch of what he holds, by the pace from the switch, or every first blow would come on the
+	 * The first blow after a switch of what is in hand, by the pace from the switch, or every first blow would come on the
 	 * tick its strength is back, the same count of ticks after each switch. The strength starts again a tick after the
 	 * switch (Player.tick sees the new item), where after a blow it already counts one: two ticks later than the pace's
 	 * own gate. The item's own speed, as the attribute only follows when the server sends it.
@@ -1769,7 +1769,7 @@ final class Pen {
 		nextHit = now + 100 + pace.gap(1000.0 / Math.max(0.1, speed), R);
 	}
 
-	/** The axe of his hotbar he takes beside someone: the best one, never one about to break. -1: none. */
+	/** The axe of the hotbar to take beside someone: the best one, never one about to break. -1: none. */
 	private static int axeSlot(LocalPlayer p) {
 		int best = -1;
 		double rank = Double.NEGATIVE_INFINITY;
@@ -1781,23 +1781,23 @@ final class Pen {
 		return best;
 	}
 
-	/** The pen holds an axe in his hand for someone beside the mob: Guard.arm leaves it there, but for a fight. */
+	/** The pen holds an axe in hand for someone beside the mob: Guard.arm leaves it there, but for a fight. */
 	static boolean holdsAxe() { return axeHeld && busy(); }
 
 	/**
 	 * Someone or something in a sweep's reach round the mob that a sweep must not hit (Player.doSweepAttack: the target's
-	 * box inflated 1.0 and 0.25, within three of him, by the server's places): a player, a pet, a villager, a golem, an
+	 * box inflated 1.0 and 0.25, within three of the buddy, by the server's places): a player, a pet, a villager, a golem, an
 	 * animal, a neutral mob (which a blow makes angry), an armour stand. A monster beside it, on the rim or falling down
 	 * the shaft onto it, is a farm's own and may be swept. Both by where the client draws them and by where the server
 	 * last put them, which the client draws a few ticks later; for a player or a pet, which can walk in within those
 	 * ticks and must never be pushed over the pit, with a block more of margin sideways, and up and down only while it
 	 * is off the ground: one who stands on the rim of a pit three deep is out of the sweep's reach (its box ends a
-	 * quarter over the mob's head), and his feet cannot sink without leaving the ground, which the server's next movement
+	 * quarter over the mob's head), and those feet cannot sink without leaving the ground, which the server's next movement
 	 * packet tells the client (a remote entity's onGround is the packet's).
 	 */
 	private static boolean bystander(LocalPlayer p, LivingEntity target) {
 		AABB tb = target.getBoundingBox(), t = tb.minmax(tb.move(sent(target).subtract(target.position())));
-		// wide enough for one drawn a few blocks behind where the server has him already
+		// wide enough for one drawn a few blocks behind where the server has it already
 		double wide = 1 + SWEEP_MARGIN_MOVER + 2;
 		for (LivingEntity e : p.level().getEntitiesOfClass(LivingEntity.class, t.inflate(wide, wide, wide), x -> x != p && x != target && x.isAlive() && !x.isSpectator())) {
 			if (e instanceof ArmorStand a && a.isMarker()) continue;
@@ -1826,7 +1826,7 @@ final class Pen {
 			&& !(e instanceof ZombieVillager zv && zv.isConverting());
 	}
 
-	/** The free spot that reaches the most of the mobs his own does not. */
+	/** The free spot that reaches the most of the mobs the current spot does not. */
 	private static PenShape.Spot reaching(LocalPlayer p, List<LivingEntity> mobs, long now) {
 		Hok h = hok;
 		PenShape.Spot best = null;
@@ -1846,7 +1846,7 @@ final class Pen {
 	/**
 	 * Round the pen now and then, also while it is empty, as the AFK farm walked to the far side (ours: about three
 	 * minutes): to the next side round the pen with a free spot, its best one (what it reaches, then nearest), past a
-	 * side whose best reaches less than three quarters of what his own spot does. It took the next spot in the list on
+	 * side whose best reaches less than three quarters of what the current spot does. It took the next spot in the list on
 	 * another side, a corner as often as not: from the middle of a side, six columns, to one that reached three (the
 	 * test of 22 Oct 2026).
 	 */
@@ -1903,8 +1903,8 @@ final class Pen {
 	// ---------- danger ----------
 
 	/**
-	 * His health and the damage events on him. Any drop is damage (the retreat at five hearts, its minute without
-	 * damage). A blow is damage with an attacker: an event that names one (also when his absorption took it), or a drop
+	 * Health and the damage events taken. Any drop is damage (the retreat at five hearts, its minute without
+	 * damage). A blow is damage with an attacker: an event that names one (also when absorption took it), or a drop
 	 * that came with no event of its own, which only a stronger hurt within the cooldown of another one is
 	 * (LivingEntity.hurtServer sends no event then, and no poison, wither or fire tick ever lands there). A poison, wither
 	 * or fire tick, a fall or lava: damage, no blow (their sources name no attacker). Each event the client gets is a new
@@ -1929,13 +1929,13 @@ final class Pen {
 
 	/**
 	 * Low after a blow: away from the pen out of the sight of its mobs, eat, back at sixteen or after a minute without a
-	 * blow; three times in ten minutes is too dangerous. A mob of the pen with a spear's reach that reaches him: another
-	 * spot, or away until it is gone. Hungry and low with nothing to eat: he gives up, follows again and fetches food. A
+	 * blow; three times in ten minutes is too dangerous. A mob of the pen with a spear's reach that reaches the buddy: another
+	 * spot, or away until it is gone. Hungry and low with nothing to eat: giving up, following again and fetching food. A
 	 * swelling creeper is creeperTick's, before any of these, and a strike at one under way (urgent, its death waited for
 	 * too) comes before all of them: its callers leave this out meanwhile, as the night's pause waits for it. A retreat
 	 * there made the strike a walk off the rim with too little of its fuse left, which the strike was kept for (the review
 	 * of the fourth round, 22 Oct 2026). A hit counts five seconds and a strike with its wait is under two, so low health,
-	 * no food or a spear come on the first tick after it. While he waits out a creeper at the getaway's cell this runs
+	 * no food or a spear come on the first tick after it. While waiting out a creeper at the getaway's cell this runs
 	 * from there (waitChecks).
 	 */
 	private static boolean safety(Minecraft mc, LocalPlayer p, List<LivingEntity> mobs, long now) {
@@ -1950,9 +1950,9 @@ final class Pen {
 			if (range != null) {
 				double r = range.effectiveMaxRange(e);
 				if (e.getBoundingBox().inflate(r, 0, r).intersects(p.getBoundingBox()) && e.hasLineOfSight(p)) {
-					// on his way to a spot out of its reach already: on there (chosen anew every tick, it swung between two)
+					// on the way to a spot out of its reach already: on there (chosen anew every tick, it swung between two)
 					if ((state == GOING || state == SWITCHING) && spot != null && !reaches(e, r, spot)) continue;
-					// in the night's pause away from it, as the pause would bring him back from another side at once
+					// in the night's pause away from it, as the pause would bring the buddy back from another side at once
 					PenShape.Spot next = state == NIGHT ? null : outOfReach(p, e, r, now);
 					if (next != null) { switchTo(next, "spear", now); return true; }
 					retreat("spear", now, RETREAT_MAX);
@@ -2000,19 +2000,19 @@ final class Pen {
 	}
 
 	/**
-	 * Too dangerous: away from the pen for good. To the cell no column of it sees, and he waits there once he is there;
-	 * where none is known, or the walk there does not get there in its time, he follows the player away from it: he was
-	 * hit beside the pit, two blocks back from it the pen's mobs still see him, and there the fight leaves them be
-	 * (Follow.pitFoe), so he never stays where the walk ended.
+	 * Too dangerous: away from the pen for good. To the cell no column of it sees, to wait there once arrived; where
+	 * none is known, or the walk there does not get there in its time, the buddy follows the player away from it: a hit
+	 * came beside the pit, two blocks back from it the pen's mobs still see the buddy, and there the fight leaves them be
+	 * (Follow.pitFoe), so the walk's end is never a place to stay.
 	 */
 	private static void tooDangerous(String need) { tooDangerous(need, true); }
 
 	/**
 	 * Too dangerous; {@code cellOk} false: not to the cell no column of the pen sees, for a creeper that was no creeper
-	 * of the pen drove him off, and that one may come after him there, where nothing watches for it once he stays (the
-	 * third review of 22 Oct 2026): he follows the player. Nor to that cell while a creeper stands by it (creeperBy), of
-	 * the pen or not, where he would stay beside it with no creeper watch at all; it walked him to the very cell a
-	 * creeper had kept him from (the review of the fourth round, 22 Oct 2026).
+	 * of the pen drove the buddy off, and that one may follow there, where nothing watches for it during the stay (the
+	 * third review of 22 Oct 2026): following the player instead. Nor to that cell while a creeper stands by it (creeperBy),
+	 * of the pen or not, which would mean staying beside it with no creeper watch at all; it led to the very cell a
+	 * creeper had kept the buddy from (the review of the fourth round, 22 Oct 2026).
 	 */
 	private static void tooDangerous(String need, boolean cellOk) {
 		Needs.want("pen_danger", need);
@@ -2039,7 +2039,7 @@ final class Pen {
 	/**
 	 * The retreat: its own checks first (retreatBack, retreatHit, which the wait at a getaway's cell runs as well), then
 	 * the walk to its cell out of the pen's sight. Where a creeper stood by that cell, another one of this retreat's own
-	 * (retreatTo, looked for by retreatAround while he stands), or where he got to (retreatStays): it waited up to two
+	 * (retreatTo, looked for by retreatAround while standing), or where the buddy got to (retreatStays): it waited up to two
 	 * minutes at the getaway's cell for that creeper to go, these checks not running there (the review of the fourth
 	 * round, 22 Oct 2026). While no cell is known, one away from the pen (retreatAway).
 	 */
@@ -2059,7 +2059,7 @@ final class Pen {
 			if (c != null) retreatTo = c.pos();
 			else retreatStays = true;
 		}
-		// where he got to: a blow there from now on is one at the cell
+		// the place reached: a blow there from now on is one at the cell
 		if (retreatStays) {
 			if (retreatArrived == 0) retreatArrived = now;
 			Follow.stand();
@@ -2075,7 +2075,7 @@ final class Pen {
 		BlockPos goal = BlockPos.containing(to);
 		if (!goal.equals(retreatGoal)) { retreatGoal = goal; Work.walkFresh(); }
 		if (!Work.approach(mc, p, "pen-back", to, now)) {
-			// no way there: the cell away from the pen given up (he stands), this retreat's own (he stays where he is), or
+			// no way there: the cell away from the pen given up (standing still), this retreat's own (staying in place), or
 			// the pen's, which then is known no more
 			if (cell == null) retreatAway = null;
 			else if (cell.equals(retreatTo)) { retreatTo = null; retreatStays = true; }
@@ -2094,10 +2094,10 @@ final class Pen {
 	}
 
 	/**
-	 * Still hit where he backed off to (after {@code arrived}; 0: not there yet), hit again since the retreat began at
+	 * Still hit where the buddy backed off to (after {@code arrived}; 0: not there yet), hit again since the retreat began at
 	 * three hearts or less, or hit for ten seconds on end: no standing there to be hit, nor going back to the pen (the
-	 * blow he backed off for is none of these). Blows only (damageTick): a witch's poison ticks on where nothing reaches
-	 * him, and he waits it out there.
+	 * blow backed off for is none of these). Blows only (damageTick): a witch's poison ticks on where nothing reaches
+	 * the buddy, and is waited out there.
 	 */
 	private static boolean retreatHit(LocalPlayer p, long now, long arrived) {
 		if (now - lastBlowAt >= DAMAGE_RECENT) return false;
@@ -2105,7 +2105,7 @@ final class Pen {
 			|| (now - retreatSince > RETREAT_HIT && now - lastBlowAt < 2000);
 	}
 
-	/** Hit again in the retreat (retreatHit): too dangerous, and he follows the player. */
+	/** Hit again in the retreat (retreatHit): too dangerous, and the buddy follows the player. */
 	private static void hitAgain() {
 		Needs.want("pen_danger", "{me} left the mob farm after being hit there again and again.");
 		stop("too dangerous", false);
@@ -2121,7 +2121,7 @@ final class Pen {
 
 	/**
 	 * Where the retreat goes while no cell out of the pen's sight is known (its search not done yet, or the walk to it
-	 * given up): awayCell, looked for once a retreat. Null: none, and he stands.
+	 * given up): awayCell, looked for once a retreat. Null: none, and the buddy stands.
 	 */
 	private static Vec3 retreatAway(LocalPlayer p) {
 		if (!retreatAwayLooked) { retreatAwayLooked = true; retreatAway = awayCell(p); }
@@ -2129,10 +2129,10 @@ final class Pen {
 	}
 
 	/**
-	 * Of the cells he walks to (walkable) without coming nearer to the pen than he stands (flat, less Getaway.SLACK), the
-	 * one farthest from it with no drop beside it, if it is half a block farther than he stands, as the getaway from a
+	 * Of the cells the buddy walks to (walkable) without coming nearer to the pen than now (flat, less Getaway.SLACK), the
+	 * one farthest from it with no drop beside it, if it is half a block farther than the current place, as the getaway from a
 	 * creeper takes its fallback; null: none. It was a cell three to six blocks straight away from the pen's middle, or
-	 * that turned an eighth or a quarter (awayFrom), that no walk was asked about: past a wall he had no way to, or the
+	 * that turned an eighth or a quarter (awayFrom), that no walk was asked about: past a wall with no way to it, or the
 	 * floor of the next pit two blocks down, which the getaway from a creeper dropped in the third review of 22 Oct 2026
 	 * and the retreat kept until the review of the fourth round.
 	 */
@@ -2154,7 +2154,7 @@ final class Pen {
 	/**
 	 * Where to go when it gets dangerous, for the night and after the end: the nearest cell five to ten blocks from the
 	 * pen that no column of the pen can see, worked out once per pen from its start, a little each tick; none such: the
-	 * farthest he can stand within ten (not {@link #hidden}).
+	 * farthest standing place within ten (not {@link #hidden}).
 	 */
 	private static final class RetreatSearch {
 		private final LevelWorld w;
@@ -2218,18 +2218,18 @@ final class Pen {
 
 	/**
 	 * The creeper step of the chain (Follow.tick, after the watch of the fight and before the fight): a creeper swelling at
-	 * him while the pen holds his hands, also while a fight, the unloader or the corpse guard holds the farm step back
+	 * the buddy while the pen keeps the hands busy, also while a fight, the unloader or the corpse guard holds the farm step back
 	 * ({@code held}; {@code fight}: a fight of them). Until the third review of 22 Oct 2026 it was the farm step's alone,
-	 * and a fight with a zombie at his spot left a creeper beside him swelling, and undid the strike he had turned for.
-	 * Not in Pen.watch, which comes before the chain's pause for his death, a menu, AFK mode and another job, where
-	 * nothing may steer him. True while it holds his hands: getting away, or, while the chain is held, the strike itself
+	 * and a fight with a zombie at the spot left a creeper beside the buddy swelling, and undid the strike turned for.
+	 * Not in Pen.watch, which comes before the chain's pause for a death, a menu, AFK mode and another job, where
+	 * nothing may steer. True while it keeps the hands busy: getting away, or, while the chain is held, the strike itself
 	 * (the farm step, which strikes otherwise, does not come then). False in a tick of a getaway that creeperTick gave to
 	 * the fight (yieldAt), which the fight step then always takes; the farm step farms nothing while the getaway is on.
 	 */
 	static boolean creeper(Minecraft mc, LocalPlayer p, boolean held, boolean fight) {
 		if (state == OFF || !p.isAlive()) return false;
 		long now = System.currentTimeMillis();
-		// his health as the farm step counts it, which does not come while this holds his hands
+		// the health as the farm step counts it, which does not come while this keeps the hands busy
 		if (hok != null) damageTick(p, now);
 		if (creeperTick(mc, p, now, fight)) {
 			heldChecks(mc, p, now);
@@ -2248,9 +2248,9 @@ final class Pen {
 	}
 
 	/**
-	 * What the farm step does every tick before its creeper, for a tick this step holds his hands in, when the farm step
-	 * does not come: what ends the pen whatever he does (guard: teleported, too far, another player followed) and the
-	 * checks of once a second (every20), also while he gets away from a creeper or waits for one, up to two minutes.
+	 * What the farm step does every tick before its creeper, for a tick in which this step keeps the hands busy, when the
+	 * farm step does not come: what ends the pen whatever happens (guard: teleported, too far, another player followed) and
+	 * the checks of once a second (every20), also while getting away from a creeper or waiting for one, up to two minutes.
 	 */
 	private static void heldChecks(Minecraft mc, LocalPlayer p, long now) {
 		if (hok == null || state == RESUMING || state == BACKOFF_STATE) return;
@@ -2260,25 +2260,25 @@ final class Pen {
 		if (tick % 20 == 0 && state != NIGHT) every20(mc, p, null, now);
 	}
 
-	/** A state in which he strikes a swelling creeper of the pen: at a spot, leaning in, or on his way to one. */
+	/** A state in which a swelling creeper of the pen is struck: at a spot, leaning in, or on the way to one. */
 	private static boolean striking() { return state == GOING || state == SWITCHING || state == LEAN_IN || state == FARMING; }
 
-	/** A creeper swells at him at the pen, or a strike at one or a walk away from one is under way: no bite now (AfkHelperClient). */
+	/** A creeper swells at the buddy at the pen, or a strike at one or a walk away from one is under way: no bite now (AfkHelperClient). */
 	static boolean creeperDanger() { return state != OFF && Follow.ticks() - dangerAt <= 1; }
 
 	/**
-	 * A swelling creeper that would hurt him, any: the pen's, one on its rim, one that came up behind him, one that came
-	 * to him in the night's pause; in every state that holds him, from the chain's creeper step or the farm step's own,
-	 * once a tick. One of the pen that his blow kills before its fuse is full he strikes (urgent, strikeOn: the state's own
-	 * tick, or the creeper step while the chain is held, turns to it and hits); from any other he gets away (startEvade,
+	 * A swelling creeper that would hurt the buddy, any: the pen's, one on its rim, one that came up behind, one that came
+	 * close in the night's pause; in every state of the pen, from the chain's creeper step or the farm step's own,
+	 * once a tick. One of the pen that a blow kills before its fuse is full is struck (urgent, strikeOn: the state's own
+	 * tick, or the creeper step while the chain is held, turns to it and hits); any other the buddy gets away from (startEvade,
 	 * evadeTick), to a cell out of its sight or past its blast, and waits there three seconds at least and until no
-	 * creeper he could not strike is near the place he would go back to. True while getting away holds his hands, but in
+	 * creeper that could not be struck is near the place to go back to. True while getting away keeps the hands busy, but in
 	 * a tick it gives to a fight ({@code fight}: one holds the chain): once none has swelled within its reach for
 	 * SWELL_QUIET, seen or not, decided here with this tick's swell and before evadeTick touches a key or the route, which
 	 * it then leaves alone. Until the review of the fourth round, 22 Oct 2026, the creeper step decided it after evadeTick
-	 * had stood him or walked him, also for the unloader and the corpse guard: their walks got a tick in ten and were
-	 * walked back to the cell past a block, and his head turned twice in a tick on the way. Until the review of 22 Oct
-	 * only a creeper of the pen counted, and he stayed for one a blow kills whether or not that blow could land in time,
+	 * had stopped or walked the buddy, also for the unloader and the corpse guard: their walks got a tick in ten and were
+	 * walked back to the cell past a block, and the head turned twice in a tick on the way. Until the review of 22 Oct
+	 * only a creeper of the pen counted, and the buddy stayed for one a blow kills whether or not that blow could land in time,
 	 * and backed off to the pen's retreat cell, past the creeper as often as not.
 	 */
 	private static boolean creeperTick(Minecraft mc, LocalPlayer p, long now, boolean fight) {
@@ -2290,17 +2290,17 @@ final class Pen {
 		List<Creeper> near = swelling(p);
 		if (!near.isEmpty() || urgent != null || (evadeId != -1 && evadeCell != null && !evadeAtCell)) dangerAt = t;
 		if (!near.isEmpty() || urgent != null || anySwelling(p)) swellAt = t;
-		// the one just struck: its death reaches him a ping and a tick or two later, and meanwhile it is no reason to get
-		// away (the third review of 22 Oct 2026: he walked off from a creeper that was dead already, and counted it)
+		// the one just struck: its death arrives a ping and a tick or two later, and meanwhile it is no reason to get
+		// away (the third review of 22 Oct 2026: the buddy walked off from a creeper that was dead already, and counted it)
 		if (struckId != -1) near.removeIf(c -> c.getId() == struckId);
 		if (evadeId == -1 && strikeOn(mc, p, near, now, t)) return false;
 		urgent = null;
 		unseenHitch = false;
 		if (near.isEmpty() && evadeId == -1) return false;
-		// a bout of one that swells at him (new to this getting away, or swelling again after it had stopped) is counted,
-		// and the cell is chosen anew against all that swell now: one that followed him to his cell and swelled again found
-		// him standing there (the third review). Stopped is its own swell ended, not a line of sight lost for a tick on
-		// his way, which would count one swell as two
+		// a bout of one that swells at the buddy (new to this getting away, or swelling again after it had stopped) is counted,
+		// and the cell is chosen anew against all that swell now: one that followed to the cell and swelled again found
+		// the buddy standing there (the third review). Stopped is its own swell ended, not a line of sight lost for a tick on
+		// the way, which would count one swell as two
 		boolean bout = false;
 		for (Creeper c : near) {
 			Boolean stopped = evadeFor.get(c.getId());
@@ -2313,7 +2313,7 @@ final class Pen {
 		}
 		if (bout) startEvade(p, near, now);
 		if (evadeId == -1) return false;
-		// a tick given to a fight, never one with a new bout (that one swelled this tick): the first of them stands him and
+		// a tick given to a fight, never one with a new bout (that one swelled this tick): the first of them halts the walk and
 		// has the fight plan at once, with no route, keys or cells kept out of left of the getaway's walk; the first tick
 		// after them begins the walk to the cell anew, as the walk record of before a long fight failed it at once
 		boolean give = fight && t - swellAt > SWELL_QUIET;
@@ -2322,7 +2322,7 @@ final class Pen {
 			evadeYielded = true;
 			yieldAt = t;
 		} else if (evadeYielded && !overGap(p)) {
-			// the walk to the cell begun anew once he stands: over a gap the fight's jump goes on (evadeTick holds)
+			// the walk to the cell begun anew once standing: over a gap the fight's jump goes on (evadeTick holds)
 			evadeYielded = false;
 			if (!bout && evadeCell != null) evadeWalkAgain();
 		}
@@ -2330,8 +2330,8 @@ final class Pen {
 	}
 
 	/**
-	 * The creeper he strikes at, as long as the strike is to be kept (strikeOn): alive, not struck yet, within its
-	 * blast's reach and one more of him, its swell seen within URGENT_GRACE; null otherwise.
+	 * The creeper being struck at, as long as the strike is to be kept (strikeOn): alive, not struck yet, within its
+	 * blast's reach and one more of the buddy, its swell seen within URGENT_GRACE; null otherwise.
 	 */
 	private static Creeper kept(LocalPlayer p, int t) {
 		Creeper c = urgent;
@@ -2340,11 +2340,11 @@ final class Pen {
 	}
 
 	/**
-	 * Ticks a strike begun is kept through, without its creeper seen swelling at him (near: the server's swell direction
-	 * and the client's own line of sight) or without a plan for its blow. The client's sight loses him at a pit's rim a
-	 * tick before the server does or after, and the server sets the swell back for a tick it loses him within three and
+	 * Ticks a strike begun is kept through, without its creeper seen swelling at the buddy (near: the server's swell direction
+	 * and the client's own line of sight) or without a plan for its blow. The client's sight loses the buddy at a pit's rim a
+	 * tick before the server does or after, and the server sets the swell back for a tick it loses sight within three and
 	 * goes on (SwellGoal); either dropped the strike, and the next tick made it a new one, with a reaction and a turn of
-	 * its own and none of the room a strike begun has, or a walk off the rim it was kept for as getting him nowhere clear
+	 * its own and none of the room a strike begun has, or a walk off the rim it was kept for as getting nowhere clear
 	 * (the review of the fourth round, 22 Oct 2026). The review's two of the keeping and its three more to take it up
 	 * again are one keeping here, in which nothing else is struck or looked at.
 	 */
@@ -2353,9 +2353,9 @@ final class Pen {
 	/**
 	 * Whether a strike is on this tick (creeperTick returns then, the state's own tick or the held creeper step strikes):
 	 * the struck one's death waited for; the one begun (kept, seen in near or not) as long as Fuse.keeps keeps it (its
-	 * blow still fits by Fuse.strike's rules for one begun, with another one swelling at him too only while late, and a
-	 * moment without a plan while late, within URGENT_GRACE); or, with one alone swelling at him, a new one. A strike
-	 * dropped joins near, to get away from: it still swells at him.
+	 * blow still fits by Fuse.strike's rules for one begun, with another one swelling too only while late, and a
+	 * moment without a plan while late, within URGENT_GRACE); or, with one alone swelling at the buddy, a new one. A strike
+	 * dropped joins near, to get away from: it still swells.
 	 */
 	private static boolean strikeOn(Minecraft mc, LocalPlayer p, List<Creeper> near, long now, int t) {
 		if (urgent != null && urgent.getId() == struckId && near.isEmpty()) return true;
@@ -2382,10 +2382,10 @@ final class Pen {
 
 	/**
 	 * A creeper within its blast's reach and one more that swells, seen or not: the swell's direction is the server's
-	 * (DATA_SWELL_DIR), where the sight is the client's own reckoning, which loses him at a pit's rim a tick before the
-	 * server does or after. While one does, or did within SWELL_QUIET (swellAt), a getaway keeps him from a fight, and a
+	 * (DATA_SWELL_DIR), where the sight is the client's own reckoning, which loses the buddy at a pit's rim a tick before the
+	 * server does or after. While one does, or did within SWELL_QUIET (swellAt), a getaway comes before a fight, and a
 	 * wait at its cell runs none of the state's own checks, which may end the pen and with it every creeper watch (the
-	 * test of 22 Oct 2026: a fight took him back beside one whose sight of him had gone for a moment, and it went off).
+	 * test of 22 Oct 2026: a fight took the buddy back beside one that had lost sight for a moment, and it went off).
 	 */
 	private static boolean anySwelling(LocalPlayer p) {
 		for (Creeper c : p.level().getEntitiesOfClass(Creeper.class, p.getBoundingBox().inflate(13), c -> c.isAlive() && c.getSwellDir() > 0))
@@ -2394,13 +2394,13 @@ final class Pen {
 	}
 
 	/**
-	 * Ticks with no creeper swelling within its reach of him, seen or not (swellAt), before a fight may have the tick of a
-	 * getaway (creeperTick), also on his way to the cell, and before the wait at the cell runs the state's own checks
+	 * Ticks with no creeper swelling within its reach of the buddy, seen or not (swellAt), before a fight may have the tick of a
+	 * getaway (creeperTick), also on the way to the cell, and before the wait at the cell runs the state's own checks
 	 * (waitChecks). Only the fight: the unloader and the corpse guard wait behind a getaway, as before the fourth round.
 	 */
 	static final int SWELL_QUIET = 10;
 
-	/** Creepers swelling that would hurt him if they went off now: within their blast's reach and one more, seeing him. */
+	/** Creepers swelling that would hurt the buddy if they went off now: within their blast's reach and one more, in sight. */
 	private static List<Creeper> swelling(LocalPlayer p) {
 		List<Creeper> out = new ArrayList<>();
 		for (Creeper c : p.level().getEntitiesOfClass(Creeper.class, p.getBoundingBox().inflate(13), c -> c.isAlive() && c.getSwellDir() > 0))
@@ -2412,10 +2412,10 @@ final class Pen {
 	private static double blast(Creeper c) { return c.isPowered() ? 12 : 6; }
 
 	/**
-	 * Guard's blow at the start of this tick, when it was at the urgent creeper: struck. Its death is waited for, his
+	 * Guard's blow at the start of this tick, when it was at the urgent creeper: struck. Its death is waited for, the
 	 * ping and two ticks and never less than a click's gap (PenShape.MIN_GAP): no second blow at it meanwhile, and no
-	 * getting away from it for still swelling (the third review of 22 Oct 2026: he struck once a tick until he learnt of
-	 * the death, four to six blows at twenty a second).
+	 * getting away from it for still swelling (the third review of 22 Oct 2026: the buddy struck once a tick until the death
+	 * was known, four to six blows at twenty a second).
 	 */
 	private static void struckTick(Minecraft mc, LocalPlayer p, long now) {
 		long at = Guard.lastHitAt();
@@ -2433,17 +2433,17 @@ final class Pen {
 	private record Plan(int sum, int fuse, int hitch, boolean unseen, boolean late) {}
 
 	/**
-	 * The latest his blow at this swelling creeper lands (Fuse.sum) and the fuse left, or null where no blow of his can
-	 * kill it: no pen, a dry run, not at or on his way to a spot (not in the night's pause, a retreat or the step back),
+	 * The latest a blow at this swelling creeper lands (Fuse.sum) and the fuse left, or null where no blow can
+	 * kill it: no pen, a dry run, not at or on the way to a spot (not in the night's pause, a retreat or the step back),
 	 * no creeper of the pen, riding, a menu, a hand that may not hit it as it is (handWillHit), a full blow that does not
 	 * kill it. The sum: the turn to it at Look's slowest, the strength that kills it, a moment's reaction, the cooldown
-	 * of its last hurt (Fuse.cooldownWait: a fall that just hurt it absorbs a blow no stronger), and a hitch of his own
-	 * (the ticks until he lands, what is left of an item in use, a tick to stop sprinting; a mob in the line or no point
-	 * of it in reach, of unknown length: UNSEEN_HITCH a look), then the tick it is queued for, his ping and a margin. The
+	 * of its last hurt (Fuse.cooldownWait: a fall that just hurt it absorbs a blow no stronger), and a hitch of the buddy's
+	 * own (the ticks until landing, what is left of an item in use, a tick to stop sprinting; a mob in the line or no point
+	 * of it in reach, of unknown length: UNSEEN_HITCH a look), then the tick it is queued for, the ping and a margin. The
 	 * fuse: by the more of the client's own count and the server's as the client can tell it (Fuse.Count: what a landing
 	 * adds, which only the server counts; the third review of 22 Oct 2026). Late: so little of it is left that a walk out
 	 * of its blast at the walker's pace (Fuse.walkOut; the walk off stands up beside the fence, gettingAway) no longer
-	 * clears him.
+	 * gets clear.
 	 */
 	private static Plan plan(Minecraft mc, LocalPlayer p, Creeper c, long now) {
 		if (hok == null || dry || !striking()) return null;
@@ -2468,17 +2468,17 @@ final class Pen {
 	}
 
 	/**
-	 * Whether he strikes this creeper by its plan: a new one when the blow lands within its fuse with nothing in the way
-	 * of it (it begins: urgent); one he turned to already as long as its sum, counting the hitch's own ticks, still fits
+	 * Whether the buddy strikes this creeper by its plan: a new one when the blow lands within its fuse with nothing in the way
+	 * of it (it begins: urgent); one turned to already as long as its sum, counting the hitch's own ticks, still fits
 	 * (the third review of 22 Oct 2026: one tick in which the blow could not go out, an arrow's knock or a mob in the
-	 * line, ended it for good, and he walked off too late to get clear). A hitch of unknown length is waited out only
-	 * while a walk out of its blast still clears him, or when it began only after that; and once getting away no longer
-	 * clears him, the blow is kept while it fits but for its margin. When it goes ahead, the tick and whether it is late
+	 * line, ended it for good, and the walk off came too late to get clear). A hitch of unknown length is waited out only
+	 * while a walk out of its blast still gets clear, or when it began only after that; and once getting away no longer
+	 * gets clear, the blow is kept while it fits but for its margin. When it goes ahead, the tick and whether it is late
 	 * are kept, for a moment without a plan (strikeOn).
 	 */
 	private static boolean strikes(Creeper c, Plan plan, long now, int t) {
 		boolean committed = urgent != null && urgent.getId() == c.getId();
-		// a hitch of unknown length: whether it began only once a walk out of the blast no longer cleared him
+		// a hitch of unknown length: whether it began only once a walk out of the blast no longer got clear
 		if (!committed || !plan.unseen()) unseenHitch = false;
 		else if (!unseenHitch) { unseenHitch = true; unseenLate = plan.late(); }
 		if (!Fuse.strike(committed, plan.hitch(), plan.unseen(), unseenLate, plan.sum(), plan.fuse(), plan.late(), CREEPER_MARGIN)) return false;
@@ -2497,8 +2497,8 @@ final class Pen {
 	}
 
 	/**
-	 * What he holds hits this one now as it is: no sword with someone in the reach of its sweep (handReady takes an axe
-	 * there first, which takes its time), no axe about to break beside someone. An axe he took for someone stays for it.
+	 * What the buddy holds hits this one now as it is: no sword with someone in the reach of its sweep (handReady takes an axe
+	 * there first, which takes its time), no axe about to break beside someone. An axe taken for someone stays for it.
 	 */
 	private static boolean handWillHit(LocalPlayer p, LivingEntity aimed) {
 		if (unsafe) return true;
@@ -2508,7 +2508,7 @@ final class Pen {
 	}
 
 	/**
-	 * Ticks until a blow with what he holds kills it, by the strength as the server weighs a blow (Player.attack: the
+	 * Ticks until a blow with what is in hand kills it, by the strength as the server weighs a blow (Player.attack: the
 	 * item's damage times 0.2 + 0.8 times the strength squared) at safeStrength; -1 when not even a full blow kills it.
 	 */
 	private static int strengthTicks(LocalPlayer p, LivingEntity e) {
@@ -2518,19 +2518,19 @@ final class Pen {
 		if (need > 1 + 1e-6) return -1;
 		double s = need <= 0.2 ? 0 : Math.sqrt((need - 0.2) / 0.8);
 		float delay = Math.max(1f, p.getCurrentItemAttackStrengthDelay());
-		// the ticks since his last blow or switch (up to the delay, where the strength is full), and the blow lands with
+		// the ticks since the last blow or switch (up to the delay, where the strength is full), and the blow lands with
 		// a tick less than that, as safeStrength reads it: (ticker + k - 1) / delay >= s
 		double ticker = p.getAttackStrengthScale(0f) * delay;
 		return (int) Math.max(0, Math.ceil(s * delay - ticker + 1));
 	}
 
 	/**
-	 * The strength a blow sent now lands with, as he can count on it: a tick and a half under what the client reads at
-	 * half a tick on (Player.attack's own reading), as the server counts its own ticker from when it got his last blow.
+	 * The strength a blow sent now lands with, as can be counted on: a tick and a half under what the client reads at
+	 * half a tick on (Player.attack's own reading), as the server counts its own ticker from when it got the last blow.
 	 */
 	private static float safeStrength(LocalPlayer p) { return p.getAttackStrengthScale(-1f); }
 
-	/** What a blow with what he holds does at this strength, without enchantments: never more than it does. */
+	/** What a blow with what is in hand does at this strength, without enchantments: never more than it does. */
 	private static double blowAt(LocalPlayer p, float strength) { return blow(p) * (0.2 + 0.8 * strength * strength); }
 
 	/**
@@ -2546,7 +2546,7 @@ final class Pen {
 		return (int) Mth.clamp((4 + angle / 9f) * 1.6f, 3, 42) + 6;
 	}
 
-	/** Something else on the line from his eye to this point of the target, which the crosshair takes first (the nearest pickable box). */
+	/** Something else on the line from the eye to this point of the target, which the crosshair takes first (the nearest pickable box). */
 	private static boolean screened(LocalPlayer p, Entity target, Vec3 pt) {
 		Vec3 eye = p.getEyePosition();
 		double d = eye.distanceTo(pt);
@@ -2559,7 +2559,7 @@ final class Pen {
 		return false;
 	}
 
-	/** His ping in ticks, as the player list has it (150 ms where it does not). */
+	/** The ping in ticks, as the player list has it (150 ms where it does not). */
 	private static int pingTicks(Minecraft mc, LocalPlayer p) {
 		var c = mc.getConnection();
 		var info = c == null ? null : c.getPlayerInfo(p.getUUID());
@@ -2584,8 +2584,8 @@ final class Pen {
 	}
 
 	/**
-	 * A bout of this creeper swelling at him, counted: the third within CREEPER_WAIT is too dangerous, decided once he
-	 * is clear of it (evadeTick; the third review of 22 Oct 2026: decided while it swelled, he followed the player, who
+	 * A bout of this creeper swelling at the buddy, counted: the third within CREEPER_WAIT is too dangerous, decided once
+	 * clear of it (evadeTick; the third review of 22 Oct 2026: decided while it swelled, the buddy followed the player, who
 	 * stood at the pen, and stayed inside its blast, or waited at the pen's hidden cell with nothing watching). One that
 	 * is no creeper of the pen makes that hidden cell no place to wait at.
 	 */
@@ -2595,12 +2595,12 @@ final class Pen {
 		for (ArrayDeque<Long> t : evades.values()) while (!t.isEmpty() && now - t.peekFirst() > CREEPER_WAIT) t.pollFirst();
 		evades.values().removeIf(ArrayDeque::isEmpty);
 		if (hok == null || !hok.holds(c)) evadeOutside = true;
-		if (hok != null && times.size() >= CREEPER_EVADES && evadeDanger == null) evadeDanger = "{me} left the mob farm: a creeper kept them from it.";
+		if (hok != null && times.size() >= CREEPER_EVADES && evadeDanger == null) evadeDanger = "{me} left the mob farm, kept from it by a creeper.";
 	}
 
 	/**
 	 * Away from these swelling creepers, from the nearest of them: to the cell evadePick gives, the walk begun anew. A
-	 * bout while he gets away already takes another cell against all that swell now, and the three seconds start over.
+	 * bout while already getting away takes another cell against all that swell now, and the three seconds start over.
 	 */
 	private static void startEvade(LocalPlayer p, List<Creeper> near, long now) {
 		Creeper c = nearest(p, near);
@@ -2613,7 +2613,7 @@ final class Pen {
 		look.stop();
 		// a bite under way would slow the walk out of its blast to a fifth
 		AfkHelperClient.stopEating("creeper");
-		// over a gap (a jump across a ditch): the pick once he lands (evadeTick), and a fight's jump under way goes on
+		// over a gap (a jump across a ditch): the pick on landing (evadeTick), and a fight's jump under way goes on
 		// meanwhile (evadeYielded kept, so that its end begins the walk anew)
 		if (overGap(p)) evadePickDue = true;
 		else { evadeYielded = false; evadePickDue = false; evadeWalkTo(evadePick(p, near)); }
@@ -2622,8 +2622,8 @@ final class Pen {
 	}
 
 	/**
-	 * The swelling creepers as the getaway counts them (Getaway.Foe): with how near he may come to each from where he
-	 * stands, on the ground under him ({@code feet}: ground) while he is in the air (Getaway.standing).
+	 * The swelling creepers as the getaway counts them (Getaway.Foe): with how near the buddy may come to each from the
+	 * current place, on the ground underneath ({@code feet}: ground) while in the air (Getaway.standing).
 	 */
 	private static List<Getaway.Foe> foes(LocalPlayer p, List<Creeper> near, double feet) {
 		Vec3 me = Getaway.standing(p.position(), feet);
@@ -2635,19 +2635,19 @@ final class Pen {
 	private static List<Getaway.Foe> foes(LocalPlayer p, List<Creeper> near) { return foes(p, near, ground(p)); }
 
 	/**
-	 * A pick of the getaway: its cell (null: none, and he stands), the cells the walk there keeps out of (Follow.shun),
-	 * and the steps of its walk to the cell he walks to now (-1: none, or not on that walk; Getaway.nearer).
+	 * A pick of the getaway: its cell (null: none, and the buddy stands), the cells the walk there keeps out of (Follow.shun),
+	 * and the steps of its walk to the cell walked to now (-1: none, or not on that walk; Getaway.nearer).
 	 */
 	private record Pick(Getaway.Cell cell, Set<BlockPos> shun, int left) {}
 
 	private static final Pick NO_PICK = new Pick(null, Set.of(), -1);
 
 	/**
-	 * The cell to get away to from these creepers (Getaway.pick): of the cells he walks to (walkable) without coming
-	 * nearer to any of them than he stands (Getaway.refuses), within CREEPER_RANGE, the nearest by the walk out of the
+	 * The cell to get away to from these creepers (Getaway.pick): of the cells the buddy walks to (walkable) without coming
+	 * nearer to any of them than now (Getaway.refuses), within CREEPER_RANGE, the nearest by the walk out of the
 	 * sight of each or a block and a half past its blast, else the one farthest out of all their blasts as a fallback;
 	 * never one given up in this getting away. Until the review of the fourth round, 22 Oct 2026, the cells came from a
-	 * walk that went anywhere, kept to his side of the nearest creeper only, and the fallback was the cell farthest from
+	 * walk that went anywhere, kept to the buddy's side of the nearest creeper only, and the fallback was the cell farthest from
 	 * that one: past it in a dead end with the way there through its own cell, or beside a second one.
 	 */
 	private static Pick evadePick(LocalPlayer p, List<Creeper> near) {
@@ -2668,9 +2668,9 @@ final class Pen {
 	}
 
 	/**
-	 * The walk to this pick's cell (none: he stands) begins, with the cells it keeps out of: its clock anew
+	 * The walk to this pick's cell (none: standing still) begins, with the cells it keeps out of: its clock anew
 	 * (Work.walkFresh; with the last walk's record a second walk failed at once, the third review of 22 Oct 2026), and a
-	 * plan at once, not at the walker's next due one, which may be half a second off, with him walking on to the spot
+	 * plan at once, not at the walker's next due one, which may be half a second off, with the buddy walking on to the spot
 	 * meanwhile (Follow.planNow).
 	 */
 	private static void evadeWalkTo(Pick pick) {
@@ -2704,39 +2704,39 @@ final class Pen {
 	static final long SHUN_HOLD = 500;
 
 	/**
-	 * Getting away from the creeper: to its cell, and standing there while one still swells at him; back to what he was
-	 * doing once its three seconds are over and no creeper he could not strike is near the place he would go back to
-	 * (clearToGoBack; a creeper in a 1x1 pit is near every spot of it), the state's own checks running while he waits
-	 * there (waitChecks). The cell against the creepers that swell at him now (replan). Too dangerous (three bouts of one,
-	 * or waiting longer than CREEPER_WAIT) once he is clear of them, not while one swells. In a tick given to a fight
-	 * ({@code give}) only its clock runs, the wait and its end: no key, crouch or route of his is touched, and whether he
-	 * was at the cell is left as it was (the review of the fourth round, 22 Oct 2026: his standing at the cell, and his
-	 * walk back to it past a block, took every tick from the fight, and his head turned twice in a tick on the way).
+	 * Getting away from the creeper: to its cell, and standing there while one still swells at the buddy; back to what was
+	 * going on once its three seconds are over and no creeper that could not be struck is near the place to go back to
+	 * (clearToGoBack; a creeper in a 1x1 pit is near every spot of it), the state's own checks running during the wait
+	 * there (waitChecks). The cell against the creepers that swell at the buddy now (replan). Too dangerous (three bouts of one,
+	 * or waiting longer than CREEPER_WAIT) once clear of them, not while one swells. In a tick given to a fight
+	 * ({@code give}) only its clock runs, the wait and its end: no key, crouch or route is touched, and whether the buddy
+	 * was at the cell is left as it was (the review of the fourth round, 22 Oct 2026: standing at the cell, and the
+	 * walk back to it past a block, took every tick from the fight, and the head turned twice in a tick on the way).
 	 */
 	private static boolean evadeTick(Minecraft mc, LocalPlayer p, long now, List<Creeper> near, boolean give) {
 		// over a gap with no walk of the getaway's own under way (ticks given to a fight whose walk jumps, a first bout
-		// begun there): that jump's keys as they are, until he lands; the getaway's own jump goes on by its walk
+		// begun there): that jump's keys as they are, until landing; the getaway's own jump goes on by its walk
 		// (Work.approach, with its control in the air), and its pick waits for the landing (the review of 22 Oct 2026)
 		boolean hold = !give && overGap(p) && (evadeYielded || (evadePickDue && evadeCell == null));
-		// standing up for the walk off; standing where he is with no cell to go to, still crouched on the pen's rim
+		// standing up for the walk off; standing in place with no cell to go to, still crouched on the pen's rim
 		if (!give && !hold) HeldKeys.set(mc.options.keyShift, evadeCell == null && fenceBeside(p.blockPosition()));
 		boolean swells = !near.isEmpty();
 		if (!swells && now > evadeUntil) {
 			waitChecks(mc, p, now);
 			if (state == OFF || evadeId == -1) return state != OFF;
 			if (hok != null && (evadeDanger != null || now - evadeSince > CREEPER_WAIT)) {
-				tooDangerous(evadeDanger != null ? evadeDanger : "{me} left the mob farm: a creeper kept them from it.", !evadeOutside);
+				tooDangerous(evadeDanger != null ? evadeDanger : "{me} left the mob farm, kept from it by a creeper.", !evadeOutside);
 				return state != OFF;
 			}
 			if (clearToGoBack(p, now)) { endEvade(now); return false; }
 			if (!evadeWaitTold) { evadeWaitTold = true; Exchange.emit("pen", "action", "waits for a creeper"); }
 		}
 		if (give) return true;
-		// no second jump when he lands
+		// no second jump on landing
 		if (hold) { HeldKeys.set(mc.options.keyJump, false); return true; }
 		if (evadePickDue && !overGap(p)) {
-			// landed: the pick, or the walk to the cell begun anew (its record and whether he was there are of before);
-			// over a gap on his own walk the jump goes on by it (below), the pick waiting for the landing
+			// landed: the pick, or the walk to the cell begun anew (its record and whether the buddy was there are of before);
+			// over a gap on the getaway's own walk the jump goes on by it (below), the pick waiting for the landing
 			evadePickDue = false;
 			if (swells) { evadeWalkTo(evadePick(p, near)); evadePlanTick = Follow.ticks(); }
 			else if (evadeCell != null) evadeWalkAgain();
@@ -2745,7 +2745,7 @@ final class Pen {
 		if (evadeCell == null) { Follow.stand(); return true; }
 		Vec3 to = Vec3.atBottomCenterOf(evadeCell);
 		// there by the walker's own last step (within 0.35 of the middle of the cell's floor): out of its sight from the
-		// middle; with 0.8 he stopped at the edge of the cell before it, still in the sight of the creeper in the pit (the
+		// middle; with 0.8 the buddy stopped at the edge of the cell before it, still in the sight of the creeper in the pit (the
 		// test of 22 Oct 2026)
 		if (Getaway.arrived(p.position(), evadeCell, evadeFeet, evadeAtCell)) {
 			evadeAtCell = true;
@@ -2753,7 +2753,7 @@ final class Pen {
 			Follow.stand();
 			return true;
 		}
-		// off the cell he stood at (a knock): a walk anew, or the last walk's clock fails it at once
+		// off the cell (a knock): a walk anew, or the last walk's clock fails it at once
 		if (evadeAtCell) evadeWalkAgain();
 		if (!evadeShun.isEmpty()) Follow.shun(evadeShun, now + SHUN_HOLD);
 		evadeWalkTick = Follow.ticks();
@@ -2765,10 +2765,10 @@ final class Pen {
 	}
 
 	/**
-	 * The cell, against the creepers that swell at him now, every tick: one of them sees it (Getaway.seen), the walker
+	 * The cell, against the creepers that swell at the buddy now, every tick: one of them sees it (Getaway.seen), the walker
 	 * finds no way there after three ticks, or there was none and one may be found now: the next (until the third review
-	 * of 22 Oct 2026 nothing was planned again, and he stood beside one that followed him and swelled anew, or before a
-	 * cell he could not reach). A fallback, seen by design, is looked past every five ticks instead, and given up only
+	 * of 22 Oct 2026 nothing was planned again, and the buddy stood beside one that followed and swelled anew, or before a
+	 * cell out of reach). A fallback, seen by design, is looked past every five ticks instead, and given up only
 	 * for a cell out of their sight or one half a block farther out of their blasts (Getaway.better): given up for being
 	 * seen, it was a cell a little farther on every five ticks, with the keys let go and "another cell" each time, and
 	 * past the creeper as often as not (the review of the fourth round). On the way to a cell out of their sight, every
@@ -2819,18 +2819,18 @@ final class Pen {
 		evadeWalkTo(next);
 	}
 
-	/** His feet in that cell: the walker stops as it enters a goal's cell, at its edge as often as not. */
+	/** The feet in that cell: the walker stops as it enters a goal's cell, at its edge as often as not. */
 	private static boolean inCell(LocalPlayer p, BlockPos cell) {
 		return Mth.floor(p.getX()) == cell.getX() && Mth.floor(p.getZ()) == cell.getZ() && Math.abs(p.getY() - cell.getY()) < 1.2;
 	}
 
 	/**
-	 * While he waits at the getaway's cell, what the state he is in looks at in its own tick, which does not come
+	 * While the buddy waits at the getaway's cell, what the current state looks at in its own tick, which does not come
 	 * meanwhile: the retreat's way back and its "hit again" (retreatBack, retreatHit; a blow at this cell counts from a
-	 * moment after he first got there, as for cover, since one may have been in the air), and at a spot, on the way to
+	 * moment after the first arrival there, as for cover, since one may have been in the air), and at a spot, on the way to
 	 * one or in the night's pause low health, no food and a spear (safety), whose retreat then has the wait. Only once
 	 * nothing has swelled within its reach for SWELL_QUIET, seen or not, as a stop takes every creeper watch with it.
-	 * Until the review of the fourth round, 22 Oct 2026, none of it ran for the two minutes he could wait there, and a
+	 * Until the review of the fourth round, 22 Oct 2026, none of it ran for the two minutes the wait there could last, and a
 	 * retreat stood at a cell in the pit's sight and took its arrows.
 	 */
 	private static void waitChecks(Minecraft mc, LocalPlayer p, long now) {
@@ -2845,7 +2845,7 @@ final class Pen {
 
 	/**
 	 * Done getting away. Walking to a spot or leaning in when it came: a spot chosen anew, with the walk's own time
-	 * again (else the time it spent away ran out the walk and marked the spot bad); at the spot, farmTick sends him back
+	 * again (else the time it spent away ran out the walk and marked the spot bad); at the spot, farmTick sends the buddy back
 	 * to it; the retreat and the night go on to their cell.
 	 */
 	private static void endEvade(long now) {
@@ -2865,7 +2865,7 @@ final class Pen {
 		if (hok == null) return;
 		// back to the pen only from a spot or on the way to one: the retreat, the night and the step back go on to their
 		// cell, and the retreat's own end tells it (by the tick the retreat began, a getaway during an older one told it
-		// while he walked on away from the pen, and one that began it in the wait did not)
+		// while the buddy walked on away from the pen, and one that began it in the wait did not)
 		boolean back = state == GOING || state == SWITCHING || state == LEAN_IN || state == FARMING;
 		if (back) toldBack();
 		if (back && state != FARMING && wentTick != Follow.ticks()) go("to a spot", now);
@@ -2884,12 +2884,12 @@ final class Pen {
 	}
 
 	/**
-	 * Whether he may go back after getting away. To a spot of the pen: none within CREEPER_SWELL of a creeper he could
-	 * not strike there, nor of two creepers (noSpot; choose keeps away from such a spot while another is free). Until the
-	 * third review of 22 Oct 2026 only one a full blow does not kill counted, and he went back three times to one his
-	 * blow kills but could not strike in time. The retreat and the night to their cell out of the pen's sight: no creeper
-	 * near it at all (he hits none then), where they went back to it whatever stood there. With one there, the night
-	 * stays where he got to, and the retreat takes another cell of its own (lookAround), or stays where he got to as well:
+	 * Whether going back is allowed after getting away. To a spot of the pen: none within CREEPER_SWELL of a creeper that
+	 * could not be struck there, nor of two creepers (noSpot; choose keeps away from such a spot while another is free).
+	 * Until the third review of 22 Oct 2026 only one a full blow does not kill counted, and the buddy went back three times
+	 * to one a blow kills but that could not be struck in time. The retreat and the night to their cell out of the pen's
+	 * sight: no creeper near it at all (none is hit then), where they went back to it whatever stood there. With one
+	 * there, the night stays put, and the retreat takes another cell of its own (lookAround), or stays put as well:
 	 * it waited for that cell up to two minutes, with none of its own checks running (the review of the fourth round).
 	 * The step back and the resume walk to theirs.
 	 */
@@ -2903,7 +2903,7 @@ final class Pen {
 			Vec3 at = Vec3.atBottomCenterOf(cell);
 			List<Creeper> by = p.level().getEntitiesOfClass(Creeper.class, new AABB(at, at).inflate(CREEPER_SWELL + 1), Creeper::isAlive);
 			if (!creeperAt(by, at)) return true;
-			// the night's pause waits where he got to, out of the creeper's sight; the retreat looks for a cell of its own
+			// the night's pause waits where it is, out of the creeper's sight; the retreat looks for a cell of its own
 			if (state == NIGHT) nightStays = true;
 			else lookAround(p, by);
 			return true;
@@ -2917,9 +2917,9 @@ final class Pen {
 
 	/**
 	 * A creeper stood by the retreat's cell: another one for this retreat, the nearest by the walk there (walkable, never
-	 * nearer to those creepers than he stands: Getaway.refuses) that no column of the pen sees anywhere in it, with no
-	 * creeper within its swell and one more, looked for a little each tick while he stands (CoverShape.Search, in
-	 * retreatTick); his own cell when it is such a one, and with none he stays where he got to (retreatStays). The pen's
+	 * nearer to those creepers than now: Getaway.refuses) that no column of the pen sees anywhere in it, with no
+	 * creeper within its swell and one more, looked for a little each tick while standing (CoverShape.Search, in
+	 * retreatTick); the current cell when it is such a one, and with none the retreat stays put (retreatStays). The pen's
 	 * own cell stays what it is, for the night, the step back and too dangerous.
 	 */
 	private static void lookAround(LocalPlayer p, List<Creeper> by) {
@@ -2943,7 +2943,7 @@ final class Pen {
 	}
 
 	/**
-	 * The creepers by the pen he could not strike in time if one swelled at him at a spot: no creeper of the pen, one a
+	 * The creepers by the pen that could not be struck in time if one swelled at the buddy at a spot: no creeper of the pen, one a
 	 * full blow does not kill (Weakness and Strength counted), one beside someone a sword's sweep would hit, one whose
 	 * count is not down to nothing (Fuse.Count: it just landed, or came into sight).
 	 */
@@ -2962,10 +2962,10 @@ final class Pen {
 	}
 
 	/**
-	 * A spot not to go back to, nor to walk round to (choose, rounds, clearToGoBack): within CREEPER_SWELL of a creeper he
-	 * could not strike there ({@code strong}), or of two creepers, any ({@code all}), as he strikes no new one while two
-	 * swell at him and gets away from both. Two of the pen in the pit below his spot, each one a blow kills, had him walk
-	 * back to them twice before their third bout ended the pen (the review of the fourth round, 22 Oct 2026).
+	 * A spot not to go back to, nor to walk round to (choose, rounds, clearToGoBack): within CREEPER_SWELL of a creeper that
+	 * could not be struck there ({@code strong}), or of two creepers, any ({@code all}), as no new one is struck while two
+	 * swell at the buddy: the getaway is from both. Two of the pen in the pit below the spot, each one a blow kills, had the
+	 * buddy walk back to them twice before their third bout ended the pen (the review of the fourth round, 22 Oct 2026).
 	 */
 	private static boolean noSpot(Vec3 at, List<Creeper> strong, List<Creeper> all) {
 		if (creeperAt(strong, at)) return true;
@@ -2975,8 +2975,8 @@ final class Pen {
 	}
 
 	/**
-	 * A sword in his hand and someone in the reach of its sweep round this creeper, as he would strike it from a spot
-	 * beside it: handWillHit's bystander, from wherever he stands now.
+	 * A sword in hand and someone in the reach of its sweep round this creeper, as a blow at it would go from a spot
+	 * beside it: handWillHit's bystander, from wherever the buddy stands now.
 	 */
 	private static boolean sweepsSomeone(LocalPlayer p, Creeper c) {
 		if (unsafe || !p.getMainHandItem().is(ItemTags.SWORDS)) return false;
@@ -3027,7 +3027,7 @@ final class Pen {
 		counts.clear();
 	}
 
-	/** The most cells {@link #walkable} looks at: a square of ten round him over a few heights. */
+	/** The most cells {@link #walkable} looks at: a square of ten round the buddy over a few heights. */
 	static final int WALK_MAX = 3000;
 
 	/** {@link #walkable} into any cell. */
@@ -3036,13 +3036,13 @@ final class Pen {
 	}
 
 	/**
-	 * The cells he walks to from {@code from} (his feet at {@code fromFeet}) within {@code range} each way, with the
+	 * The cells the buddy walks to from {@code from} (the feet at {@code fromFeet}) within {@code range} each way, with the
 	 * steps of that walk, nearest by it first: to a cell beside one (four ways) at the height of a slab, up a jump of a
-	 * block and a slab with room over his head, or down as far, so that he can always walk back; never into a cell of
+	 * block and a slab with headroom, or down as far, so that the way back is always open; never into a cell of
 	 * the pen's fence, never through a block; no digging, no building, no swimming down; with {@code enter}, never into a
 	 * cell it refuses, nor so on to the cells beyond it (a getaway's, which never comes nearer to a swelling creeper than
-	 * he stands: Getaway.refuses). What a cover or a getting away may take; the walker itself takes drops of three, which
-	 * is how he came to stand in a hole.
+	 * the buddy's own cell: Getaway.refuses). What a cover or a getting away may take; the walker itself takes drops of
+	 * three, which is how the buddy came to stand in a hole.
 	 */
 	static Map<BlockPos, Integer> walkable(Level level, BlockPos from, double fromFeet, int range, int max, java.util.function.Predicate<BlockPos> enter) {
 		Map<BlockPos, Integer> steps = new LinkedHashMap<>();
@@ -3063,7 +3063,7 @@ final class Pen {
 					if (Double.isNaN(fh)) continue;
 					double dy = fh - fc;
 					if (dy > 1.25 || dy < -1.25) continue;
-					// up: room over his head where he jumps; down: through the cell beside him, not through a block
+					// up: headroom where the jump goes; down: through the neighbouring cell, not through a block
 					if (dy > 0.6 && !headroom(level, cur, fc, dy)) continue;
 					if (cand.getY() < h.getY() && (!Follow.passable(level, h, true) || !Follow.passable(level, h.above(), false))) continue;
 					if (!steps.containsKey(cand) && !Follow.fenced(cand) && (enter == null || enter.test(cand))) {
@@ -3078,7 +3078,7 @@ final class Pen {
 		return steps;
 	}
 
-	/** Room for his head over his cell for a jump of {@code rise} from feet at {@code feet}, as Follow's planner wants it. */
+	/** Headroom over the cell for a jump of {@code rise} from feet at {@code feet}, as Follow's planner wants it. */
 	private static boolean headroom(Level level, BlockPos cur, double feet, double rise) {
 		for (int y = cur.getY() + 1; y < feet + 1.8 + rise + 0.05; y++) if (!Follow.passable(level, new BlockPos(cur.getX(), y, cur.getZ()), false)) return false;
 		return true;
@@ -3087,10 +3087,10 @@ final class Pen {
 	// ---------- the night ----------
 
 	/**
-	 * Night with someone asleep, or a bed wanted (the player asleep by him, or the base's bed): he pauses (penNightPause).
-	 * No blows, no rounds, no turns, so that after five idle minutes the server can count him away and the night pass
-	 * with only the two of them on; he waits at the cell out of the sight of the pen's mobs, back at his spot in the
-	 * morning. With a bed to go to the sleep step of the chain takes him there.
+	 * Night with someone asleep, or a bed wanted (the player asleep nearby, or the base's bed): the farming pauses
+	 * (penNightPause). No blows, no rounds, no turns, so that after five idle minutes the server can count the buddy away
+	 * and the night pass with only the two of them on; the buddy waits at the cell out of the sight of the pen's mobs, back
+	 * at the spot in the morning. With a bed to go to, the sleep step of the chain goes there.
 	 */
 	private static boolean nightCheck(LocalPlayer p, long now) {
 		if (!AfkConfig.get().penNightPause || !Follow.bedtime(p.level())) return false;
@@ -3111,24 +3111,24 @@ final class Pen {
 			else go("to a spot", now);
 			return true;
 		}
-		if (Follow.bedWanted(p) || p.isSleeping()) return false;   // the sleep step takes him to bed
-		// the pause where no mob of the pen sees him: none swells at him, none shoots, and standing still there he counts
-		// as idle as he did at his spot (it was minutes at a spot a creeper in a near column swells at, with no blow and
-		// no step back). The danger of the farm still holds on the way: low, a spear; and a creeper that came up to him
+		if (Follow.bedWanted(p) || p.isSleeping()) return false;   // the sleep step goes to bed
+		// the pause out of the sight of every mob of the pen: none swells at the buddy, none shoots, and standing still there
+		// counts as idle as it did at the spot (it was minutes at a spot a creeper in a near column swells at, with no blow and
+		// no step back). The danger of the farm still holds on the way: low, a spear; and a creeper that came up close
 		// there, the pen's or not, is creeperTick's
 		if (safety(mc, p, mobs(p), now)) return true;
 		HeldKeys.set(mc.options.keySprint, false);
 		BlockPos cell = nightStays ? null : retreatCell(p, SEARCH_BUDGET);
 		if (cell != null) {
-			// as the retreat takes it there: within 0.8 he stands, and still, which the idle count wants
+			// as the retreat takes it there: within 0.8 counts as there, and standing still, which the idle count wants
 			Vec3 to = Vec3.atBottomCenterOf(cell);
 			if (p.position().distanceTo(to) >= 0.8) {
-				// no way there: as for a retreat, that cell is given up, and he waits where he is (at his spot, mostly)
+				// no way there: as for a retreat, that cell is given up, and the buddy waits in place (at the spot, mostly)
 				if (!Work.approach(mc, p, "pen-night", to, now)) { nightStays = true; retreatCell = null; retreatHidden = false; Follow.stand(); }
 				return true;
 			}
 		}
-		// there, or no cell known (yet): he stands, crouched still where he stands at the edge of his spot
+		// there, or no cell known (yet): stand, crouched and still, in place (at the edge of the spot)
 		Follow.stand();
 		HeldKeys.set(mc.options.keyUp, false);
 		boolean atSpot = spot != null && Math.hypot(spot.at().x - p.getX(), spot.at().z - p.getZ()) <= 0.5;
@@ -3155,7 +3155,7 @@ final class Pen {
 	}
 
 	private static boolean drop(Level level, BlockPos q) {
-		// the cell at his feet beside it, as Grinder takes it: empty down two more is a drop of two blocks or more
+		// the cell beside it at the height of the feet, as Grinder takes it: empty down two more is a drop of two blocks or more
 		for (var d : net.minecraft.core.Direction.Plane.HORIZONTAL) if (Grinder.dropAhead(level, q.relative(d))) return true;
 		return false;
 	}
@@ -3163,8 +3163,8 @@ final class Pen {
 	/**
 	 * The step back, every tick (watch), also while a fight or a creeper's getaway holds it up: more than TELEPORT between
 	 * two ticks in a row (an accepted /tpahere) or another dimension ends it, as guard does for the farm, and a walk off
-	 * it, however far, does not (backoffTick takes him to its cell after the hold). Until the review of the fourth round
-	 * of 22 Oct 2026 a cell over 16 blocks off ended it in backoffTick, also after a fight or a getaway had walked him
+	 * it, however far, does not (backoffTick walks to its cell after the hold). Until the review of the fourth round
+	 * of 22 Oct 2026 a cell over 16 blocks off ended it in backoffTick, also after a fight or a getaway had walked the buddy
 	 * there, and a too-dangerous step back then gave no stay. While it lasts the pen's fence and its caution (tail) stand,
 	 * under a hold too: their half minute from the stop could run out in a long one, and then nothing kept the walk to the
 	 * cell afterwards off the pen.
@@ -3185,13 +3185,13 @@ final class Pen {
 	}
 
 	/**
-	 * The walk of the step back; there, the stay it waits to give (too dangerous) holds him, and not before. A step back
-	 * with neither a stay to give nor one to keep (the stay lifted meanwhile: stayLifted) ends: he follows at once. Held
+	 * The walk of the step back; there the stay it waits to give (too dangerous) takes hold, and not before. A step back
+	 * with neither a stay to give nor one to keep (the stay lifted meanwhile: stayLifted) ends: following resumes at once. Held
 	 * up by an earlier step of the chain, also from its first tick (a fight walks by its own way, not Work.approach; a
-	 * creeper's getaway), it goes on afterwards as a walk anew from where the hold left him (backoffAnew). Until the third
+	 * creeper's getaway), it goes on afterwards as a walk anew from wherever the hold left the buddy (backoffAnew). Until the third
 	 * review of 22 Oct 2026 its first tick after a hold failed as a walk that got no nearer in four seconds; until the
 	 * review of the fourth round that day the hold moved its clock on by ten seconds at most and its time stayed that of
-	 * the way from where it began, so a longer hold, or one that took him farther off, ended it by time.
+	 * the way from where it began, so a longer hold, or one that ended farther off, ended it by time.
 	 */
 	private static boolean backoffTick(Minecraft mc, LocalPlayer p, long now) {
 		if (backoffCell != null && backoffSeen > 0 && now - backoffSeen > 1000) backoffAnew(p, now);
@@ -3214,7 +3214,7 @@ final class Pen {
 	}
 
 	/**
-	 * After a hold, the step back's walk from where he is now, as a walk of its own: the time for the way from there
+	 * After a hold, the step back's walk from where the buddy is now, as a walk of its own: the time for the way from there
 	 * (backoffTime) and Work.approach's record anew (the review of the fourth round, 22 Oct 2026).
 	 */
 	private static void backoffAnew(LocalPlayer p, long now) {
@@ -3226,23 +3226,23 @@ final class Pen {
 	/** A step back's time for a walk of this many blocks: the walk's own time, never under BACKOFF_MAX. */
 	private static long backoffTime(double d) { return Math.max(BACKOFF_MAX, GO_MIN + (long) (d * 800)); }
 
-	// ---------- cover where he stays ----------
+	// ---------- cover during a stay ----------
 
 	/**
-	 * Staying, and hit by a foe the fight leaves be where it stands (in a pit or a farm's cell: Guard.leftBeHit): he gets
+	 * Staying, and hit by a foe the fight leaves be where it stands (in a pit or a farm's cell: Guard.leftBeHit): the buddy gets
 	 * out of the sight of it and of every other such foe near, never left standing still to be hit (0.4.80 began to leave
-	 * such foes be, after the pen or by any pit, and a staying alt took their arrows where he stood). The cell is the
+	 * such foes be, after the pen or by any pit, and a staying alt took their arrows on the spot). The cell is the
 	 * nearest by the walk there (walkable) that no column of their pits sees, middle and far walls, nor their eyes now
 	 * (CoverShape), and the walk is timed by its steps; until the third review of 22 Oct 2026 it was the nearest by straight
-	 * line hidden from the one eye of that tick: a cell behind the rock beside his tunnel, the floor of a hole, his own.
-	 * There he holds while the cover is fresh (half a minute from when he got there), as the stay does, so that the
-	 * carrier and the base wait: the base walked him straight back into the archer's sight, and the next arrow
+	 * line hidden from the one eye of that tick: a cell behind the rock beside the tunnel, the floor of a hole, the very cell
+	 * stood in. The cell is held while the cover is fresh (half a minute from the arrival there), as the stay does, so that the
+	 * carrier and the base wait: the base walked the buddy straight back into the archer's sight, and the next arrow
 	 * anywhere was "hit again there", which lifted the stay and the base keeping. Hit there after the grace, or a walk that
-	 * does not get there in its time: the next cell, three in a bout. None (left): he follows the player again, and the
-	 * need says why; in a base he keeps it, with cells in that base only and the need saying that he found none (at three
-	 * hearts or less he follows after all), and a third cover from one foe within five minutes is told as being shot at
-	 * again and again. The chain's step after the farm (Follow.tick), while he stays; true while the walk or the hold has
-	 * his hands.
+	 * does not get there in its time: the next cell, three in a bout. None (left): following the player again, and the
+	 * need says why; in a base the keeping goes on, with cells in that base only and the need saying that none was found (at
+	 * three hearts or less: following after all), and a third cover from one foe within five minutes is told as being shot
+	 * at again and again. The chain's step after the farm (Follow.tick), during a stay; true while the walk or the hold
+	 * keeps the hands busy.
 	 */
 	static boolean cover(Minecraft mc, LocalPlayer p) {
 		long now = System.currentTimeMillis();
@@ -3252,8 +3252,8 @@ final class Pen {
 		boolean hit = shot != null && src != null && src != coverSource && src.getEntity() == shot;
 		if (hit) coverSource = src;
 		coverHolds = false;
-		// not asked for a while (he followed again, a fight came first), quiet at the cell for a while, or what he hid from
-		// is gone: what was is forgotten, and the stay, the carrier or the base have him again
+		// not asked for a while (following again, a fight came first), quiet at the cell for a while, or what was hidden from
+		// is gone: what was is forgotten, and the stay, the carrier or the base take over again
 		if (now - coverSeen > 1000 || (coverArrived > 0 && !hit && (now - coverQuiet > COVER_FORGET || coverFoeGone(p)))) forgetCover();
 		coverSeen = now;
 		if (coverFoe == -1) {
@@ -3262,10 +3262,10 @@ final class Pen {
 			repeatedCover(shot, now);
 			searchCover(p, shot, "no spot out of sight");
 		} else if (hit && CoverShape.seenAfterAll(coverCell != null, coverFirst, now - coverQuiet, COVER_GRACE, coverThere(p), coverArrived > 0)) {
-			// hit there once what was in the air when he first got there has landed, or on his way back to it after a push
+			// hit there once what was in the air at the first arrival has landed, or on the way back to it after a push
 			// (that blow's own knockback): that cell is seen after all. A hit on the way there the first time, or within the
-			// grace, came from before; he walks on. The grace counts from his first arrival: from each return after a push,
-			// as until the check of the third review of 22 Oct 2026, every arrow on hard fell in it and he held a seen cell
+			// grace, came from before; the walk goes on. The grace counts from the first arrival: from each return after a push,
+			// as until the check of the third review of 22 Oct 2026, every arrow on hard fell in it and a seen cell was held
 			// for its whole half minute. A hit while a search runs has no cell to blame, and the search goes on with its own
 			// reason (the review of the fourth round, 22 Oct 2026: it began anew as "weer geraakt")
 			if (!retryCover(p, shot, "hit again")) return false;
@@ -3276,8 +3276,8 @@ final class Pen {
 			coverSearch = null;
 			boolean far = false;
 			// none out of sight within ten (round a pit two deep on flat ground every cell is in the sight of some part of
-			// it): out of its reach then, where it does not even target him (the test of 22 Oct 2026: on the open platform
-			// he found none and left his stay to follow the player, who was offline)
+			// it): out of its reach then, where it does not even take aim (the test of 22 Oct 2026: on the open platform
+			// none was found, and the buddy left the stay to follow the player, who was offline)
 			if (c == null) { c = outOfReach(p, shot); far = c != null; }
 			if (c == null) { noCover(p, shot, coverWhy); return false; }
 			goCover(p, c, now);
@@ -3300,7 +3300,7 @@ final class Pen {
 			if (now - coverSince > coverLimit || !Work.approach(mc, p, "cover", to, now)) return retryCover(p, shot, "cannot get there");
 			return true;
 		}
-		// pushed out of the cell while he holds it (knockback, a push, water): back to it, a walk of its own and no try; its
+		// pushed out of the cell while holding it (knockback, a push, water): back to it, a walk of its own and no try; its
 		// half minute runs on
 		if (!inCell && (flat > COVER_DRIFT || dy > 0.6)) {
 			coverArrived = 0;
@@ -3314,15 +3314,15 @@ final class Pen {
 		return true;
 	}
 
-	/** He holds the cell of his cover this tick: Follow looks at the player meanwhile, as the stay does. */
+	/** The cell of the cover is held this tick: Follow looks at the player meanwhile, as the stay does. */
 	static boolean holdsCover() { return coverHolds; }
 
-	/** A search for cover from where he stands (the ground under him while an arrow's knockback has him in the air). */
+	/** A search for cover from where the buddy stands (the ground below, while airborne from an arrow's knockback). */
 	private static void searchCover(LocalPlayer p, Entity shot, String why) {
 		Level level = p.level();
 		double feet = ground(p);
 		BlockPos from = standCell(level, p.getX(), feet, p.getZ());
-		// in a base its own cells only: a cell past its edge ended the keeping, and the stay then held him out there for good
+		// in a base its own cells only: a cell past its edge ended the keeping, and the stay then held the buddy out there for good
 		String keeper = Base.keeper();
 		java.util.function.Predicate<BlockPos> allowed = keeper == null ? c -> true
 			: c -> keeper.equalsIgnoreCase(Base.ownerAt(level, Vec3.atBottomCenterOf(c)));
@@ -3333,7 +3333,7 @@ final class Pen {
 		coverArrived = 0;
 	}
 
-	/** The cell whose floor his feet are at: on soul sand, a chest or a path the one above that block, as the walker has it. */
+	/** The cell whose floor the feet are at: on soul sand, a chest or a path the one above that block, as the walker has it. */
 	private static BlockPos standCell(Level level, double x, double feet, double z) {
 		BlockPos c = BlockPos.containing(x, feet + 0.01, z);
 		if (Double.isNaN(Follow.floor(level, c)) && Math.abs(Follow.floor(level, c.above()) - feet) < 0.2) return c.above();
@@ -3341,7 +3341,7 @@ final class Pen {
 	}
 
 	/**
-	 * Whom to hide from: the foe that hit him, the one the bout began for, and every other foe the fight left be lately
+	 * Whom to hide from: the foe that hit the buddy, the one the bout began for, and every other foe the fight left be lately
 	 * (Guard.leftBeIds) within COVER_FOES, each with the closed space it stands in (enclosedWhy keeps it a second per mob).
 	 */
 	private static List<CoverShape.Foe> coverFoes(LocalPlayer p, Entity shot) {
@@ -3364,9 +3364,9 @@ final class Pen {
 	}
 
 	/**
-	 * The nearest cell by the walk there (walkable, to OUT_RANGE) that lies farther than FOE_REACH from each foe he
-	 * hides from and from every column of its pit: past a skeleton's follow range (16), where it neither targets nor
-	 * shoots him. Not his own cell, not one that let him down this bout, not beside a drop, in a base its own cells only.
+	 * The nearest cell by the walk there (walkable, to OUT_RANGE) that lies farther than FOE_REACH from each foe hidden
+	 * from and from every column of its pit: past a skeleton's follow range (16), where it neither targets nor
+	 * shoots. Not the current cell, not one that failed this bout, not beside a drop, in a base its own cells only.
 	 * Null for none.
 	 */
 	private static CoverShape.Cell outOfReach(LocalPlayer p, Entity shot) {
@@ -3415,7 +3415,7 @@ final class Pen {
 	}
 
 	/**
-	 * That cell let him down (not reached in its time, or seen there after all): the next, from where he stands now, three
+	 * That cell failed (not reached in its time, or seen there after all): the next, from where the buddy stands now, three
 	 * in a bout; then no cover. True while there is a next to look for.
 	 */
 	private static boolean retryCover(LocalPlayer p, Entity shot, String why) {
@@ -3430,7 +3430,7 @@ final class Pen {
 
 	private static Vec3 coverAt() { return new Vec3(coverCell.getX() + 0.5, coverFeet, coverCell.getZ() + 0.5); }
 
-	/** At the cell he holds, as a hit there counts: within an arrow's knockback of its middle. */
+	/** At the cover's cell, as a hit there counts: within an arrow's knockback of its middle. */
 	private static boolean coverThere(LocalPlayer p) {
 		if (coverCell == null) return false;
 		Vec3 to = coverAt();
@@ -3454,7 +3454,7 @@ final class Pen {
 	}
 
 	/**
-	 * Covers from one foe, counted: a third within five minutes in a base is the base's work taking him back into its sight
+	 * Covers from one foe, counted: a third within five minutes in a base is the base's work taking the buddy back into its sight
 	 * again and again (the bed or a chore in view of a pit), which nothing ends while the mob lives. Told by the need while
 	 * it goes on (Needs says it once in half an hour).
 	 */
@@ -3465,14 +3465,14 @@ final class Pen {
 		coverRepeats.values().removeIf(ArrayDeque::isEmpty);
 		if (times.size() < COVER_REPEATS || Base.keeper() == null) return;
 		if (times.size() == COVER_REPEATS) Exchange.emit("guard", "action", "shot at again and again", "goal", name(foe), "times", times.size());
-		Needs.want("shot_at", "{me} keeps being shot at in the base by a mob they cannot hit, takes cover each time and keeps the base.");
+		Needs.want("shot_at", "{me} keeps being shot at in the base by a mob out of reach, takes cover each time and keeps the base.");
 	}
 
 	/**
-	 * No cover to be had (none out of sight, or none of the cells came off): the event says why. He follows the player
-	 * again and the need tells the player; in a base he keeps it and the need says so, and the base's work goes on (as
-	 * before cover was made: the owner's word is that a stop leaves him keeping the base), unless he is at three hearts or
-	 * less.
+	 * No cover to be had (none out of sight, or none of the cells came off): the event says why. The buddy follows the
+	 * player again and the need tells the player; in a base the keeping goes on, the need says so, and the base's work goes
+	 * on (as before cover was made: the owner's word is that a stop does not end keeping the base), unless the buddy is at
+	 * three hearts or less.
 	 */
 	private static void noCover(LocalPlayer p, Entity shot, String why) {
 		Entity foe = shot != null ? shot : p.level().getEntity(coverFoe);
@@ -3483,7 +3483,7 @@ final class Pen {
 			Needs.want("shot_at", "{me} was shot at in the base and found no cover, but keeps the base.");
 			return;
 		}
-		Needs.want("shot_at", "{me} was shot at where they were to stay, and follows you again.");
+		Needs.want("shot_at", "{me} was shot at where told to stay, and follows you again.");
 		Follow.unstay("no cover");
 	}
 
@@ -3493,7 +3493,7 @@ final class Pen {
 
 	// ---------- after a fall into the pen ----------
 
-	/** The need of the fall goes once he has been out of the pen's columns for five seconds. */
+	/** The need of the fall goes once the buddy has been out of the pen's columns for five seconds. */
 	private static void fellTick(LocalPlayer p, long now) {
 		if (fellCols == null) return;
 		boolean in = fellCols.contains(PenShape.key(p.getBlockX(), p.getBlockZ()));
@@ -3504,7 +3504,7 @@ final class Pen {
 
 	// ---------- for the walker and the fight ----------
 
-	/** The pen he farms, or the one of a moment ago while its fence still stands. */
+	/** The pen being farmed, or the one of a moment ago while its fence still stands. */
 	private static Hok near() {
 		if (hok != null) return hok;
 		if (tail != null && System.currentTimeMillis() < tailUntil) return tail;
@@ -3512,7 +3512,7 @@ final class Pen {
 		return null;
 	}
 
-	/** He is within this many blocks of the pen (no digging, pillaring or getting loose there). */
+	/** The buddy is within this many blocks of the pen (no digging, pillaring or getting loose there). */
 	static boolean near(LocalPlayer p, double r) {
 		Hok h = near();
 		return h != null && p != null && Work.dimOf(p.level()).equals(h.dim) && h.flat(p.position()) < r && Math.abs(p.getY() - h.floor()) < r + 4;
@@ -3541,7 +3541,7 @@ final class Pen {
 		return box.clip(new Vec3(x0, 0, z0), new Vec3(x1, 0, z1)).isPresent() || box.contains(x0, 0, z0) || box.contains(x1, 0, z1);
 	}
 
-	/** The cell 0.6 ahead along his look is fenced, or a drop: the fight does not step there. */
+	/** The cell 0.6 ahead along the look is fenced, or a drop: the fight does not step there. */
 	static boolean unsafeAhead(LocalPlayer p) {
 		double yaw = Math.toRadians(p.getYRot());
 		BlockPos ahead = BlockPos.containing(p.getX() - Math.sin(yaw) * 0.6, p.getY() + 0.01, p.getZ() + Math.cos(yaw) * 0.6);
@@ -3558,9 +3558,9 @@ final class Pen {
 
 	/**
 	 * Why the fight leaves this mob be, or null (PenShape.pitFoe): it stands in a closed space that is a drop below
-	 * him ("in een put") or a farm ("in een hok"), and he does not stand in it himself. The shape is kept a second per
-	 * mob, as long as the mob is still over its columns (one that climbs out is fought at once); his feet and the
-	 * ground he stands on are measured every time.
+	 * ("in een put") or a farm ("in een hok"), and the buddy does not stand in it. The shape is kept a second per
+	 * mob, as long as the mob is still over its columns (one that climbs out is fought at once); the feet and the
+	 * ground under them are measured every time.
 	 */
 	static String enclosedWhy(LocalPlayer p, Entity e) {
 		if (!(e instanceof LivingEntity le) || e instanceof Player) return null;
@@ -3576,7 +3576,7 @@ final class Pen {
 		return pit == null ? null : PenShape.pitFoe(pit, p.position(), ground(p));
 	}
 
-	/** The height of the ground he stands on: his feet, and while he jumps or falls what is under him (within four). */
+	/** The height of the ground underfoot: the feet, and during a jump or fall what is below them (within four). */
 	private static double ground(LocalPlayer p) {
 		if (p.onGround()) return p.getY();
 		double g = PenShape.floor(new LevelWorld(p.level()), new PenShape.Mob(2 * PenShape.HALF, PenShape.STAND_H, PenShape.STAND_EYE, p.getBoundingBox(), false));
@@ -3585,7 +3585,7 @@ final class Pen {
 
 	// ---------- a restart ----------
 
-	/** Once the world is there after a restart: back to the pen that was on, when he follows its owner and stands at it. */
+	/** Once the world is there after a restart: back to the pen that was on, when following its owner and standing at it. */
 	private static void tryResume() {
 		LocalPlayer p = AfkHelperClient.mc().player;
 		if (p == null || state != OFF || Follow.target() == null || Follow.staying()) return;
@@ -3602,7 +3602,7 @@ final class Pen {
 		nextResumeTry = 0;
 		setState(RESUMING, now);
 		// the remembered pen fenced while it comes back, as its start fences it: getting away from a creeper meanwhile,
-		// the one walk of the resume, must not take him into its pit (the third review of 22 Oct 2026)
+		// the one walk of the resume, must not lead into its pit (the third review of 22 Oct 2026)
 		Follow.fence(entryFence(e), resumeUntil);
 	}
 
@@ -3643,7 +3643,7 @@ final class Pen {
 		return true;
 	}
 
-	/** How far he stands from a remembered pen's columns, flat. */
+	/** How far the buddy stands from a remembered pen's columns, flat. */
 	private static double flatToEntry(JsonObject e, Vec3 at) {
 		double best = Double.MAX_VALUE;
 		for (JsonElement c : e.getAsJsonArray("cols")) {
@@ -3700,7 +3700,7 @@ final class Pen {
 			Path f = file();
 			if (Files.exists(f)) return JsonParser.parseString(Files.readString(f)).getAsJsonObject();
 		} catch (Exception ex) {
-			Exchange.emit("error", "msg", "pens.json: " + ex.getMessage());
+			Exchange.emit("error", "msg", "mob farms not read: " + ex.getMessage());
 		}
 		return new JsonObject();
 	}
@@ -3715,7 +3715,7 @@ final class Pen {
 			Files.writeString(tmp, new GsonBuilder().setPrettyPrinting().create().toJson(all));
 			Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 		} catch (Exception ex) {
-			Exchange.emit("error", "msg", "writing pens.json: " + ex.getMessage());
+			Exchange.emit("error", "msg", "mob farms not saved: " + ex.getMessage());
 		}
 	}
 
@@ -3741,9 +3741,9 @@ final class Pen {
 
 	/**
 	 * {@code {"cmd":"pen"}} answers how it stands. {@code "on": false} stops it, steps back and waits (as the sign does);
-	 * {@code "on": true} takes up the remembered pen when he stands at it. {@code "probe": true} with x, y, z (and
+	 * {@code "on": true} takes up the remembered pen when standing at it. {@code "probe": true} with x, y, z (and
 	 * {@code "mob"}, zombie by default) only recognises, as if such a mob stood in that block, and writes pen.txt; the
-	 * same without "probe" starts there for the player he follows, as a punch would (a test). {@code "hit"},
+	 * same without "probe" starts there for the followed player, as a punch would (a test). {@code "hit"},
 	 * {@code "trace"} and {@code "safe"} are test switches: no blows, a trace, the sweep rule off.
 	 */
 	static void command(JsonObject o) {
@@ -3759,7 +3759,7 @@ final class Pen {
 				if (on()) { stop("panel", true); Follow.stayHere("panel"); }
 				else Exchange.emit("pen", "action", "off", "reason", "was off already");
 			} else if (!busy()) {
-				if (Follow.target() == null) { Exchange.emit("error", "msg", "pen: the buddy follows nobody"); return; }
+				if (Follow.target() == null) { Exchange.emit("error", "msg", Needs.named("pen: {me} follows nobody")); return; }
 				// as the gesture: with the chain held by AFK mode, the mod off or another job the pen would be on without its
 				// step; Grinder's farm the start ends, a pour of the bucket ends by itself
 				String held = held(Jobs.Job.MOB_FARM, Jobs.Job.WATER);
@@ -3775,7 +3775,7 @@ final class Pen {
 		if (o.has("x") && o.has("y") && o.has("z")) {
 			any = true;
 			boolean probe = o.has("probe") && o.get("probe").getAsBoolean();
-			if (!probe && Follow.target() == null) { Exchange.emit("error", "msg", "pen: the buddy follows nobody"); return; }
+			if (!probe && Follow.target() == null) { Exchange.emit("error", "msg", Needs.named("pen: {me} follows nobody")); return; }
 			String mob = o.has("mob") ? o.get("mob").getAsString() : "zombie";
 			EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(Identifier.tryParse(mob.contains(":") ? mob : "minecraft:" + mob)).orElse(null);
 			if (type == null) { Exchange.emit("error", "msg", "pen: unknown mob " + mob); return; }
@@ -3832,7 +3832,7 @@ final class Pen {
 
 	// ---------- pen.txt ----------
 
-	/** What he made of a pen, for a person to read: the evidence, the sides, and its layers from above. */
+	/** What the buddy made of a pen, for a person to read: the evidence, the sides, and its layers from above. */
 	private static void writeTxt(LocalPlayer p, Pending pd, PenShape.Result r, String refusal) {
 		try {
 			PenShape.Flood f = pd.flood;
@@ -3880,13 +3880,13 @@ final class Pen {
 			}
 			Files.writeString(Paths.get(AfkConfig.get().exchangeDir, "pen.txt"), out.toString());
 		} catch (Exception ex) {
-			Exchange.emit("error", "msg", "pen.txt: " + ex.getMessage());
+			Exchange.emit("error", "msg", "mob farm view not saved: " + ex.getMessage());
 		}
 	}
 
 	// ---------- the panel ----------
 
-	/** The pen for state.json, while it is on or holds his hands. */
+	/** The pen for state.json, while it is on or keeps the hands busy. */
 	static Map<String, Object> details(LocalPlayer p) {
 		Hok h = hok != null ? hok : state == BACKOFF_STATE ? tail : null;
 		if (h == null || state == OFF) return null;

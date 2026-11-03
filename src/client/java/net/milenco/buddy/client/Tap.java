@@ -34,15 +34,15 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The tap: the player he follows hits a block with his bare hand and lets go within a second, with the alt near, and
+ * The tap: the followed player hits a block with a bare hand and lets go within a second, with the alt near, and
  * the alt takes up the job that block stands for. Only a bare-handed tap counts, and the alt has to stand close. It
  * works on any server: the server tells everyone near that a player starts breaking a block (its number, the block, the
- * stage) and when he stops (stage -1), and nothing else is needed. The alt answers: a nod for on, one crouch for off, a
- * shake for a block he has no job for.
+ * stage) and when the breaking stops (stage -1), and nothing else is needed. The alt answers: a nod for on, one crouch
+ * for off, a shake for a block that stands for no job.
  *
  * <p>What a block means: a crop, farmland or sugar cane keeps this field; a log chops along; stone or an ore digs
  * along; a furnace, blast furnace or smoker is kept (Ovens, which learns what was in it); a chest or barrel is one of
- * his; a bed is the home (the base): the alt walks to it and types the profile's sethome. The same kind once more is
+ * the player's; a bed is the home (the base): the alt walks to it and types the profile's sethome. The same kind once more is
  * off. On ground where the player may not break nothing is sent, and there a tap does nothing; in creative a tap breaks
  * the block, so it is for survival.
  */
@@ -68,7 +68,7 @@ final class Tap {
 		if (queue.size() > 200) queue.poll();
 	}
 
-	/** Every tick while he follows: the taps of the player he follows, and the walk to a new home. */
+	/** Every tick while following: the taps of the followed player, and the walk to a new home. */
 	static boolean tick(Minecraft mc, LocalPlayer p) {
 		String target = Follow.target();
 		Level level = p.level();
@@ -119,7 +119,7 @@ final class Tap {
 	}
 
 	private static void answer(boolean on, String job) {
-		if (on) Pen.stop("tap");   // a job switched on with a tap ends the pen: his newest instruction wins
+		if (on) Pen.stop("tap");   // a job switched on with a tap ends the pen: the newest instruction wins
 		Exchange.emit("tap", "action", on ? "on" : "off", "task", job);
 		Follow.respond(on ? Follow.YES : Follow.OFF);
 	}
@@ -204,7 +204,7 @@ final class Tap {
 		return best;
 	}
 
-	/** The bed of the player on this server, as the middle of his base. */
+	/** The bed of the player on this server, as the middle of that player's base. */
 	static BlockPos base(String owner, String dim) {
 		JsonObject b = readBase().get(Profiles.key() + "|" + owner.toLowerCase(Locale.ROOT)) instanceof JsonObject o ? o : null;
 		if (b == null || !b.get("dim").getAsString().equals(dim)) return null;
@@ -228,7 +228,7 @@ final class Tap {
 			Path f = baseFile();
 			if (Files.exists(f)) return JsonParser.parseString(Files.readString(f)).getAsJsonObject();
 		} catch (Exception ex) {
-			Exchange.emit("error", "msg", "base.json: " + ex.getMessage());
+			Exchange.emit("error", "msg", "base not read: " + ex.getMessage());
 		}
 		return new JsonObject();
 	}
@@ -259,7 +259,7 @@ final class Tap {
 			Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 			cache = null;
 		} catch (Exception ex) {
-			Exchange.emit("error", "msg", "writing base.json: " + ex.getMessage());
+			Exchange.emit("error", "msg", "base not saved: " + ex.getMessage());
 		}
 	}
 

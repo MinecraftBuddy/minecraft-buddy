@@ -23,7 +23,7 @@ import time
 TOKEN = re.compile(r"^\d{5,16}:[A-Za-z0-9_-]{30,80}$")
 CHAT = re.compile(r"^-?\d{1,20}$")
 MCNAME = re.compile(r"^\.?[A-Za-z0-9_]{2,16}$")
-WHO = re.compile(r"^[^\x00-\x1f\x7f]{1,64}$")       # a Telegram user id, or a name as the bridge matched them before
+WHO = re.compile(r"^[^\x00-\x1f\x7f]{1,64}$")       # a Telegram user id, or a name, as the bridge matched admins before
 PATH = re.compile(r"^[/~][^\x00-\x1f\x7f]{0,299}$")
 PATH_KEYS = ("exchange", "schematics", "status_site", "since")
 # what the bridge can leave out of the chat (its SHOW): players' chat, private messages, joins and leaves, other server
@@ -171,7 +171,7 @@ class Bridge:
         if "admins" in b:
             rows = b["admins"]
             if not isinstance(rows, list) or len(rows) > 20:
-                return "admins: at most twenty"
+                return "at most twenty Telegram users"
             admins = {}
             for r in rows:
                 who = str((r or {}).get("who", "")).strip() if isinstance(r, dict) else ""
@@ -184,7 +184,7 @@ class Bridge:
                 if name and not MCNAME.match(name):
                     return "the Minecraft name of " + who + " is not a player's name"
                 if who.lower() in (k.lower() for k in admins):
-                    return who + " stands twice in the admins"
+                    return who + " is in the list twice"
                 admins[who] = name
             cfg["admins"] = admins
 
@@ -226,9 +226,9 @@ class Bridge:
             out["bots"]["main"] = call(main_token, "getMe")
         if send:
             if not main_token or not chat:
-                out["sent"] = {"ok": False, "text": "no bot or no chat to say it in"}
+                out["sent"] = {"ok": False, "text": "no bot or no chat to send it to"}
             else:
-                out["sent"] = call(main_token, "sendMessage", {"chat_id": chat, "text": "✅ A test from the panel: his chat comes into this one."})
+                out["sent"] = call(main_token, "sendMessage", {"chat_id": chat, "text": "✅ Test from the panel: the game chat shows up here."})
         return out
 
 

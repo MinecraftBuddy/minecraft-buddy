@@ -20,7 +20,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Empty the alt's inventory, on request from Telegram: into the nearest chests or else onto the
- * ground. Only for the alt; whoever plays themselves tidies up themselves.
+ * ground. Only for the alt; a player at the keys tidies up by hand.
  *
  * The lumberjack has a chest routine too, but that one is full of wood rules (keep saplings, chest
  * roles). This one is deliberately bare: open, everything in that may go, close, and on to the next
@@ -34,7 +34,7 @@ public final class Unloader {
 	private static Phase phase = Phase.OFF;
 	private static boolean toGround = false, toolsToo = false;
 	private static BlockPos chest = null;
-	/** Following someone: where he stands to reach the chest (Work's choice of cell), walked to by Follow's paths. */
+	/** Following someone: where to stand to reach the chest (Work's choice of cell), walked to by Follow's paths. */
 	private static BlockPos stand = null;
 	private static AbstractContainerMenu menu = null;
 	private static final Set<BlockPos> tried = new HashSet<>();
@@ -81,7 +81,7 @@ public final class Unloader {
 	}
 
 	/**
-	 * May this go? Tools, weapons, armour, the compass and his food he keeps, because he lives on
+	 * May this go? Tools, weapons, armour, the compass and the food stay, because the alt lives on
 	 * those; with "everything" those go too.
 	 */
 	private static boolean mayGo(net.minecraft.world.inventory.Slot slot, LocalPlayer p) {
@@ -203,7 +203,7 @@ public final class Unloader {
 	/**
 	 * End of the tick, from Follow while the alt follows someone and this is busy. The walk to the chest goes by
 	 * Follow's own paths and jumps, to a cell Work picks from which the chest can be seen; for the rest of the
-	 * unloading he stands still. Before, Follow went on following meanwhile and turned him toward the player every
+	 * unloading the alt stands still. Before, Follow went on following meanwhile and turned the alt toward the player every
 	 * tick, against this class's turn toward the chest, and the straight walk did not take a step up: 44 seconds
 	 * before a chest a few blocks off opened (seen at {@code !dump}).
 	 */

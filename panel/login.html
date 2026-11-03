@@ -57,7 +57,7 @@ let setup = false;
 fetch('/api/hello').then(r => r.json()).then(h => {
   setup = !!h.setup;
   if (setup) {
-    $('lead').textContent = 'First start. The setup code is in their container\'s log: docker compose logs, then their name in compose.yaml. Choose the owner\'s password: at least ten characters.';
+    $('lead').textContent = 'First start. The setup code is in the container\'s log (docker compose logs, then the buddy\'s name from compose.yaml). Choose the owner\'s password: at least ten characters.';
     $('setup').hidden = false; pw2.hidden = false; pw.autocomplete = 'new-password'; pw.placeholder = 'New password'; go.textContent = 'Set the password';
     $('code').focus();
   } else if (h.owner) $('lead').textContent = 'Type the owner\'s password.';

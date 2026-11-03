@@ -38,7 +38,7 @@ public class ClickLog {
 
 	/**
 	 * The player's own hits on this account, while the farm is off: clicks-own.csv. Without that measurement the mod's
-	 * numbers say little - there is no table of "this is how a human clicks", but his own hand is the
+	 * numbers say little - there is no table of "this is how a human clicks", but the player's own hand is the
 	 * only reference point that really matters.
 	 */
 	public static void ownSwing(net.minecraft.client.player.LocalPlayer p, boolean measure) {

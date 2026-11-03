@@ -29,18 +29,18 @@ import net.minecraft.world.phys.Vec3;
 import net.milenco.buddy.version.Game;
 
 /**
- * Digging and placing as steps of his way (after SoulFire's and Baritone's moves). The plan knows three more moves
+ * Digging and placing as steps of the buddy's way (after SoulFire's and Baritone's moves). The plan knows three more moves
  * besides walking, jumping and swimming:
  * <ul>
  * <li><b>dig</b>: on to the next cell at the same height through one or two blocks of natural ground (earth, stone,
  * sand, leaves; never a block with contents, a placed-looking block, one beside water or lava, or one with sand or
- * gravel above it that would come down), at a cost of the time it takes with his best tool;</li>
- * <li><b>pillar</b>: one up from where he stands, by jumping and putting a block under his feet;</li>
- * <li><b>bridge</b>: across a cell without a floor, crouched at the edge with a block against the side of his own
+ * gravel above it that would come down), at a cost of the time it takes with the best tool carried;</li>
+ * <li><b>pillar</b>: one up from the cell stood in, by jumping and putting a block underfoot;</li>
+ * <li><b>bridge</b>: across a cell without a floor, crouched at the edge with a block against the side of the buddy's own
  * floor.</li>
  * </ul>
- * They cost much more than walking, so the plan only takes them where walking does not get him there. Placing takes a
- * block he can spare (dirt, cobblestone and the like, {@link #THROWAWAY}); what he puts down stays. A dig the server
+ * They cost much more than walking, so the plan only takes them where walking does not get there. Placing takes a
+ * block the buddy can spare (dirt, cobblestone and the like, {@link #THROWAWAY}); what is put down stays. A dig the server
  * refuses (a claim) or that does not end, twice at one spot, is not planned there for ten minutes (Failures).
  */
 final class PathShape {
@@ -48,7 +48,7 @@ final class PathShape {
 
 	static final byte DIG = 5, PILLAR = 6, BRIDGE = 7;
 
-	/** What he puts down to stand on: what he digs out of the ground anyway. */
+	/** What is put down to stand on: what the buddy digs out of the ground anyway. */
 	static final Set<String> THROWAWAY = Set.of("dirt", "coarse_dirt", "cobblestone", "cobbled_deepslate", "netherrack",
 		"andesite", "diorite", "granite", "tuff", "blackstone", "end_stone", "sandstone");
 
@@ -59,18 +59,18 @@ final class PathShape {
 	private static final List<Vec3> FOES = new ArrayList<>();
 	private static final Map<BlockPos, Integer> DANGER = new HashMap<>();
 
-	/** Before a plan: what he may do, and where the monsters are. */
+	/** Before a plan: what the buddy may do, and where the monsters are. */
 	static void prepare(LocalPlayer p) {
 		planner = p;
 		AfkConfig c = AfkConfig.get();
-		// no digging in or near a base, nor by chests he knows: there the blocks are someone's build, not the land (on the
-		// first day he dug two blocks in a base on his way to a chest); nor by a pen he farms (Pen), which
+		// no digging in or near a base, nor by chests known: there the blocks are someone's build, not the land (on the
+		// first day the buddy dug two blocks in a base on the way to a chest); nor by a pen being farmed (Pen), which
 		// is someone's farm, and where a pillar or a bridge is a step toward the pit
 		boolean built = nearBuild(p) || Pen.near(p, Pen.NO_DIG_NEAR);
 		digOk = c.pathDig && !built && !p.isCreative() && !p.isSpectator();
 		// a block put down takes nothing of a build: by a base too, so a step two up or a gap there is crossed (on a high
-		// island he laid a short path of cobblestone and gave up within the base's 64 blocks, where the path was easy). Not
-		// by a pen he farms, where a pillar or a bridge is a step toward the pit
+		// island the buddy laid a short path of cobblestone and gave up within the base's 64 blocks, where the path was
+		// easy). Not by a pen being farmed, where a pillar or a bridge is a step toward the pit
 		placeOk = c.pathPlace && !Pen.near(p, Pen.NO_DIG_NEAR) && !p.isSpectator() && throwaways(p) > 0;
 		DANGER.clear();
 		FOES.clear();
@@ -78,7 +78,7 @@ final class PathShape {
 			FOES.add(e.position());
 	}
 
-	/** Within 64 blocks of a base's bed, or 32 of a chest he knows: someone builds here. */
+	/** Within 64 blocks of a base's bed, or 32 of a known chest: someone builds here. */
 	static boolean nearBuild(LocalPlayer p) {
 		String dim = Work.dimOf(p.level());
 		if (Tap.baseAt(dim, p.position(), 64) != null) return true;
@@ -127,7 +127,7 @@ final class PathShape {
 		return Work.safe(level, pos);
 	}
 
-	/** Ticks to break it with the best he carries (no enchantments counted), -1 over three seconds or without a tool that gives it. */
+	/** Ticks to break it with the best tool carried (no enchantments counted), -1 over three seconds or without a tool that gives it. */
 	static int breakTicks(Level level, BlockPos pos, BlockState st) {
 		float hard = st.getDestroySpeed(level, pos);
 		if (hard < 0) return -1;
@@ -148,7 +148,7 @@ final class PathShape {
 
 	/**
 	 * Extra cost for a cell near what hurts (lava, fire, magma, cactus, berry bushes, cobwebs, powder snow, wither roses)
-	 * and near monsters: he takes a way round when there is one.
+	 * and near monsters: a way round is taken when there is one.
 	 */
 	static int danger(Level level, BlockPos cell) {
 		Integer known = DANGER.get(cell);
@@ -237,11 +237,11 @@ final class PathShape {
 					done("bridged", wp);
 					return false;
 				}
-				// the cell he bridges from is the one beside the gap on his side, worked out from where he is: after a new
-				// plan the route's cell before it can be the gap's other neighbour (a first try stood still there)
+				// the cell to bridge from is the one beside the gap on the buddy's side, worked out from the current place:
+				// after a new plan the route's cell before it can be the gap's other neighbour (a first try stood still there)
 				double ddx = wp.getX() + 0.5 - p.getX(), ddz = wp.getZ() + 0.5 - p.getZ();
 				Direction dx = ddx > 0 ? Direction.EAST : Direction.WEST, dz = ddz > 0 ? Direction.SOUTH : Direction.NORTH;
-				// the side he mostly faces it from, or the other where only that one has a floor (standing at a corner)
+				// the side it is mostly faced from, or the other where only that one has a floor (standing at a corner)
 				Direction d = Math.abs(ddx) > Math.abs(ddz) ? dx : dz;
 				if (!sturdy(level, wp.relative(d.getOpposite()).below())) d = d == dx ? dz : dx;
 				at = wp.relative(d.getOpposite());
@@ -262,7 +262,7 @@ final class PathShape {
 				}
 				BlockPos against = at.below();
 				Vec3 face = Vec3.atCenterOf(against).add(d.getStepX() * 0.5, 0, d.getStepZ() * 0.5);
-				// how far past the side of his own floor he leans: crouched the edge holds him up to 0.3 beyond it
+				// how far the buddy leans past the side of the floor underfoot: crouched, the edge holds up to 0.3 beyond it
 				double beyond = (p.getX() - face.x) * d.getStepX() + (p.getZ() - face.z) * d.getStepZ();
 				HeldKeys.set(mc.options.keyShift, true);
 				HeldKeys.set(mc.options.keySprint, false);
@@ -302,7 +302,7 @@ final class PathShape {
 		if (r.consumesAction()) Game.swingUse(p, InteractionHand.MAIN_HAND);
 	}
 
-	/** A block he can spare in hand; from the backpack it goes to the hotbar first. */
+	/** A block the buddy can spare in hand; from the backpack it goes to the hotbar first. */
 	private static boolean block(Minecraft mc, LocalPlayer p) {
 		var inv = p.getInventory();
 		for (int i = 0; i < 9; i++) if (THROWAWAY.contains(AfkHelperClient.itemId(inv.getItem(i)))) {
