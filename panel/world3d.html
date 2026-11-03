@@ -23,6 +23,17 @@
   #cross { position: fixed; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; display: none; pointer-events: none; }
   #cross::before, #cross::after { content: ""; position: absolute; background: #fff; mix-blend-mode: difference; }
   #cross::before { left: 6px; top: 0; width: 2px; height: 14px; } #cross::after { top: 6px; left: 0; height: 2px; width: 14px; }
+  /* the bar over the view while it loads a copy of the world; over an older world, that world dimmed */
+  .load { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(14,16,19,.35); pointer-events: none; }
+  .load[hidden] { display: none; }
+  .load.again { background: rgba(14,16,19,.5); backdrop-filter: grayscale(.8) blur(2px); -webkit-backdrop-filter: grayscale(.8) blur(2px); }
+  .load .card { width: min(380px, calc(100vw - 32px)); box-sizing: border-box; padding: 14px 16px; display: flex; flex-direction: column; gap: 9px; color: var(--soft); }
+  .load .card > b { color: var(--text); font-size: 15px; font-weight: 600; }
+  .load .card span b { color: var(--text); font-weight: 600; }
+  .load .track { height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .load .track i { display: block; height: 100%; width: 2%; background: var(--gold); border-radius: 4px; transition: width .35s ease-out; }
+  .load.failed .track { display: none; }
+  @media (prefers-reduced-motion: reduce) { .load .track i { transition: none; } }
   @media (max-width: 600px) { h1 { display: none; } }
 </style>
 <script type="importmap">{ "imports": { "three": "/3d/three.module.min.js" } }</script>
@@ -41,6 +52,7 @@
 <div id="cross"></div>
 <div id="hover" class="card"></div>
 <div id="status" class="card">Starting…</div>
+<div id="load" class="load" role="status"><div class="card"><b data-part="title">Loading the 3D view</b><div class="track"><i data-part="bar"></i></div><span data-part="step">Starting…</span></div></div>
 <script type="module">
   import { start3d } from '/3d/world3d.js';
   // the buddy's own name in the title, and in the buttons' texts (data-nm) where they say "the buddy"
@@ -50,7 +62,7 @@
     const fill = t => t.replace(/[Tt]he buddy/g, s.name);
     for (const e of document.querySelectorAll('[data-nm]')) { e.textContent = fill(e.textContent); if (e.title) e.title = fill(e.title); }
   }).catch(() => {});
-  start3d({ canvas: document.getElementById('view'), ids: { status: 'status', hover: 'hover', help: 'help', cross: 'cross', orbit: 'orbit', eyes: 'eyes', fly: 'fly', refresh: 'refresh' } });
+  start3d({ canvas: document.getElementById('view'), ids: { status: 'status', hover: 'hover', load: 'load', help: 'help', cross: 'cross', orbit: 'orbit', eyes: 'eyes', fly: 'fly', refresh: 'refresh' } });
 </script>
 </body>
 </html>

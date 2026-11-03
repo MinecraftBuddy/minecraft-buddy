@@ -3,6 +3,15 @@
 What is new and what changed, per version. The section of a version is the text of its
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.15
+
+- **A loading bar in the 3D view.** Take control and the 3D map show how far the view is, from the click until the
+  world stands there.
+- **Back on the page after a while** (another tab or app in front, the computer asleep): the old 3D view turns grey
+  under the bar until it shows what is there now. The rest of the page is fetched again at once.
+- The 3D view opens sooner: it builds the world once, as it is now, instead of an older copy first.
+- With no world to show yet (the buddy offline), the 3D view tries again by itself.
+
 ## 0.5.14
 
 - **One Watchtower per buddy.** An Update in a panel replaces only that buddy; the other buddies on the machine keep

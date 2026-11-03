@@ -391,6 +391,21 @@ kbd { font: 11px/1 var(--mono); border: 1px solid var(--line3); border-bottom-wi
 .drive.play3d .drivebar > * { pointer-events: auto; }
 .drive.play3d .drivebar h2 { background: rgba(14,17,20,.72); padding: 6px 12px; border-radius: 8px; margin: 0; font-size: 15px; }
 .w3status { background: rgba(14,17,20,.72); color: var(--soft); padding: 6px 12px; border-radius: 8px; font-size: 12.5px; }
+/* the bar over the 3D view while it loads a copy of the world; over a view that shows an older world, that world dimmed
+   and grey (the canvas only: what the panel shows over the view is current); the card above an open inventory too */
+.w3load { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(14,17,20,.35); pointer-events: none; }
+.w3load.again { background: rgba(14,17,20,.45); }
+#pad:has(> .w3load.again:not([hidden])) > #w3view, .map3d:has(> .w3load.again:not([hidden])) > #w3view { filter: grayscale(.8) blur(2px); }
+.w3loadcard { position: relative; z-index: 5; width: min(380px, calc(100% - 32px)); box-sizing: border-box; background: rgba(14,17,20,.88); border: 1px solid var(--line2); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 9px; color: var(--soft); font-size: 13px; line-height: 1.45; }
+.w3loadcard > b { color: var(--text); font-size: 15px; font-weight: 600; }
+.w3loadcard span b { color: var(--text); font-weight: 600; }
+.w3bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; }
+.w3bar i { display: block; position: relative; overflow: hidden; height: 100%; width: 2%; background: var(--accent); border-radius: 4px; transition: width .35s ease-out; }
+.w3bar i::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.4), transparent); animation: w3shine 1.3s linear infinite; }
+@keyframes w3shine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .w3bar i::after { animation: none; } .w3bar i { transition: none; } }
+.w3load.failed .w3bar { display: none; }
+.mapbox .w3loadcard { font-size: 12px; padding: 12px 14px; }
 .w3hover { position: absolute; right: 12px; bottom: 12px; z-index: 3; max-width: min(440px, calc(50vw - 270px)); display: none; background: rgba(14,17,20,.82); font-size: 13px; }
 @media (max-width: 1100px) { .w3hover { bottom: 150px; max-width: min(440px, calc(100vw - 24px)); } }
 .drive.play3d .driverest { position: absolute; left: 12px; bottom: 12px; z-index: 3; background: rgba(14,17,20,.72); border-radius: 10px; padding: 10px; }
@@ -833,7 +848,8 @@ dialog#rawdlg td code { word-break: break-all; }
       <div class="keyhelp"><span id="watchhow">Click the view to take control.</span> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk,
       mouse looks, <kbd>Space</kbd> jumps, <kbd>Shift</kbd> sneaks, <kbd>R</kbd> sprints, left click hits or breaks, right click uses,
       <kbd>1</kbd>–<kbd>9</kbd> or wheel picks a slot, <kbd>Q</kbd> drops, <kbd>F</kbd> swaps hands, <kbd>E</kbd> inventory,
-      <kbd>T</kbd> or <kbd>/</kbd> chat, <kbd>Tab</kbd> player list, <kbd>F5</kbd> camera. <kbd>Esc</kbd> stops.</div></div></div>
+      <kbd>T</kbd> or <kbd>/</kbd> chat, <kbd>Tab</kbd> player list, <kbd>F5</kbd> camera. <kbd>Esc</kbd> stops.</div></div>
+      <div class="w3load" id="w3load" role="status" hidden><div class="w3loadcard"><b data-part="title">Loading the 3D view</b><div class="w3bar"><i data-part="bar"></i></div><span data-part="step">Starting…</span></div></div></div>
     <div id="w3hover" class="card w3hover"></div>
     <div class="fireov" id="fireov" hidden></div>
     <div class="playhud" id="phud"></div>
@@ -2209,8 +2225,11 @@ function playChat(lines) {
   }
   while (box.children.length > 10) box.firstElementChild.remove();
 }
-let after = -1, oldest = null, loadingOld = false;
+let after = -1, oldest = null, loadingOld = false, logBusy = false;
 async function log() {
+  // one ask at a time: two at once showed a line twice
+  if (logBusy) return;
+  logBusy = true;
   try {
     const j = await (await fetch('/api/log?after=' + after)).json();
     if (j.after < after) { for (const id of ['feed-chat', 'feed-act']) { const b = $(id); b.replaceChildren(b.firstElementChild); b.dataset.first = ''; } PROBS.clear(); oldest = null; }
@@ -2218,7 +2237,7 @@ async function log() {
     if (after < 0 || j.start !== undefined) oldest = j.start;
     after = j.after;
     if (j.lines.length) take(j.lines, 'end', fresh);
-  } catch (e) {}
+  } catch (e) {} finally { logBusy = false; }
 }
 /* scrolled to the top: the 200 lines before what is shown, from the panel's own history */
 async function older() {
@@ -2525,9 +2544,16 @@ document.addEventListener('keyup', ev => {
   if (steer.on && !typing(ev) && KEYMAP[ev.code]) { steer.keys.delete(KEYMAP[ev.code]); send(); }
 });
 window.addEventListener('blur', () => { if (steer.on) { steer.keys.clear(); send(); } });
-// back to the tab: what is on screen was fetched while the browser slowed the page's timers, so fetch it fresh at once
-// (not the log: two of its polls at once would show a line twice)
-document.addEventListener('visibilitychange', () => { if (document.hidden) giveBack(); else { state(); map(); } });
+// back to the page (another tab or app was in front, the computer slept): what is on screen was fetched before, while the
+// browser ran the page's timers once a minute at most or not at all, so all of it is fetched again at once (the 3D view
+// catches up by itself, under its bar)
+let beat = Date.now();
+function cameBack() { beat = Date.now(); state(); map(); tiles(); log(); players(); }
+document.addEventListener('visibilitychange', () => { if (document.hidden) giveBack(); else cameBack(); });
+addEventListener('pageshow', ev => { if (ev.persisted) cameBack(); });
+document.addEventListener('resume', cameBack);
+// a page left visible while the computer slept gets no event: a second that took more than five
+setInterval(() => { const now = Date.now(); if (now - beat > 5000 && !document.hidden) cameBack(); beat = now; }, 1000);
 for (const b of document.querySelectorAll('.keys [data-key]')) {
   const k = b.dataset.key;
   b.addEventListener('pointerdown', ev => { ev.preventDefault(); takeControl(); steer.keys.add(k); b.classList.add('down'); send(); });
@@ -3334,6 +3360,17 @@ document.querySelectorAll('[data-light]').forEach(b => b.addEventListener('click
 }));
 lightButtons();
 const map3dShown = () => mapDim === '3d' && $('driver').hidden && !document.hidden && $('mapbox').offsetParent !== null;
+/* the bar over the 3D view where the view is (world3d.js fills it while it loads a copy of the world), shown from the
+   click on: the view's scripts take a moment to come before that */
+function bar3d(parent) {
+  const box = $('w3load');
+  if (box.parentNode !== parent) parent.appendChild(box);
+  if (W3) return;
+  box.hidden = false; box.classList.remove('again', 'failed');
+  box.querySelector('[data-part=title]').textContent = 'Loading the 3D view';
+  box.querySelector('[data-part=step]').textContent = 'Starting…';
+  box.querySelector('[data-part=bar]').style.width = '2%';
+}
 function ensure3d(mode) {
   if (W3) return Promise.resolve(W3);
   if (!W3start) W3start = import('/3d/world3d.js').then(m => {
@@ -3345,12 +3382,19 @@ function ensure3d(mode) {
       itemName: id => { const v = bare(id); return N.item[v] || cap(v); }, itemIcon: id => { const v = bare(id); return ICONS[v] ? icon(v) : ''; },
       // a click in the 3D map: a walk there, as on the flat map
       onPick: pick3d,
-      ids: { status: 'w3status', hover: 'w3hover' } });
+      ids: { status: 'w3status', hover: 'w3hover', load: 'w3load' } });
     return W3;
-  }).catch(e => { $('w3status').textContent = 'The 3D view did not start: ' + e.message; W3start = null; return null; });
+  }).catch(e => {
+    $('w3status').textContent = 'The 3D view did not start: ' + e.message; W3start = null;
+    const box = $('w3load');
+    box.classList.add('failed'); box.querySelector('[data-part=title]').textContent = 'The 3D view did not start';
+    box.querySelector('[data-part=step]').textContent = e.message + '. Reload the page to try again.';
+    return null;
+  });
   return W3start;
 }
 async function start3dDrive() {
+  bar3d($('pad'));
   const w = await ensure3d('drive');
   if (!w) return;
   w.moveTo($('pad'), $('driver').querySelector('.card'));
@@ -3365,6 +3409,7 @@ function setMapDim(d) {
   $('map').style.display = d === '3d' ? 'none' : '';
   $('map3d').hidden = d !== '3d';
   $('mapview').hidden = d === '3d'; // surface or cave is the flat map's: the 3D map shows what is there
+  if (d === '3d' && $('driver').hidden) bar3d($('map3d'));
   if (d === '3d' && $('driver').hidden) ensure3d('map').then(w => { if (!w) return; w.moveTo($('map3d'), $('mapbox')); w.map(); mapButtons(); });
   else { placeCompass(null); drawMap(); }
 }
