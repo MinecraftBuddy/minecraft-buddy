@@ -36,6 +36,8 @@ What the panel, the Telegram bridge, the docs and the mod's messages say. Agreed
 
 - Say what something does, or what to type, once. Short sentences; a list where there are cases. Drop words that add
   nothing ("cleanly", "Saved changes", "as themselves", "If there is one").
+- English as a native speaker writes it, not Dutch word for word: "the version has moved below the buttons", not "the
+  version stands under the buttons"; "until the world is in view", not "until the world stands there".
 - Lead with the action, then the result: "Set the base: with Steve within six blocks, tap a bed with an empty hand. Steve
   walks there and makes it home."
 - The buddy has no pronoun: not he, she, they or it. Panel and bridge texts use the buddy's name (the panel's `nm()`, the
