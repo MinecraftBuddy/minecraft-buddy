@@ -1,0 +1,144 @@
+# Minecraft Buddy: every buddy on this machine, the Caddy that gives each their HTTPS, and Watchtower for updates.
+#
+#   docker compose up -d            start, and again after every change of this file
+#   docker compose logs steve       steve's setup code, for the first visit to their panel
+#
+# A buddy is a block under services. Another one: copy the block steve and change its name in three places (the block,
+# its volume line and volumes: at the bottom) and its domain in the label caddy. Point the domain's DNS at this machine:
+# Caddy gets a certificate from Let's Encrypt over port 80, so ports 80 and 443 have to be open. When another web server
+# (nginx, Apache) holds 80 and 443: the four labels at caddy, below, put every buddy on a port of your own instead.
+#
+# While the image is private: `docker login ghcr.io` once on this machine, with a GitHub token that has read:packages.
+# The first pull needs it, and Watchtower uses the same login when a panel's Update the image asks.
+name: buddy
+
+x-buddy: &buddy
+  image: ghcr.io/minecraftbuddy/minecraft-buddy:latest
+  restart: unless-stopped
+  # the game leaves the server cleanly at a stop: give it the time
+  stop_grace_period: 90s
+  depends_on:
+    tower-token:
+      condition: service_completed_successfully
+
+x-env: &env
+  # Caddy's connections come from this network's gateway: only there X-Forwarded-For counts, and only beside the secret
+  # Caddy sends (X-Buddy-Proxy), of which the panel knows the SHA-256: every other program on the machine reaches the
+  # panel from that gateway too
+  BUDDY_PROXY_HOST: gateway
+  BUDDY_PROXY_SECRET_FILE: /tower/proxy-secret.sha256
+  WATCHTOWER_URL: http://watchtower:8080
+  WATCHTOWER_TOKEN_FILE: /tower/token
+
+x-labels: &labels
+  com.centurylinklabs.watchtower.enable: "true"
+  caddy.reverse_proxy: "{{upstreams 8080}}"
+  # the secret that tells the panel a request came through Caddy (in Caddy's own volume, made by tower-token)
+  caddy.reverse_proxy.header_up: "X-Buddy-Proxy {file./data/proxy-secret}"
+
+services:
+  steve:
+    <<: *buddy
+    environment: *env
+    volumes: [steve:/data, tower:/tower:ro]
+    labels:
+      <<: *labels
+      caddy: steve.example.net            # several names: steve.example.net, steve.example.org
+
+  # A second buddy:
+  # alex:
+  #   <<: *buddy
+  #   environment: *env
+  #   volumes: [alex:/data, tower:/tower:ro]
+  #   labels:
+  #     <<: *labels
+  #     caddy: alex.example.net
+
+  # Without a domain: the machine's own address and a port you choose, with a certificate of Caddy's own (the browser
+  # warns once). Give Caddy the address as its default name too (the label at caddy, below), because a browser sends no
+  # name for an address. In the buddy's labels:
+  #     caddy: https://203.0.113.5:20443
+  #     caddy.tls: internal
+
+  # A buddy that plays on a server on this machine (127.0.0.1), which a container's own network cannot reach: they share
+  # the machine's network, their panel listens on a port of 127.0.0.1 of their own, and Caddy forwards to that.
+  # sam:
+  #   <<: *buddy
+  #   network_mode: host
+  #   environment:
+  #     <<: *env
+  #     BUDDY_LISTEN: 127.0.0.1
+  #     BUDDY_PANEL_PORT: 18101
+  #     BUDDY_PROXY_HOST: localhost
+  #     WATCHTOWER_URL: http://127.0.0.1:18080
+  #   volumes: [sam:/data, tower:/tower:ro]
+  #   labels:
+  #     <<: *labels
+  #     caddy: sam.example.net
+  #     caddy.reverse_proxy: 127.0.0.1:18101
+
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:2.13.1
+    restart: unless-stopped
+    # the machine's network: ports 80 and 443 or a port of your own (below), and the buddies on the machine's
+    # network as well as those on the network buddies, whose sites it reads from their labels
+    network_mode: host
+    environment:
+      CADDY_INGRESS_NETWORKS: buddies
+    labels:
+      # no admin API: on the machine's network it would listen on localhost:2019 for every program on the machine, which
+      # could then give Caddy any config (a route to the Docker socket, or one that hands out the panels' secret).
+      # caddy-docker-proxy loads its config in the process itself and needs none.
+      caddy.admin: "off"
+    #   caddy.default_sni: 203.0.113.5     # a buddy without a domain: the machine's address
+    # Another web server (nginx, Apache) keeps ports 80 and 443, and its config is not touched: every buddy is at
+    # https://<their domain>:20443 instead, and Caddy listens on that port alone (no redirect from 80, nothing on 443).
+    # Let's Encrypt only checks a domain over 80 or 443, so the certificate is Caddy's own: the browser warns once, or
+    # trust Caddy's root on your device (docs/install.md, Beside another web server).
+    #   caddy.https_port: "20443"
+    #   caddy.auto_https: disable_redirects
+    #   caddy.local_certs: ""
+    #   caddy.skip_install_trust: ""
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - caddy:/data
+    depends_on:
+      tower-token:
+        condition: service_completed_successfully
+
+  watchtower:
+    image: nickfedor/watchtower:1.23.1
+    restart: unless-stopped
+    # only on a panel's button (no polling of its own), only the buddies (their label), the old image removed afterwards,
+    # and the same ninety seconds to stop as compose gives them
+    command: --label-enable --http-api-update --cleanup --stop-timeout 90s
+    environment:
+      WATCHTOWER_HTTP_API_TOKEN: /tower/token
+      # the machine's docker login, for a private image
+      DOCKER_CONFIG: /docker
+    # for a buddy on the machine's network
+    ports: ["127.0.0.1:18080:8080"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - tower:/tower:ro
+      - ${HOME}/.docker:/docker:ro
+    depends_on:
+      tower-token:
+        condition: service_completed_successfully
+
+  # made once: the token between the panels and Watchtower, in the volume tower; and the secret Caddy sends the panels,
+  # in Caddy's volume alone, with its SHA-256 for the panels in tower (a buddy can read that, but not make the secret
+  # from it)
+  tower-token:
+    image: busybox:1.37.0
+    command: ["sh", "-c", "[ -s /tower/token ] || { head -c 30 /dev/urandom | od -An -tx1 | tr -d ' \\n' > /tower/token && chmod 644 /tower/token; }; [ -s /caddy/proxy-secret ] || { umask 077; head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \\n' > /caddy/proxy-secret; }; sha256sum /caddy/proxy-secret | cut -c1-64 > /tower/proxy-secret.sha256 && chmod 644 /tower/proxy-secret.sha256"]
+    volumes: [tower:/tower, caddy:/caddy]
+
+networks:
+  default:
+    name: buddies
+
+volumes:
+  caddy:
+  tower:
+  steve:

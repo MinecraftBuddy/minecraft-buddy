@@ -1,0 +1,58 @@
+#!/bin/sh
+# Others have write access on GitHub so that they can open issues, and their commits must not land in the owner's own
+# branches without the owner seeing them first. A commit counts as foreign when it came from a remote and is on none of
+# the local branches yet; a commit made here is on no remote, so the owner's own work passes. Author names
+# prove nothing (anyone can set one), which is why the test is where a commit came from, not who it says wrote it.
+# Fetching and looking (git log, git switch --detach) is never blocked; only a local branch moving onto such commits.
+# Accept on purpose: GIT_ACCEPT_REMOTE=1 git <command>
+
+[ "$1" = prepared ] || exit 0
+[ "$GIT_ACCEPT_REMOTE" = 1 ] && exit 0
+
+zero=0000000000000000000000000000000000000000
+tmp=$(mktemp -d) || exit 0
+trap 'rm -rf "$tmp"' EXIT
+foreign=""
+undone=""
+while read -r old new ref; do
+	case "$ref" in refs/heads/*) ;; *) continue ;; esac
+	case "$new" in "$zero" | *[!0-9a-f]*) continue ;; esac
+	# what the branch would gain that no local branch has yet, and of that what is on no remote either (made here)
+	git rev-list "$new" --not --branches 2>/dev/null | sort >"$tmp/new"
+	[ -s "$tmp/new" ] || continue
+	git rev-list "$new" --not --branches --remotes 2>/dev/null | sort >"$tmp/local"
+	list=$(comm -23 "$tmp/new" "$tmp/local")
+	[ -n "$list" ] || continue
+	foreign="$foreign
+${ref#refs/heads/}:"
+	for c in $list; do
+		foreign="$foreign
+  $(git log -1 --format='%h  %an <%ae>  %s' "$c")"
+	done
+	# merge, pull, reset and checkout move the index and the files before the branch, so a refusal would leave the
+	# foreign changes staged, ready to be committed as the owner's own: put them back where HEAD is. Only when the index
+	# is exactly the refused commit (nothing of the owner's staged); a two-tree read-tree keeps the unstaged changes.
+	if git diff-index --cached --quiet "$new" -- 2>/dev/null && git rev-parse -q --verify HEAD >/dev/null; then
+		git read-tree -m -u "$new" HEAD 2>/dev/null && undone=1
+	fi
+done
+[ -z "$foreign" ] && exit 0
+
+cat >&2 <<EOF
+Refused: these commits came from GitHub and are on none of your own branches yet:$foreign
+EOF
+# a refused rebase stops on a detached HEAD that already holds the foreign commits: only its abort puts things back
+if [ -d "$(git rev-parse --git-path rebase-merge)" ] || [ -d "$(git rev-parse --git-path rebase-apply)" ]; then
+	echo "A rebase is still going on: git rebase --abort puts everything back." >&2
+elif [ -f "$(git rev-parse --git-path MERGE_HEAD)" ]; then
+	# a refused merge commit leaves MERGE_HEAD, and the next commit would conclude it (and be refused again)
+	echo "A merge is still going on: git merge --abort puts everything back." >&2
+elif [ -n "$undone" ]; then
+	echo "Your files are as they were." >&2
+fi
+cat >&2 <<EOF
+
+Look at them first:  git log -p origin/master --not --branches   (or the branch they are on)
+Take them anyway:   GIT_ACCEPT_REMOTE=1 git <the same command>
+EOF
+exit 1

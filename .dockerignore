@@ -1,0 +1,13 @@
+# only what the Dockerfile copies
+*
+!panel
+!bridge
+!setup
+!docker
+!build/image
+**/__pycache__
+panel/icons
+panel/assets
+panel/history.jsonl
+docker/build.sh
+docker/stage.sh

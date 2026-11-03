@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Buddy</title>
+<link rel="stylesheet" href="/fonts/fonts.css">
+<style>
+/* the page an address outside the allow file gets without the owner's password, and the first start in a container: the
+   setup code and the owner's password; the colours are index.html's */
+:root {
+  color-scheme: dark;
+  --bg: #14181c; --panel: #1c2228; --sunk: #14181c; --line: #2c343c; --line2: #36404a;
+  --text: #e6e9ec; --soft: #c3ccd4; --muted: #93a0ac;
+  --accent: #c97d4a; --accent-ink: #1b120b; --bad-text: #f3b1a7;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --pixel: 'Pixelify Sans', 'IBM Plex Sans', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
+body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; }
+form { width: 100%; max-width: 340px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px;
+  display: flex; flex-direction: column; gap: 12px; }
+h1 { margin: 0; font: 500 20px var(--pixel); letter-spacing: .03em; }
+p { margin: 0; color: var(--muted); }
+input { font: inherit; color: var(--text); background: var(--sunk); border: 1px solid var(--line2); border-radius: 8px; padding: 9px 11px; }
+button { font: inherit; font-weight: 600; cursor: pointer; padding: 9px 14px; border-radius: 8px; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--accent-ink); }
+button:hover { background: #d88b57; }
+button:disabled { opacity: .6; cursor: default; }
+input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.err { color: var(--bad-text); min-height: 1.45em; }
+.mono { font-family: ui-monospace, 'IBM Plex Mono', monospace; letter-spacing: .04em; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<form id="f">
+  <h1>Buddy</h1>
+  <p id="lead">Type the password.</p>
+  <div id="setup" hidden style="display:flex;flex-direction:column;gap:12px">
+    <label for="code" style="position:absolute;left:-9999px">Setup code</label>
+    <input id="code" class="mono" autocomplete="off" spellcheck="false" placeholder="Setup code">
+    <label for="pw2" style="position:absolute;left:-9999px">Password again</label>
+  </div>
+  <label for="pw" style="position:absolute;left:-9999px">Password</label>
+  <input id="pw" type="password" autocomplete="current-password" placeholder="Password" autofocus>
+  <input id="pw2" type="password" autocomplete="new-password" placeholder="The same password again" hidden>
+  <button id="go" type="submit">Open</button>
+  <span class="err" id="err" role="alert"></span>
+</form>
+<script>
+const $ = id => document.getElementById(id);
+const f = $('f'), pw = $('pw'), pw2 = $('pw2'), go = $('go'), err = $('err');
+let setup = false;
+// before the owner has a password: the code the container printed, and the new password twice
+fetch('/api/hello').then(r => r.json()).then(h => {
+  setup = !!h.setup;
+  if (setup) {
+    $('lead').textContent = 'First start. The setup code is in their container\'s log: docker compose logs, then their name in compose.yaml. Choose the owner\'s password: at least ten characters.';
+    $('setup').hidden = false; pw2.hidden = false; pw.autocomplete = 'new-password'; pw.placeholder = 'New password'; go.textContent = 'Set the password';
+    $('code').focus();
+  } else if (h.owner) $('lead').textContent = 'Type the owner\'s password.';
+  else { $('lead').textContent = 'Only the addresses in this panel\'s allow list can open it.'; pw.hidden = true; go.hidden = true; }
+}).catch(() => {});
+f.addEventListener('submit', async ev => {
+  ev.preventDefault();
+  if (!pw.value) return;
+  if (setup && pw.value !== pw2.value) { err.textContent = 'The two passwords differ.'; return; }
+  go.disabled = true; err.textContent = '';
+  try {
+    const body = setup ? {code: $('code').value, password: pw.value} : {password: pw.value};
+    const r = await fetch(setup ? '/api/setup' : '/api/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Buddy': '1'}, body: JSON.stringify(body)});
+    if (r.ok) { location.replace(setup ? '/#s-start' : '/'); location.reload(); return; }
+    const j = await r.json().catch(() => ({}));
+    err.textContent = r.status === 429 ? 'Too many tries. Wait ten minutes.' : setup ? (j.error || 'Not set.') : 'Wrong password.';
+    pw.select();
+  } catch (e) { err.textContent = 'No answer from the page. Try again.'; }
+  go.disabled = false;
+});
+</script>
+</body>
+</html>

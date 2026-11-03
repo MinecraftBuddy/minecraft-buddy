@@ -1,0 +1,109 @@
+# Builds the mod and its modules with the tests, and for a push to master also the release and the image (below).
+# Only master and a pull request to it are built; a branch is built locally (docs/development.md), or by hand from the
+# Actions tab (workflow_dispatch). A push that changes only text (the root's .md files, docs/) builds nothing; the
+# privacy check (privacy.yml) runs for every push all the same. Gradle's downloads and the image's layers are cached
+# between runs.
+
+name: build
+on:
+  push:
+    branches: [master]
+    paths-ignore: ['*.md', 'docs/**', 'LICENSE', '.githooks/**']
+  pull_request:
+    branches: [master]
+    paths-ignore: ['*.md', 'docs/**', 'LICENSE', '.githooks/**']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # a push to master also puts the jars on the release of its version (below): one at a time, none cancelled
+    concurrency:
+      group: build-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        mc: ['26.3']
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+          # Gradle's and Loom's downloads (Minecraft, the mappings, the libraries) between runs
+          cache: gradle
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+      - name: build
+        run: ./gradlew build -Pmc=${{ matrix.mc }}
+      - name: capture build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Artifacts-${{ matrix.mc }}
+          path: |
+            build/libs/
+            modules/*/build/libs/
+          # the jars are on the release as well; this copy is only for looking at a run
+          retention-days: 7
+      # The Docker image is the way to install the buddy (Dockerfile, docker/).
+      # Every push to master pushes ghcr.io/<owner>/minecraft-buddy as latest and as the version, for amd64 and arm64.
+      - name: image jars
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        id: image
+        run: |
+          bash docker/stage.sh ${{ matrix.mc }}
+          echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/minecraft-buddy" >> "$GITHUB_OUTPUT"
+          echo "version=$(cat build/image/VERSION)" >> "$GITHUB_OUTPUT"
+      # arm64 beside amd64, through QEMU
+      - name: qemu
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: docker/setup-qemu-action@v4
+      - name: buildx
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: docker/setup-buildx-action@v4
+      - name: registry login
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          # the layers (Ubuntu's packages, which under QEMU take minutes for arm64) come from the cache when unchanged
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.image.outputs.version }}
+      # Last, once the image is in the registry: the release of the version in gradle.properties, with the jars (made
+      # when the version is new, its files replaced when it stayed the same). The panel takes a new release as the sign
+      # that an update is out, so it may only appear when the image with that version can be pulled.
+      - name: release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(grep '^version=' gradle.properties | cut -d= -f2)
+          files=$(ls build/libs/minecraft-buddy-*+mc${{ matrix.mc }}.jar modules/*/build/libs/minecraft-buddy-*+mc${{ matrix.mc }}.jar)
+          if gh release view "v$v" >/dev/null 2>&1; then
+            gh release upload "v$v" $files --clobber
+          else
+            gh release create "v$v" $files --title "$v" --notes "$(git log -1 --format=%s)" --target "$GITHUB_SHA"
+          fi

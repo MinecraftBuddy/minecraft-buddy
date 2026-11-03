@@ -1,0 +1,17 @@
+# Every push and pull request: no secrets, mail addresses, public IP addresses or home folders in the files
+# (tools/check-public.py). It runs without the maintainer's private denylist, which only exists on their machine.
+name: privacy
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: check the files
+        run: python3 tools/check-public.py

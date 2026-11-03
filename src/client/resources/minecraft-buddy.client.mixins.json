@@ -1,0 +1,31 @@
+{
+	"required": true,
+	"package": "net.milenco.buddy.mixin.client",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"GameModeMixin",
+		"BossBarMixin",
+		"BlockItemAccessor",
+		"ConnectScreenMixin",
+		"DeathScreenAccessor",
+		"DisconnectedScreenAccessor",
+		"OpenScreenMixin",
+		"SendPacketMixin",
+		"ResourcePackMixin",
+		"DeathEventMixin",
+		"DamageEventMixin",
+		"BlockProgressMixin",
+		"World3dMixin",
+		"SignEditAccessor",
+		"BookEditAccessor",
+		"DestroyAccessor",
+		"ContinueAttackMixin",
+		"ModelPartAccessor",
+		"EntityRenderersAccessor",
+		"LivingScaleInvoker",
+		"LightUpdateMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

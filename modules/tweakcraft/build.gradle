@@ -1,0 +1,32 @@
+// Tweakcraft's module of the buddy: a jar of its own (minecraft-buddy-tweakcraft-<version>.jar) that goes into the mods
+// folder next to the core's. It compiles against the core's classes; at run time the core is a mod of its own.
+apply plugin: project.loom_plugin
+
+base { archivesName = 'minecraft-buddy-tweakcraft' }
+version = "${project.version}+mc${project.minecraft_version}"
+
+evaluationDependsOn(':')
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	compileOnly files(rootProject.sourceSets.main.output, rootProject.sourceSets.client.output)
+}
+
+tasks.named('compileJava') { dependsOn rootProject.tasks.named('classes'), rootProject.tasks.named('clientClasses') }
+
+processResources {
+	def version = project.version
+	def range = project.mc_range
+	inputs.property "version", version
+	inputs.property "mc_range", range
+	filesMatching("fabric.mod.json") { expand "version": version, "mc_range": range }
+}
+
+tasks.withType(JavaCompile).configureEach { it.options.release = Integer.parseInt(project.java_version) }
+
+java {
+	withSourcesJar()
+	sourceCompatibility = JavaVersion.toVersion(project.java_version)
+	targetCompatibility = JavaVersion.toVersion(project.java_version)
+}

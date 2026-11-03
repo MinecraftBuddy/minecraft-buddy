@@ -1,0 +1,32 @@
+// The mod is for Minecraft 26.3 alone; its
+// settings live in versions/26.3.properties. The -Pmc= switch is what is left of the builds for other versions.
+pluginManagement {
+	def mc = settings.startParameter.projectProperties.get('mc') ?: '26.3'
+	def file = new File(settings.rootDir, "versions/${mc}.properties")
+	if (!file.exists()) throw new GradleException("unknown version '${mc}': ${file} does not exist")
+	def props = new Properties()
+	file.withInputStream { props.load(it) }
+	settings.gradle.ext.afkMc = mc
+	settings.gradle.ext.afkProps = props
+
+	repositories {
+		maven {
+			name = 'Fabric'
+			url = 'https://maven.fabricmc.net/'
+		}
+		mavenCentral()
+		gradlePluginPortal()
+	}
+}
+
+gradle.beforeProject { project ->
+	project.ext.mc = gradle.ext.afkMc
+	gradle.ext.afkProps.each { key, value -> project.ext.set(key as String, value as String) }
+}
+
+rootProject.name = 'minecraft-buddy'
+
+// Server modules (BuddyModule): each a jar of its own next to the core's, for one server, so that the core can be
+// shipped and used without any server's extras.
+include 'tweakcraft'
+project(':tweakcraft').projectDir = file('modules/tweakcraft')

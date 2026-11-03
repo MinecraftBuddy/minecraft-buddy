@@ -1,0 +1,39 @@
+{
+	"schemaVersion": 1,
+	"id": "minecraft-buddy",
+	"version": "${version}",
+	"name": "Minecraft Buddy",
+	"description": "A buddy in the game: a second account that follows you, guards you, works along with you and keeps your base. He runs without a screen, steered from a web panel or Telegram.",
+	"authors": [
+		"Minecraft Buddy contributors"
+	],
+	"contact": {
+		"homepage": "https://github.com/MinecraftBuddy/minecraft-buddy",
+		"sources": "https://github.com/MinecraftBuddy/minecraft-buddy"
+	},
+	"license": "AGPL-3.0-or-later",
+	"environment": "client",
+	"entrypoints": {
+		"main": [
+			"net.milenco.buddy.AfkHelperMod"
+		],
+		"client": [
+			"net.milenco.buddy.client.AfkHelperClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "${mc_range}",
+		"java": ">=${java_version}",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"litematica": "*"
+	},
+	"mixins": [
+		{
+			"config": "minecraft-buddy.client.mixins.json",
+			"environment": "client"
+		}
+	]
+}

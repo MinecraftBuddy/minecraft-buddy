@@ -1,0 +1,120 @@
+// Loom is applied by hand here and not through plugins{}: which loom and which plugin name go with it
+// differs per Minecraft version, and a plugins{} block does not allow that to come from a variable.
+buildscript {
+	repositories {
+		maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+		mavenCentral()
+		gradlePluginPortal()
+	}
+	dependencies { classpath "net.fabricmc:fabric-loom:${project.loom_version}" }
+}
+apply plugin: project.loom_plugin
+apply plugin: 'maven-publish'
+
+base { archivesName = project.archives_base_name }
+
+// The jar carries the Minecraft version in its name, so the two builds never get mixed up.
+version = "${project.version}+mc${project.minecraft_version}"
+
+repositories {
+	// Add repositories to retrieve artifacts from in here.
+	// You should only use this when depending on other mods because
+	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
+	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
+	// for more information about repositories.
+}
+
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"minecraft-buddy" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+}
+
+// Next to the shared sources each build compiles its own folder with the classes from
+// net.milenco.buddy.version: that is where everything lives that is named differently per Minecraft version.
+sourceSets.client.java.srcDir project.version_src
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	// Minecraft 26.3 is not obfuscated and needs no mappings (versions/26.3.properties: loom_mappings=none).
+	if (project.loom_mappings == 'mojang') mappings loom.officialMojangMappings()
+
+	// And with mappings the configurations are named differently: loom still has to remap the mods.
+	def mod = project.loom_mappings == 'mojang' ? 'modImplementation' : 'implementation'
+	add(mod, "net.fabricmc:fabric-loader:${project.loader_version}")
+
+	// Fabric API. This is technically optional, but you probably want it anyway.
+	add(mod, "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}")
+}
+
+// Tests of what can be worked out without a game: the jump around a wall, the lang files. They see the client classes.
+sourceSets.test {
+	compileClasspath += sourceSets.client.output + sourceSets.client.compileClasspath
+	runtimeClasspath += sourceSets.client.output + sourceSets.client.runtimeClasspath
+}
+
+dependencies {
+	testImplementation platform("org.junit:junit-bom:5.13.4")
+	testImplementation "org.junit.jupiter:junit-jupiter"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+test { useJUnitPlatform() }
+
+processResources {
+	def version = project.version
+	def range = project.mc_range
+	def java = project.java_version
+	inputs.property "version", version
+	inputs.property "mc_range", range
+	inputs.property "java_version", java
+
+	filesMatching("fabric.mod.json") {
+		expand "version": version, "mc_range": range, "java_version": java
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = Integer.parseInt(project.java_version)
+}
+
+java {
+	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+	// if it is present.
+	// If you remove this line, sources will not be generated.
+	withSourcesJar()
+
+	sourceCompatibility = JavaVersion.toVersion(project.java_version)
+	targetCompatibility = JavaVersion.toVersion(project.java_version)
+}
+
+jar {
+	def projectName = project.name
+	inputs.property "projectName", projectName
+
+	from("LICENSE") {
+		rename { "${it}_$projectName"}
+	}
+}
+
+// configure the maven publication
+publishing {
+	publications {
+		create("mavenJava", MavenPublication) {
+			from components.java
+		}
+	}
+
+	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
+	repositories {
+		// Add repositories to publish to here.
+		// Notice: This block does NOT have the same function as the block in the top level.
+		// The repositories here will be used for publishing your artifact, not for
+		// retrieving dependencies.
+	}
+}

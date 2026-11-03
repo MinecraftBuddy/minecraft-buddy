@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "minecraft-buddy-tweakcraft",
+	"version": "${version}",
+	"name": "Minecraft Buddy: Tweakcraft",
+	"description": "Tweakcraft's extras for the buddy: the parkour course of its events. On only where a server profile names the module.",
+	"authors": [
+		"Minecraft Buddy contributors"
+	],
+	"contact": {
+		"homepage": "https://github.com/MinecraftBuddy/minecraft-buddy",
+		"sources": "https://github.com/MinecraftBuddy/minecraft-buddy"
+	},
+	"license": "AGPL-3.0-or-later",
+	"environment": "client",
+	"entrypoints": {
+		"minecraft-buddy:module": [
+			"net.milenco.buddy.tweakcraft.Parkour"
+		]
+	},
+	"depends": {
+		"minecraft-buddy": "*",
+		"minecraft": "${mc_range}"
+	}
+}

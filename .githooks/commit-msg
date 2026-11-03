@@ -1,0 +1,4 @@
+#!/bin/sh
+# The same checks for the commit message, which becomes a release note and stays in the history.
+# Copy this file into .git/hooks/ of a new clone.
+exec python3 "$(git rev-parse --show-toplevel)/tools/check-public.py" --message "$1"

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The buddy in 3D</title>
+<link rel="stylesheet" href="/fonts/fonts.css">
+<style>
+  :root { --bg: #0e1013; --card: rgba(16,18,22,.82); --line: rgba(255,255,255,.12); --text: #e9ecef; --soft: #a9b0b8; --gold: #e3b341; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 Inter, system-ui, sans-serif; overflow: hidden; }
+  canvas#view { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  .bar { position: fixed; top: 12px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none; }
+  .bar > * { pointer-events: auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(6px); }
+  h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  button { font: inherit; color: var(--text); background: rgba(255,255,255,.08); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button:hover { background: rgba(255,255,255,.16); }
+  button.on { border-color: var(--gold); color: var(--gold); }
+  #status { position: fixed; left: 12px; bottom: 12px; max-width: min(560px, calc(100vw - 24px)); color: var(--soft); }
+  #status b { color: var(--text); font-weight: 600; }
+  #hover { position: fixed; right: 12px; bottom: 12px; max-width: min(420px, calc(100vw - 24px)); display: none; font-variant-numeric: tabular-nums; }
+  #help { position: fixed; right: 12px; top: 64px; max-width: 300px; color: var(--soft); display: none; }
+  #cross { position: fixed; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; display: none; pointer-events: none; }
+  #cross::before, #cross::after { content: ""; position: absolute; background: #fff; mix-blend-mode: difference; }
+  #cross::before { left: 6px; top: 0; width: 2px; height: 14px; } #cross::after { top: 6px; left: 0; height: 2px; width: 14px; }
+  @media (max-width: 600px) { h1 { display: none; } }
+</style>
+<script type="importmap">{ "imports": { "three": "/3d/three.module.min.js" } }</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div class="bar">
+  <div class="card"><h1 id="title">The buddy in 3D</h1></div>
+  <button id="orbit" class="on" title="Turn around them with the mouse, zoom with the wheel">Around them</button>
+  <button id="eyes" title="Where they stand, looking where they look">Their eyes</button>
+  <button id="fly" title="Click in the view, then W A S D, Space and Shift; Esc releases the mouse">Fly</button>
+  <button id="refresh" title="A new copy of the world around them">Refresh</button>
+  <a href="/" style="margin-left:auto"><button>Panel</button></a>
+</div>
+<div id="help" class="card">Click in the view to look around with the mouse. <b>W A S D</b> to move, <b>space</b> up, <b>shift</b> down, <b>ctrl</b> faster. <b>Esc</b> lets the mouse go.</div>
+<div id="cross"></div>
+<div id="hover" class="card"></div>
+<div id="status" class="card">Starting…</div>
+<script type="module">
+  import { start3d } from '/3d/world3d.js';
+  // the buddy's own name in the title
+  fetch('/api/state', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(s => {
+    if (s && s.name) { document.title = s.name + ' in 3D'; document.getElementById('title').textContent = s.name + ' in 3D'; }
+  }).catch(() => {});
+  start3d({ canvas: document.getElementById('view'), ids: { status: 'status', hover: 'hover', help: 'help', cross: 'cross', orbit: 'orbit', eyes: 'eyes', fly: 'fly', refresh: 'refresh' } });
+</script>
+</body>
+</html>

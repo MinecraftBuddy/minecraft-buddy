@@ -1,0 +1,4 @@
+#!/bin/sh
+# What is staged may not hold secrets, mail addresses, public IPs, home folders or anything of .private/denylist.txt
+# (tools/check-public.py). Copy this file into .git/hooks/ of a new clone. Skip once on purpose: git commit --no-verify
+exec python3 "$(git rev-parse --show-toplevel)/tools/check-public.py" --staged

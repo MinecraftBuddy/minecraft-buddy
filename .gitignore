@@ -1,0 +1,13 @@
+build/
+.gradle/
+run/
+*.iml
+.idea/
+bin/
+.DS_Store
+logs/
+__pycache__/
+.worktrees/
+# the maintainer's own notes, tests against their own servers and the denylist of tools/check-public.py: never in git
+.private/
+CLAUDE.local.md

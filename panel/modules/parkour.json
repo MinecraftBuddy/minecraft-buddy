@@ -1,0 +1,18 @@
+{
+  "_about": "What the module parkour (modules/tweakcraft, Parkour.java) is and how its settings go, for the profile editor's How it works. Change it with the module.",
+  "id": "parkour",
+  "jar": "tweakcraft",
+  "name": "Parkour",
+  "about": "Joins a game of Parkour that players voted open and walks him to the finish. Start it with !parkour in Telegram or the raw command {\"cmd\":\"parkour\"}; {\"cmd\":\"parkour\",\"on\":false} stops him and takes him out of the game. He refuses a game the server opened by itself, which pays its winner. Every game he is in is recorded to parkour-runs.jsonl.",
+  "needs": "The module's jar (Game, Advanced: Server modules: tweakcraft) and the profile's eventLeave command, with which he leaves the game.",
+  "settings": [
+    {"key": "dim", "about": "The dimension the course is in.", "example": "events:arenas", "required": true},
+    {"key": "finish", "about": "The finish block, as [x, y, z].", "example": [1676, 104, 1], "required": true},
+    {"key": "join", "about": "The command that joins an open game.", "default": "/event join"},
+    {"key": "opened", "about": "Regular expression: the server's line that a game of Parkour opened.", "default": "Event: Parkour\\."},
+    {"key": "voted", "about": "Regular expression: the line that players voted it open. Only such a game is joined.", "default": "(Gekozen door.*voor de lol|Chosen by.*for fun)"},
+    {"key": "calledOff", "about": "Regular expression: the line that the game is off.", "default": "Parkour (gaat niet door|is cancel+ed)"},
+    {"key": "started", "about": "Regular expression: the line that a game begins, which starts the recording of his run.", "default": "> Start <"}
+  ],
+  "example": {"dim": "events:arenas", "finish": [1676, 104, 1]}
+}
