@@ -935,8 +935,23 @@ final class Alto {
 		// crimson forest, and a food search there among them and the piglins killed it)
 		// (72 when it gathered to 96 for the nether: under 48 it went in with some fifty and ate it in a fortress; three
 		// quarters of NETHER_FOOD since, the rule for every stock of the kit)
-		int sky = kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() ? NETHER_FOOD * 3 / 4 : 24;
-		return score < 12 || score < sky && p.level().canSeeSky(p.blockPosition().above()) || hungryNow;
+		boolean nether = kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal();
+		int sky = nether ? NETHER_FOOD * 3 / 4 : 24;
+		// (and at the way in, wherever the frame goes up: one in a mineshaft at y 7 never saw the sky, the buddy went into the
+		// nether with 19 points, turned home for food at once under blaze fire, and died to zombies in a village at night,
+		// attempt 180)
+		boolean open = p.level().canSeeSky(p.blockPosition().above()) || nether && atNetherPortal();
+		return score < 12 || score < sky && open || hungryNow;
+	}
+
+	/** Soprano's order is at its way into the nether: a frame from the bag, a cast, or the walk into a portal. */
+	static boolean atNetherPortal() {
+		if (!up) return false;
+		var mod = adris.altoclef.AltoClef.getInstance();
+		if (mod == null || mod.getUserTaskChain() == null) return false;
+		var t = mod.getUserTaskChain().getCurrentTask();
+		return t != null && t.thisOrChildSatisfies(x -> x instanceof adris.altoclef.tasks.movement.DefaultGoToDimensionTask
+			|| x instanceof adris.altoclef.tasks.movement.EnterNetherPortalTask);
 	}
 
 	/** A step of the order done by a task of AltoClef's: it runs while the buddy's chain lets it, and ends with the task. */
