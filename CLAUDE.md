@@ -26,6 +26,8 @@ panel and a Telegram bridge around it, and a Docker image that runs them togethe
   (`buddy.json`, the panel); what only one server has is a module (`modules/`).
 - Build and test with `./gradlew build -Pmc=26.3`; see `docs/development.md`. A change that should reach the buddies gets
   a new version in `gradle.properties`: a push to master releases that version and the panel offers it as an update.
+  The same commit gives the version its section in `CHANGELOG.md`, the release's text: one short item per thing a user
+  notices (new, changed, fixed), in the style below; no file names, no internals.
 
 ## Writing texts
 
