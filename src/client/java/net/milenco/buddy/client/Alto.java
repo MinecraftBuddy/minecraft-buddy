@@ -432,9 +432,13 @@ final class Alto {
 		return overworld && orderDanger.ordinal() > ObtainKit.Danger.DEEP.ordinal() ? orderDanger : ObtainKit.Danger.DEEP;
 	}
 
-	/** The next piece of the kit that was not tried in vain in the last ten game minutes, or null. */
+	/**
+	 * The next piece of the kit that was not tried in vain in the last ten game minutes, or null. The redstone is tried
+	 * once an order: a gain for the brew, no gate, and its eight minutes a time down at the ore were a fifth of an order
+	 * that never left the overworld (attempt 167, four times, never any).
+	 */
 	static Run kit(net.minecraft.client.player.LocalPlayer p, long now) {
-		return kit(p, k -> { Long at = KIT_FAILED.get("AltoClef: " + k); return at != null && now - at < 600_000; });
+		return kit(p, k -> { Long at = KIT_FAILED.get("AltoClef: " + k); return at != null && (now - at < 600_000 || k.equals("kit redstone")); });
 	}
 
 	static Run kit(net.minecraft.client.player.LocalPlayer p) { return kit(p, k -> false); }
@@ -492,7 +496,9 @@ final class Alto {
 				// bow (ObtainKit's own reasons). its food is wantsFood's
 				case "gold helmet" -> armour.add("golden_helmet");
 				// (Soprano counts the bag and not what is worn, so one in the bag is the spare)
-				case "spare gold helmet" -> { rest.add(new adris.altoclef.util.ItemTarget("golden_helmet", 1)); names.add("a spare golden helmet"); }
+				// (Soprano counts the bag, not what is worn: the bag's count and the one missing. a bill for one, with one in the
+				// bag, was met at once and came back seven times in one order, attempt 167)
+				case "spare gold helmet" -> { rest.add(new adris.altoclef.util.ItemTarget("golden_helmet", ObtainSteps.count(p, "golden_helmet") + n.count())); names.add("a spare golden helmet"); }
 				case "more blocks" -> blocks = Math.max(blocks, 48);
 				case "flint and steel" -> { rest.add(new adris.altoclef.util.ItemTarget("flint_and_steel", 1)); names.add("flint and steel"); }
 				// (the diamond sword only with its two diamonds in the bag, and no bow or arrows: Soprano's blaze task fights them
@@ -586,7 +592,10 @@ final class Alto {
 		// (and never given up while nothing golden is worn: after twenty-five game minutes for three raw gold the piece
 		// counted as failed, the order went through the portal in iron, and the piglins shot it with six rods in the bag. the
 		// order waits for its gold: slow beats a piglin pack)
-		if (armour.contains("golden_helmet") && (!skip.test("equip golden_helmet") || !goldOn(p)))
+		// (and one in the bag while nothing golden is worn goes on too: the kit counts it as the helmet, so the piece is not
+		// missing, and the order went on in an iron helmet; a bill for the spare had taken the worn one off, attempt 167)
+		boolean goldInBag = kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() && !goldOn(p) && ObtainSteps.count(p, "golden_helmet") > 0;
+		if ((armour.contains("golden_helmet") || goldInBag) && (!skip.test("equip golden_helmet") || !goldOn(p)))
 			return new Run("equip golden_helmet", (10 + 3 * 5) * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget("golden_helmet", 1))));
 		String what = "kit " + String.join(", ", names.stream().filter(n -> !armour.contains(n) && !armour.contains("iron_" + n)).toList());
 		if (!rest.isEmpty() && !skip.test(what))

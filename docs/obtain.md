@@ -116,10 +116,10 @@ gate lacks is fetched by safer steps first, all of it planned together.
   the helmet and the boots, each as soon as there is iron for it; copper in an empty slot meanwhile), a good sword, a
   water bucket, torches, blocks, food, three stone pickaxes with a table and sticks so that the rock wears out the cheap
   tools, and a bed when there is a sheep near or wool in the bag.
-- **The nether**: full armour with a golden helmet (the piglins leave the wearer be), a diamond sword when the
-  diamonds are in the bag, 48 blocks, flint and steel, and food to 96 points. Torches and the water bucket are the
-  overworld's. With Soprano also three water bottles and a redstone dust, each a piece of its own and filled in the
-  overworld: in the fortress Soprano's blaze hunt picks up a nether wart and a magma cream when they are close by and,
+- **The nether**: full armour with a golden helmet worn (the piglins leave the wearer be) and a spare one in the bag, a
+  diamond sword when the diamonds are in the bag, 48 blocks, flint and steel, and food to 96 points. Torches and the
+  water bucket are the overworld's. With Soprano also three water bottles and a redstone dust, each a piece of its own
+  and filled in the overworld, the redstone tried once an order: in the fortress Soprano's blaze hunt picks up a nether wart and a magma cream when they are close by and,
   with two rods for the stand and its fuel, brews three potions of fire resistance (eight minutes each). The potion is
   drunk when fire is about, and it stops all fire damage: burning, the blazes' fireballs and lava.
 - **The End**: a bow with arrows on top.
@@ -128,7 +128,10 @@ A piece of the kit may take ten game minutes and three more for each ingot; a pi
 for ten game minutes, while the others go on. The golden helmet for the nether is never given up: the order waits for
 its gold. A stock of eight or more (food, torches, blocks) counts as enough at three quarters. A tool or piece of armour
 at its last tenth counts as gone, so a new one comes while the old still works; a shield at its last uses gets a spare
-in the bag, before the food run when the iron and the wood for it are in the bag already.
+in the bag, before the food run when the iron and the wood for it are in the bag already. With Soprano the portal into
+the nether is built from the bag's obsidian when it holds ten and flint and steel, where the buddy stands; otherwise it
+is cast with a bucket of lava and one of water. A frame begun and left (a food run broke in) is finished where it
+stands.
 
 ## Staying alive
 
