@@ -110,6 +110,23 @@ final class Alto {
 
 	/** Game ticks between two workings out of the wishes with the same bag: five game seconds. */
 	private static final long WISH_TICKS = 100;
+
+	/**
+	 * What one food point saves, in seconds: what a food run costs a point. Runs that gathered some sixty points took three
+	 * to seven game minutes (attempts 104 to 172), five minutes for sixty is five seconds a point. A cow in sight (sixteen
+	 * points) is then worth 80 s while a food run is near, against some twelve for the walk and the kill.
+	 */
+	static final double FOOD_POINT_SECONDS = 5;
+
+	/**
+	 * Food as Soprano's take-along weighs it: the bag count under which a food run comes (the sky rule's, three quarters of
+	 * NETHER_FOOD for an order into the nether, 24 otherwise) in full, up to what a food run gathers (NETHER_FOOD or 60)
+	 * at the lower urgency, half as much again as the reserve.
+	 */
+	static adris.altoclef.takealong.TakeAlong.Food takeAlongFood(net.minecraft.client.player.LocalPlayer p) {
+		boolean nether = kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal();
+		return new adris.altoclef.takealong.TakeAlong.Food(nether ? NETHER_FOOD * 3 / 4 : 24, nether ? NETHER_FOOD : 60, FOOD_POINT_SECONDS);
+	}
 	private static boolean wishing;
 	private static long wishedAt;
 	private static int wishedBag;
@@ -145,6 +162,7 @@ final class Alto {
 			try {
 				var w = wishes(p);
 				adris.altoclef.takealong.TakeAlong.wishes(w.now(), w.later(), w.values());
+				adris.altoclef.takealong.TakeAlong.food(takeAlongFood(p));
 			} catch (RuntimeException e) {
 				adris.altoclef.takealong.TakeAlong.off();
 				Exchange.emit("obtain", "action", "take along", "state", "error", "why", String.valueOf(e));
@@ -446,29 +464,6 @@ final class Alto {
 	 * needed none. 160 is twenty steaks, one slot.
 	 */
 	static final int NETHER_FOOD = 160;
-
-	/**
-	 * Food on the way: an animal within a few steps while the bag holds less than this is taken along between two steps
-	 * of the order (Obtain), up to this. Twice what a food run gathers, so the run before the nether finds most of it in
-	 * the bag already.
-	 */
-	static int foodOnTheWayCap(net.minecraft.client.player.LocalPlayer p) {
-		return kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() ? 256 : 120;
-	}
-
-	/** In the overworld, out of water and fire, an animal that is food within a few steps and in sight (foodOnTheWay). */
-	static boolean wantsFoodOnTheWay(net.minecraft.client.player.LocalPlayer p) {
-		if (!on() || !p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return false;
-		if (p.isInWater() || p.isInLava() || p.isOnFire()) return false;
-		var mod = adris.altoclef.AltoClef.getInstance();
-		return mod != null && adris.altoclef.tasks.resources.CollectFoodTask.foodNearby(mod, foodOnTheWayCap(p));
-	}
-
-	/** The animals and melons within a few steps, nothing else; two game minutes at most. */
-	static Run foodOnTheWay(net.minecraft.client.player.LocalPlayer p) {
-		int cap = foodOnTheWayCap(p);
-		return new Run("food on the way", 2 * 60_000, () -> adris.altoclef.tasks.resources.CollectFoodTask.nearby(cap));
-	}
 
 	/** Soprano's task under way is a nether portal's (a frame cast or built, or the walk into one). */
 	static boolean portalUnderWay() {
@@ -949,7 +944,6 @@ final class Alto {
 		Run(String what, long limit, java.util.function.Supplier<Object> make) { this.what = what; this.limit = limit; this.make = make; }
 
 		boolean food() { return what.startsWith("collect food"); }
-		boolean onTheWay() { return what.equals("food on the way"); }
 
 		boolean home() { return what.equals("home for food"); }
 
