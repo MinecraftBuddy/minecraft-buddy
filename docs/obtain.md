@@ -117,7 +117,7 @@ gate lacks is fetched by safer steps first, all of it planned together.
   water bucket, torches, blocks, food, three stone pickaxes with a table and sticks so that the rock wears out the cheap
   tools, and a bed when there is a sheep near or wool in the bag.
 - **The nether**: full armour with a golden helmet worn (the piglins leave the wearer be) and a spare one in the bag, a
-  diamond sword when the diamonds are in the bag, 48 blocks, flint and steel, and food to 96 points. Torches and the
+  diamond sword when the diamonds are in the bag, 48 blocks, flint and steel, and food to 160 points. Torches and the
   water bucket are the overworld's. With Soprano also three water bottles and a redstone dust, each a piece of its own
   and filled in the overworld, the redstone tried once an order: in the fortress Soprano's blaze hunt picks up a nether wart and a magma cream when they are close by and,
   with two rods for the stand and its fuel, brews three potions of fire resistance (eight minutes each). The potion is
@@ -164,7 +164,11 @@ rods, ender pearls and golden apples are never among them during an order.
   dug up to the sky, not a walk through the caves.
 - **Tools renewed in time**: a tool or armour piece in its last tenth counts as gone, so a new one is made while the old
   still works; its last uses are spent only when nothing else breaks the block.
-- **In the nether**: little food to eat means a trip home to the overworld for more, begun once nothing in sight is on
+- **Food on the way**: an animal that is food within twelve blocks and in sight is taken along between two steps,
+  while the bag holds less than twice what a food run gathers (256 points for an order into the nether, 120 otherwise).
+  Not with monsters about, not under six hearts, not while a portal goes up. A food run takes the animals within reach
+  past its need too.
+- **In the nether**: little food to eat (under 36 points) means a trip home to the overworld for more, begun once nothing in sight is on
   the buddy and the fire is out (or the food is all but gone); away from the rim of a bridge or a ledge; never there
   without something golden on.
 

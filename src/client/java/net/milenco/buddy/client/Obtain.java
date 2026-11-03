@@ -633,7 +633,7 @@ final class Obtain {
 			return true;
 		}
 		// a boat first where much water lies ahead (Alto.wantsBoat), or food (Alto.wantsFood), then the order again
-		if (exec instanceof Alto.Run b && (b.boat() || b.food() || b.kit() || b.home())) {
+		if (exec instanceof Alto.Run b && (b.boat() || b.food() || b.kit() || b.home() || b.onTheWay())) {
 			// a piece of the kit gives way to food when it is hurt or hungry with nothing to eat: at 9 hp it went on for the
 			// leggings with an empty bag, never healed (no food, so the bar stayed under 18) and spiders killed it at night; the
 			// piece is asked again after the meal, not counted as failed
@@ -651,6 +651,11 @@ final class Obtain {
 			// game minutes, and the other pieces go on meanwhile: a wait after the shield had come sent it down to the diamonds
 			// in its clothes for ten minutes, where a creeper and skeletons killed it
 			if (b.food()) foodTriedAt = now;
+			else if (b.onTheWay()) {
+				int got = Alto.foodScore(true);
+				onTheWayTriedAt = got > onTheWayFrom ? now : now + 240_000;
+				Exchange.emit("obtain", "action", "food on the way", "from", onTheWayFrom, "to", got, "s", br == ObtainSteps.Result.FAIL ? "failed" : "done");
+			}
 			else if (b.home()) { homeTriedAt = now; foodAfterHome = p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD); }
 			else if (b.kit()) { Alto.Run next = Alto.kit(p, now); if (br == ObtainSteps.Result.FAIL || next != null && next.detail().equals(b.detail())) Alto.kitFailed(b, now); }
 			else boatTriedAt = now;
@@ -697,7 +702,7 @@ final class Obtain {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:food", 1, null, 0, List.of(), "food by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
-				exec = Alto.food(Alto.kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() ? 96 : 60);
+				exec = Alto.food(Alto.kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() ? Alto.NETHER_FOOD : 60);
 				Exchange.emit("obtain", "action", "step", "step", "food by Soprano after coming home, " + Alto.foodScore(true) + " points in the bag", "way", "soprano:food");
 				return true;
 			}
@@ -708,11 +713,28 @@ final class Obtain {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:food", 1, null, 0, List.of(), "food by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
-				// (to 96 for an order into the nether, while still in the overworld: in a fortress the blazes' fire keeps it
+				// (to NETHER_FOOD for an order into the nether, while still in the overworld: in a fortress the blazes' fire keeps it
 				// healing, and healing at a full bar eats; 52 points went in forty real seconds there, and the food search that
 				// followed in the nether ended in lava)
-				exec = Alto.food(Alto.kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() ? 96 : 60);
+				exec = Alto.food(Alto.kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() ? Alto.NETHER_FOOD : 60);
 				Exchange.emit("obtain", "action", "step", "step", "food by Soprano, " + Alto.foodScore(true) + " points in the bag", "way", "soprano:food");
+				return true;
+			}
+			// food on the way: an animal within a few steps, in sight, is taken along while the bag holds less than twice a
+			// food run's points, between two steps or in one of Soprano's (not a portal's, the boat's, the trip home's or a
+			// food run's), with no foes about and not badly hurt. each trip home from the nether for food took some ten game
+			// minutes; what is taken here the food run before the nether need not look for. not asked again for a minute
+			// after it, five when it brought nothing
+			if (now - onTheWayTriedAt > 60_000 && p.getHealth() >= 12 && ObtainSafe.foes(p).isEmpty()
+				&& !(exec instanceof Alto.Run r && (r.boat() || r.home() || r.food() || r.onTheWay()))
+				&& !Alto.portalUnderWay() && Alto.wantsFoodOnTheWay(p)) {
+				onTheWayTriedAt = now;
+				onTheWayFrom = Alto.foodScore(true);
+				if (exec != null) exec.stop();
+				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:ontheway", 1, null, 0, List.of(), "food on the way");
+				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
+				exec = Alto.foodOnTheWay(p);
+				Exchange.emit("obtain", "action", "step", "step", "food on the way, " + onTheWayFrom + " points in the bag", "way", "soprano:ontheway");
 				return true;
 			}
 			// the kit for the deep first, for an order whose way goes down there (Alto.kit); a piece that did not come is not
@@ -803,6 +825,8 @@ final class Obtain {
 	private static long boatLook, boatTriedAt = -600_000, foodTriedAt = -180_000, homeTriedAt = -180_000, goldTriedAt = -60_000;
 	// a home run for food that got home: the food run comes next, whatever wantsFood says by the portal
 	private static boolean foodAfterHome;
+	private static long onTheWayTriedAt = -60_000;
+	private static int onTheWayFrom;
 	private static Boolean deep;
 
 	/** The order's way goes into the deep (its plan, by the buddy's own planner, has a step of that danger); asked once an order. */

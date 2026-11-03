@@ -309,7 +309,8 @@ final class Alto {
 	 * units are food points, raw meat counted as cooked; done when the bag holds that much.
 	 */
 	static Run food(double units) {
-		return new Run("collect food, " + Math.round(units) + " points", 10 * 60_000, () -> night(new adris.altoclef.tasks.resources.CollectFoodTask(units)));
+		// (fifteen game minutes: a run to 96 points took three to seven, and the one before the nether goes to 160)
+		return new Run("collect food, " + Math.round(units) + " points", 15 * 60_000, () -> night(new adris.altoclef.tasks.resources.CollectFoodTask(units)));
 	}
 
 	/**
@@ -327,6 +328,43 @@ final class Alto {
 
 	/** In the nether, eatable food under this sends it home for more: two or three minutes of a blaze fight's healing. */
 	static final int NETHER_FOOD_RESERVE = 36;
+
+	/**
+	 * Food points gathered before the nether (and after a trip home from it). It was 96, which left 60 points above the
+	 * reserve: some ten game minutes of a blaze fight's healing, and each trip home took about as long again (attempts 104
+	 * to 172: 29 trips in 522 nether minutes, one of them ending in the lava sea). One that went in with 271 points
+	 * needed none. 160 is twenty steaks, one slot.
+	 */
+	static final int NETHER_FOOD = 160;
+
+	/**
+	 * Food on the way: an animal within a few steps while the bag holds less than this is taken along between two steps
+	 * of the order (Obtain), up to this. Twice what a food run gathers, so the run before the nether finds most of it in
+	 * the bag already.
+	 */
+	static int foodOnTheWayCap(net.minecraft.client.player.LocalPlayer p) {
+		return kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() ? 256 : 120;
+	}
+
+	/** In the overworld, out of water and fire, an animal that is food within a few steps and in sight (foodOnTheWay). */
+	static boolean wantsFoodOnTheWay(net.minecraft.client.player.LocalPlayer p) {
+		if (!on() || !p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return false;
+		if (p.isInWater() || p.isInLava() || p.isOnFire()) return false;
+		var mod = adris.altoclef.AltoClef.getInstance();
+		return mod != null && adris.altoclef.tasks.resources.CollectFoodTask.foodNearby(mod, foodOnTheWayCap(p));
+	}
+
+	/** The animals and melons within a few steps, nothing else; two game minutes at most. */
+	static Run foodOnTheWay(net.minecraft.client.player.LocalPlayer p) {
+		int cap = foodOnTheWayCap(p);
+		return new Run("food on the way", 2 * 60_000, () -> adris.altoclef.tasks.resources.CollectFoodTask.nearby(cap));
+	}
+
+	/** Soprano's task under way is a nether portal's (a frame cast or built, or the walk into one). */
+	static boolean portalUnderWay() {
+		String d = doing();
+		return d != null && d.toLowerCase(java.util.Locale.ROOT).contains("portal");
+	}
 
 	/**
 	 * In the nether with little to eat, or with nothing golden worn any more: go home (homeForFood) rather than stay. A
@@ -785,8 +823,9 @@ final class Alto {
 		boolean hungryNow = foodScore(false) < 12 && (p.getHealth() < 14 || p.getFoodData().getFoodLevel() < 14);
 		// (48 under the sky for an order into the nether, while still in the overworld: food in the nether is a hoglin in a
 		// crimson forest, and a food search there among them and the piglins killed it)
-		// (72 since it gathers to 96 for the nether: under 48 it went in with some fifty and ate it in a fortress)
-		int sky = kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() ? 72 : 24;
+		// (72 when it gathered to 96 for the nether: under 48 it went in with some fifty and ate it in a fortress; three
+		// quarters of NETHER_FOOD since, the rule for every stock of the kit)
+		int sky = kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() ? NETHER_FOOD * 3 / 4 : 24;
 		return score < 12 || score < sky && p.level().canSeeSky(p.blockPosition().above()) || hungryNow;
 	}
 
@@ -800,6 +839,7 @@ final class Alto {
 		Run(String what, long limit, java.util.function.Supplier<Object> make) { this.what = what; this.limit = limit; this.make = make; }
 
 		boolean food() { return what.startsWith("collect food"); }
+		boolean onTheWay() { return what.equals("food on the way"); }
 
 		boolean home() { return what.equals("home for food"); }
 
