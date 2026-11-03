@@ -3,6 +3,12 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.16
+
+- **No more interruptions while watching.** In Take control the 3D view no longer greys out and rebuilds every few
+  seconds. When the world is refreshed while you watch, it happens in place, without the loading bar.
+- The 3D view's loading messages are worded more clearly.
+
 ## 0.5.15
 
 - **A loading bar in the 3D view.** Take control and the 3D map show how far loading has got, from the click until
