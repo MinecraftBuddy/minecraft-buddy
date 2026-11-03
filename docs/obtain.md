@@ -146,8 +146,9 @@ its gold. A stock of eight or more (food, torches, blocks) counts as enough at t
   dug up to the sky, not a walk through the caves.
 - **Tools renewed in time**: a tool or armour piece in its last tenth counts as gone, so a new one is made while the old
   still works; its last uses are spent only when nothing else breaks the block.
-- **In the nether**: little food to eat means a trip home to the overworld for more; away from the rim of a bridge or a
-  ledge; never there without something golden on.
+- **In the nether**: little food to eat means a trip home to the overworld for more, begun once nothing in sight is on
+  the buddy and the fire is out (or the food is all but gone); away from the rim of a bridge or a ledge; never there
+  without something golden on.
 
 ## Settings
 

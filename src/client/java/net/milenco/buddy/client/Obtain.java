@@ -662,7 +662,7 @@ final class Obtain {
 		boolean between = exec == null;
 		if (between || exec instanceof Alto.Run && now >= boatLook) {
 			boatLook = now + 5000;
-			// in the nether with little to eat, or without gold: home first (Alto.wantsHome), whatever is about, a blaze fight is
+			// in the nether with little to eat, or without gold: home first (Alto.wantsHome): a blaze fight is
 			// what eats it. one that did not get home is not asked again for three minutes, and the food search there is what is left
 			// the spare golden helmet on before anything else: the piglins turn on the buddy the moment nothing golden is worn
 			if (now - goldTriedAt > 20_000 && Alto.wantsSpareGold(p)) {
@@ -674,7 +674,11 @@ final class Obtain {
 				Exchange.emit("obtain", "action", "step", "step", "the spare golden helmet on, the worn one broke", "way", "soprano:gold");
 				return true;
 			}
-			if (now - homeTriedAt > 180_000 && Alto.wantsHome(p)) {
+			// for food (not for gold) it waits while foes are in sight or it burns, unless the bag is all but empty: begun at
+			// 35 points in a crowd of blazes, the home run took the fight off them (whose own retreat breaks their sight), the
+			// mob defense then ran 24 blocks in the open, burning, past two skeletons, and it burned to death at 10 hp. out of
+			// their sight, which is where the fight's retreat ends, the run begins
+			if (now - homeTriedAt > 180_000 && Alto.wantsHome(p) && (!Alto.goldOn(p) || homeIsSafe(p))) {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:home", 1, null, 0, List.of(), "home for food by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
@@ -783,6 +787,11 @@ final class Obtain {
 	 */
 	private static boolean hurtAndNoFood(LocalPlayer p) {
 		return Alto.foodScore() < 12 && (p.getHealth() < 14 || p.getFoodData().getFoodLevel() < 14);
+	}
+
+	/** Whether the home run for food may begin here: nothing in sight is on the buddy and nothing burns, or the bag is all but empty. */
+	private static boolean homeIsSafe(LocalPlayer p) {
+		return ObtainSafe.foes(p).isEmpty() && !p.isOnFire() || Alto.foodScore() < 12;
 	}
 
 	private static int sopranoEnds;
