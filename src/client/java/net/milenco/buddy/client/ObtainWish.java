@@ -16,7 +16,7 @@ import java.util.Set;
  * item of the buddy's own step under way;</li>
  * <li><b>later</b>: the kit's stocks (torches, a water bucket, flint and steel, a spare pickaxe and helmet) and the order.</li>
  * </ul>
- * Food stays with food on the way; blocks, a bow and arrows are not taken along.
+ * Food goes as points of its own (Alto.takeAlongFood); blocks, a bow and arrows are not taken along.
  */
 final class ObtainWish {
 	private ObtainWish() {}

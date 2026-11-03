@@ -169,7 +169,13 @@ a second for the drops and three for picking the order up again. Drops lying tog
 are picked up. Never a drop in water or by lava, never one Soprano's own task is already after, never junk the buddy
 threw away; a drop it could not get is left alone for five game minutes.
 
-Food is not part of it yet: food on the way stays as it is.
+Food is weighed the same way, in food points: an animal that is food (a cow, a pig, a sheep, a chicken), grown, in
+sight, within the same reach and at most four blocks up or down, is hunted when the points it gives are worth it.
+A point is worth five seconds, about what a food run costs a point. The points count in full under the mark where a
+food run would come (120 for an order into the nether, 24 otherwise), at 0.6 up to what a food run gathers (160 or
+60), and as the reserve up to half as much again (240 or 90). A cow ten blocks off with a food run near is worth 80
+seconds against some twelve for the walk and the kill. Animals standing together are one hunt, and only those are
+hunted; their meat is picked up.
 
 ## Staying alive
 
@@ -200,10 +206,8 @@ Food is not part of it yet: food on the way stays as it is.
   dug up to the sky, not a walk through the caves.
 - **Tools renewed in time**: a tool or armour piece in its last tenth counts as gone, so a new one is made while the old
   still works; its last uses are spent only when nothing else breaks the block.
-- **Food on the way**: an animal that is food within twelve blocks and in sight is taken along between two steps,
-  while the bag holds less than twice what a food run gathers (256 points for an order into the nether, 120 otherwise).
-  Not with monsters about, not under six hearts, not while a portal goes up. A food run takes the animals within reach
-  past its need too.
+- **Food on the way**: an animal in sight is taken along by the same measure as an ore ("Taken along on the way"). A food
+  run takes the animals within reach past its need too.
 - **In the nether**: little food to eat (under 36 points) means a trip home to the overworld for more, begun once nothing in sight is on
   the buddy and the fire is out (or the food is all but gone); away from the rim of a bridge or a ledge; never there
   without something golden on.
