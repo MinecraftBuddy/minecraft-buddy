@@ -575,9 +575,10 @@ final class Follow {
 		Ovens.startTick(mc);
 		Torches.startTick(mc);
 		Chores.startTick(mc);
+		Obtain.startTick(mc);
 		BlockPos lie = clickBed;
 		clickBed = null;
-		if ((isOn() || Base.keeper() != null) && lie != null && mc.player != null && mc.gameMode != null && mc.level != null && !mc.player.isShiftKeyDown()
+		if ((isOn() || Base.keeper() != null || Obtain.on()) && lie != null && mc.player != null && mc.gameMode != null && mc.level != null && !mc.player.isShiftKeyDown()
 				&& mc.hitResult instanceof BlockHitResult bh && bh.getType() == HitResult.Type.BLOCK
 				&& bedHalves(mc.level, lie).contains(bh.getBlockPos()) && mc.level.getBlockState(bh.getBlockPos()).getBlock() instanceof AbstractBedBlock) {
 			InteractionResult r = AfkHelperClient.useOn(mc.player, InteractionHand.MAIN_HAND, bh);
@@ -616,7 +617,18 @@ final class Follow {
 	static boolean tick(Minecraft mc, LocalPlayer p, AfkConfig c) {
 		if (AfkHelperClient.active() && !c.afk) sign(p);
 		boolean keep = Base.wants(p, target != null, staying);
-		if (!isOn() && !Work.testing() && !keep) { lastPos = null; return false; }
+		if (!isOn() && !Work.testing() && !keep && !Obtain.on() && !Obtain.watching()) {
+			// nothing to do, and still never drowned: up for air also when idle (a buddy idle under water drowned 24 seconds
+			// after a login)
+			if ((p.isUnderWater() && p.getAirSupply() < AIR_LOW) || breath) {
+				ticks++;
+				if (!breath) { breath = true; clearRoute(); Exchange.emit("follow", "action", "to air", "air", p.getAirSupply(), "idle", true); }
+				walking = true;
+				return Arbiter.at("air", breathe(mc, p));
+			}
+			lastPos = null;
+			return false;
+		}
 		ticks++;
 		// how long since a bed, against phantoms (Rest)
 		Rest.tick(p);
@@ -631,6 +643,7 @@ final class Follow {
 			Stash.stop("attacked");
 			Ovens.stop("attacked");
 			Chores.stop("attacked");
+			if (Obtain.inMenu(p)) Obtain.menuClosed();
 			Exchange.emit("guard", "action", "menu closed", "reason", "attacked");
 			return true;
 		}
@@ -638,6 +651,7 @@ final class Follow {
 		if (Stash.inMenu(p)) return Arbiter.at("chest", Stash.menuTick(mc, p));
 		if (Ovens.inMenu(p)) return Arbiter.at("furnace", Ovens.menuTick(mc, p));
 		if (Chores.inMenu(p)) return Arbiter.at("chore", Chores.menuTick(mc, p));
+		if (Obtain.inMenu(p)) return Arbiter.at("obtain", Obtain.menuTick(mc, p));
 		if (jumpTicks > 0 && --jumpTicks == 0) HeldKeys.set(mc.options.keyJump, false);
 		var screen = Game.openScreen(mc);
 		boolean menu = screen != null && !(screen instanceof net.minecraft.client.gui.screens.ChatScreen)
@@ -648,7 +662,10 @@ final class Follow {
 		long seen = System.currentTimeMillis();
 		if (!menu || !p.isAlive() || p.containerMenu == p.inventoryMenu) strayMenuSince = 0;   // a container only; the death screen is the respawn's
 		else if (strayMenuSince == 0) strayMenuSince = seen;
-		else if (seen - Math.max(strayMenuSince, MenuLog.lastMenuCommand) > STRAY_MENU_MS) {
+		// with an order on and AltoClef at work on nothing, a container screen is nobody's after a second: the crafting table
+		// stayed open after the diamond pickaxe was made, and the order waited behind it, standing still with the pickaxe in
+		// the bag
+		else if (seen - Math.max(strayMenuSince, MenuLog.lastMenuCommand) > (Obtain.on() && Alto.present() && !Alto.working() ? 1000 : STRAY_MENU_MS)) {
 			String title = screen.getTitle().getString();
 			p.closeContainer();
 			strayMenuSince = 0;
@@ -707,6 +724,11 @@ final class Follow {
 				clearRoute();
 			}
 		}
+		// an order with AltoClef keeping it alive (Alto): while one of its chains holds the wheel (a fight, a meal, out of
+		// lava or water, a bucket under a fall) the buddy lets go of the keys and waits
+		if (Alto.inControl()) { if (walking) { release(); clearRoute(); walking = false; } return Arbiter.at("alto", true); }
+		// a task of AltoClef's for the order (food): it walks and works, and only the order's own safety may stop it
+		if (Alto.delegating()) { if (walking) { release(); clearRoute(); walking = false; } Arbiter.at("obtain", true); return Obtain.tick(mc, p); }
 		// Under water with little air left: up first. He follows a player with a turtle helmet or a conduit nowhere.
 		if (p.isUnderWater() && p.getAirSupply() < AIR_LOW && !breath) {
 			breath = true;
@@ -718,7 +740,7 @@ final class Follow {
 		if (Arbiter.at("put out fire", douseWalk(mc, p, now))) return true;
 		// a creeper swelling within four blocks: facing it with the shield up, which blocks its blast from the front (the
 		// plan for fighting of 24 Oct 2026). Not at the pen, which has its own way with creepers (Pen.creeper), nor on a ghast
-		if (!Pen.busy() && !(p.getVehicle() instanceof HappyGhast) && Shield.ready(p)) {
+		if (!Pen.busy() && !(p.getVehicle() instanceof HappyGhast) && Shield.ready(p) && !Alto.on()) {
 			Creeper boom = Shield.swelling(p);
 			if (boom != null) {
 				release();
@@ -730,7 +752,11 @@ final class Follow {
 		}
 		// hit by a monster: back at it before getting loose, a door or a walk to a spot, which came first and left him to be
 		// hit on (the review of 22 Oct 2026). The fight below as always, and only this one taken early.
-		if (Guard.underAttack(p) != null && !(p.getVehicle() instanceof HappyGhast) && !Pen.busy()) {
+		// an order of items: from monsters it cannot win against it runs before any fight (Obtain, the hardcore rule)
+		if (Obtain.on() && Arbiter.at("edge", ObtainSafe.edge(mc, p))) return true;
+		// with AltoClef on, its mob defense flees and fights, the buddy's own stand down
+		if (Obtain.on() && !Alto.on() && Arbiter.at("flee", Obtain.flee(mc, p))) return true;
+		if (Guard.underAttack(p) != null && !(p.getVehicle() instanceof HappyGhast) && !Pen.busy() && !Alto.on()) {
 			Entity early = Guard.watch(p, find(p));
 			if (early != null && !(keep && (target == null || staying) && !c.baseFight)) return Arbiter.at("fight", fight(mc, p, early));
 		}
@@ -753,7 +779,10 @@ final class Follow {
 			boolean held = fight || Unloader.isBusy() || (c.followCarry && Corpse.busy());
 			if (Arbiter.at("creeper", Pen.creeper(mc, p, held, fight))) return true;
 		}
-		if (foe != null && !(p.getVehicle() instanceof HappyGhast)) return Arbiter.at("fight", fight(mc, p, foe));
+		if (foe != null && !(p.getVehicle() instanceof HappyGhast) && !Alto.on()) return Arbiter.at("fight", fight(mc, p, foe));
+		// an order of items (Obtain): after what keeps it alive, before the following, which waits meanwhile
+		if (Obtain.on()) { Arbiter.at("obtain", true); return Obtain.tick(mc, p); }
+		if (Obtain.watching()) { Arbiter.at("watch", true); return Obtain.watchTick(mc, p); }
 		// !dump: the unloader walks him to the chests by these paths; meanwhile no following and no looking at the player
 		if (Unloader.isBusy()) return Arbiter.at("unload", Unloader.walkTick(mc, p, find(p)));
 		// his things after a death: fetched before he follows on (Corpse)
@@ -1526,6 +1555,9 @@ final class Follow {
 	/** To a free bed near this spot, and into it: the walk, the click, a refusal skipped for a minute. */
 	private static boolean toBed(Minecraft mc, LocalPlayer p, BlockPos near) { return toBed(mc, p, near, false); }
 
+	/** To a free bed near this cell and into it, the way the base's night does it (an order's own bed, Obtain). */
+	static boolean sleepAt(Minecraft mc, LocalPlayer p, BlockPos bed) { return toBed(mc, p, bed, true); }
+
 	/**
 	 * {@code base}: from the base's work, where the follow walk does not run, so he walks the way his jobs do, to a cell
 	 * beside the bed (21 Oct 2026: with {@code baseSleepOthers} he was at a field when the others lay down, and chose a
@@ -1826,7 +1858,11 @@ final class Follow {
 		return null;
 	}
 
-	private static boolean othersOn() { return Jobs.othersOn(Jobs.Job.FOLLOW); }
+	/** A farm or a build at work: the following waits. An order of items is no other job here: it runs in this chain. */
+	private static boolean othersOn() { return Jobs.anyOn(Jobs.Job.FOLLOW, Jobs.Job.OBTAIN); }
+
+	/** Going for a mob and hitting it, as a fight does (Obtain's hunting). */
+	static boolean attack(Minecraft mc, LocalPlayer p, Entity e) { return fight(mc, p, e); }
 
 	/** Up to air along the water, then afloat at the surface until the bubbles are full again. */
 	private static boolean breathe(Minecraft mc, LocalPlayer p) {

@@ -201,6 +201,37 @@ The buddy kills hostile mobs only: no boss, warden, shulker, named mob or pet, a
 angry or when one blow kills it. The experience the mobs drop comes to the buddy as in vanilla. `penOwnerAwayMin` (0: they farm on
 when you leave) ends the farm that many minutes after you went offline.
 
+## Fetching an item
+
+Order an item and a count (the panel's mode **Obtain items**, `!obtain` on Telegram, or `{"cmd":"obtain",...}`) and the
+buddy works out every step to it from the game's own recipes and drops, and does them: from the base's chests when they
+are near, or gathered, crafted and smelted (a better pickaxe first, a furnace, fuel), and asked again after every step,
+so that a step that brought more or less than planned changes the rest. Following stops while they work on it; when it
+is there they bring it to whoever ordered it, or keep it when that player is not online. [Obtain items](obtain.md) has how
+they go about it.
+
+Staying alive comes before the order:
+
+- **a kit before a danger**: a crafting table, wood, a sword and a spare pickaxe before going underground; iron armour, a
+  shield, food, torches, a water bucket and blocks before the deep; more for the nether and the End. All the kit lacks is
+  fetched in one go;
+- **the night in the ground** without iron armour (a thunderstorm counts as night): three blocks down under the open sky
+  and shut, or shut in where they stand underground, out again in the morning; and the same, hurt under half health with
+  no fight on, until healed;
+- **walls against what shoots, and under the ground against all**: from skeletons and the like they go three down where
+  the ground is good, or wall themselves in where they stand with blocks they carry, the shooters' side first, and stay
+  until none is about; under the ground monsters on their way are walled out the same way, so no tunnel becomes a chase;
+- **fight or flight by numbers**: a fight they would lose on this difficulty is run from in the open, never down a
+  tunnel and never where the walker finds no way; a place where a patrol of pillagers was seen or something shot at them
+  is kept away from for a while;
+- **up by their own stair**: a step only the surface has (trees, the animals of the fields), taken deep under the ground,
+  starts with a stair dug straight up to the sky, not a walk through the caves;
+- **tools renewed in time**: a tool or armour piece in its last tenth counts as gone, so a new one is made while the old
+  still works, and its last uses are spent only when nothing else breaks the block;
+- **never over a drop a slip does not survive**: no bridge over more than three blocks of nothing, and crouched they step
+  back onto the block that holds them before anything lets go of the crouch;
+- **rather give up than risk dying**: an order with no safe way is given up, with its reason.
+
 ## How the buddy gets about
 
 They plan their way themselves, cell by cell, and walk it with the real keys: level ground and slabs, a jump up, drops of
@@ -229,9 +260,10 @@ is not tried again for ten minutes, and they say so once.
 ## How the buddy decides
 
 Many things want the buddy's hands; one at a time gets them, in this order: staying alive (air under water, a fire, getting
-loose, a creeper swelling at them at a farm), a menu they are busy in, a fight, the corpse guard, your taps, farming mobs,
+loose, a creeper swelling at them at a farm), a menu they are busy in, a fight, an order to fetch an item, the corpse guard, your taps, farming mobs,
 carrying things home, keeping the base, staying, sleeping, riding, working along, and following. The first that wants
-the moment takes it, and whatever was going on carries on as soon as nothing above it wants it any more. The panel shows
+the moment takes it, and whatever was going on carries on as soon as nothing above it wants it any more. Air under water
+comes first also when they have nothing else to do. The panel shows
 which one has their hands now, and their reports name it when it changes (`doing`).
 
 From outside, the web panel goes before all of it: while you steer them or use their inventory there, nothing else moves

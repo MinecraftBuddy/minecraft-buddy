@@ -25,7 +25,11 @@ the bottom (Map, Inventory, Chat, Settings).
   schematic with its size, turn and mirror and its start block, which a click shows on the map and the fields under it
   move, typed or **To where they stand**. **Material list** opens what it takes per item, as Litematica counts it (in all,
   still missing where it is loaded, what they carry, what the chests they build from held); an item ticked **ignore** is
-  left out when they build. **Remove** takes the placement away; the file stays. Switching to another mode ends AFK. A **?** beside a
+  left out when they build. **Remove** takes the placement away; the file stays. **Obtain items** fetches an item for you: search it by
+  its name (with its picture; the list is what the buddy knows a way to from nothing, worked out from the game's own
+  recipes and drops), type how many and who gets it, and **Fetch**. Under it the order's progress: how many they have,
+  the step they are on and for how long, or that they are dug in for the night or to heal; **Stop** ends it, and once it
+  is over how it ended. [Obtain items](obtain.md) has how they go about it. Switching to another mode ends AFK. A **?** beside a
   mode or switch says how it is set in the game (the bed you tap for their base, the sign to follow, the punch for a mob
   farm). A switch counts at once and is kept in their config; the switches of a mode that is not on wait for it.
 - **What they are missing**: what the buddy lacks to help (food, a weapon, room, a tool about to break, the right tool or torches for
@@ -92,6 +96,9 @@ the bottom (Map, Inventory, Chat, Settings).
   `/command`) with quick buttons (follow, stay, follow again, go home, stop following, ping); everything they report;
   and what went wrong, the same trouble in one row with how often, when last and where. Scroll up for older lines,
   from the panel's own history. The figures of a plugin, whose names are colour codes, do not show as joins and leaves.
+  During an order Activity also has its steps and Soprano's lines: what it starts and finishes, what it does now (once
+  the kind of task changes, so a staircase down is one line), and when one of its chains takes over to keep the buddy
+  alive (told once it held for a second); the order's card shows only the step and what Soprano does at this moment.
 - **Settings**: **Status** installs, logs in, sets the server and starts, stops and updates the buddy (see [Installing](install.md)),
   and shows the game's own console; a server saved there gets a profile of its own, named after it, when none fits it;
   **Telegram** is the bridge (below), with a main switch: off, nothing of Telegram shows anywhere in the panel;

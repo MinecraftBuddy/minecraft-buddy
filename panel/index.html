@@ -115,6 +115,24 @@ button.radio:focus-visible { outline-color: var(--muted); } /* orange is for the
 .mode .head .btn { white-space: nowrap; }
 .mode .head .mbtns { grid-area: b; display: flex; align-items: center; gap: 6px; }
 .subs { display: flex; flex-direction: column; gap: 2px; padding: 4px 0 0 26px; }
+/* the obtain mode: an item searched for, its count and who gets it, and the order's progress */
+.obtain { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
+.obq { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.obq input { padding: 5px 8px; border-radius: 6px; }
+.obq input.q { flex: 1 1 12em; min-width: 0; }
+.obq input.n { width: 5.5em; }
+.obq input.to { width: 9em; }
+.oblist { max-height: 228px; overflow: auto; border: 1px solid var(--line2); border-radius: 8px; display: flex; flex-direction: column; }
+.oblist button { display: flex; align-items: center; gap: 8px; background: none; border: 0; text-align: left; padding: 4px 8px; color: inherit; font-size: 13px; }
+.oblist button:hover, .oblist button.sel { background: var(--accent-soft); }
+.oblist img, .oblist .noimg { width: 20px; height: 20px; image-rendering: pixelated; flex: none; }
+.oblist .id { color: var(--muted); font-size: 11px; margin-left: auto; }
+.obprog { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+.obbar { height: 6px; border-radius: 3px; background: var(--line2); overflow: hidden; }
+.obbar i { display: block; height: 100%; background: var(--accent); }
+.oblog { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+.oblog .obnow { color: inherit; }
+#pad .hint .oblog { color: inherit; opacity: .85; padding: 2px 0 4px; max-width: 100%; }
 .sw { display: flex; align-items: center; gap: 10px; min-height: 34px; width: 100%; text-align: left; border: 0; background: none; padding: 2px 0; color: inherit; }
 .sw .tx { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .sw .tx b { font-weight: 500; font-size: 13.5px; }
@@ -816,6 +834,7 @@ dialog#rawdlg td code { word-break: break-all; }
       <button class="btn small" id="closedrive">Done</button></div>
     <div id="pad" tabindex="0"><canvas id="w3view" aria-label="The world around them in 3D"></canvas><canvas id="padsky" aria-hidden="true"></canvas><div class="cross"></div><div class="hint" id="padhint">
       <div class="watchline"><b id="watchline">Watching</b><button type="button" class="btn small ghost" id="keystoggle">Hide keys</button></div>
+      <div id="watchob" class="oblog" hidden></div>
       <div class="keyhelp"><span id="watchhow">Click the view to take control.</span> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk,
       the mouse turns them, <kbd>Space</kbd> jumps, <kbd>Shift</kbd> sneaks, <kbd>R</kbd> sprints, the left button hits or breaks, the right button uses,
       <kbd>1</kbd>–<kbd>9</kbd> or the wheel pick a hotbar slot, <kbd>Q</kbd> drops, <kbd>F</kbd> swaps hands, <kbd>E</kbd> the inventory,
@@ -906,13 +925,15 @@ function doingText(s) {
     sleep: 'Sleeping', ride: 'Riding', stay: 'Staying put', air: 'Coming up for air', 'get loose': 'Getting unstuck', 'put out fire': 'Putting out a fire',
     'open door': 'Opening a door', chest: 'At a chest', furnace: 'At a furnace', chore: 'Doing a chore', 'panel steers': 'Driven from this page',
     panel: 'Waiting while you use their inventory', goto: 'Walking to a spot', unload: 'Unloading', tap: 'Answering a tap', answer: 'Answering a sign',
-    afk: 'Waiting in the AFK zone', tpahere: 'Answering a teleport request', test: 'Running a test'})[s.doing] || first(s.doing || 'idle');
+    obtain: s.obtain && s.obtain.on ? 'Fetching ' + s.obtain.count + ' ' + obName(s.obtain.item) : 'Fetching an order', flee: 'Running from what they cannot fight',
+    alto: 'Kept safe by Soprano', watch: 'Watching where they are after an order', afk: 'Waiting in the AFK zone', tpahere: 'Answering a teleport request', test: 'Running a test'})[s.doing] || first(s.doing || 'idle');
 }
 /* the order his steps get the tick in (Follow.tick, and this page's own jobs), with what wakes each */
 const CHAIN = [
   ['Stay safe', ['air', 'put out fire', 'get loose', 'open door', 'creeper'], 'air, fire, stuck, a creeper'],
   ['Your instructions', ['panel steers', 'panel', 'goto', 'tap', 'answer', 'tpahere', 'test'], 'a walk, a tap, driving'],
-  ['Fight', ['fight'], 'a monster near them'],
+  ['Fight', ['fight', 'flee'], 'a monster near them'],
+  ['Fetch an order', ['obtain', 'watch'], 'an item ordered under Obtain items'],
   ["Save a player's things", ['corpse guard'], 'after a death nearby'],
   ['Farm mobs', ['farm mobs'], 'a bare-hand punch on a mob in a pen'],
   ['Take cover', ['take cover'], 'shot at from a pit where they stay'],
@@ -967,6 +988,8 @@ const TIPS = {
   follow: 'In the game: look at them and crouch twice quickly, with empty hands or a tool. They follow you; the same sign again and they stay where they are. ' +
     'Only trusted players (Settings, Access) can do this. Tap a block with a bare hand to give them a job: stone or ore to mine, a log to chop, a field, a furnace.',
   afk: 'They stay where they are and do nothing else, for instance to keep the chunks around them loaded (a farm only runs near a player). They accept a teleport request from a trusted player. Switching to another mode ends it.',
+  obtain: 'Pick an item and how many: they fetch it from the base chests, or gather, craft and smelt it, every step in between (a better pickaxe, a furnace, fuel). ' +
+    'Following stops while they work on it; when it is there they bring it to the player named, or keep it when nobody is named. Staying alive comes first: at night or hurt they dig in, and they give an order up rather than risk dying.',
   // where a schematic is uploaded, not how one is made
   build: 'Upload a .litematic file in Settings, Schematics. Place it here (the circle opens this card), then press Confirm switch: they build the placed schematic nearest to them, with what they carry and the chests near where they stand.',
   place: 'The schematic\'s start block lands on the spot you choose: the block they stand in, or x y z. Turning and mirroring go around it. ' +
@@ -1044,12 +1067,13 @@ function placementsHtml(s) {
 }
 function modes(s) {
   const ae = document.activeElement;
-  if (ae && (ae.id === 'who' || ae.dataset.num || ae.dataset.mv || (ae.dataset.pf && ae.type !== 'radio'))) return; // not while a name, an amount, a start block or a place is being typed or chosen
+  if (ae && (ae.id === 'who' || ae.dataset.num || ae.dataset.mv || (ae.dataset.pf && ae.type !== 'radio') || ae.closest('.obtain'))) return; // not while a name, an amount, a start block, a place or an order is being typed or chosen
   // AFK mode is a mode of its own (0.4.164: mode afk; before that only the switch)
   const afk = s.mode === 'afk' || !!(s.settings && s.settings.afk);
   const m = afk ? 'afk' : s.mode || 'idle', following = m === 'follow' || m === 'stay';
   const pen = s.pen && s.pen.on ? s.pen : null;
-  const key = JSON.stringify([m, s.settings, s.follows, s.base, lastBuild, bedText(), pen && [pen.x1, pen.y, pen.z1, pen.killed], s.placements, s.litematica, SCH, PF.where]);
+  const ob = s.obtain && s.obtain.on ? s.obtain : null;
+  const key = JSON.stringify([m, s.settings, s.follows, s.base, lastBuild, bedText(), pen && [pen.x1, pen.y, pen.z1, pen.killed], s.placements, s.litematica, SCH, PF.where, ob && [ob.item, ob.count, ob.by]]);
   if (key === modeKey) return;
   modeKey = key;
   const known = [...new Set([s.follows, ...((M && M.players) || []).map(p => p.name)].filter(n => n && n !== s.name))];
@@ -1079,10 +1103,77 @@ function modes(s) {
       swHtml(s, SW.follow), 'follow') +
     block(m === 'build', 'Build a schematic', '<span>' + esc(m === 'build' && lastBuild ? lastBuild : buildLine(s)) + '</span>', '',
       placeFormHtml(s) + placementsHtml(s) + '<div class="row" style="padding:4px 0"><a href="#s-sch" class="btn small ghost" style="text-decoration:none">Upload</a><button class="btn small ghost" data-cmd=\'{"cmd":"buildstatus"}\'>Build status</button>' +
-      (m === 'build' ? '<button class="btn small ghost" data-cmd=\'{"cmd":"switch","what":"build","on":false}\'>Stop building</button>' : '') + '</div>', 'build');
+      (m === 'build' ? '<button class="btn small ghost" data-cmd=\'{"cmd":"switch","what":"build","on":false}\'>Stop building</button>' : '') + '</div>', 'build') +
+    block(!!ob, 'Obtain items', '<span>' + esc(ob ? 'Fetching ' + ob.count + ' ' + obName(ob.item) + (ob.by ? ' for ' + ob.by : '') : 'Gathers, crafts or smelts an item for you') + '</span>',
+      ob ? '<span class="badge">Active</span><button class="btn small ghost" data-obstop>Stop</button>' : '',
+      '<div class="obtain"><div class="obq"><input id="ob-q" class="q" placeholder="Search an item" autocomplete="off" aria-label="Item to fetch" value="' + esc(obQ) + '">' +
+        '<input id="ob-n" class="n" type="number" min="1" max="2304" step="1" inputmode="numeric" value="' + esc(String(obN)) + '" aria-label="How many">' +
+        '<input id="ob-to" class="to" list="names" placeholder="Deliver to" value="' + esc(obTo !== null ? obTo : known[0] || '') + '" aria-label="Deliver to">' +
+        '<button type="button" class="btn small" data-obgo>Fetch</button></div>' +
+        '<div id="ob-list" class="oblist" role="listbox" aria-label="Items"></div><div id="ob-prog" class="obprog"></div></div>', 'obtain');
+  obList();
+  obtainProgress(s);
   followButtons();
   $('sw-conn').innerHTML = swHtml(s, SW.conn, true);
   $('sw-log').innerHTML = swHtml(s, SW.log, true);
+}
+/* the obtain mode (docs/obtain.md): the list of what can be ordered is the mod's, from the game's own recipes and drops */
+let OB = null, obPick = '', obQ = '', obN = 1, obTo = null;
+const obName = id => (N.item && N.item[id]) || cap(id);
+async function obtainItems() {
+  try { const j = await (await fetch('/api/obtain-items')).json(); OB = j.items || []; } catch (e) { OB = []; }
+  if (!OB.length) setTimeout(() => { OB = null; }, 20000);   // the game writes it once it is in: asked again a little later
+  return OB;
+}
+function obList() {
+  const box = $('ob-list'); if (!box) return;
+  if (OB === null) { box.innerHTML = '<span class="obprog" style="padding:6px 8px">Loading the list</span>'; obtainItems().then(obList); return; }
+  if (!OB.length) { box.innerHTML = '<span class="obprog" style="padding:6px 8px">The list comes once the buddy has been in the game</span>'; return; }
+  const words = obQ.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const hit = OB.filter(id => { const n = (obName(id) + ' ' + id.replace(/_/g, ' ')).toLowerCase(); return words.every(w => n.includes(w)); });
+  hit.sort((a, b) => (obName(a).toLowerCase().startsWith(words[0] || '') ? 0 : 1) - (obName(b).toLowerCase().startsWith(words[0] || '') ? 0 : 1) || obName(a).localeCompare(obName(b)));
+  box.innerHTML = hit.slice(0, 80).map(id => '<button type="button" role="option" data-obpick="' + esc(id) + '"' + (id === obPick ? ' class="sel" aria-selected="true"' : '') + '>' +
+    (ICONS[id] ? '<img src="' + icon(id) + '" alt="">' : '<span class="noimg"></span>') + '<span>' + esc(obName(id)) + '</span><span class="id">' + esc(id) + '</span></button>').join('') +
+    (hit.length > 80 ? '<span class="obprog" style="padding:4px 8px">' + (hit.length - 80) + ' more: search on</span>' : '') +
+    (hit.length ? '' : '<span class="obprog" style="padding:6px 8px">Nothing they know a way to</span>');
+}
+const obAgo = s => s < 90 ? s + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h';
+/* an order's step and what Soprano does now, in its own words; the lines with their times are in the Activity tab,
+   where a log reads well */
+function obLogHtml(o) {
+  if (!o || !o.on) return '';
+  const now = o.sheltering ? 'Dug in ' + o.sheltering : o.step ? 'Step: ' + o.step + ', ' + obAgo(o.step_s) : 'Working out the next step';
+  return '<div class="obnow">' + esc(now) + '</div>' + (o.doing ? '<div class="obnow">' + esc('Soprano: ' + o.doing) + '</div>' : '');
+}
+function obLogInto(el, o) {
+  if (!el) return;
+  const h = obLogHtml(o);
+  el.hidden = !h;
+  if (el.dataset.h !== h) { el.dataset.h = h; el.innerHTML = h; }
+}
+function obtainProgress(s) {
+  const el = $('ob-prog'); if (!el) return;
+  const o = s.obtain;
+  if (!o) { el.innerHTML = ''; return; }
+  if (o.on) {
+    const pct = Math.min(100, Math.round(100 * o.have / Math.max(1, o.count)));
+    el.innerHTML = '<div class="obbar"><i style="width:' + pct + '%"></i></div><span>' + esc(o.have + ' of ' + o.count + ' ' + obName(o.item) + ' · ' + o.steps + ' steps done') + '</span>' +
+      '<div class="oblog">' + obLogHtml(o) + '</div>';
+  } else el.innerHTML = '<span>' + esc('Last order: ' + o.count + ' ' + obName(o.item) + ', ' + o.end + (o.why ? ' (' + o.why + ')' : '') + ', after ' + obAgo(o.s)) + '</span>';
+}
+document.addEventListener('input', ev => {
+  if (ev.target.id === 'ob-q') { obQ = ev.target.value; obPick = ''; obList(); }
+  else if (ev.target.id === 'ob-n') obN = ev.target.value;
+  else if (ev.target.id === 'ob-to') obTo = ev.target.value;
+});
+async function obtainOrder() {
+  if (!obPick) { const one = OB && OB.find(id => obName(id).toLowerCase() === obQ.trim().toLowerCase() || id === obQ.trim().toLowerCase()); if (one) obPick = one; }
+  if (!obPick) { note('Pick an item from the list'); return; }
+  const n = Math.round(Number(obN));
+  if (!Number.isFinite(n) || n < 1 || n > 2304) { note('A count from 1 to 2304'); return; }
+  const to = (obTo !== null ? obTo : ($('ob-to') && $('ob-to').value) || '').trim();
+  try { await post('/api/obtain', {item: obPick, count: n, to}); note('Fetching ' + n + ' ' + obName(obPick) + (to ? ' for ' + to : '')); modeKey = ''; quick(); }
+  catch (e) { note('Not ordered: ' + e.message); }
 }
 function followButtons() {
   if (!$('fgo') || !S) return;
@@ -1708,7 +1799,7 @@ async function state() {
     if ($('w3clock').textContent !== gt) $('w3clock').textContent = gt;
     if (!s.online) {
       $('inv').innerHTML = '<p style="padding:20px;margin:0">They are not on a server.</p>'; $('fx').innerHTML = ''; heldBox({}); cursor();
-      chain(s); modes(s); needs(s); return;
+      chain(s); modes(s); needs(s); obtainProgress(s); return;
     }
     if (!drag && !typingInMenu()) setInv(inventory(s));
     $('inv').classList.toggle('scrmode', !!$('inv').querySelector('.scr'));
@@ -1717,7 +1808,7 @@ async function state() {
     $('menuopen').hidden = !s.menu_open || !!s.menu;
     $('menuhint').hidden = !s.menu;
     heldBox(s); cursor();
-    chain(s); modes(s); needs(s);
+    chain(s); modes(s); needs(s); obtainProgress(s);
     $('coords').textContent = 'x ' + s.x + ' · y ' + s.y + ' · z ' + s.z + ' · ' + SHORT[facing(s.yaw || 0)] + (s.dim && s.dim !== 'minecraft:overworld' ? ' · ' + dimName(s.dim) : '');
     $('spos').textContent = s.x + ' ' + s.y + ' ' + s.z + ' · ' + dimName(s.dim);
     if (typeof s.yaw === 'number') $('sface').textContent = first(facing(s.yaw)) + ' (' + s.yaw + '°, pitch ' + s.pitch + '°)';
@@ -2108,8 +2199,29 @@ function eventText(e) {
   if (e.type === 'doing') return 'Now: ' + doingText({doing: e.action, follows: S && S.follows, base: S && S.base}).toLowerCase();
   if (e.type === 'setting') return 'Setting ' + e.name + ' ' + (e.value ? 'on' : 'off');
   if (e.type === 'mode') return 'Mode: ' + ({base: 'tend the base', follow: 'follow', build: 'build'}[e.mode] || e.mode);
+  if (e.type === 'death_cause') return 'Died: ' + e.text;
+  if (e.type === 'alto') return sopranoText(e);
+  if (e.type === 'obtain') return orderText(e);
   const rest = Object.entries(e).filter(([k]) => !SKIP.has(k)).map(([k, v]) => k.replace(/_/g, ' ') + ' ' + (typeof v === 'object' ? JSON.stringify(v) : v)).join(', ');
   return first(e.type) + (e.action ? ' · ' + e.action : '') + (rest ? ' · ' + rest : '');
+}
+/* Soprano's lines and an order's, in the Activity tab */
+const CHAINS = {MobDefenseChain: 'keeping monsters off', FoodChain: 'eating', WorldSurvivalChain: 'getting out of lava, fire or water',
+  MLGBucketFallChain: 'breaking a fall', DeathMenuChain: 'getting up after a death', PlayerInteractionFixChain: 'tidying the inventory'};
+function sopranoText(e) {
+  const c = CHAINS[e.chain] || e.chain;
+  return ({doing: () => 'Soprano: ' + e.what, takes: () => 'Soprano takes over: ' + c, 'lets go': () => 'Soprano lets go: ' + c,
+    task: () => 'Soprano starts: ' + e.task, 'task done': () => 'Soprano done: ' + e.task + (e.s !== undefined ? ' (' + e.s + ' s)' : ''),
+    'food off': () => 'Soprano stops looking for food for a while: ' + e.why, up: () => 'Soprano on', down: () => 'Soprano off'}[e.action] ||
+    (() => 'Soprano · ' + e.action + Object.entries(e).filter(([k]) => !SKIP.has(k)).map(([k, v]) => ', ' + k.replace(/_/g, ' ') + ' ' + v).join('')))();
+}
+function orderText(e) {
+  const n = (e.count !== undefined ? e.count + ' ' : '') + (e.item ? obName(e.item) : '');
+  const why = e.why ? ' (' + e.why + ')' : '';
+  return ({start: () => 'Order: fetch ' + n, resumed: () => 'Order picked up again: ' + n, done: () => 'Order done: ' + n,
+    'gives up': () => 'Order given up: ' + n + why, stop: () => 'Order stopped: ' + n + why, step: () => 'Step: ' + e.step,
+    'step done': () => 'Step done: ' + e.step, 'order danger': () => 'The order goes deep: armour, a shield and a sword first'}[e.action] ||
+    (() => 'Order · ' + e.action + Object.entries(e).filter(([k]) => !SKIP.has(k)).map(([k, v]) => ', ' + k.replace(/_/g, ' ') + ' ' + (typeof v === 'object' ? JSON.stringify(v) : v)).join('')))();
 }
 const atLink = a => '<button class="at" data-x="' + a.x + '" data-z="' + a.z + '" title="Show on the map">' + a.x + ' ' + (a.y !== undefined ? a.y + ' ' : '') + a.z + '</button>';
 const AT = new Set(['x', 'y', 'z']);
@@ -2141,6 +2253,7 @@ function problems() {
 function take(lines, where, fresh) {
   const chat = [], act = [];
   for (const e of lines) {
+    if (e.type === 'death_cause' && !e.text) continue; // a login while dead, kept in the history by older mods
     if (e.type === 'chat' || typed(e)) {
       const own = said(e);
       if (own !== null) dropTyped(chat, own, e.t);
@@ -3144,6 +3257,8 @@ document.addEventListener('click', async ev => {
   if (ev.target.closest('.help')) { ev.preventDefault(); return; }
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.set) { setSwitch(b); return; }
+  // the obtain card's Confirm switch is the order itself: what to fetch is in its fields
+  if (b.dataset.mode === 'obtain') { obtainOrder(); return; }
   if (b.dataset.mode) { setMode(b.dataset.mode); return; }
   if (b.dataset.mpick) {
     const k = b.dataset.mpick, kept = document.activeElement === b; MPICK = MPICK === k ? '' : k; modeKey = '';
@@ -3152,6 +3267,9 @@ document.addEventListener('click', async ev => {
     return;
   }
   if (b.dataset.followStop !== undefined) { cmd({cmd: 'follow', on: false}, 'Stopped following'); return; }
+  if (b.dataset.obpick) { obPick = b.dataset.obpick; obQ = obName(obPick); if ($('ob-q')) $('ob-q').value = obQ; obList(); return; }
+  if (b.dataset.obgo !== undefined) { obtainOrder(); return; }
+  if (b.dataset.obstop !== undefined) { try { await post('/api/obtain', {stop: true}); note('Order stopped'); quick(); } catch (e) { note('Not stopped: ' + e.message); } return; }
   if (b.dataset.cmd) {
     if (b.dataset.ask && !confirm(b.dataset.ask)) return;
     cmd(JSON.parse(b.dataset.cmd), b.textContent.trim() + ': sent');
@@ -3439,6 +3557,7 @@ function watchLine() {
   const t = !S || !S.online ? first(n) + ' is not on a server.' : busy ? busyText()
     : 'Watching ' + n + ': ' + (S.steered && !steer.on ? 'played from the panel' : doingText(S).replace(/^./, c => c.toLowerCase())) + '.';
   if ($('watchline').textContent !== t) $('watchline').textContent = t;
+  obLogInto($('watchob'), S && S.online ? S.obtain : null);
   const how = busy ? 'You can take control when they let go.' : 'Click the view to take control.';
   if ($('watchhow').textContent !== how) $('watchhow').textContent = how;
   h.classList.toggle('busy', busy);

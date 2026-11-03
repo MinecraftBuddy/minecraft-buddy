@@ -17,6 +17,7 @@ Everything outside the game talks to the mod through files in the exchange folde
 | `chests.json`, `fields.json`, `furnaces.json`, `base.json` | the chests, fields, furnaces and bed they learnt, per server and player |
 | `containers.json` | what lay in every container they had open, by block, per server and dimension (the panel's 3D view shows it) |
 | `pens.json` | the pen they farm per server and player, to take it up again after a restart |
+| `obtain.json`, `obtain-items.json` | the order under way, to take it up again after a restart; what can be ordered (written once a start) |
 | `pen.txt` | what they made of the last pen they looked at: its evidence, the best spot per side, its layers from above |
 | `build.json` | the builder's material chests, scaffold and progress, and per placement the items it leaves out (`ignore`) |
 | `materials.json` | the material list of the placement last asked for (`placement` with `materials`) |
@@ -56,6 +57,7 @@ code names them and takes nothing else (since 0.4.166). A selection of the comma
 | `{"cmd":"placement","action":"list"}`, `{"cmd":"placement","action":"remove"}`, `{"cmd":"placement","action":"remove","name":"house"}` | report the placements; remove every one, or one |
 | `{"cmd":"renderdistance","chunks":12}` | how far the game sees and asks the server for chunks (2 to 32), saved in its options |
 | `{"cmd":"woodscan"}` | measure the tree farm they stand in: its plots and chests go into `buddy.json` |
+| `{"cmd":"obtain","item":"diamond_block","count":4,"by":"Name"}`, `{"cmd":"obtain","stop":true}`, `{"cmd":"obtain"}` | fetch an item for that player (or keep it); stop; what they are on (an `obtain` event, `status`). `"plan":true` only works the steps out (event `plan`) |
 | `{"cmd":"leave"}`, `{"cmd":"join"}` | off the server and staying off, and back |
 | `{"cmd":"drop","slot":3}` | throw that stack |
 | `{"cmd":"ping"}` | answers `pong` |

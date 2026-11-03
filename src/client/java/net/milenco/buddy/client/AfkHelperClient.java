@@ -124,7 +124,7 @@ public class AfkHelperClient implements ClientModInitializer {
 		net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(mc -> applySteadyFps());
 		net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> Yield.flush());
 		QuickExit.register();
-		net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> { if (AfkConfig.get().stayOffline) { logOut("stays away"); return; } joinedAt = System.currentTimeMillis(); newServer(); Watchdog.joined(); CropFarmer.stop("new connection"); WheatFarm.newConnection(); Builder.stop("new connection"); Builder.resumeLater(); Alt.newConnection(); Follow.newConnection(); Profiles.newConnection(); panicStopped = false; panicArmed = false; panicHomeAt = 0; panicHomeArrived = false; panicHomeTries = 0; combatUntil = 0; combatReported = false; reconnectPlanned = false; failedConnections = 0; });
+		net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> { if (AfkConfig.get().stayOffline) { logOut("stays away"); return; } joinedAt = System.currentTimeMillis(); newServer(); Watchdog.joined(); CropFarmer.stop("new connection"); WheatFarm.newConnection(); Builder.stop("new connection"); Builder.resumeLater(); Alt.newConnection(); Follow.newConnection(); Obtain.newConnection(); Profiles.newConnection(); panicStopped = false; panicArmed = false; panicHomeAt = 0; panicHomeArrived = false; panicHomeTries = 0; combatUntil = 0; combatReported = false; reconnectPlanned = false; failedConnections = 0; });
 		// the Telegram bridge shows from this how long the connection has been up
 		net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> Exchange.emit("connection", "action", "connected", "server", serverIp()));
 		Exchange.init();
@@ -1103,10 +1103,25 @@ public class AfkHelperClient implements ClientModInitializer {
 		// the alt ate bread at 15.5 hearts with a zombie a block off, and died). Fight first, eat when it is over.
 		Entity foe = Guard.enemy();
 		if (foe != null && foe.distanceTo(p) < 6) return;
+		// also with no guarding on: a monster after it within ten blocks, or a shooter in sight within fifteen (a drowned hit
+		// the buddy four times while it ate two cod for its hearts, and killed it; the distances are Soprano's: a bite is 1.6
+		// s without a blow, and a zombie covers ten blocks in about that time running). Not when only a bite can save it
+		if (health > 4) for (var m : p.level().getEntitiesOfClass(net.minecraft.world.entity.monster.Monster.class, p.getBoundingBox().inflate(15, 5, 15))) {
+			if (!m.isAlive()) continue;
+			// at arm's length aggressive or not: the client did not show a zombie a block off as aggressive while it hit four
+			// times, and the buddy ate through them
+			if (m.distanceTo(p) < 3 && !ObtainSafe.type(m).equals("enderman")) return;
+			if (!m.isAggressive()) continue;
+			boolean shooter = m instanceof net.minecraft.world.entity.monster.RangedAttackMob;
+			if (m.distanceTo(p) < 10 || (shooter && p.hasLineOfSight(m))) return;
+		}
 		// nor while a creeper swells at him at the pen, or he strikes one or walks away from one: a bite takes his hand off
 		// the blow that kills it and slows the walk out of its blast to a fifth (the third review of 22 Oct 2026)
 		if (Pen.creeperDanger()) return;
 		if (p.isUsingItem() && p.getUseItem().get(DataComponents.FOOD) != null) return;   // already eating: do not get in between
+		// an order with AltoClef: its food chain eats (Alto), but not when it does not: at hunger 0 with seven cooked beef in
+		// the bag it starved for ten minutes without a bite. Then the buddy's own bite (Alto.starving)
+		if (Alto.on() && !Alto.starving(p)) return;
 		if (eatTicks == 0 && now - lastEat > 4000 && p.containerMenu == p.inventoryMenu) {
 			// no looking away from a sign, chest or door first: his own bite is a use of the item, no click on what he looks
 			// at, and the use key goes down only once the bite has begun (22 Oct 2026); in his cellar between chests no safe
@@ -1173,7 +1188,7 @@ public class AfkHelperClient implements ClientModInitializer {
 		for (int i = from; i < to; i++) {
 			ItemStack st = p.getInventory().getItem(i);
 			if (st.isEmpty() || st.get(DataComponents.FOOD) == null || BAD_FOOD.contains(itemId(st))) continue;
-			if (!allowed.isEmpty() && !mayEat(allowed, itemId(st))) continue;
+			if (!allowedFood(allowed, itemId(st))) continue;
 			n += st.getCount();
 		}
 		return n;
@@ -1241,7 +1256,7 @@ public class AfkHelperClient implements ClientModInitializer {
 		java.util.function.Predicate<ItemStack> edible = st -> {
 			var food = st.get(DataComponents.FOOD);
 			if (food == null || BAD_FOOD.contains(itemId(st))) return false;
-			return allowed.isEmpty() || mayEat(allowed, itemId(st));
+			return allowedFood(allowed, itemId(st));
 		};
 		return toHotbar(p, mc, edible, java.util.Comparator.comparingInt(st -> {
 			var f = st.get(DataComponents.FOOD);
@@ -1252,8 +1267,15 @@ public class AfkHelperClient implements ClientModInitializer {
 	/** Food the eating function would eat: not on the bad list, and allowed by the setting when it names any. */
 	static boolean eatable(ItemStack st) {
 		if (st.isEmpty() || st.get(DataComponents.FOOD) == null || BAD_FOOD.contains(itemId(st))) return false;
-		var allowed = AfkConfig.get().eatItems;
-		return allowed.isEmpty() || mayEat(allowed, itemId(st));
+		return allowedFood(AfkConfig.get().eatItems, itemId(st));
+	}
+
+	/**
+	 * A food the settings let the buddy eat; on an order whatever feeds it, raw meat too: with the list's three foods only
+	 * it sat four minutes at half health with a porkchop in its bag.
+	 */
+	static boolean allowedFood(java.util.List<String> allowed, String id) {
+		return allowed.isEmpty() || mayEat(allowed, id) || (Obtain.on() && ObtainKit.ANY_FOOD.contains(id));
 	}
 
 	// golden apples are for healing in a fight (Follow.heal, 24 Oct 2026): never eaten for hunger, never counted as food
@@ -1278,7 +1300,7 @@ public class AfkHelperClient implements ClientModInitializer {
 			if (st.isEmpty()) continue;
 			var food = st.get(DataComponents.FOOD);
 			if (food == null || BAD_FOOD.contains(itemId(st))) continue;
-			if (!allowed.isEmpty() && !mayEat(allowed, itemId(st))) continue;
+			if (!allowedFood(allowed, itemId(st))) continue;
 			int val = food.nutrition();
 			if (val > bestVal) { bestVal = val; best = i; }
 		}
@@ -1415,6 +1437,7 @@ public class AfkHelperClient implements ClientModInitializer {
 			case "tab" -> CommandTree.complete(mc(), o.get("text").getAsString(), o.has("id") ? o.get("id").getAsString() : null);
 			case "menuclick", "menuclose" -> MenuLog.command(o);
 			case "follow" -> Follow.command(o);
+			case "obtain" -> Obtain.command(o);
 			case "pen" -> Pen.command(o);
 			case "goto" -> Follow.gotoCommand(o);
 			case "homewalk" -> HomeWalks.command(o);

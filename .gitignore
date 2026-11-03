@@ -11,3 +11,6 @@ __pycache__/
 # the maintainer's own notes, tests against their own servers and the denylist of tools/check-public.py: never in git
 .private/
 CLAUDE.local.md
+# the Soprano fork the obtain mode compiles against (build.gradle): its jar is put here by hand until the fork is
+# published with its source (LGPL-3.0)
+/libs/

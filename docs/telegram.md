@@ -7,7 +7,8 @@ The buddy's chat in a Telegram chat, both ways, and commands with a `!`.
 One Telegram chat is the buddy's: the lines of the game's chat they see come in there, a line you type there without a
 `!` they say in the game (a line with `/` is a command they type), and a line with a `!` is a command for them; `!help` lists
 them, among them `!follow`, `!guard`, `!assist`, `!chests`, `!fields`, `!forget`, `!profile`, `!goto`, `!dump`, `!status`,
-`!cmd /command` and `!say text`. Only the admins are heard. It is set up in the panel (Settings, Telegram), which has a main switch: off, the bridge says
+`!cmd /command` and `!say text`; `!obtain diamond_block 4` has them fetch an item for you (`for Name` for another player,
+`!obtain stop` ends it), with a line in the chat when it is there or given up. Only the admins are heard. It is set up in the panel (Settings, Telegram), which has a main switch: off, the bridge says
 nothing and Telegram is hidden everywhere in the panel. Make a bot with @BotFather, paste its token, send the bot a message from the chat you want, and pick that chat from who wrote to it;
 Trust there adds the sender to Trusted players under Access, by their Telegram id. The bridge is `bridge/chat2telegram.py`;
 it runs in the buddy's container and reads their events (`events.jsonl`) itself. One bot does it all, in the one chat you

@@ -148,6 +148,10 @@ public class AfkConfig {
 	public boolean keepEvents = false;      // archive events.jsonl at startup instead of clearing it (alt: nothing lost after a restart)
 	public boolean pathDig = true;          // the alt digs through natural ground on his way where walking does not get him there
 	public boolean pathPlace = true;        // and puts down a block he can spare to climb or to cross a gap
+	public boolean obtainBaritone = true;   // an order of items walks with Baritone (Soprano) when it is in the mods folder
+	public boolean obtainAltoSurvival = true;   // AltoClef's chains (Soprano) fight, eat and get out of lava for an order
+	public boolean practiceFastTicks = false;   // a practice server only: the client ticks as fast as the server's /tick rate (FastTicksMixin)
+	public boolean obtainSopranoFirst = true;   // an order AltoClef's catalogue knows is got by Soprano whole; the buddy's own steps only where it has none
 	public boolean stayOffline = false;     // the panel took him off the server: he stays off until it says join
 	// keeping a base (Modes): what he does there; each a switch on the panel's mode card
 	public boolean baseHarvest = true;      // harvest and replant the base's fields

@@ -169,7 +169,10 @@ public final class Alt {
 			loggedScreen = screen;
 			var cause = ((net.milenco.buddy.mixin.client.DeathScreenAccessor) screen).buddy$causeOfDeath();
 			LocalPlayer p = client.player;
-			Exchange.emit("death_cause", "text", cause == null ? "" : cause.getString(),
+			// a death screen without a cause comes when one logs in dead (the server sends no message then): not a death of its
+			// own, and it filled the Activity tab with empty lines
+			if (cause == null || cause.getString().isBlank()) return;
+			Exchange.emit("death_cause", "text", cause.getString(),
 				"x", p == null ? 0 : p.getBlockX(), "y", p == null ? 0 : p.getBlockY(), "z", p == null ? 0 : p.getBlockZ());
 		});
 	}

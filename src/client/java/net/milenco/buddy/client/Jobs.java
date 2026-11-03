@@ -39,6 +39,11 @@ final class Jobs {
 		 */
 		GLIDE(false, Glide::active, Glide::airborne, Glide::stop, Glide::startTick, Glide::tick),
 		/**
+		 * An order of items (Obtain): it runs in Follow's chain, after what keeps the buddy alive there, so its tick is
+		 * that chain's; here it is a job so that mod off, the panic and a farm switched on stop it too.
+		 */
+		OBTAIN(false, Obtain::on, Obtain::steering, Obtain::stop, mc -> {}, NO_TICK),
+		/**
 		 * The alt with the player he follows. It gives way: a farm that is on pauses it and it carries on afterwards,
 		 * and switching a farm on does not switch it off (what he follows changes only by "follow").
 		 */
@@ -139,8 +144,13 @@ final class Jobs {
 			return true;
 		}
 		panelHeld = false;
+		Alto.tick();
 		boolean moved = false;
 		for (Job j : ALL) moved |= j.tick.tick(mc, p, c);
+		// last, over whatever the jobs pressed: on an order, crouched where the ground ahead drops away (ObtainSafe.brink)
+		// a walk of Baritone's not asked for this tick is stopped; while it walks, its own rules keep it off a brink
+		if (Bari.present()) Bari.tick();
+		if (Obtain.on() && !Bari.busy() && !Alto.delegating()) ObtainSafe.brink(mc, p);
 		for (Job j : ALL) if (j != Job.FOLLOW && j.steering()) Arbiter.job(j.name().toLowerCase(java.util.Locale.ROOT).replace('_', ' '));
 		Arbiter.endTick();
 		return moved;

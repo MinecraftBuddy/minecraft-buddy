@@ -43,6 +43,10 @@ final class Shield {
 		want = false;
 		LocalPlayer p = mc.player;
 		if (p == null || mc.gameMode == null) { up = false; return; }
+		// while Soprano has the order its shield is its own: this lowered every shield nobody here wanted, Soprano's too,
+		// every tick, so it never stayed up the five ticks a shield takes to block, and a creeper's blast came through it
+		// every time, the durability still 336
+		if (Alto.on()) { if (up) lower(mc, p); up = false; return; }
 		boolean using = p.isUsingItem() && p.getUseItem().is(Items.SHIELD);
 		// not over a bite, not with something in the main hand that has a use of its own (food, a bow, a spear), not behind a screen
 		boolean may = w && ready(p) && !AfkHelperClient.biting() && p.containerMenu == p.inventoryMenu

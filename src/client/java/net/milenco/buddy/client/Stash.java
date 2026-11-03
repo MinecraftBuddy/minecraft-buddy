@@ -182,6 +182,23 @@ final class Stash {
 
 	// ---------- for Chores: what the chests hold ----------
 
+	/** The buddy's known chests in this dimension that held this item at the last look, nearest first (Obtain's take). */
+	static List<BlockPos> chestsWith(String id, String dim, BlockPos from) {
+		load();
+		List<Chest> l = new ArrayList<>();
+		for (Chest c : chests) if (mine(c) && dim.equals(c.dim) && c.items.getOrDefault(id, 0) > 0) l.add(c);
+		l.sort(java.util.Comparator.comparingDouble(c -> c.pos.distSqr(from)));
+		List<BlockPos> out = new ArrayList<>();
+		for (Chest c : l) out.add(c.pos);
+		return out;
+	}
+
+	/** Obtain took this many out of the chest there: its record follows, until the next look inside. */
+	static void took(BlockPos pos, String id, int n) {
+		load();
+		for (Chest c : chests) if (mine(c) && c.pos.equals(pos)) { c.items.merge(id, -n, Integer::sum); if (c.items.getOrDefault(id, 0) <= 0) c.items.remove(id); }
+	}
+
 	/** How many of this item his known chests hold, on this server. */
 	static int inChests(String id) {
 		load();
@@ -282,6 +299,18 @@ final class Stash {
 			if (e != null && e.slot() == slot && armour(st, slot) >= atLeast) return true;
 		}
 		return false;
+	}
+
+	/**
+	 * A piece of gold where piglins would otherwise attack: on an order in the nether, or on its way there (Obtain), one
+	 * golden piece is worth more than the iron it replaces, the cheapest slot for it the helmet's, where gold protects as
+	 * much as iron. Only while no other slot has gold on.
+	 */
+	private static double gold(LocalPlayer p, ItemStack st, EquipmentSlot slot) {
+		if (st.isEmpty() || !Obtain.wantsGold(p) || !AfkHelperClient.itemId(st).startsWith("golden_")) return 0;
+		for (EquipmentSlot o : new EquipmentSlot[] { EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET })
+			if (o != slot && AfkHelperClient.itemId(p.getItemBySlot(o)).startsWith("golden_")) return 0;
+		return 6;
 	}
 
 	/** The best he wears or carries for that slot. */
@@ -1127,7 +1156,7 @@ final class Stash {
 			ItemStack st = inv.getItem(i);
 			Equippable e = st.get(DataComponents.EQUIPPABLE);
 			if (e == null || e.slot().getType() != EquipmentSlot.Type.HUMANOID_ARMOR || Work.nearlyBroken(st)) continue;
-			double g = armour(st, e.slot()) - armour(p.getItemBySlot(e.slot()), e.slot());
+			double g = armour(st, e.slot()) + gold(p, st, e.slot()) - armour(p.getItemBySlot(e.slot()), e.slot()) - gold(p, p.getItemBySlot(e.slot()), e.slot());
 			// as good, and fresh where the one he wears is nearly worn out (a new piece he made: baseRenew)
 			if (g == 0 && Work.lowWear(p.getItemBySlot(e.slot())) && !Work.lowWear(st) && !p.getItemBySlot(e.slot()).isEmpty()) g = 0.01;
 			// a nearly worn-out piece loses a tie to a fresh one: with the slot empty the first one found went on, came

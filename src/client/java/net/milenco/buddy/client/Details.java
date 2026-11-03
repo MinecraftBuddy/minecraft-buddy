@@ -267,6 +267,9 @@ final class Details {
 		// the pen he farms, for the panel's follow card (0.4.80)
 		Map<String, Object> pen = Pen.details(p);
 		if (pen != null) s.put("pen", pen);
+		// the order it fetches, or how the last one ended
+		Map<String, Object> ob = Obtain.details(p);
+		if (ob != null) s.put("obtain", ob);
 		String json = GSON.toJson(s);
 		if (json.equals(last)) return;
 		last = json;

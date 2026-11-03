@@ -50,6 +50,12 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	add(mod, "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}")
+
+	// Baritone in its Soprano fork (LGPL-3.0, github.com/AverWasTaken/soprano), in a fork of our own: compiled against,
+	// not shipped in the jar; the obtain mode walks with it when it is in the mods folder (Bari). The jar is not in git
+	// until that fork is published with its source: put soprano-unoptimized-fabric-1.1.6.jar in libs/ by hand.
+	compileOnly files('libs/soprano-unoptimized-fabric-1.1.6.jar')
+	clientCompileOnly files('libs/soprano-unoptimized-fabric-1.1.6.jar')
 }
 
 // Tests of what can be worked out without a game: the jump around a wall, the lang files. They see the client classes.

@@ -1722,7 +1722,10 @@ final class Work {
 			Failures.failed(goalName, "cannot get there", (int) Math.floor(goal.x), (int) Math.floor(goal.y), (int) Math.floor(goal.z));
 			return false;
 		}
-		Follow.goTo(mc, p, goal);
+		// an order of items walks with Baritone when it is there (Bari); while it has a path or works one out, that is no
+		// standing still
+		if (Obtain.on() && Bari.on()) { Bari.goTo(goal, 1); if (Bari.busy()) walkBestAt = now; }
+		else Follow.goTo(mc, p, goal);
 		return true;
 	}
 
@@ -1899,13 +1902,22 @@ final class Work {
 	 * {@link #NONE} if only a tool he does not have gives the drop.
 	 */
 	static int toolFor(LocalPlayer p, BlockState st) {
+		int slot = toolFor(p, st, false);
+		// on an order a tool is used to its last blow rather than kept for a repair: shut in a shelter with a stone pickaxe
+		// of three uses, it could break no wall for a table and no way out
+		if (slot == NONE && Obtain.on()) slot = toolFor(p, st, true);
+		return slot;
+	}
+
+	private static int toolFor(LocalPlayer p, BlockState st, boolean lastUses) {
+		if (Obtain.on()) return cheapestFor(p, st, lastUses);
 		var inv = p.getInventory();
 		boolean need = st.requiresCorrectToolForDrops();
 		int slot = need ? NONE : HAND;
 		float best = need ? 0f : 1f;
 		for (int i = 0; i < 36; i++) {
 			ItemStack s = inv.getItem(i);
-			if (s.isEmpty() || nearlyBroken(s)) continue;
+			if (s.isEmpty() || (nearlyBroken(s) && !lastUses)) continue;
 			// a weapon is for fighting: a sword through leaves cost the test's sword ninety uses (17 Oct 2026)
 			if (s.is(ItemTags.SWORDS) || s.is(Items.MACE) || s.is(Items.TRIDENT)) continue;
 			// shears take a leaf, a vine or a plant whole, so no sapling, apple, stick or seed falls: only for wool and
@@ -1919,6 +1931,42 @@ final class Work {
 			if (speed > best || worn || (same && left(s) == left(inv.getItem(slot)) && slot >= 9 && i < 9)) { best = speed; slot = i; }
 		}
 		return slot;
+	}
+
+	/**
+	 * On an order, of the tools that are right for the block the one of the cheapest material first, and of one material the
+	 * most worn, as Soprano's Baritone does (its toolWearChain): stone before copper before iron before diamond before
+	 * netherite, wood and gold last. The fastest one first wore the only iron pickaxe out on the stone of the staircase to the
+	 * diamonds with two stone pickaxes in the bag, and the diamonds could not be mined.
+	 */
+	private static int cheapestFor(LocalPlayer p, BlockState st, boolean lastUses) {
+		var inv = p.getInventory();
+		boolean need = st.requiresCorrectToolForDrops();
+		int slot = need ? NONE : HAND, rank = Integer.MAX_VALUE, uses = Integer.MAX_VALUE;
+		for (int i = 0; i < 36; i++) {
+			ItemStack s = inv.getItem(i);
+			if (s.isEmpty() || (nearlyBroken(s) && !lastUses)) continue;
+			if (s.is(ItemTags.SWORDS) || s.is(Items.MACE) || s.is(Items.TRIDENT)) continue;
+			if (s.is(Items.SHEARS) && !st.is(BlockTags.WOOL) && !st.is(Blocks.COBWEB)) continue;
+			if (need && !s.isCorrectToolForDrops(st)) continue;
+			// the right kind of tool only: a pickaxe on dirt is no faster than the hand
+			if (s.getDestroySpeed(st) <= 1f) continue;
+			int r = material(AfkHelperClient.itemId(s)), l = left(s);
+			if (r < rank || r == rank && (l < uses || l == uses && slot >= 9 && i < 9)) { rank = r; uses = l; slot = i; }
+		}
+		return slot;
+	}
+
+	/** Soprano's order of materials for wearing tools out: the cheap first, wood and gold last. */
+	private static int material(String id) {
+		if (id.startsWith("stone_")) return 0;
+		if (id.startsWith("copper_")) return 1;
+		if (id.startsWith("iron_")) return 2;
+		if (id.startsWith("diamond_")) return 3;
+		if (id.startsWith("netherite_")) return 4;
+		if (id.startsWith("wooden_")) return 5;
+		if (id.startsWith("golden_")) return 6;
+		return 7;
 	}
 
 	/** Uses left before it breaks; an item that does not wear has all the uses in the world. */

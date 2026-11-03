@@ -18,6 +18,9 @@ final class Arbiter {
 	/** This step took the tick (call it when a step returns that it moved him). */
 	static boolean at(String step, boolean took) {
 		if (took) { now = step; seen = true; }
+		// any step of the chain before the order's own (a fight, a flight, a meal, getting loose) takes the keys: Baritone,
+		// walking or mining for the order, stops at once (Bari)
+		if (took && !step.equals("obtain") && !step.equals("alto")) Bari.stop();
 		return took;
 	}
 
@@ -28,7 +31,10 @@ final class Arbiter {
 	static void endTick() {
 		if (!seen) now = "idle";
 		seen = false;
-		if (!now.equals(candidate)) { candidate = now; stableTicks = 0; return; }
+		// Soprano keeping them alive is part of the order: told as the order, or the Activity tab read "Now: alto" and
+		// "Now: fetching an order" in turns near every monster
+		String told = now.equals("alto") && (shown.equals("obtain") || candidate.equals("obtain")) ? "obtain" : now;
+		if (!told.equals(candidate)) { candidate = told; stableTicks = 0; return; }
 		if (++stableTicks == 20 && !candidate.equals(shown)) {
 			shown = candidate;
 			Exchange.emit("doing", "action", shown);

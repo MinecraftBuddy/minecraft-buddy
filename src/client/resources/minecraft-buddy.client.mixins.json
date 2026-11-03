@@ -23,7 +23,8 @@
 		"ModelPartAccessor",
 		"EntityRenderersAccessor",
 		"LivingScaleInvoker",
-		"LightUpdateMixin"
+		"LightUpdateMixin",
+		"FastTicksMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

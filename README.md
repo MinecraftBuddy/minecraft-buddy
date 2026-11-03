@@ -45,6 +45,8 @@ Click one for the full size.
   strays back, replaces worn tools and armour, and sleeps at night.
 - **Farms mobs**: punch a monster in your farm's pen and they take the edge and kill what comes in, backing off when
   it gets dangerous.
+- **Fetches what you order**: an item and a count, and they work out every step from the game's own recipes: from your
+  chests, or gathered, crafted and smelted, a better pickaxe first, staying alive before anything else.
 
 **Around the game**
 
@@ -163,6 +165,13 @@ players. Check what a server allows before you let the buddy work there. Digging
 
 The buddy stands on the work of others, and borrows ideas from more:
 
+- [AltoClef](https://github.com/gaucho-matrero/altoclef) by Adris Jautakas, and its maintained fork by
+  [MiranCZ](https://github.com/MiranCZ/altoclef) (MIT): how a bot gets any item and beats the game.
+- [Soprano](https://github.com/AverWasTaken/soprano) by AverWasTaken, Baritone with AltoClef for 26.3 (LGPL-3.0 and
+  MIT): the obtain mode runs it when it is in the mods folder. Its Baritone walks and mines, its chains fight, eat and
+  get out of lava and water, and an item its catalogue knows is got by its own `#get`. Our fork of it adds what a server
+  with an anti-xray plugin needs (only ores it can see, a branch mine at the ore's height), more food (stew, melons,
+  potatoes, beetroot, glow berries, kelp), copper tools, and the night's sleep for any task.
 - [HeadlessMC](https://github.com/3arthqu4ke/headlessmc): the launcher that runs the game without a window.
 - [Fabric](https://github.com/FabricMC): the loader, the API and Loom the mod is built with.
 - [Litematica](https://github.com/maruohon/litematica) and [MaLiLib](https://github.com/maruohon/malilib) by masa,

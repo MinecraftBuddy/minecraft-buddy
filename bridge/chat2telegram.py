@@ -308,6 +308,12 @@ DOC = {
                "follow does that by looking at them and crouching twice quickly. Whom they follow changes only by !follow "
                "(you), !follow Name or !follow off, also over a restart of their game."),
     "goto": ("!goto x y z | !goto off | !goto", "The buddy walks to that block, jumping where they have to", ""),
+    "obtain": ("!obtain item [count] [for Name] | !obtain stop | !obtain", "The buddy fetches an item: from the base chests, or gathered, crafted and smelted",
+               "!obtain diamond_block 4 has The buddy work out every step to four diamond blocks (a better pickaxe, a furnace, fuel) "
+               "and bring them to you; for Name brings them to another player. The item is its name in the game with "
+               "underscores, or in words: !obtain iron block 9. !obtain alone says what they are on, !obtain stop ends it. "
+               "Following stops while they work on it. At night or hurt they dig in first, and they give an order up rather "
+               "than risk dying. A line here when it is done or given up."),
     "parkour": ("!parkour | !parkour off", "The buddy joins the Parkour that players voted open and runs to the finish",
                 "Only a game two players voted open (/eventvote parkour), which has no prize: one of the half-hourly draw pays its "
                 "winner, and The buddy is faster than the players. With no Parkour open, or one of the draw, they do nothing and say why. "
@@ -392,7 +398,7 @@ DOC = {
 SECTIONS = (
     ("Info", ("help", "status", "positions", "settings", "get", "set", "show")),
     ("Chat", ("say", "msg", "cmd")),
-    ("Teleport", ("tpa", "tpahere", "tpaccept", "follow", "guard", "assist", "chests", "fields", "forget", "profile", "goto", "parkour", "home", "sethome")),
+    ("Teleport", ("tpa", "tpahere", "tpaccept", "follow", "guard", "assist", "chests", "fields", "forget", "profile", "goto", "obtain", "parkour", "home", "sethome")),
     ("Modes", ("mod", "afk", "farmmob", "farmraid", "farmwood", "nanocrop", "cropfarm", "crouch", "jump", "dump")),
     ("Building", ("schematics", "place", "placements", "unplace", "build")),
 )
@@ -584,6 +590,56 @@ def answer_of(since_ms, kinds, wait=3.0, want=None):
         except FileNotFoundError:
             pass
     return None
+
+
+def obtain(rest, mc, usage):
+    """!obtain: an order for an item and a count (docs/obtain.md in the mod), its status, or stop."""
+    low = rest.lower().strip()
+    since = now_ms()
+    if not low:
+        order({"cmd": "obtain"})
+        ev = answer_of(since, ("obtain",), want=lambda e: e.get("action") == "status")
+        if ev is None:
+            return "📦 No answer from the mod (offline?)"
+        if not ev.get("item"):
+            return f"📦 {escape(me())} has no order"
+        return (f"📦 {escape(me())} fetches {ev.get('count')} {escape(str(ev.get('item')))}"
+                + (f": now {escape(str(ev.get('step')))}" if ev.get("step") else ""))
+    if low in OFF + ("stop", "cancel"):
+        order({"cmd": "obtain", "stop": True})
+        return "📦 Order stopped"
+    words = low.split()
+    to = mc
+    if len(words) >= 3 and words[-2] in ("for", "voor", "to", "aan"):
+        to = words[-1]
+        words = words[:-2]
+    count = 1
+    if len(words) >= 2 and words[-1].isdigit():
+        count = int(words[-1])
+        words = words[:-1]
+    item = "_".join(words).replace("minecraft:", "")
+    if not re.match(r"^[a-z0-9_]{1,64}$", item) or not 1 <= count <= 64 * 36 or (to and not PLAYER.match(to)):
+        return usage
+    line = {"cmd": "obtain", "item": item, "count": count}
+    if to:
+        line["by"] = to
+    order(line)
+    ev = answer_of(since, ("obtain", "error"), want=lambda e: e.get("type") == "error" or e.get("action") == "start")
+    if ev is None:
+        return "📦 Sent, but no answer from the mod (offline?)"
+    if ev.get("type") == "error":
+        return f"❌ {escape(str(ev.get('msg')))}"
+
+    def finished(e):
+        if e is None:
+            return None
+        if e.get("action") == "done":
+            return f"📦 {escape(me())} has {e.get('have')} {escape(item)}" + (f" and brings them to {escape(to)}" if to else "")
+        if e.get("action") == "stop" and e.get("why") != "a new order":
+            return f"📦 The order for {escape(item)} ended: {escape(str(e.get('why')))}"
+        return None
+    later(since, ("obtain",), lambda e: e.get("action") in ("done", "stop") and e.get("item") == item, 6 * 3600, finished)
+    return f"📦 {escape(me())} fetches {count} {escape(item)}" + (f" for {escape(to)}" if to else "")
 
 
 def later(since_ms, kinds, want, wait, tell):
@@ -1589,6 +1645,8 @@ def command(t, mc):
         if ev.get("action") == "start":
             return f"🧭 On the way: {ev.get('points')} spot(s), first {ev.get('x')} {ev.get('y')} {ev.get('z')}"
         return f"🧭 {ev.get('points', 0)} spot(s) to go" + (f", next {ev.get('x')} {ev.get('y')} {ev.get('z')}" if ev.get('points') else "")
+    if what == "obtain":
+        return obtain(rest, mc, usage)
     if what == "build" and rest.lower() == "status":
         since = now_ms()
         order({"cmd": "buildstatus"})

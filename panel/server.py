@@ -54,8 +54,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LOG_TYPES = {"chat", "chat_sent", "follow", "corpse guard", "carrier", "tap", "base", "torch", "furnaces", "helper", "drop",
              "forget", "profile", "error", "connection", "player_join", "player_leave", "death_cause", "teleport",
              "steer", "placement", "build", "buildstatus", "switch", "doing", "chore", "goto", "guard",
-             "mode", "setting", "pen"}
+             "mode", "setting", "pen", "obtain", "alto"}
 QUIET_ACTIONS = {"sees", "clickable", "status", "trace"}
+# an order's and Soprano's lines that are working notes, not news (Soprano's lines go to the Activity tab)
+QUIET_BY_TYPE = {"obtain": {"plan", "throws away", "configured"}, "alto": {"timeouts", "configured"}}
 # a real player's name: the figures of a plugin (FancyNpcs) join and leave the player list under names of colour codes
 PLAYER = re.compile(r"^[A-Za-z0-9_.]{2,17}$")
 ASSET = re.compile(r"^[a-z0-9_]{1,64}$")
@@ -73,6 +75,7 @@ GAME_ACTIONS = {"invclick", "menuclose", "select", "pickblock", "menubutton", "t
 PAGE = re.compile(r"^[A-Za-z0-9]{6,40}$")
 INV_MODES = {"pickup", "quick", "swap", "throw", "pickup_all", "drag"}
 NAME = re.compile(r"^[A-Za-z0-9_]{3,16}$")
+ITEM = re.compile(r"^[a-z0-9_]{1,64}$")
 DIM = re.compile(r"^[a-z0-9_.-]{1,32}:[a-z0-9_./-]{1,64}$")
 # the switches of the mode card and the settings page (Modes in the mod)
 SETTINGS = {"baseHarvest", "baseFurnaces", "baseStore", "baseFight", "baseSleep", "baseSleepOthers", "baseShear", "baseHerd", "basePenGates", "baseRenew", "assistDig", "assistChop",
@@ -167,7 +170,10 @@ def shown(line):
         e = json.loads(line)
     except ValueError:
         return False
-    if e.get("type") not in LOG_TYPES or e.get("action") in QUIET_ACTIONS:
+    if e.get("type") not in LOG_TYPES or e.get("action") in QUIET_ACTIONS or e.get("action") in QUIET_BY_TYPE.get(e["type"], ()):
+        return False
+    # a death screen without a cause (a login while dead) is no death: older mods wrote it as an empty line
+    if e["type"] == "death_cause" and not str(e.get("text", "")).strip():
         return False
     return not (e["type"] in ("player_join", "player_leave") and not PLAYER.match(str(e.get("name", ""))))
 
@@ -467,6 +473,9 @@ class Panel(BaseHTTPRequestHandler):
             return self.answer(200, {"logs": self.logs()})
         if path == "/api/logfile":
             return self.logfile()
+        if path == "/api/obtain-items":
+            # what can be ordered, as the mod worked it out from the game's own data (obtain-items.json)
+            return self.answer(200, self.file("obtain-items.json") or {"items": []})
         if path == "/api/state":
             self.keep_state()
             q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
@@ -1132,6 +1141,27 @@ class Panel(BaseHTTPRequestHandler):
                 return self.answer(400, {"error": "unknown setting"})
             self.send_cmd({"cmd": "setting", "name": name, "value": value})
             self.keep_state()
+            return self.ok()
+        if path == "/api/obtain":
+            # an order: an item and a count, delivered to a player (docs/obtain.md); or stop
+            if body.get("stop") is True:
+                self.send_cmd({"cmd": "obtain", "stop": True})
+                return self.ok()
+            item = str(body.get("item", "")).strip().lower()
+            if item.startswith("minecraft:"):
+                item = item[10:]
+            if not ITEM.match(item):
+                return self.answer(400, {"error": "not an item"})
+            count = body.get("count", 1)
+            if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 64 * 36:
+                return self.answer(400, {"error": "a count from 1 to %d" % (64 * 36)})
+            cmd = {"cmd": "obtain", "item": item, "count": count}
+            to = str(body.get("to", "")).strip()
+            if to:
+                if not NAME.match(to):
+                    return self.answer(400, {"error": "not a player name"})
+                cmd["by"] = to
+            self.send_cmd(cmd)
             return self.ok()
         if path in ("/api/leave", "/api/join"):
             self.send_cmd({"cmd": path[5:]})

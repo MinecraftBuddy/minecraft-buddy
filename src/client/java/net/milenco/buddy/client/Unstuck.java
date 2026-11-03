@@ -26,7 +26,7 @@ final class Unstuck {
 
 	private static final ArrayDeque<Sample> SEEN = new ArrayDeque<>();
 	private static int shuffle, trapTicks, ticks;
-	private static boolean toLeft;
+	private static boolean toLeft, crouched;
 	private static long coolUntil, lastMoving;
 
 	static boolean busy() { return shuffle > 0; }
@@ -40,7 +40,13 @@ final class Unstuck {
 			HeldKeys.set(mc.options.keyUp, t <= 22);
 			HeldKeys.set(toLeft ? mc.options.keyLeft : mc.options.keyRight, true);
 			HeldKeys.set(mc.options.keyJump, t % 10 < 3);
+			// beside a deep drop: crouched and no jumps, so the shuffle cannot take the buddy over the edge (it jumped it into a
+			// trench six deep, and off a cliff of fifteen blocks, 19 to 6)
+			boolean brink = ObtainSafe.brinkNear(p);
+			if (brink) { HeldKeys.set(mc.options.keyJump, false); HeldKeys.set(mc.options.keyShift, true); crouched = true; }
+			else if (crouched) { HeldKeys.set(mc.options.keyShift, false); crouched = false; }
 			if (shuffle == 0) {
+				if (crouched) { HeldKeys.set(mc.options.keyShift, false); crouched = false; }
 				for (var k : new net.minecraft.client.KeyMapping[] { mc.options.keyDown, mc.options.keyUp, mc.options.keyLeft, mc.options.keyRight, mc.options.keyJump })
 					HeldKeys.set(k, false);
 				List<BlockPos> cells = new ArrayList<>();
