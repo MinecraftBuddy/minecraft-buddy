@@ -35,7 +35,11 @@ final class Alto {
 	}
 
 	/** AltoClef keeps the buddy alive for the order under way. */
-	static boolean on() { return present() && AfkConfig.get().obtainAltoSurvival && Obtain.on(); }
+	static boolean on() {
+		boolean on = present() && AfkConfig.get().obtainAltoSurvival && Obtain.on();
+		ObtainKit.sopranoBrews = on;
+		return on;
+	}
 
 	/** Once a tick, before the chain: AltoClef's task runner up for an order and down after it. */
 	static void tick() {
@@ -399,6 +403,7 @@ final class Alto {
 		java.util.List<adris.altoclef.util.ItemTarget> rest = new java.util.ArrayList<>();
 		java.util.List<String> names = new java.util.ArrayList<>();
 		int blocks = 0;
+		boolean bottles = false, redstone = false;
 		// (no torches or water bucket out of the overworld: ObtainKit.skip, which the order's own check of the kit reads too.
 		// the torches sent Soprano home through a portal it had no obsidian for)
 		for (ObtainKit.Need n : ObtainKit.missingAll(kitDanger(p), gh)) {
@@ -423,6 +428,8 @@ final class Alto {
 				// close, an iron sword takes a blaze in four blows, and the diamonds, the string and the feathers kept the kit
 				// fourteen real minutes in the caves, where skeletons knocked it into lava and a witch poisoned it)
 				case "nether sword" -> { if (ObtainSteps.count(p, "diamond") >= 2) { rest.add(new adris.altoclef.util.ItemTarget("diamond_sword", 1)); names.add("diamond sword"); } }
+				case "water bottles" -> bottles = true;
+				case "redstone" -> redstone = true;
 				default -> { }
 			}
 		}
@@ -515,6 +522,12 @@ final class Alto {
 		if (!rest.isEmpty() && !skip.test(what))
 			return new Run(what, 20 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
 				rest.toArray(adris.altoclef.util.ItemTarget[]::new))));
+		// the brew's water bottles and redstone (ObtainKit), last and each a piece of its own with its own time: sand for the
+		// glass or a dust that does not come holds none of the rest up, and the order goes without (the brew is a gain, no gate)
+		if (bottles && !skip.test("kit water bottles"))
+			return new Run("kit water bottles", 10 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("water_bottle", 3)));
+		if (redstone && !skip.test("kit redstone"))
+			return new Run("kit redstone", 8 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("redstone", 1)));
 		return null;
 	}
 

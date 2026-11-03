@@ -94,6 +94,12 @@ final class ObtainKit {
 			// a blaze hangs over a fortress' floor out of a sword's reach and sets the buddy on fire meanwhile
 			k.add(new Need("bow", List.of("bow"), 1));
 			k.add(new Need("arrows", List.of("arrow"), 32));
+			// three water bottles and a redstone dust: Soprano brews fire resistance of them in the fortress (a stand of a rod and
+			// three stone, a rod's powder for its fuel, a nether wart and a magma cream found there), and the nether has no water
+			// to fill a bottle at. fire was over half the damage taken in the nether, the blazes' fireballs and lava included,
+			// and fire resistance takes all of it (the dust makes three minutes eight)
+			k.add(new Need("water bottles", List.of("potion"), 3));
+			k.add(new Need("redstone", List.of("redstone"), 1));
 		}
 		if (d.ordinal() >= Danger.END.ordinal()) {
 			k.add(new Need("more arrows", List.of("arrow"), 64));
@@ -203,6 +209,9 @@ final class ObtainKit {
 	static final String ASIS = "as the iron comes: ";
 	static final Object[][] AS_IT_COMES = { { "shield", 1 }, { "chestplate", 8 }, { "leggings", 7 }, { "helmet", 5 }, { "boots", 4 } };
 
+	/** Soprano carries the order (Alto.on, written there): only it brews. Here, so the kit's rules load without Soprano. */
+	static volatile boolean sopranoBrews;
+
 	static boolean skip(Need n, ObtainPlan.Have h) {
 		// asked only with the iron for it in the bag (raw or smelted): it is no reason to go and mine
 		if (n.name().startsWith(ASIS)) {
@@ -216,6 +225,8 @@ final class ObtainKit {
 		// of the overworld they wait for the way back, in the kit and in the order's own check of the kit: an order in the
 		// nether without torches gave up as having no safe way
 		if ((n.name().equals("torches") || n.name().equals("water bucket")) && h.dim() != Nature.Dim.OVERWORLD) return true;
+		// the brew's: filled in the overworld only, and only Soprano brews (the buddy's own steps have no way to a water bottle)
+		if ((n.name().equals("water bottles") || n.name().equals("redstone")) && (h.dim() != Nature.Dim.OVERWORLD || !sopranoBrews)) return true;
 		if (!n.name().equals("wood")) return false;
 		var mc = AfkHelperClient.mc();
 		if (mc == null || mc.player == null) return false;
