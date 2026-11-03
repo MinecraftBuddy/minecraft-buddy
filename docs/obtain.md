@@ -120,7 +120,9 @@ gate lacks is fetched by safer steps first, all of it planned together.
 
 A piece of the kit may take ten game minutes and three more for each ingot; a piece that did not come is not asked again
 for ten game minutes, while the others go on. The golden helmet for the nether is never given up: the order waits for
-its gold. A stock of eight or more (food, torches, blocks) counts as enough at three quarters.
+its gold. A stock of eight or more (food, torches, blocks) counts as enough at three quarters. A tool or piece of armour
+at its last tenth counts as gone, so a new one comes while the old still works; a shield at its last uses gets a spare
+in the bag, before the food run when the iron and the wood for it are in the bag already.
 
 ## Staying alive
 

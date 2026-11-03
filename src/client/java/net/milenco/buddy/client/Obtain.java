@@ -698,8 +698,10 @@ final class Obtain {
 				Exchange.emit("obtain", "action", "step", "step", "food by Soprano after coming home, " + Alto.foodScore(true) + " points in the bag", "way", "soprano:food");
 				return true;
 			}
-			// food before the kit: with the kit first it never got round to food while pieces were left
-			if (now - foodTriedAt > 180_000 && Alto.wantsFood(p) && (ObtainSafe.foes(p).isEmpty() || hurtAndNoFood(p))) {
+			// food before the kit: with the kit first it never got round to food while pieces were left. but not before a spare
+			// shield made from the bag while the one in hand is at its last uses (Alto.spareShieldFirst), unless hungry now
+			boolean shieldFirst = deepOrder(p) && !hurtAndNoFood(p) && Alto.spareShieldFirst(p, now);
+			if (!shieldFirst && now - foodTriedAt > 180_000 && Alto.wantsFood(p) && (ObtainSafe.foes(p).isEmpty() || hurtAndNoFood(p))) {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:food", 1, null, 0, List.of(), "food by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock

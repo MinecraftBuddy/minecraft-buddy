@@ -397,6 +397,35 @@ final class Alto {
 
 	static Run kit(net.minecraft.client.player.LocalPlayer p) { return kit(p, k -> false); }
 
+	/** The kit's spare shield, while the one in the off hand is at its last uses and no other is in the bag; or null. */
+	private static Run spareShield(net.minecraft.client.player.LocalPlayer p, java.util.function.Predicate<String> skip) {
+		var off = p.getOffhandItem();
+		if (!off.is(net.minecraft.world.item.Items.SHIELD) || !adris.altoclef.util.helpers.ToolWear.wornOut(off.getDamageValue(), off.getMaxDamage())
+				|| ObtainSteps.count(p, "shield") >= 2 || skip.test("kit a spare shield")) return null;
+		return new Run("kit a spare shield", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+			new adris.altoclef.util.ItemTarget("shield", 2))));
+	}
+
+	/**
+	 * Whether the spare shield goes before the food run: the shield in hand at its last uses and the makings in the bag (an
+	 * iron, raw or smelted, and wood), so it is a minute at a table and no trip. A food run that went first dug into a cave
+	 * of skeletons with seven uses left on the shield, and it broke at 40 s (attempt 166).
+	 */
+	static boolean spareShieldFirst(net.minecraft.client.player.LocalPlayer p, long now) {
+		if (!on() || spareShield(p, k -> { Long at = KIT_FAILED.get("AltoClef: " + k); return at != null && now - at < 600_000; }) == null) return false;
+		if (ObtainSteps.count(p, "raw_iron") + ObtainSteps.count(p, "iron_ingot") < 1) return false;
+		int wood = 0;
+		var inv = p.getInventory();
+		for (int i = 0; i < 36; i++) {
+			var s = inv.getItem(i);
+			if (s.isEmpty()) continue;
+			String id = AfkHelperClient.itemId(s);
+			if (id.endsWith("_planks")) wood += s.getCount();
+			else if (id.endsWith("_log") || id.endsWith("_stem")) wood += 4 * s.getCount();
+		}
+		return wood >= 6;
+	}
+
 	private static Run kit(net.minecraft.client.player.LocalPlayer p, java.util.function.Predicate<String> skip) {
 		var gh = new Obtain.GameHave(p);
 		java.util.List<String> armour = new java.util.ArrayList<>();
@@ -487,16 +516,15 @@ final class Alto {
 		// death
 		if (armour.contains("water_bucket") && !armour.contains("shield") && !armour.contains("iron_chestplate") && !skip.test("kit water bucket"))
 			return new Run("kit water bucket", 15 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("water_bucket", 1)));
-		if (armour.contains("shield") && !skip.test("equip shield"))
-			return new Run("equip shield", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget("shield", 1))));
 		// a shield at its last uses counts as the kit's shield, and broke on the first arrows: a creeper's blast then caught
 		// it with none, 30 through iron (7 uses of 336 left at the start). a spare in the bag, which the mob defense takes
-		// into the other hand once the worn one is gone
-		var off = p.getOffhandItem();
-		if (off.is(net.minecraft.world.item.Items.SHIELD) && adris.altoclef.util.helpers.ToolWear.wornOut(off.getDamageValue(), off.getMaxDamage())
-				&& ObtainSteps.count(p, "shield") < 2 && !skip.test("kit a spare shield"))
-			return new Run("kit a spare shield", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
-				new adris.altoclef.util.ItemTarget("shield", 2))));
+		// into the other hand once the worn one is gone. before "equip shield": the kit counts the worn one as missing, and
+		// equipping saw the shield already held and ended at once, a step that did nothing until it was skipped for ten
+		// minutes, and the food run went first meanwhile (attempt 166: broken at 40 s among skeletons)
+		Run spare = spareShield(p, skip);
+		if (spare != null) return spare;
+		if (armour.contains("shield") && !skip.test("equip shield"))
+			return new Run("equip shield", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget("shield", 1))));
 		// copper before the iron, a piece for every empty slot whose iron is not in the bag yet: iron came at an ore in three
 		// to eight game minutes and the chestplate's eight timed out twice in one order, in its clothes all the while, and
 		// the deaths of the kit were in the caves without armour (zombies, a witch, skeletons). copper is common and an ore
