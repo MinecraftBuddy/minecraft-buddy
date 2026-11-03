@@ -553,9 +553,10 @@ def version_info(refresh=False):
     """The image's version, the newest release, and whether that one is newer: what the panel shows as an update."""
     have, rel = image_version(), latest_release(refresh)
     latest = rel.get("version", "")
+    url, token = watchtower()
     return {"version": have, "latest": latest, "url": rel.get("url", ""), "notes": rel.get("notes", ""),
             "checked": rel.get("checked"), "error": rel.get("error", ""),
-            "newer": bool(have and latest and version_key(latest) > version_key(have))}
+            "newer": bool(have and latest and version_key(latest) > version_key(have)), "updater": bool(url and token)}
 
 # ---------- jobs: a process of their own, with a log ----------
 

@@ -5,7 +5,9 @@ The buddy's page in the browser: watch them, steer them, use their inventory, an
 ## What is on it
 
 The buddy's domain (the label `caddy` of their block in `compose.yaml`). The bar at the top shows the buddy's name and their own skin, whether they are online and on which server, what they do **now**, a button to take
-them off the server or back on, and the way to **Settings** (in the settings the same button goes back to the **Overview**). On a phone the parts come one at a time, chosen in a bar at
+them off the server or back on, the way to **Settings** (in the settings the same button goes back to the **Overview**),
+and in the corner the buddy's version: with an arrow when a newer one is out, and a click on it then updates (see
+[Installing](install.md#updates)). On a phone the parts come one at a time, chosen in a bar at
 the bottom (Map, Inventory, Chat, Settings).
 
 - **Priorities**: the steps in the order they get the buddy's hands (stay safe, your instructions, fight, save a player's

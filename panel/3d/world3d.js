@@ -2878,7 +2878,7 @@ function frame(t) {
     if (me) me.visible = person > 0;
   } else {
     camera.rotation.set(fly.pitch, fly.yaw, 0, 'YXZ');
-    const k = fly.keys, speed = (k.has('ControlLeft') || k.has('ControlRight') ? 30 : 10) * dt;
+    const k = fly.keys, speed = (k.has('ControlLeft') || k.has('ControlRight') ? 60 : 20) * dt;
     const fwd = new THREE.Vector3(-Math.sin(fly.yaw), 0, -Math.cos(fly.yaw)), right = new THREE.Vector3(Math.cos(fly.yaw), 0, -Math.sin(fly.yaw));
     const mv = new THREE.Vector3();
     if (k.has('KeyW')) mv.add(fwd);
