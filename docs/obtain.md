@@ -11,6 +11,12 @@ dying on the way. Orders for everyday things (iron blocks, diamonds, obsidian, t
   buddy knows a way to from nothing, worked out from the game's own recipes and drops), type how many and who gets it,
   and **Fetch**. Under it the progress: how many are gathered so far, the current step and for how long, or that the
   buddy is dug in for the night or to heal. **Stop** ends it; once it is over the panel says how it ended.
+- **Watching an order** (**Take control**): at the right, under the inventory, the plan: the order, its step, and
+  Soprano's tasks from the outer to the deepest (a golden helmet, its gold, the raw gold, the mine down to it). When
+  something else takes over (monsters, food, lava, a fall, the buddy's own fighting), it shows on top as **Interrupted**
+  and the plan under it waits. Under the plan a timeline of the order, newest on top: every step and task, every hit
+  with the hearts before and after, every interruption and the return to the plan, a death. Hits show only here, not in
+  the Activity tab.
 - **Telegram**: `!obtain diamond_block 4` fetches four diamond blocks for you, `!obtain iron block 9` works too (the
   name in words), `for Name` at the end brings them to another player. `!obtain` alone shows the current order,
   `!obtain stop` ends it. A line comes when the order is done or given up.

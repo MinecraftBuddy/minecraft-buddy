@@ -113,6 +113,48 @@ final class Alto {
 	}
 
 	/**
+	 * Soprano's plan for the panel, as rows of {@code t} (the task) and {@code s} (its state): {@code tasks}, the order's own
+	 * chain from its outer task to its deepest; and while another chain has the wheel (monsters, food, lava, a fall), that
+	 * chain's name in {@code by} and its rows in {@code by_tasks}. A chain that loses the wheel keeps its last tasks until
+	 * it ticks again, so the rows of the order's chain are the plan that waits. Null while nothing of Soprano's runs.
+	 */
+	static java.util.Map<String, Object> plan() {
+		if (!up) return null;
+		var mod = adris.altoclef.AltoClef.getInstance();
+		if (mod == null || mod.getTaskRunner() == null) return null;
+		java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+		var user = mod.getUserTaskChain();
+		if (user != null && !user.getTasks().isEmpty()) out.put("tasks", rows(user.getTasks()));
+		var chain = mod.getTaskRunner().getCurrentTaskChain();
+		if (chain != null && chain != user) {
+			out.put("by", chain.getClass().getSimpleName());
+			if (!chain.getTasks().isEmpty()) out.put("by_tasks", rows(chain.getTasks()));
+		}
+		return out.isEmpty() ? null : out;
+	}
+
+	/** A chain's tasks as the panel's rows, past our night's wrapper; a stack deeper than twelve keeps its outer four and deepest eight. */
+	private static java.util.List<java.util.Map<String, String>> rows(java.util.List<adris.altoclef.tasksystem.Task> tasks) {
+		int from = tasks.size() > 1 && tasks.get(0) instanceof adris.altoclef.tasks.misc.SleepThroughNightsTask ? 1 : 0;
+		java.util.List<java.util.Map<String, String>> rows = new java.util.ArrayList<>();
+		for (int i = from; i < tasks.size(); i++) {
+			if (tasks.size() - from > 12 && i == from + 4) { rows.add(java.util.Map.of("t", "…")); i = tasks.size() - 9; continue; }
+			var t = tasks.get(i);
+			java.util.Map<String, String> r = new java.util.LinkedHashMap<>();
+			r.put("t", cut(t.getDebugName()));
+			String st = t.getDebugState();
+			if (st != null && !st.isBlank()) r.put("s", cut(st));
+			rows.add(r);
+		}
+		return rows;
+	}
+
+	private static String cut(String s) {
+		s = String.valueOf(s).replace('\n', ' ').trim();
+		return s.length() > 140 ? s.substring(0, 137) + "..." : s;
+	}
+
+	/**
 	 * Once a second: a line for the panel's Activity tab when the kinds of Soprano's tasks change, not their places or their
 	 * state (a staircase down is one line, not one a step).
 	 */

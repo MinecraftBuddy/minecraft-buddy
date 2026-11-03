@@ -54,7 +54,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LOG_TYPES = {"chat", "chat_sent", "follow", "corpse guard", "carrier", "tap", "base", "torch", "furnaces", "helper", "drop",
              "forget", "profile", "error", "connection", "player_join", "player_leave", "death_cause", "teleport",
              "steer", "placement", "build", "buildstatus", "switch", "doing", "chore", "goto", "guard",
-             "mode", "setting", "pen", "obtain", "alto"}
+             "mode", "setting", "pen", "obtain", "alto", "damage"}
+# a hit's line in events.jsonl holds what stood round the buddy (for the story of a death); an order's timeline in the panel
+# needs only who or what hit and how much
+DAMAGE_KEEP = ("t", "type", "kind", "by", "from", "to", "x", "y", "z")
 QUIET_ACTIONS = {"sees", "clickable", "status", "trace"}
 # an order's and Soprano's lines that are working notes, not news (Soprano's lines go to the Activity tab)
 QUIET_BY_TYPE = {"obtain": {"plan", "throws away", "configured"}, "alto": {"timeouts", "configured"}}
@@ -125,7 +128,7 @@ class History(threading.Thread):
                     end = raw.rfind(b"\n")
                     if end >= 0:
                         off += end + 1
-                        keep = [l for l in raw[:end + 1].decode("utf-8", "replace").splitlines() if shown(l)]
+                        keep = [slim(l) for l in raw[:end + 1].decode("utf-8", "replace").splitlines() if shown(l)]
                         if keep:
                             with self.lock:
                                 with open(self.path, "a", encoding="utf-8") as out:
@@ -176,6 +179,20 @@ def shown(line):
     if e["type"] == "death_cause" and not str(e.get("text", "")).strip():
         return False
     return not (e["type"] in ("player_join", "player_leave") and not PLAYER.match(str(e.get("name", ""))))
+
+
+def slim(line):
+    """A shown line as the log keeps it: a hit without what stood round it, its health to a tenth."""
+    if '"damage"' not in line:
+        return line
+    e = json.loads(line)
+    if e.get("type") != "damage":
+        return line
+    e = {k: e[k] for k in DAMAGE_KEEP if k in e}
+    for k in ("from", "to"):
+        if isinstance(e.get(k), (int, float)):
+            e[k] = round(e[k], 1)
+    return json.dumps(e, ensure_ascii=False, separators=(",", ":"))
 
 
 class Allow:

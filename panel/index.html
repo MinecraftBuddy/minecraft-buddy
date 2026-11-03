@@ -140,7 +140,29 @@ button.radio:focus-visible { outline-color: var(--muted); } /* orange is for the
 .obbar i { display: block; height: 100%; background: var(--accent); }
 .oblog { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
 .oblog .obnow { color: inherit; }
-#pad .hint .oblog { color: inherit; opacity: .85; padding: 2px 0 4px; max-width: 100%; }
+/* watching an order: its plan, task by task, and a timeline of the order, at the right under the inventory */
+.obside { position: absolute; right: 12px; top: 56px; bottom: 12px; z-index: 3; width: min(320px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; line-height: 1.45; pointer-events: none; }
+.obside > section { background: rgba(14,17,20,.82); border-radius: 8px; padding: 8px 10px; pointer-events: auto; min-height: 0; }
+.obside h3 { margin: 0 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.obplan { flex: 0 0 auto; max-height: 50%; overflow: auto; }
+.obhead { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.obhead span { color: var(--muted); white-space: nowrap; }
+.obtree { list-style: none; margin: 0; padding: 0; color: var(--soft); }
+.obtree li { position: relative; padding-left: calc(var(--d, 0) * 10px + 12px); overflow-wrap: anywhere; }
+.obtree li::before { content: ''; position: absolute; left: calc(var(--d, 0) * 10px + 2px); top: .6em; width: 5px; height: 5px; border-radius: 50%; background: var(--faint); }
+.obtree li.cur { color: var(--text); }
+.obtree li.cur::before { background: var(--accent); }
+.obtree .st { color: var(--muted); }
+.obplan.held > .obtree { opacity: .5; }
+.obby { border-left: 2px solid var(--accent); padding: 2px 0 2px 8px; margin: 2px 0 6px; }
+.obby > b { color: var(--accent-text); font-weight: 600; }
+.obtime { flex: 0 1 auto; overflow: auto; }
+.obtime > div > div { display: grid; grid-template-columns: 4.6em 1fr; gap: 6px; color: var(--soft); }
+.obtime time { color: var(--faint); font-variant-numeric: tabular-nums; }
+.obtime .plan { color: var(--text); }
+.obtime .warn { color: var(--accent-text); }
+.obtime .bad { color: var(--bad-text); }
+.drive:not(.watching) .obside, .drive.play3d.nohud .obside { display: none !important; }
 .sw { display: flex; align-items: center; gap: 10px; min-height: 34px; width: 100%; text-align: left; border: 0; background: none; padding: 2px 0; color: inherit; }
 .sw .tx { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .sw .tx b { font-weight: 500; font-size: 13.5px; }
@@ -848,7 +870,6 @@ dialog#rawdlg td code { word-break: break-all; }
       <button class="btn small" id="invpeek" aria-pressed="false">Inventory</button><button class="btn small" id="closedrive">Done</button></div>
     <div id="pad" tabindex="0"><canvas id="w3view" aria-label="The world around them in 3D"></canvas><canvas id="padsky" aria-hidden="true"></canvas><div class="cross"></div><div class="hint" id="padhint">
       <div class="watchline"><b id="watchline">Watching</b><button type="button" class="btn small ghost" id="keystoggle">Hide keys</button></div>
-      <div id="watchob" class="oblog" hidden></div>
       <div class="keyhelp"><span id="watchhow">Click the view to take control.</span> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk,
       the mouse turns them, <kbd>Space</kbd> jumps, <kbd>Shift</kbd> sneaks, <kbd>R</kbd> sprints, the left button hits or breaks, the right button uses,
       <kbd>1</kbd>–<kbd>9</kbd> or the wheel pick a hotbar slot, <kbd>Q</kbd> drops, <kbd>F</kbd> swaps hands, <kbd>E</kbd> the inventory,
@@ -859,6 +880,8 @@ dialog#rawdlg td code { word-break: break-all; }
     <div class="playside" id="pside" hidden></div>
     <div class="playchat" id="pchat"></div>
     <div class="playui" id="playui" hidden></div>
+    <div class="obside" id="obside" hidden><section class="obplan" id="obplan" aria-label="The order's plan"></section>
+      <section class="obtime" aria-label="What happened during the order"><h3>Timeline</h3><div id="obtime"></div></section></div>
     <div class="w3debug" id="w3debug" hidden></div>
     <div class="w3xyz" id="w3xyz"></div>
     <div class="w3clock" id="w3clock"></div>
@@ -1159,11 +1182,134 @@ function obLogHtml(o) {
   const now = o.sheltering ? 'Dug in ' + o.sheltering : o.step ? 'Step: ' + o.step + ', ' + obAgo(o.step_s) : 'Working out the next step';
   return '<div class="obnow">' + esc(now) + '</div>' + (o.doing ? '<div class="obnow">' + esc('Soprano: ' + o.doing) + '</div>' : '');
 }
-function obLogInto(el, o) {
-  if (!el) return;
-  const h = obLogHtml(o);
-  el.hidden = !h;
-  if (el.dataset.h !== h) { el.dataset.h = h; el.innerHTML = h; }
+/* Watching an order: at the right, under the inventory, its plan task by task (the order, the step, Soprano's tasks from the
+   outer to the deepest, and what has the wheel when that is not the plan), and under it a timeline of the order: steps,
+   tasks, hits, and every time something else took over. The timeline is built from the panel's own log (/api/log), back to
+   the order's start. */
+const obTidy = s => String(s || '').replace(/BlockPos\{x=(-?\d+), y=(-?\d+), z=(-?\d+)\}/g, '$1 $2 $3')
+  .replace(/entity\.minecraft\.([a-z_]+)/g, (m, id) => id.replace(/_/g, ' ')).replace(/minecraft:/g, '').replace(/\b(\d+)\.0\b/g, '$1')
+  // Soprano's own notation: a recipe target, a block, a count of items ({gold_ingot x 5}, [[gold_ingot] x 5])
+  .replace(/\{?RecipeTarget\{_recipe=\w*Recipe\{([^}]*)\}, _item=[^}]*\}\}?/g, '$1').replace(/Block\{([a-z_]+)\}/g, '$1')
+  .replace(/\[\[([a-z_]+)\] x (\d+)\]|[[{]([a-z_]+) x (\d+)[\]}]/g, (m, a, n, b, k) => (n || k) + ' ' + (a || b))
+  .replace(/\b[a-z]+(?:_[a-z]+)+\b/g, id => (N.item && N.item[id]) || id.replace(/_/g, ' '))
+  .replace(/^([A-Za-z]+): /, (m, c) => CHAINS[c + 'Chain'] ? first(CHAINS[c + 'Chain']) + ': ' : m).replace(/\s+/g, ' ').replace(/([^.])\.$/, '$1').trim();
+// the buddy's own steps that are the order itself (Fetch an order in the chain): anything else holding the tick interrupts it
+const OB_OWN = ['obtain', 'alto', 'watch'];
+const obRow = (r, d, cur) => '<li style="--d:' + Math.min(d, 6) + '"' + (cur ? ' class="cur"' : '') + '>' + esc(obTidy(r.t)) + (r.s ? ' <span class="st">' + esc(obTidy(r.s)) + '</span>' : '') + '</li>';
+function obPlanHtml(o) {
+  const n = esc(o.count + ' ' + obName(o.item));
+  if (!o.on) return '<h3>Plan</h3><div class="obhead"><b>Last order: ' + n + '</b><span>' + esc(o.end + ', ' + obAgo(o.s)) + '</span></div>' +
+    (o.why ? '<div class="obtree">' + esc(o.why) + '</div>' : '');
+  const pl = o.plan || {}, tasks = pl.tasks || [], own = S && S.doing && !OB_OWN.includes(S.doing) ? doingText(S) : '';
+  // what has the wheel when it is not the plan: one of Soprano's other chains (monsters, food, lava), or one of the buddy's own steps
+  const by = pl.by ? first(CHAINS[pl.by] || pl.by.replace(/Chain$/, '')) : own;
+  let h = '<h3>Plan</h3><div class="obhead"><b>Fetch ' + n + '</b><span>' + esc(o.have + ' of ' + o.count + ' · ' + obAgo(Math.round((Date.now() - o.since) / 1000))) + '</span></div>';
+  if (by) h += '<div class="obby"><b>Interrupted: ' + esc(by) + '</b>' + (pl.by_tasks ? '<ul class="obtree">' + pl.by_tasks.map((r, i, a) => obRow(r, i, i === a.length - 1)).join('') + '</ul>' : '') + '</div>';
+  // the step as its line in the log names it ("the kit for the deep by Soprano: equip shield"); the state's own is the planner's
+  const said = OBE.findLast(e => e.type === 'obtain' && e.action === 'step' && e.t >= Math.max(o.since, Date.now() - (o.step_s || 0) * 1000) - 3000);
+  const step = o.sheltering ? 'Dug in ' + o.sheltering : o.step ? 'Step ' + (o.steps + 1) + ': ' + (said ? said.step : o.step.replace(/ -> .*$/, '')) : 'Working out the next step';
+  h += '<ul class="obtree"><li' + (tasks.length || by ? '' : ' class="cur"') + '>' + esc(step) + ' <span class="st">' + esc(obAgo(o.step_s || 0)) + '</span></li>' +
+    tasks.map((r, i, a) => obRow(r, i + 1, !by && i === a.length - 1)).join('') + '</ul>';
+  return h;
+}
+/* the timeline: the log's lines of an order, kept from the order's start; rows merged where they repeat (a hit after a hit
+   by the same, Soprano's task with only its deepest part changed) */
+let OBE = [], obCur = null, obBackTo = Infinity, obBacking = false, obDirty = true, obTimeKey = '';
+const OB_TYPES = new Set(['obtain', 'alto', 'damage', 'death_cause', 'doing']);
+const obUseful = e => OB_TYPES.has(e.type) && !(e.type === 'alto' && ['up', 'down', 'timeouts', 'configured'].includes(e.action)) && !(e.type === 'obtain' && ['place click', 'status'].includes(e.action));
+function obTake(lines, older) {
+  const rel = lines.filter(obUseful);
+  if (!rel.length) return;
+  OBE = older ? rel.concat(OBE) : OBE.concat(rel);
+  if (OBE.length > 6000) OBE = OBE.slice(OBE.length - 6000);
+  obDirty = true;
+}
+/* back through the log to the order's start, two hundred lines a time, twenty times at most */
+async function obBackfill(since) {
+  if (obBacking || !obCur || obBackTo <= since) return;
+  obBacking = true;
+  try {
+    for (let i = 0; i < 20 && obCur && obBackTo > since; i++) {
+      const j = await (await fetch('/api/log?before=' + obCur)).json();
+      obCur = j.start;
+      if (!j.lines.length) break;
+      obBackTo = Math.min(obBackTo, j.lines[0].t || obBackTo);
+      obTake(j.lines, true);
+    }
+  } catch (e) { }
+  obBacking = false;
+  obSide();
+}
+const DMG = {onFire: 'Burning', inFire: 'In fire', lava: 'In lava', fall: 'A fall', magic: 'Magic', wither: 'Wither', drown: 'Drowning',
+  starve: 'Hunger', cactus: 'A cactus', hotFloor: 'A magma block', freeze: 'Freezing', inWall: 'Stuck in a block', sweetBerryBush: 'A berry bush'};
+const hearts = hp => String(Math.round(Number(hp) || 0) / 2);
+function obRows(since) {
+  const rows = [];
+  let lastArb = '';
+  for (const e of OBE) {
+    if (!e.t || e.t < since - 2000) continue;
+    const last = rows[rows.length - 1];
+    if (e.type === 'damage') {
+      const key = e.kind + '|' + (e.by || '');
+      if (last && last.key === key && e.t - last.t2 < 20000) { last.n++; last.to = e.to; last.t2 = e.t; continue; }
+      const what = e.by ? 'Hit by ' + e.by.replace(/_/g, ' ') + (e.kind === 'arrow' || e.kind === 'fireball' ? "'s " + e.kind : String(e.kind).startsWith('explosion') ? "'s blast" : '')
+        : DMG[e.kind] || first(String(e.kind).replace(/([A-Z])/g, ' $1').toLowerCase());
+      rows.push({t: e.t, t2: e.t, key, n: 1, what, from: e.from, to: e.to, cls: 'bad'});
+      continue;
+    }
+    let text, cls = '', key = '';
+    if (e.type === 'alto' && e.action === 'doing') {
+      const [outer, ...deep] = String(e.what || '').split(' › ');
+      key = 'do|' + outer;
+      text = obTidy(outer) + (deep.length ? ' › ' + obTidy(deep.join(' › ').replace(/: .*$/, '')) : '');
+      if (/^[A-Za-z]+: /.test(outer) && CHAINS[outer.split(':')[0] + 'Chain']) cls = 'warn';
+      if (last && last.key === key) { last.text = text; continue; }
+    }
+    else if (e.type === 'alto' && e.action === 'takes') { text = 'Plan paused: ' + (CHAINS[e.chain] || e.chain); cls = 'warn'; }
+    else if (e.type === 'alto' && e.action === 'lets go') text = 'Plan goes on after ' + (CHAINS[e.chain] || e.chain);
+    else if (e.type === 'doing') {
+      const own = !OB_OWN.includes(e.action);
+      if (e.action === 'idle' || !own && !lastArb) continue;   // idle: the order is over, its own line says how
+      lastArb = own ? e.action : '';
+      text = own ? 'Interrupted: ' + doingText({doing: e.action, follows: S && S.follows, base: S && S.base}).toLowerCase() : 'Back to the order';
+      if (own) cls = 'warn';
+    }
+    else if (e.type === 'death_cause') { text = 'Died: ' + e.text; cls = 'bad'; }
+    else {
+      text = obTidy(eventText(e));
+      if (e.type === 'obtain') cls = ['gives up', 'stop', 'kit unmet'].includes(e.action) ? 'bad' : ['start', 'resumed', 'step', 'done'].includes(e.action) ? 'plan' : '';
+      else if (e.action === 'task') cls = 'plan';
+    }
+    if (last && !last.key.startsWith('do|') && last.text === text) { last.n++; continue; }
+    rows.push({t: e.t, key: key || text, n: 1, text, cls});
+  }
+  return rows;
+}
+const clockS = t => new Date(t).toLocaleTimeString('en-GB');
+function obTimeHtml(o) {
+  const since = o.on ? o.since : o.at - o.s * 1000;
+  const rows = obRows(since).slice(-500).reverse();
+  if (!rows.length) return '<div>' + (obBacking ? 'Reading the log' : 'Nothing yet') + '</div>';
+  return rows.map(r => '<div class="' + r.cls + '"><time>' + clockS(r.t) + '</time><span>' +
+    esc(r.what ? r.what + (r.n > 1 ? ' ×' + r.n : '') + ': ' + hearts(r.from) + ' → ' + hearts(r.to) + ' hearts' : r.text + (r.n > 1 ? ' ×' + r.n : '')) + '</span></div>').join('');
+}
+function obSide() {
+  const box = $('obside');
+  if (!box || $('driver').hidden) return;
+  const o = S && S.online ? S.obtain : null;
+  const show = !!o && (o.on || Date.now() - (o.at || 0) < 15 * 60_000);
+  box.hidden = !show;
+  if (!show) return;
+  // under the inventory when it is shown small in the corner
+  const pu = $('playui'), under = !pu.hidden && pu.classList.contains('peek');
+  box.style.top = (under ? pu.offsetTop + pu.offsetHeight + 8 : 56) + 'px';
+  const plan = obPlanHtml(o), pe = $('obplan');
+  if (pe.dataset.h !== plan) { pe.dataset.h = plan; pe.innerHTML = plan; }
+  pe.classList.toggle('held', !!(o.on && ((o.plan && o.plan.by) || (S.doing && !OB_OWN.includes(S.doing)))));
+  const since = o.on ? o.since : o.at - o.s * 1000;
+  if (obBackTo > since) obBackfill(since);
+  const key = since + '|' + OBE.length + '|' + obBacking;
+  if (obDirty || key !== obTimeKey) { obDirty = false; obTimeKey = key; $('obtime').innerHTML = obTimeHtml(o); }
 }
 function obtainProgress(s) {
   const el = $('ob-prog'); if (!el) return;
@@ -2274,11 +2420,12 @@ function take(lines, where, fresh) {
       if (typed(e) && where === 'start' && echoShown(e)) continue;
       chat.push({e, html: chatHtml(e)});
     }
-    else act.push(actHtml(e));
+    else if (e.type !== 'damage') act.push(actHtml(e));   // a hit is for an order's timeline only
     if (isProblem(e)) addProblem(e);
     if (['placement', 'build', 'buildstatus'].includes(e.type) && where === 'end') { lastBuild = eventText(e); $('schlog').textContent = clock(e.t) + '  ' + lastBuild; }
   }
   if (fresh && chat.length) playChat(chat.map(c => c.html));
+  if (where === 'end') obTake(lines);
   for (const [id, html] of [['feed-chat', chat.map(c => c.html)], ['feed-act', act]]) {
     if (!html.length) continue;
     const box = $(id), atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 30, h = box.scrollHeight;
@@ -2304,9 +2451,10 @@ let after = -1, oldest = null, loadingOld = false;
 async function log() {
   try {
     const j = await (await fetch('/api/log?after=' + after)).json();
-    if (j.after < after) { for (const id of ['feed-chat', 'feed-act']) { const b = $(id); b.replaceChildren(b.firstElementChild); b.dataset.first = ''; } PROBS.clear(); oldest = null; }
+    if (j.after < after) { for (const id of ['feed-chat', 'feed-act']) { const b = $(id); b.replaceChildren(b.firstElementChild); b.dataset.first = ''; } PROBS.clear(); oldest = null; OBE = []; obDirty = true; }
     const fresh = after >= 0 && j.start === undefined;
-    if (after < 0 || j.start !== undefined) oldest = j.start;
+    // the order's timeline reads back from where this first page starts, by a cursor of its own
+    if (after < 0 || j.start !== undefined) { oldest = j.start; obCur = j.start; obBackTo = j.lines.length ? j.lines[0].t : Date.now(); }
     after = j.after;
     if (j.lines.length) take(j.lines, 'end', fresh);
   } catch (e) {}
@@ -3616,7 +3764,7 @@ function watchLine() {
   const t = !S || !S.online ? first(n) + ' is not on a server.' : busy ? busyText()
     : 'Watching ' + n + ': ' + (S.steered && !steer.on ? 'played from the panel' : doingText(S).replace(/^./, c => c.toLowerCase())) + '.';
   if ($('watchline').textContent !== t) $('watchline').textContent = t;
-  obLogInto($('watchob'), S && S.online ? S.obtain : null);
+  obSide();
   const how = busy ? 'You can take control when they let go.' : 'Click the view to take control.';
   if ($('watchhow').textContent !== how) $('watchhow').textContent = how;
   h.classList.toggle('busy', busy);

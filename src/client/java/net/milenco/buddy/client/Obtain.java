@@ -182,6 +182,9 @@ final class Obtain {
 		// reads well
 		String d = Alto.present() ? Alto.doing() : null;
 		if (d != null) o.put("doing", d);
+		// and its whole plan, task by task, with what holds the wheel when that is not the order (the panel's plan while watching)
+		Map<String, Object> pl = Alto.present() ? Alto.plan() : null;
+		if (pl != null) o.put("plan", pl);
 		return o;
 	}
 
