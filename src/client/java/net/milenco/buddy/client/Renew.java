@@ -6,14 +6,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * A trip home for a new tool while he follows (after "Axe almost broken, 10 uses left, and no spare in the chests"
+ * A trip home for a new tool while following (after "Axe almost broken, 10 uses left, and no spare in the chests"
  * while the base held iron enough for a new one: make one ahead and carry it, but use the old one up first). In the
  * base {@link Chores} renews a worn tool by itself
- * ({@code baseRenew}); away from it he never came to that. So: when every tool of a kind he carries is nearly worn out
+ * ({@code baseRenew}); away from it the buddy never came to that. So: when every tool of a kind carried is nearly worn out
  * ({@link Work#lowWear}) and a chest of the base holds a fresh one, or the base holds iron enough with {@code keepIron}
- * left ({@link Chores#renewKind}), he goes home as the carrier does (the profile's home command, or on foot when the base
+ * left ({@link Chores#renewKind}), the buddy goes home as the carrier does (the profile's home command, or on foot when the base
  * is near), where {@link Stash} fetches the fresh one, or the iron for {@link Chores} to make one at the table, and then
- * the following takes him back. He carries the new one and works on with the old one until it is used up ({@link Work#toolFor} takes the
+ * the following takes the buddy back. The new one is carried and the old one worked with until used up ({@link Work#toolFor} takes the
  * most worn of equally fast tools).
  */
 final class Renew {
@@ -72,7 +72,7 @@ final class Renew {
 				return true;
 			}
 			case MAKE -> {
-				// made: nothing he carries is worn out any more that a fresh one or the iron could replace; every worn kind in
+				// made: nothing carried is worn out any more that a fresh one or the iron could replace; every worn kind in
 				// one trip (a pickaxe and an axe both worn took two trips, a minute apart, in the first test)
 				String still = Chores.renewKind(p);
 				if (still == null) { done("made", now); return false; }
@@ -88,7 +88,7 @@ final class Renew {
 		}
 	}
 
-	/** The bed of the base of the one he works for, in this dimension. */
+	/** The bed of the base of the player worked for, in this dimension. */
 	private static BlockPos base(LocalPlayer p) {
 		String boss = Follow.boss();
 		return boss == null ? null : Tap.base(boss, Work.dimOf(p.level()));

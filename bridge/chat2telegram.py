@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""The buddy's chat in Telegram: what they see in the game's chat comes into one Telegram chat, a line typed there
-without a ! they say in the game, and a line with a ! is a command for them (commands.jsonl; the mod carries it out).
+"""The buddy's chat in Telegram: what the buddy sees in the game's chat comes into one Telegram chat, a line typed there
+without a ! is said in the game, and a line with a ! is a command for the mod (commands.jsonl, which it carries out).
 
 Settings in telegram.json in the bridge's own folder (beside this script; another file with --config <file> or the
 environment variable BUDDY_BRIDGE_CONFIG). The panel writes it (Settings, Telegram): the bridge looks at the file
@@ -13,7 +13,7 @@ chat it only notes who writes to the bot, so that the panel can offer that chat 
 token and chat_id are the window: one bot, one chat. A second bot for private messages (pm_token), and the script that
 sent files through it, are gone. "enabled": false is the panel's main switch: the bridge then waits and says nothing.
 An admin is best named by the user id (the panel offers the ids of who wrote to the bot). A @username also counts; a
-first and last name, which anyone can give themselves, only in a private chat with the bot, where nobody else writes
+first and last name, which anyone can choose freely, only in a private chat with the bot, where nobody else writes
 (in a group anyone could take an admin's name). "paths" is optional; what is left out is the default place.
 """
 import http.client, json, os, queue, re, sys, threading, time, urllib.parse
@@ -111,14 +111,14 @@ def read_config():
     except (OSError, ValueError) as e:
         return None, f"the settings cannot be read: {e}"
     if not isinstance(cfg, dict):
-        return None, "the settings are no JSON object"
+        return None, "the settings are not a JSON object"
     cfg = normalize(cfg)
     if cfg.get("enabled") is False:
         return None, "off"
     if not cfg.get("token"):
         return None, "no bot token"
     if not isinstance(cfg.get("admins", {}), dict):
-        return None, "admins is no list of names"
+        return None, "admins is not a list of names"
     return cfg, None
 
 
@@ -272,146 +272,156 @@ def alt_name():
 # name -> (how to type it, one line, the full explanation)
 DOC = {
     "help": ("!help [command]", "This list, or everything about one command: !help farmraid", ""),
-    "status": ("!status", "Where The buddy is, health and food, what the scoreboard says they have, uptimes, and their inventory slot by slot",
-               "Shows their position and zone, health, food and how much food they carry, whether AFK mode is on, their money, "
-               "tokens, shards, claims, votes, kills and team from the scoreboard, how long "
-               "they have been connected to the server, how long the game has been running and how long the VPS has been up. "
-               "Below that the inventory with slot numbers; those numbers are what !dump takes."),
-    "positions": ("!positions", "Every place The buddy knows: where they are, home, farm spot, raid spot, wood field, shop, zones, placements",
-                  "All stored coordinates in one message. They are plain settings, changed with !set (for example !set "
-                  "farmAreaX1 120); a tree farm's plots are measured where they stand with the exchange command woodscan."),
-    "settings": ("!settings [word]", "All settings at once, or only those with a word in the name (with explanation)",
-                 "!settings alone lists every setting with its value, grouped. !settings farm (or raid, wood, build, eat, "
-                 "gg, alt, panic ...) lists only the matching ones and says what each one does."),
-    "get": ("!get name", "One setting with its explanation", ""),
-    "show": ("!show [kind on|off]", "What comes into this chat: players' chat, private messages, joins and leaves, other server messages, the buddy's own news",
-             "!show lists the five with whether they are on. !show joins off (or chat, pm, server, buddy; all) switches one. "
-             "The server profile tells the kinds apart: its texts chat (a player's line), join and leave (the server's own lines "
-             "for it, which then stay out: joins come from the player list), pm and pmOut. The panel has the same switches "
-             "(Settings, Telegram)."),
+    "status": ("!status", "Where the buddy is, health and food, the scoreboard, uptimes and the inventory",
+               "Position and zone, health, food and food carried, AFK on or off, the scoreboard (money, shards, votes, "
+               "kills, team…), how long the server connection, the game and the machine have been up, and the inventory "
+               "with slot numbers for !dump."),
+    "positions": ("!positions", "Every place the buddy knows: the current spot, home, farm spot, raid spot, wood field, shop, zones, placements",
+                  "Each place is a setting: change it with !set, for example !set farmAreaX1 120. A tree farm's plots and "
+                  "chests come from the raw command {\"cmd\":\"woodscan\"} in the panel, sent with the buddy standing in the farm."),
+    "settings": ("!settings [word]", "All settings, or those with a word in their name and what each does",
+                 "!settings lists every setting with its value, by group. !settings farm (or raid, wood, build, eat, alt, "
+                 "panic …) lists the matching ones with what each does."),
+    "get": ("!get name", "One setting and what it does", ""),
+    "show": ("!show [kind on|off]", "What shows up in this chat: players' chat, private messages, joins and leaves, other server messages, the buddy's own news",
+             "!show lists the five, on or off. !show joins off (or chat, pm, server, buddy, all) switches one. Which kind a "
+             "line is comes from the server profile's texts chat, join, leave, pm and pmOut; joins and leaves themselves come "
+             "from the player list. The panel has the same switches (Settings, Telegram)."),
     "set": ("!set name value", "Change a setting: !set buildMaxPerSec 3, !set raidDrink off",
-            "Works for on/off, number and text settings; the mod picks the change up within a second, no restart. "
-            "Lists (trusted players, food list) cannot be set from here. The shop key, the alt's name and the server "
-            "list are locked, and the click rate does not go above 6 per second."),
-    "say": ("!say text", "The buddy says it in public chat, as themselves", ""),
+            "For on/off, number and text settings; the change counts within a second. Lists (trusted players, food) cannot "
+            "be set here. Locked: the buddy's name, the server list and the shop key. The click rate goes up to 6 a second."),
+    "say": ("!say text", "The buddy says it in public chat", ""),
     "msg": ("!msg Name text", "The buddy sends a private message", ""),
-    "cmd": ("!cmd /command", "The buddy runs any command, e.g. !cmd /spawn",
-            "Sent exactly as typed, as if they typed it themselves. Use it for anything that has no command of its own here."),
+    "cmd": ("!cmd /command", "The buddy types a command, e.g. !cmd /spawn",
+            "Sent as typed: for anything without a command of its own here."),
     "tpa": ("!tpa [Name]", "The buddy asks to teleport to someone; without a name: to you", ""),
-    "tpahere": ("!tpahere [Name]", "The buddy asks someone to come to them; without a name: you", ""),
-    "tpaccept": ("!tpaccept", "The buddy accepts the teleport request they just got", ""),
-    "follow": ("!follow [Name] | !follow stay | !follow go | !follow off | !follow status", "The buddy walks after you, or after that player, and keeps finding a way",
-               "The buddy stops two blocks from you and looks at you, sprints to catch up, jumps gaps, climbs ladders, opens doors and "
-               "swims, under water too. Out of sight they walk to where they last saw you and wait there, so they follow you through "
-               "a portal, and through a teleport (/tpa, your /tpahere, /afk when nobody answers). When you sit on a cushion they sit "
-               "on a free one near you. !follow stay makes them wait where they are, !follow go follows again; in the game the player they "
-               "follow does that by looking at them and crouching twice quickly. Whom they follow changes only by !follow "
-               "(you), !follow Name or !follow off, also over a restart of their game."),
-    "goto": ("!goto x y z | !goto off | !goto", "The buddy walks to that block, jumping where they have to", ""),
-    "parkour": ("!parkour | !parkour off", "The buddy joins the Parkour that players voted open and runs to the finish",
-                "Only a game two players voted open (/eventvote parkour), which has no prize: one of the half-hourly draw pays its "
-                "winner, and The buddy is faster than the players. With no Parkour open, or one of the draw, they do nothing and say why. "
-                "They join, wait in the waiting room, run from the start to the finish, and follow you again when the game is over. "
-                "!parkour off stops the run and takes them out of the game."),
-    "assist": ("!assist [on|off] | !assist dig|chop|crops|chests|give on|off", "While following, The buddy digs your tunnel along, chops the trees around you, keeps your fields and uses your chests",
-               "Tunnel: once The buddy is sure you dig one (2x2 up to 5x5, three slices), they break in the slice you break and behind it, "
-               "never in front, and stop three seconds after your last block. Trees: after two logs of yours they chop other grown "
-               "trees near you that they can reach from the ground while you keep chopping, and plant a sapling back. Chests: the ones they see you open; "
-               "they put what they carry with the same items, fetch food, tools and better armour, and wear their best armour. "
-               "Crops: the fields where they see you sow or renew; they harvest along when you do, and by themselves when much of a field "
-               "is ripe (not within ten minutes of the last time), and plant again. Giving: after a job, with no chest of yours within "
-               "32 blocks, they throw what they do not keep at your feet; what you do not pick up within eight seconds they pick up "
-               "again and try once more, three times, then five minutes later. It all goes for the player they follow. "
-               "What they lack they say here, at most once in five minutes."),
-    "chests": ("!chests | !chests forget | !chests add x y z", "The chests The buddy knows as yours (of the player they follow), and what they saw in them", ""),
-    "fields": ("!fields | !fields forget", "The fields The buddy knows as yours (of the player they follow)", ""),
-    "forget": ("!forget | !forget chests|fields", "The buddy forgets what they know of yours on this server: chests and fields",
-               "Only the server they are on, and only the player they follow. In the game: look at them with empty hands and crouch "
-               "five times; The buddy shakes their head and crouches once; crouch twice within a few seconds to confirm, and they nod."),
-    "profile": ("!profile", "Which server profile The buddy uses now: its commands, texts and the hop after joining",
-                "Profiles are in buddy.json under \"profiles\"; the first one that fits the server's address and commands wins."),
-    "guard": ("!guard on|off | !guard pvp on|off | !guard", "While following, The buddy fights whoever hits you, and the hostile mobs you hit",
-              "With their best weapon and critical hits. Players only with !guard pvp on (off after every restart). "
-              "In the game: a weapon in hand, look at them and crouch twice for on/off; hold it up to the sky and crouch "
-              "twice for fighting players on/off."),
-    "home": ("!home [name]", "The buddy goes to their home, or to the home with that name", ""),
-    "sethome": ("!sethome [name]", "The buddy sets their home where they stand",
-                "The plain !home and a home asked by PM take this one."),
+    "tpahere": ("!tpahere [Name]", "The buddy asks someone to come over; without a name: you", ""),
+    "tpaccept": ("!tpaccept", "The buddy accepts the latest teleport request", ""),
+    "follow": ("!follow [Name|stay|go|off|status]", "The buddy walks after you, or after that player",
+               "The buddy walks after you: stops two blocks away, sprints to catch up, jumps gaps, climbs ladders, opens doors "
+               "and swims. Out of sight, the buddy goes to where you were last seen and waits, so portals and teleports are no "
+               "problem. Sit on a cushion and the buddy takes one nearby. !follow stay waits, !follow go follows again; in the "
+               "game: look at the buddy and crouch twice. Only !follow, !follow Name and !follow off change who is followed, "
+               "also after a restart."),
+    "goto": ("!goto [x y z|off]", "The buddy walks to that block; !goto off stops, !goto alone tells how far there is to go", ""),
+    "parkour": ("!parkour [off]", "The buddy joins the Parkour that players voted open and runs to the finish",
+                "Only a game two players voted open (/eventvote parkour), which has no prize: a game of the half-hourly draw "
+                "pays its winner, and the buddy is faster than the players. Without such a game nothing happens, and the "
+                "answer says why. Otherwise the buddy joins, waits in the waiting room, runs to the finish and follows you "
+                "again after the game. !parkour off stops the run and leaves the game."),
+    "assist": ("!assist [on|off] | !assist dig|chop|crops|chests|give on|off", "While following, the buddy digs your tunnel along, chops the trees around you, keeps your fields and uses your chests",
+               "Tunnels: once you have dug three slices of one (2x2 up to 5x5), the buddy digs along in the slice you break "
+               "and behind it, never in front, and stops three seconds after your last block.\n"
+               "Trees: after two logs of yours, the buddy chops the other grown trees near you that can be reached from the "
+               "ground, while you keep chopping, and plants a sapling back.\n"
+               "Chests: the ones the buddy sees you open. The buddy puts what is carried into the chest with the same items, "
+               "fetches food, tools and better armour, and wears the best armour.\n"
+               "Crops: the fields where the buddy sees you sow or renew. The buddy harvests along with you, and alone when "
+               "much of a field is ripe (not within ten minutes of the last time), and plants again.\n"
+               "Giving: after a job, with none of your chests within 32 blocks, what is not kept is thrown at your feet. What "
+               "you do not pick up within eight seconds is picked up and offered again, three times, then once more five "
+               "minutes later.\n"
+               "All of it is for the followed player. What is missing is said here, at most once in five minutes."),
+    "chests": ("!chests [forget|add x y z]", "The followed player's chests the buddy knows, and what was in them; forget clears the list, add x y z adds one", ""),
+    "fields": ("!fields [forget]", "The followed player's fields the buddy knows; forget clears the list", ""),
+    "forget": ("!forget [chests|fields]", "The buddy forgets the followed player's chests and fields on this server",
+               "!forget alone forgets both. In the game: with empty hands, look at the buddy and crouch five times. The buddy "
+               "answers with a head shake and a crouch; crouch twice within a few seconds to confirm, and the buddy nods."),
+    "profile": ("!profile", "The server profile the buddy uses now: its commands, texts and the hop after joining",
+                "Profiles are edited in the panel (Settings, Server profiles); the first that fits the server is used."),
+    "guard": ("!guard [on|off] | !guard pvp on|off", "While following, the buddy fights whoever hits you, and the hostile mobs you hit",
+              "With the best weapon at hand and critical hits. Players only after !guard pvp on, which is off again after a "
+              "restart. In the game, with a weapon in hand: look at the buddy and crouch twice to switch guarding; point it "
+              "at the sky and crouch twice to switch fighting players."),
+    "home": ("!home [name]", "The buddy goes home, or to the home with that name", ""),
+    "sethome": ("!sethome [name]", "The buddy sets home, or the home with that name, on the current spot",
+                "A plain !home, and a home asked for by private message, go to this one."),
     "mod": ("!mod on|off", "Master switch: off means the mod does nothing at all", ""),
-    "afk": ("!afk on|off", "AFK mode: eats when hungry, keeps watch, never chats by itself",
+    "afk": ("!afk on|off", "AFK mode: eats when hungry, keeps watch, never chats unasked",
             ""),
-    "farmmob": ("!farmmob on|off|status", "Mob farm: hits the mobs in front of The buddy",
-                "Aims at the mobs and hits them at a human click rate, moves a little now and then, returns to their spot and "
-                "takes breaks. The buddy must stand at the farm. With farmUseArea on they only hit above the stored farm spot "
-                "(see !positions). Stops by itself when the collect chests are full or someone is testing them. Turning it on turns the raid farm off."),
+    "farmmob": ("!farmmob on|off|status", "Mob farm: hits the mobs in front of the buddy",
+                "Stand the buddy at the farm first. Hits the mobs at a human click rate, moves a little now and then, goes "
+                "back to the starting spot and takes breaks. With farmUseArea on, only mobs above the farm spot of !positions "
+                "are hit. Stops when the collect chests are full or someone tests the buddy. Switches the raid farm off."),
     "farmraid": ("!farmraid on|off|finish|status", "Raid farm: drinks the ominous bottle, fights the raid, repeats",
-                 "The buddy must stand at the raid farm. Drinks a bottle (raidDrink), waits for the raid, hits the raiders where they "
-                 "land and follows the waves on the boss bar. finish = complete the raid that is running, then stop without a new bottle. "
-                 "Turning it on turns the mob farm off."),
-    "farmwood": ("!farmwood on|off|finish|status", "Tree farm: chops, replants, bonemeals, picks up, stores",
-                 "Works the scanned wood field (see !positions) and puts the wood in its chests. Stops when the axe is nearly worn. "
-                 "finish = finish the round, store everything, then stop."),
-    "nanocrop": ("!nanocrop on|off|status", "Plants and harvests the one crop under their crosshair",
-             "For a nano farm where a dispenser bonemeals: puts a seed on bare farmland, breaks only a ripe crop, and bonemeals "
-             "from their off hand if they hold any. They never turn their view, so aim them first."),
+                 "Stand the buddy at the raid farm first. Drinks an ominous bottle (raidDrink), waits for the raid, hits the "
+                 "raiders where they land and follows the waves on the boss bar. !farmraid finish ends the running raid and "
+                 "stops, without a new bottle. Switches the mob farm off."),
+    "farmwood": ("!farmwood on|off|finish|status", "Tree farm: chops, replants, uses bone meal, picks up, stores",
+                 "Works the scanned wood field of !positions and puts the wood in its chests. Stops when the axe is nearly "
+                 "worn. !farmwood finish ends the round, stores everything and stops."),
+    "nanocrop": ("!nanocrop on|off|status", "Plants and harvests the one crop under the buddy's crosshair",
+             "For a nano farm where a dispenser uses bone meal. Aim the buddy first: the view never turns. Puts a seed on bare "
+             "farmland, breaks only a ripe crop, and uses bone meal from the off hand if there is any."),
     "cropfarm": ("!cropfarm on|off|status | !cropfarm crop <item>", "Crop field: walks the rows, harvests with a hoe, replants, sells the harvest",
-                 "The buddy picks the home “wheat” in /homes (setting wheatHome), puts on their best armour and stores everything except food "
-                 "(2 stacks), their best pickaxe, axe and shovel, the hoe they harvest with, scaffolding (2 stacks) and what they plant in the "
-                 "chests there. Then they walk the field row by row, floor by floor: a ripe crop is broken and replanted, bare farmland gets "
-                 "a seed, a growing crop is left alone. They never wait for the field. They plant one crop and break whatever stands ripe, "
-                 "so a field of another crop turns into that one: !cropfarm crop carrot (or potato, wheat_seeds, beetroot_seeds; setting "
-                 "wheatCrop), then hand The buddy a few. With a hoe (setting wheatHoe) "
-                 "they break with the hoe in their hand, so its Fortune counts, and plant from their off hand. Of several hoes they take the "
-                 "one with the most Fortune; put a better one in a chest at the home and they take it the next time they arrive there "
-                 "(!cropfarm off, then on). A hoe with wheatHoeMin durability or less goes back into a chest and they fetch another. "
-                 "When they see someone else farming on their floor they take another floor. With a full inventory they walk back, craft "
-                 "wheat into hay bales and store everything. It stays on over a kick, a crash or a server restart. The hoe and the other floor need "
-                 "AFK Helper 0.3.100 or newer; the field corners are in !positions (settings wheatX1, wheatZ1, wheatX2, wheatZ2). "
-                 "!cropfarm status: where they are (floor and row), what they plant, what they harvested and planted in the last hour, today and "
-                 "in total, and how many crops per second that is while the mode is on. !crop means the same as !cropfarm."),
-    "build": ("!build on|off|status", "Builds the Litematica placement nearest to The buddy",
-              "Places every block of the placement with real clicks, after clearing what is in the way. Takes material from the "
-              "chests, barrels and shulker boxes within 3 blocks of where they stand when you turn it on. Needs a placement first: "
-              "see !place. !build status tells how far they are and what is missing."),
-    "schematics": ("!schematics", "The schematic files they have",
-                   "Send a .litematic file as an attachment in this group and they save it. Put !place x y z (or !place here) "
-                   "in the caption to place it straight away."),
-    "place": ("!place name x y z | !place name here", "Put a schematic down: the coordinates are its origin block",
-              "Makes a Litematica placement of that file with its origin (the corner Litematica calls the origin) on that block; "
-              "here = the block The buddy stands on. Part of the name is enough. Then !build on."),
-    "placements": ("!placements", "The placements they have loaded, with their corners", ""),
+                 "Needs a home “wheat” beside the field (setting wheatHome) and the field's corners (wheatX1, wheatZ1, "
+                 "wheatX2, wheatZ2; see !positions).\n"
+                 "The buddy goes to that home through /homes, puts on the best armour and stores in the chests there "
+                 "everything but food (2 stacks), the best pickaxe, axe and shovel, the hoe, scaffolding (2 stacks) and what "
+                 "is to be planted.\n"
+                 "Then row by row, floor by floor: a ripe crop is broken and replanted, bare farmland gets a seed, a growing "
+                 "crop is left alone.\n"
+                 "One crop is planted (!cropfarm crop carrot, or potato, wheat_seeds, beetroot_seeds; then hand the buddy a "
+                 "few) and whatever stands ripe is broken, so a field of another crop turns into this one.\n"
+                 "With a hoe (setting wheatHoe) the crops are broken with the hoe, so its Fortune counts, and planted from the "
+                 "off hand. The hoe with the most Fortune is taken: put a better one in a chest at the home, then !cropfarm off "
+                 "and on. A hoe worn down to wheatHoeMin goes back into a chest and another is fetched.\n"
+                 "Someone else farming on the same floor sends the buddy to another floor. With a full inventory the buddy "
+                 "walks back, crafts wheat into hay bales and stores everything. It stays on after a kick, a crash or a server "
+                 "restart.\n"
+                 "!cropfarm status: floor and row, what is planted, what was harvested and planted in the last hour, today and "
+                 "in total, and crops per second while on. !crop is the same as !cropfarm."),
+    "build": ("!build on|off|status", "Builds the Litematica placement nearest to the buddy",
+              "Make a placement first with !place. Places every block with real clicks, after clearing what is in the way. "
+              "Material comes from the chests, barrels and shulker boxes within 3 blocks of the buddy when building starts. "
+              "!build status tells how far the build is and what is missing."),
+    "schematics": ("!schematics", "The schematic files there are to build",
+                   "Send a .litematic file in this chat and it is saved. With !place x y z (or !place here) as its caption it "
+                   "is placed at once."),
+    "place": ("!place name [x y z|here]", "Put a schematic down: the coordinates are its origin block",
+              "Makes a Litematica placement of that file with its origin (the corner Litematica calls the origin) on that "
+              "block; here is the block the buddy stands on. Part of the name is enough. Then !build on."),
+    "placements": ("!placements", "The loaded placements, with their corners", ""),
     "unplace": ("!unplace", "Remove all placements", ""),
     "crouch": ("!crouch on|off", "Stay crouched", ""),
     "jump": ("!jump on|off", "Keep jumping", ""),
-    "dump": ("!dump [slots] [ground] [all] | !dump stop", "Empty their inventory into chests nearby, or on the ground",
-             "!dump puts everything except tools, armour, the compass and food into the nearest chests, barrels and shulker boxes "
-             "(within 24 blocks; The buddy walks to them). !dump ground throws it on the ground instead. !dump all includes tools and food. "
-             "!dump 2 10 11 empties only those slots, whatever is in them; the numbers are the ones !status shows. "
-             "They report back when they are done. !dump stop breaks it off."),
+    "dump": ("!dump [slots] [ground] [all] | !dump stop", "Empty the inventory into chests nearby, or on the ground",
+             "!dump: everything but tools, armour, the compass and food into the nearest chests, barrels and shulker boxes "
+             "within 24 blocks (the buddy walks to them).\n"
+             "!dump ground: onto the ground instead.\n"
+             "!dump all: tools and food too.\n"
+             "!dump 2 10 11: only those slots, whatever is in them (the numbers of !status).\n"
+             "!dump stop breaks it off. A report follows when it is done."),
 }
 SECTIONS = (
     ("Info", ("help", "status", "positions", "settings", "get", "set", "show")),
     ("Chat", ("say", "msg", "cmd")),
-    ("Teleport", ("tpa", "tpahere", "tpaccept", "follow", "guard", "assist", "chests", "fields", "forget", "profile", "goto", "parkour", "home", "sethome")),
+    ("Moving and helping", ("tpa", "tpahere", "tpaccept", "follow", "guard", "assist", "chests", "fields", "forget", "profile", "goto", "parkour", "home", "sethome")),
     ("Modes", ("mod", "afk", "farmmob", "farmraid", "farmwood", "nanocrop", "cropfarm", "crouch", "jump", "dump")),
     ("Building", ("schematics", "place", "placements", "unplace", "build")),
 )
-STATUS_NOTE = ("<b>status</b> after a farm command (!cropfarm status, !farmmob status, !farmraid status, !farmwood status, "
-               "!sell status, !nanocrop status) tells where that farm is and what it brought in the last hour, today and in total. "
-               "The numbers come from yield.jsonl, which the mod fills every five minutes and which survives restarts "
-               "(AFK Helper 0.3.62 or newer). !status shows one line for every farm that is running.")
+STATUS_NOTE = ("<b>![cropfarm|farmmob|farmraid|farmwood|nanocrop] status</b>: where the farm is and what it brought in "
+               "during the last hour, today and in total. <b>!status</b> shows one line per running farm.")
 BUDDY_NOTE = ("<b>Typing here without a !</b>\n"
-              "{alt} says your line in the game, as themselves: what they see in the game's chat comes in here, their own line too "
-              "when the server shows it. Several lines go as several lines, five at most, one a second. A line that starts "
-              "with / is a command they type (/msg, /home, …). A line with a ! is a command for them and is never said.")
+              "A plain line: {alt} says it in the game chat (up to five lines, one a second).\n"
+              "A line starting with /: {alt} types it as a command, such as /msg or /home.\n"
+              "A line starting with !: a command for {alt}, never said in the game.\n"
+              "Everything in {alt}'s game chat shows up here.")
 def me(capital=True):
-    """The buddy's name for what the bridge says: altName of buddy.json, the account they play on; nothing of one person in here."""
+    """The buddy's name for what the bridge says: altName of buddy.json, the account played on; nothing of one person in here."""
     return alt_name() or ("The buddy" if capital else "the buddy")
 
 
 def named(text):
-    """A text of DOC with the buddy's own name where it says The buddy."""
-    return text.replace("The buddy", me())
+    """A text the bridge sends with the buddy's own name where it says The buddy or the buddy (as me(), me(False)); unchanged
+    when no name is set. Only for the bridge's own words: a text from a player or the server goes in as it is."""
+    name = alt_name()
+    return text.replace("The buddy", name).replace("the buddy", name) if name else text
+
+
+def quiet(capital=False):
+    """The reply when the mod did not answer an order: the buddy's game is off or hangs."""
+    return ("No answer from " if capital else "no answer from ") + escape(me(False)) + " (offline?)"
 
 
 def help_text(word):
@@ -428,7 +438,7 @@ def help_text(word):
         out.append(f"\n<b>{title}</b>")
         out += [f"<b>{escape(DOC[n][0])}</b> — {escape(named(DOC[n][1]))}" for n in names]
     out.append("\n" + STATUS_NOTE)
-    out.append("\n" + BUDDY_NOTE.format(alt=escape(me())))
+    out.append("\n" + BUDDY_NOTE.format(alt=escape(me(False))))
     return "\n".join(out)
 
 
@@ -455,60 +465,58 @@ DUMP_WHY = {"all cleared": "everything stored", "nothing left to drop": "nothing
 
 # buddy.json key -> what it does (the comments in the mod's AfkConfig)
 ABOUT = {'modEnabled': 'master switch: off = the mod does nothing at all',
- 'afkAuto': 'true when AFK mode was switched on by auto-AFK (only then it goes off by itself on movement)',
- 'autoAfk': 'switch AFK mode on by itself after a while without input',
- 'autoAfkMin': '... after this many minutes without keys/mouse',
+ 'afkAuto': 'on when auto-AFK switched AFK mode on; only then does moving switch it off again',
+ 'autoAfk': 'switch AFK mode on automatically after a while without input',
+ 'autoAfkMin': '... after this many minutes without keys or mouse',
  'eatBelow': 'eat at food points <= this (out of 20, so 16 = 8 of the 10 drumsticks)',
  'eatBelowHealth': '... and also at this many health points or fewer (out of 20, so 16 = 8 of the 10 hearts)',
  'lookAround': 'when AFK: look at untrusted players nearby',
- 'lookAtMinSec': 'how long you look at a player (from/to)',
+ 'lookAtMinSec': 'shortest look at a player, in seconds (lookAtMaxSec the longest)',
  'lookRadius': '... within this many blocks',
  'wander': 'when AFK, walk a short stretch now and then (there and back, only over a safe flat path)',
  'wanderEveryMin': 'on average every this many minutes (random 0.5-1.5x)',
- 'wanderMaxBlocks': 'per leg; a route has 2-4 legs',
+ 'wanderMaxBlocks': 'blocks per leg; a walk has 2 to 4 legs',
  'glanceEverySec': 'casual glance on average every this many seconds',
- 'steadyFps': "vanilla 'inactivity FPS limit' on Minimized: no 10/30 fps while AFK or in the Esc menu (Sodium hides "
-              'this option)',
+ 'steadyFps': 'keep the frame rate up while AFK or in the Esc menu (the game\'s inactivity FPS limit on Minimized)',
  'zones': 'fixed places where players get reported',
- 'panicOnlyWhenBusy': 'only during AFK mode or farming, not while you play yourself',
+ 'panicOnlyWhenBusy': 'only in AFK mode or while farming, not while someone steers the buddy',
  'panicHealth': 'log out below this many health points',
  'panicHome': 'teleport to this home first (through the /homes menu); empty = log out at once',
- 'reconnectMaxAttempts': 'alt: this many failed attempts in a row, then quit the game (systemd restarts it with a '
-                         'fresh session)',
- 'farmWalkEverySec': 'always walk a real stretch now and then (well over a block there and back)',
- 'farmBlockMoveSec': 'this long on the same block = take a real step (the server sees you as AFK otherwise)',
+ 'reconnectMaxAttempts': 'after this many failed attempts in a row, quit the game; it starts again with a fresh session',
+ 'farmWalkEverySec': 'walk a real stretch (well over a block, there and back) about every this many seconds',
+ 'farmBlockMoveSec': 'seconds on one block before a real step (otherwise the server sees the buddy as AFK)',
  'farmCrouch': 'crouch while approaching and during nudges',
- 'farmCrouchMinSec': 'how long you stay down during a nudge',
- 'farmApproach': 'walk as close to the mobs as possible (up to a wall/edge)',
+ 'farmCrouchMinSec': 'shortest crouch during a nudge, in seconds (farmCrouchMaxSec the longest)',
+ 'farmApproach': 'walk as close to the mobs as possible (up to a wall or edge)',
  'farmApproachRange': 'only approach mobs within this many blocks',
  'farmUseArea': 'only hit mobs above the landing spot and walk there',
  'farmAreaX1': 'a corner of the mob farm\'s area, with farmAreaZ1, farmAreaX2 and farmAreaZ2',
  'raidDrink': 'drink a new ominous bottle after a raid',
- 'raidDrinkPauseSec': 'wait after the victory before the next bottle',
+ 'raidDrinkPauseSec': 'seconds to wait after a won raid before the next bottle',
  'farmThroughMenus': 'keep hitting while the chat or the Esc menu is open',
- 'farmRecenter': 'return to your starting spot when you have drifted',
- 'farmVisitorRadius': 'untrusted player this close: farm stands still as long as they stay (0 = off)',
- 'farmVisitorAfterSec': 'and this long afterwards, so you do not start the moment they turn around',
- 'farmSideSwitchSec': 'this often move to another side of the landing spot (0 = never)',
- 'farmSessionMin': 'on average this often a long break of 2-8 min (0 = never)',
- 'clickLog': 'intervals between hits to clicks.csv (for klikanalyse.py)',
- 'watchdogAlarm': 'alarm when someone tests you: boat, blocks, water, a push',
- 'watchdogPauseMin': 'first signal: stand still this long and then carry on by itself (0 = stop right away)',
- 'farmDropsMax': 'this many loose items (not stacks) at the farm = chests full, farm off (0 = off)',
- 'farmHomeBack': 'home to go to when you got teleported away while farming ("" = do nothing)',
+ 'farmRecenter': 'go back to the starting spot after drifting off',
+ 'farmVisitorRadius': 'untrusted player this close: farm stands still as long as the player stays (0 = off)',
+ 'farmVisitorAfterSec': 'and this many seconds after, so farming does not start again the moment the player turns around',
+ 'farmSideSwitchSec': 'seconds between moves to another side of the landing spot (0 = never)',
+ 'farmSessionMin': 'minutes between long breaks of 2 to 8 minutes, on average (0 = never)',
+ 'clickLog': 'log the time between hits, to check the click rate',
+ 'watchdogAlarm': 'alarm when someone tests the buddy: a boat, blocks, water, a push',
+ 'watchdogPauseMin': 'at the first sign: stand still this many minutes, then carry on (0 = stop right away)',
+ 'farmDropsMax': 'this many loose items (not stacks) at the farm means the chests are full: farming stops (0 = no check)',
+ 'farmHomeBack': 'home to go to after being teleported away while farming (empty = stay)',
  'raidJump': 'jump once after drinking',
- 'raidLookY': 'where to look when there is nothing to hit, hundredths of a block relative to your feet',
- 'raidWaitMaxSec': 'wait this long for a raid after a bottle; then try again',
- 'woodY': 'floor height: where you stand during the scan (y of the saplings)',
- 'woodBonemeal': 'use bonemeal',
- 'woodBonemealThreshold': 'bonemeal round only when at most this percent of the plots has a tree (0 = only on an empty '
+ 'raidLookY': 'where to look when there is nothing to hit, in hundredths of a block above the feet',
+ 'raidWaitMaxSec': 'seconds to wait for a raid after a bottle, then try again',
+ 'woodY': 'floor height: where the buddy stood during the scan (y of the saplings)',
+ 'woodBonemeal': 'use bone meal',
+ 'woodBonemealThreshold': 'a bone meal round only when at most this percent of the plots has a tree (0 = only on an empty '
                         'field)',
- 'woodBonemealMax': 'per sapling; skip and report after that',
+ 'woodBonemealMax': 'bone meal per sapling at most; then skip it and report',
  'woodAxeMin': 'stop when the axe has less durability left',
  'woodPickupEverySec': 'pick up at most once per this many seconds, at least 180 (items only vanish after 5 minutes)',
- 'woodKeepSaplings': 'per kind to keep in the inventory',
+ 'woodKeepSaplings': 'saplings of each kind to keep in the inventory',
  'woodTakeAlongMax': 'this many logs of another kind in a row simply get chopped along (0 = never)',
- 'woodPauseEveryMin': 'on average this often a breather of 20-60 s (0 = never)',
+ 'woodPauseEveryMin': 'minutes between breathers of 20 to 60 seconds, on average (0 = never)',
  'woodPauseRadius': 'player within this many blocks: stand still',
  'wheatOn': 'the crop field switch itself (use !cropfarm); it survives a restart',
  'wheatHome': 'the home beside the crop field, with the chests and the crafting table',
@@ -516,10 +524,10 @@ ABOUT = {'modEnabled': 'master switch: off = the mod does nothing at all',
  'wheatHoe': 'break the crops with the hoe that has the most Fortune and plant from the off hand; without a usable hoe the buddy breaks by hand',
  'wheatHoeMin': 'a hoe with this much durability or less goes back into a chest, and the buddy takes another there',
  'wheatPauseRadius': 'untrusted player within this many blocks: stand still (0 = never)',
- 'wheatWaitAfterPlayerSec': 'and this long after they left',
- 'wheatPauseEveryMin': 'on average this often a breather of 20-60 s (0 = never)',
+ 'wheatWaitAfterPlayerSec': 'and this many seconds after the player left',
+ 'wheatPauseEveryMin': 'minutes between breathers of 20 to 60 seconds, on average (0 = never)',
  'buildMaxPerSec': 'blocks per second at most',
- 'buildPauseEveryMin': 'on average this often a breather of 20-60 s (0 = never)',
+ 'buildPauseEveryMin': 'minutes between breathers of 20 to 60 seconds, on average (0 = never)',
  'buildPauseRadius': 'untrusted player within this many blocks: stand still (0 = never)',
  'buildClearAir': 'also break what stands where the schematic wants air',
  'buildUseScaffold': 'bridges and pillars of cheap blocks to reach and to stand right',
@@ -527,17 +535,17 @@ ABOUT = {'modEnabled': 'master switch: off = the mod does nothing at all',
  'buildRemoveScaffold': 'break the scaffold again when the build is done',
  'buildToolMin': 'never break with a tool that has less durability left',
  'buildPickup': 'pick up the drops around the build now and then',
- 'altHome': 'alt: the home a plain !home or a home asked by PM takes ("" = plain /home)',
- 'pmCommands': 'commands by PM from trusted players (tpa, tpahere, tpaccept, home, status)',
- 'altName': 'the buddy\'s account name, written when they log in',
- 'altCrouchAlong': 'alt: crouch on/off when a trusted player nearby crouches, or by PM "crouch"',
- 'altCrouched': 'alt: last requested crouch and jump state, so it survives a restart',
- 'keepEvents': 'archive events.jsonl at startup instead of clearing it (alt: nothing lost after a restart)',
+ 'altHome': 'the home a plain !home, or a home asked for by private message, goes to (empty = plain /home)',
+ 'pmCommands': 'commands by private message from trusted players (tpa, tpahere, tpaccept, home, status)',
+ 'altName': 'the buddy\'s account name, written at every login',
+ 'altCrouchAlong': 'crouch and stand up when a trusted player nearby does, or on a private message "crouch"',
+ 'altCrouched': 'the last crouch and jump asked for, kept over a restart',
+ 'keepEvents': 'at a start, archive the last run\'s event log instead of clearing it',
  'servers': 'only act automatically here',
  'allServers': 'testing: active everywhere'}
 # never shown
 SECRET = {"shopSyncKey"}
-# never changed from Telegram: they decide who the alt is and where its files and server are
+# never changed from Telegram: they decide which account the buddy is and where the buddy's files and server are
 LOCKED = SECRET | {"shopSyncUrl", "exchangeDir", "altName", "allServers"}
 # hits per second: above ~6 the anti-cheat notices
 CEILING = {"farmMinCps": 6.0, "farmMaxCps": 6.0}
@@ -550,7 +558,7 @@ GROUPS = (("AFK and looking around", ("afk", "autoAfk", "look", "wander", "glanc
           ("Players and alerts", ("player", "home", "alert", "trusted", "tpa", "watchdog")),
           ("Safety and connection", ("panic", "autoReconnect", "reconnect", "servers")),
           ("Mob farm", ("farm", "clickLog")), ("Raid farm", ("raid",)), ("Tree farm", ("wood",)), ("Crop field", ("wheat",)), ("Building", ("build",)),
-          ("Alt", ("alt", "pmCommands", "keepEvents")))
+          ("The buddy", ("alt", "pmCommands", "keepEvents")))
 
 
 def order(line):
@@ -668,7 +676,7 @@ FARM_YIELD = {
     "farmraid": ("raid", "🏹 Raid farm", (("killed", "killed"), ("hits", "hits"))),
     "farmwood": ("wood", "🌲 Tree farm", (("logs", "logs chopped"),)),
 }
-WHEAT_PHASE = {"home": "going to their home", "settle": "arriving at the field", "tidy": "at the chests",
+WHEAT_PHASE = {"home": "going to the field's home", "settle": "arriving at the field", "tidy": "at the chests",
                "goto": "walking to a row", "idle": "waiting for the crop to ripen"}
 PAUSE_WHY = {"player nearby": "a player nearby", "breather": "a breather", "watchdog": "the watchdog"}
 
@@ -702,7 +710,7 @@ def farm_live(farm=None):
 
 def farm_state(farm, live):
     if live is None:
-        return "no answer from the mod (offline?)"
+        return quiet()
     if not live.get("on"):
         if farm == "wheat" and live.get("on_in_s"):
             return f"switched on, carries on in {span(live['on_in_s'])}"
@@ -784,7 +792,7 @@ def farm_report(word, short=False, live=None, asked=True):
         if parts:
             lines.append("Crops per second (while on): " + " · ".join(parts))
     if not rows and not pending:
-        lines.append("Nothing in the yield log yet (it is written every five minutes, from AFK Helper 0.3.62 on)")
+        lines.append("Nothing counted yet (counts are written every five minutes)")
     return "\n".join(lines)
 
 
@@ -800,7 +808,7 @@ def board_of(s):
 
 
 def board_line(s):
-    """What the scoreboard says they have: money, tokens, shards, claims, votes, kills, team."""
+    """What the scoreboard shows: money, tokens, shards, claims, votes, kills, team."""
     board = board_of(s)
     return "💰 " + " · ".join(f"{escape(BOARD_LABEL.get(k, k))} <b>{escape(str(v))}</b>" for k, v in board.items()) if board else None
 
@@ -809,7 +817,7 @@ def status():
     s = snapshot()
     st, loc = s.get("status"), s.get("location")
     if not st:
-        return "No status in the log yet"
+        return "No status yet"
     now = time.time()
     age = int(now - st["t"] / 1000)
     lines = []
@@ -823,14 +831,14 @@ def status():
     lines.append(f"🍞 Food: {st.get('food_hotbar', '?')} in hotbar, {st.get('food_inv', '?')} in backpack · holding {escape(str(st.get('hand', '?')).replace('_', ' '))}")
     up = []
     if s.get("connected") and age <= 30:
-        up.append(f"connected {span(now - s['connected']['t'] / 1000)}")
+        up.append(f"server connection {span(now - s['connected']['t'] / 1000)}")
     if s.get("mod_started"):
-        up.append(f"{escape(me())}'s game running {span(now - s['mod_started']['t'] / 1000)} (AFK Helper {escape(str(s['mod_started'].get('version')))})")
+        up.append(f"game {span(now - s['mod_started']['t'] / 1000)}")
     try:
-        up.append(f"VPS up {span(float(open('/proc/uptime').read().split()[0]))}")
+        up.append(f"machine {span(float(open('/proc/uptime').read().split()[0]))}")
     except Exception:
         pass
-    lines.append("⏱ " + " · ".join(up))
+    lines.append("⏱ Up: " + " · ".join(up))
     if age <= 30:
         running = farm_live()
         for word, (farm, _, _) in FARM_YIELD.items():
@@ -876,10 +884,10 @@ SINCE = os.path.expanduser(PATHS.get("since") or "~/online_since.json")
 
 def online_since(seen, now):
     """Who is online and since when, for the list on the website: [name, ms, seen coming online]. The log only has
-    the moment of players who came online while the buddy was watching; who was already there when they connected gets
+    the moment of players who came online while the buddy was watching; who was already there at the moment of connecting gets
     the moment of that list, as 'not later than'. Every reconnect of the buddy (restart, kick, hub) starts such a list
     again, and a mod release restarts them: so what was known up to a quarter of an hour ago is kept in a file, and a player
-    they find still there keeps the earlier moment."""
+    still found there keeps the earlier moment."""
     now_ms = int(now * 1000)
     try:
         with open(SINCE) as f:
@@ -904,7 +912,7 @@ def online_since(seen, now):
 
 def site_status():
     """Everything !status and !<farm> status show, as numbers and the mod's own words: the website words them
-    itself. With the buddy's coordinates and the hotbar slot they hold: both are on the page, although it has no login."""
+    itself. With the buddy's coordinates and the selected hotbar slot: both are on the page, although it has no login."""
     s = snapshot()
     st, loc = s.get("status"), s.get("location")
     now = time.time()
@@ -1006,7 +1014,7 @@ def positions():
     order({"cmd": "placement", "action": "list"})
     ev = answer_of(since, ("placement",))
     if ev is None:
-        out.append("🧱 Placements: no answer from the mod")
+        out.append("🧱 Placements: " + quiet())
     elif ev.get("action") == "failed":
         out.append(f"🧱 Placements: {escape(str(ev.get('reason')))}")
     else:
@@ -1020,19 +1028,19 @@ def switch(what, state, label):
     order({"cmd": "switch", "what": what, "state": state})
     ev = answer_of(since, ("switch", "error"))
     if ev is None:
-        return f"🔧 {label}: sent, but no answer from the mod (offline?)"
+        return f"🔧 {label}: sent, but {quiet()}"
     if ev["type"] == "error":
-        return f"❌ {label}: the mod refused ({escape(str(ev.get('msg')))})"
+        return f"❌ {label}: {escape(me(False))} refused ({escape(str(ev.get('msg')))})"
     states = " · ".join(f"{name} <b>{STATE_WORD.get(ev.get(key), ev.get(key))}</b>" for key, name in STATE if key in ev)
     now = STATE_WORD.get(ev.get(what), ev.get(what))
     asked = state if state in ("on", "off") else "finishing"
-    note = "" if now == asked or (asked == "finishing" and now in ("on", "finishing")) else f"\n⚠ It is <b>{now}</b>, not {asked}: the mod did not go along (wrong place, nothing to do, or no placement)"
+    note = "" if now == asked or (asked == "finishing" and now in ("on", "finishing")) else f"\n⚠ Still <b>{now}</b>, not {asked}: {escape(me(False))} did not go along (wrong place, nothing to do, or no placement)"
     return f"🔧 {label}\n{states}{note}"
 
 
 def set_crop(raw):
     """What the buddy plants on the crop field. Through the mod, not the file: it knows what grows on farmland, and with a
-    name it does not know they would break every ripe crop and plant nothing back."""
+    name it does not know every ripe crop would be broken and nothing planted back."""
     item = raw.strip().lower().replace("minecraft:", "")
     if not re.fullmatch(r"[a-z_]{2,40}", item):
         return "❌ Like this: <b>!cropfarm crop carrot</b> (or potato, wheat_seeds, beetroot_seeds)"
@@ -1040,13 +1048,13 @@ def set_crop(raw):
     order({"cmd": "set", "key": "wheatCrop", "value": item})
     ev = answer_of(since, ("config_set", "error"))
     if ev is None:
-        return "🌾 Crop: sent, but no answer from the mod (offline?)"
+        return f"🌾 Crop: sent, but {quiet()}"
     if ev["type"] == "error":
         if "unknown crop" in str(ev.get("msg")):
             return f"❌ <b>{escape(item)}</b> is not a crop that grows on farmland. Try carrot, potato, wheat_seeds or beetroot_seeds"
-        return "❌ The mod refused: choosing the crop needs AFK Helper 0.3.97 or newer"
-    return (f"🌾 {escape(me())} plants <b>{escape(item.replace('_', ' '))}</b> from now on. They break whatever stands ripe and put only this back, "
-            "so hand them a few: they do not sell those while the field still needs them. Seeds of other crops are sold.")
+        return f"❌ {escape(me())} refused: {escape(str(ev.get('msg')))}"
+    return (f"🌾 {escape(me())} plants <b>{escape(item.replace('_', ' '))}</b> from now on and breaks whatever stands ripe. "
+            f"Hand {escape(me(False))} a few: they are kept while the field needs them. Seeds of other crops are sold.")
 
 
 def setting_key(name):
@@ -1074,7 +1082,7 @@ def value_text(value):
 def shown(key, value, about=False):
     line = f"{key} = <b>{escape(value_text(value))}</b>"
     if about and ABOUT.get(key):
-        line += f"\n   <i>{escape(ABOUT[key])}</i>"
+        line += f"\n   <i>{escape(named(ABOUT[key]))}</i>"
     return line
 
 
@@ -1106,7 +1114,7 @@ def settings(word):
     out = ["<b>All settings</b> — <b>!settings word</b> explains a group, <b>!set name value</b> changes one, <b>!positions</b> has the places"]
     for title in ["General"] + [g[0] for g in GROUPS]:
         if title in groups:
-            out.append(f"\n<b>{title}</b>")
+            out.append(f"\n<b>{escape(named(title))}</b>")
             out += groups[title]
     return "\n".join(out)
 
@@ -1141,7 +1149,7 @@ def set_setting(name, raw):
         elif isinstance(old, str):
             new = raw
         else:
-            return f"❌ {label} is a list; it cannot be set from here"
+            return f"❌ {label} is a list and cannot be set from here"
     except ValueError:
         return f"❌ {label} takes a number (now {old})"
     if not isinstance(new, (bool, str)):
@@ -1158,7 +1166,7 @@ def set_setting(name, raw):
     # the mod writes this file too: check that our value is still there after it has picked it up
     time.sleep(2)
     if json.load(open(CONFIG)).get(key) != new:
-        return f"⚠ {label}: the mod wrote the file at the same moment, value not kept. Try again."
+        return f"⚠ {label}: not kept, {escape(me(False))} saved the settings at the same moment. Try again."
     return "⚙ " + shown(key, new, True) + f"\n   was {escape(value_text(old))}"
 
 
@@ -1172,7 +1180,7 @@ def schematic_files():
 def schematics():
     files = schematic_files()
     if not files:
-        return "No schematics yet. Send a .litematic file as an attachment in this group."
+        return "No schematics yet. Send a .litematic file in this chat."
     rows = [f"• {escape(f[:-10])} ({max(1, os.path.getsize(os.path.join(SCHEMATICS, f)) // 1024)} kB)" for f in files]
     return "<b>Schematics</b>\n" + "\n".join(rows) + "\n\nPlace one with <b>!place name x y z</b> or <b>!place name here</b>"
 
@@ -1194,7 +1202,7 @@ def find_schematic(name):
 
 def placement_answer(ev):
     if ev is None:
-        return "❌ No answer from the mod (offline?)"
+        return "❌ " + quiet(True)
     a = ev.get("action")
     if a == "failed":
         return f"❌ Placement failed: {escape(str(ev.get('reason')))}"
@@ -1275,7 +1283,7 @@ def dump(rest):
         if ev is None:
             return f"📦 Nothing to stop: {escape(me())} was not emptying"
         if ev["type"] == "error":
-            return f"❌ The mod refused ({escape(str(ev.get('msg')))})"
+            return f"❌ {escape(me())} refused ({escape(str(ev.get('msg')))})"
         return "🛑 Stopped"
     slots = sorted({int(w) for w in words if w.isdigit()})
     others = [w for w in words if not w.isdigit()]
@@ -1289,9 +1297,9 @@ def dump(rest):
     order(line)
     ev = answer_of(since, ("unload", "error"))
     if ev is None:
-        return "📦 Sent, but no answer from the mod (offline?)"
+        return f"📦 Sent, but {quiet()}"
     if ev["type"] == "error":
-        return f"❌ The mod refused ({escape(str(ev.get('msg')))})"
+        return f"❌ {escape(me())} refused ({escape(str(ev.get('msg')))})"
 
     def done(ev):
         if ev is None:
@@ -1300,12 +1308,12 @@ def dump(rest):
         return f"📦 Done: {ev.get('dumped', 0)} stacks into chests, {ev.get('thrown', 0)} thrown on the ground ({escape(str(why))})"
     later(since, ("unload",), lambda e: e.get("action") == "done", 310, done)
     what = ("slot " + ", ".join(map(str, slots))) if slots else ("everything, tools and food too" if everything else "everything except tools, armour and food")
-    return f"📦 Emptying {what} {'onto the ground' if where == 'ground' else 'into chests nearby'}; I report when it is done"
+    return f"📦 Emptying {what} {'onto the ground' if where == 'ground' else 'into chests nearby'}; a report follows when it is done"
 
 
 def name_of(who, private=False):
-    """A Telegram user id or name to their Minecraft name; None for who is not among the admins, who may do nothing.
-    The user id and the @username are each one account's own; the first and last name anyone can give themselves, so
+    """A Telegram user id or name to the admin's Minecraft name; None for who is not among the admins, who may do nothing.
+    The user id and the @username are each one account's own; the first and last name anyone can choose freely, so
     they count only in a private chat, where nobody but that one person writes."""
     names = (" ".join(x for x in (who.get("first_name"), who.get("last_name")) if x), who.get("first_name")) if private else ()
     for candidate in (str(who.get("id") or ""), who.get("username"), *names):
@@ -1333,9 +1341,9 @@ def command(t, mc):
         order({"cmd": "chat", "text": text})
         ev = answer_of(since, ("chat_sent", "chat_refused"))
         if ev is None:
-            return f"{sign} {escape(text)}\n⚠ No answer from the mod (offline?)"
+            return f"{sign} {escape(text)}\n⚠ {quiet(True)}"
         if ev["type"] == "chat_refused":
-            return f"❌ Not sent, {escape(me())} is not on a server where they may chat: {escape(text)}"
+            return f"❌ Not sent ({escape(me(False))} is not on a server where chatting is allowed): {escape(text)}"
         return f"{sign} {escape(me())}: {escape(text)}"
 
     if what in ("help", "commands"):
@@ -1386,17 +1394,17 @@ def command(t, mc):
         order(line)
         ev = answer_of(since, ("follow", "error"))
         if ev is None:
-            return "🚶 Sent, but no answer from the mod (offline?)"
+            return f"🚶 Sent, but {quiet()}"
         if ev["type"] == "error":
-            return f"❌ The mod refused: {escape(str(ev.get('msg')))}"
+            return f"❌ {escape(me())} refused: {escape(str(ev.get('msg')))}"
         who = escape(str(ev.get("player") or ""))
         if ev.get("action") == "stays":
-            return f"🧍 {escape(me())} stays here (following <b>{who}</b> again with !follow go)"
+            return f"🧍 {escape(me())} stays here; <b>!follow go</b> follows <b>{who}</b> again"
         if ev.get("action") == "follows again":
             return f"🚶 Following <b>{who}</b> again"
         if not ev.get("on"):
             return "🚶 Not following anyone" + (f" any more ({who})" if who else "")
-        where = f"{ev.get('distance')} m away" if ev.get("visible") else f"not in sight: {escape(me())} waits until you show up"
+        where = f"{ev.get('distance')} blocks away" if ev.get("visible") else f"not in sight: {escape(me())} waits for {who} to show up"
         return f"🚶 Following <b>{who}</b>, {where}"
     if what in ("home", "sethome"):
         if rest and not HOME.match(rest):
@@ -1417,9 +1425,9 @@ def command(t, mc):
         order(line)
         ev = answer_of(since, ("helper", "error"), want=lambda e: e.get("type") == "error" or e.get("action") in ("status", "set"))
         if ev is None:
-            return "🧰 Sent, but no answer from the mod (offline?)"
+            return f"🧰 Sent, but {quiet()}"
         if ev["type"] == "error":
-            return f"❌ The mod refused: {escape(str(ev.get('msg')))}"
+            return f"❌ {escape(me())} refused: {escape(str(ev.get('msg')))}"
         def onoff(v):
             return "on" if v else "off"
         out = (f"🧰 Assist <b>{onoff(ev.get('on'))}</b>: tunnels {onoff(ev.get('dig'))}, trees {onoff(ev.get('chop'))}, "
@@ -1437,7 +1445,7 @@ def command(t, mc):
         if ev.get("gives"):
             out += f"\n🎁 Giving: {escape(str(ev['gives']))}"
         if ev.get("lacks"):
-            out += f"\n🧺 Lacks: {escape(str(ev['lacks']))}"
+            out += f"\n🧺 Missing: {escape(str(ev['lacks']))}"
         return out
     if what == "fields":
         words = rest.split()
@@ -1451,13 +1459,13 @@ def command(t, mc):
         order(line)
         ev = answer_of(since, ("fields", "error"))
         if ev is None:
-            return "🌾 Sent, but no answer from the mod (offline?)"
+            return f"🌾 Sent, but {quiet()}"
         if ev["type"] == "error":
-            return f"❌ The mod refused: {escape(str(ev.get('msg')))}"
+            return f"❌ {escape(me())} refused: {escape(str(ev.get('msg')))}"
         if not ev.get("for"):
-            return f"🌾 {escape(me())} follows nobody, so they work on nobody's fields"
+            return f"🌾 {escape(me())} follows nobody, so keeps no fields"
         if not ev.get("count"):
-            return f"🌾 {escape(me())} knows no fields of <b>{escape(str(ev['for']))}</b> yet: sow or harvest nearby and they learn them"
+            return f"🌾 {escape(me())} knows no fields of <b>{escape(str(ev['for']))}</b> yet: sow or harvest nearby to show one"
         rows = "\n".join("• " + escape(r) for r in str(ev.get("list", "")).split("; ") if r)
         return f"🌾 {ev['count']} field(s) of <b>{escape(str(ev['for']))}</b>:\n{rows}"
     if what == "forget":
@@ -1468,9 +1476,9 @@ def command(t, mc):
         order({"cmd": "forget", "what": word})
         ev = answer_of(since, ("forget", "error"))
         if ev is None:
-            return "🧹 Sent, but no answer from the mod (offline?)"
+            return f"🧹 Sent, but {quiet()}"
         if ev["type"] == "error":
-            return f"❌ The mod refused: {escape(str(ev.get('msg')))}"
+            return f"❌ {escape(me())} refused: {escape(str(ev.get('msg')))}"
         return (f"🧹 Forgotten for <b>{escape(str(ev.get('for')))}</b> on {escape(str(ev.get('profile')))}: "
                 f"{ev.get('chests', 0)} chest(s), {ev.get('fields', 0)} field(s)")
     if what == "profile":
@@ -1478,9 +1486,9 @@ def command(t, mc):
         order({"cmd": "profile"})
         ev = answer_of(since, ("profile", "error"))
         if ev is None:
-            return "🗺 Sent, but no answer from the mod (offline?)"
+            return f"🗺 Sent, but {quiet()}"
         if ev["type"] == "error":
-            return f"❌ The mod refused: {escape(str(ev.get('msg')))}"
+            return f"❌ {escape(me())} refused: {escape(str(ev.get('msg')))}"
         name = ev.get("name") or "(none: no profile fits this server)"
         return (f"🗺 Profile <b>{escape(str(name))}</b> on {escape(str(ev.get('server')))}: {ev.get('commands', 0)} commands, "
                 f"{ev.get('texts', 0)} texts, {ev.get('afterJoin', 0)} line(s) after joining, resource pack {escape(str(ev.get('resourcepack')))}")
@@ -1501,11 +1509,11 @@ def command(t, mc):
         order(line)
         ev = answer_of(since, ("chests", "error"))
         if ev is None:
-            return "📦 Sent, but no answer from the mod (offline?)"
+            return f"📦 Sent, but {quiet()}"
         if ev["type"] == "error":
-            return f"❌ The mod refused: {escape(str(ev.get('msg')))}"
+            return f"❌ {escape(me())} refused: {escape(str(ev.get('msg')))}"
         if not ev.get("count"):
-            return f"📦 {escape(me())} knows none of your chests yet: open one near them and they learn it"
+            return f"📦 {escape(me())} knows none of your chests yet: open one nearby to show it"
         rows = "\n".join("• " + escape(r) for r in str(ev.get("list", "")).split("; ") if r)
         return f"📦 {ev['count']} chest(s) of yours:\n{rows}"
     if what == "guard":
@@ -1522,10 +1530,10 @@ def command(t, mc):
         order(line)
         ev = answer_of(since, ("guard", "error"))
         if ev is None:
-            return "🛡 Sent, but no answer from the mod (offline?)"
+            return f"🛡 Sent, but {quiet()}"
         if ev["type"] == "error":
-            return f"❌ The mod refused: {escape(str(ev.get('msg')))}"
-        state = f"🛡 Protection <b>{'on' if ev.get('on') else 'off'}</b>, against players <b>{'on' if ev.get('pvp') else 'off'}</b>"
+            return f"❌ {escape(me())} refused: {escape(str(ev.get('msg')))}"
+        state = f"🛡 Guarding <b>{'on' if ev.get('on') else 'off'}</b>, fighting players <b>{'on' if ev.get('pvp') else 'off'}</b>"
         return state + (f"\n⚔ Fighting {escape(str(ev.get('fights')))}" if ev.get("fights") else "")
     if what == "parkour":
         low = rest.lower()
@@ -1535,22 +1543,22 @@ def command(t, mc):
         order({"cmd": "parkour", "on": False} if rest else {"cmd": "parkour"})
         ev = answer_of(since, ("parkour", "error"))
         if ev is None:
-            return "🏃 Sent, but no answer from the mod (offline?)"
+            return f"🏃 Sent, but {quiet()}"
         if ev["type"] == "error":
             if "parkour" in str(ev.get("msg")):
-                return "🏃 Parkour is a module: the jar minecraft-buddy-tweakcraft is not in the buddy's mods folder"
-            return f"❌ The mod refused: {escape(str(ev.get('msg')))}"
+                return "🏃 Parkour needs the tweakcraft module (panel: Game, Advanced, Server modules)"
+            return f"❌ {escape(me())} refused: {escape(str(ev.get('msg')))}"
         act = ev.get("action")
         if act == "stop":
             return "🏃 Stopped" + (", and out of the game" if ev.get("out of the game") else "")
         if act == "refused":
             why = {"no parkour open": "no Parkour is open",
-                   "not on this server": "the Tweakcraft module is not on for this server (its profile in buddy.json)",
+                   "not on this server": "the server profile does not use the Parkour module (panel: Settings, Server profiles)",
                    "no finish set": "the server profile gives no finish for the course",
                    "already begun": "the Parkour that opened has begun already, or is over",
                    "with a prize": "this Parkour is one of the draw, with a prize; the buddy only plays a game players voted open"
                    }.get(ev.get("reason"), ev.get("reason"))
-            return f"🏃 Not joining: {escape(str(why))}"
+            return f"🏃 Not joining: {escape(named(str(why)))}"
         def finished(e):
             if e is None:
                 return None
@@ -1563,7 +1571,7 @@ def command(t, mc):
               or (e.get("type") == "goto" and e.get("action") == "stop"), 600, finished)
         if ev.get("already in the game"):
             return f"🏃 {escape(me())} is in the game already and runs to the finish"
-        return f"🏃 Joined Parkour: it starts in about {ev.get('starts in', 0)} s if enough players join, then {escape(me())} runs to the finish"
+        return f"🏃 Joined Parkour: it starts in about {ev.get('starts in', 0)} s if enough players join, then {escape(me(False))} runs to the finish"
     if what == "goto":
         low = rest.lower()
         if low in OFF:
@@ -1581,9 +1589,9 @@ def command(t, mc):
         order(line)
         ev = answer_of(since, ("goto", "error"))
         if ev is None:
-            return "🧭 Sent, but no answer from the mod (offline?)"
+            return f"🧭 Sent, but {quiet()}"
         if ev["type"] == "error":
-            return f"❌ The mod refused: {escape(str(ev.get('msg')))}"
+            return f"❌ {escape(me())} refused: {escape(str(ev.get('msg')))}"
         if ev.get("action") == "stop":
             return "🧭 Stopped"
         if ev.get("action") == "start":
@@ -1593,7 +1601,7 @@ def command(t, mc):
         since = now_ms()
         order({"cmd": "buildstatus"})
         ev = answer_of(since, ("buildstatus",))
-        return "🧱 " + escape(ev["text"]) if ev else "❌ No answer from the mod (offline?)"
+        return "🧱 " + escape(ev["text"]) if ev else "❌ " + quiet(True)
     if what in FARM_YIELD and rest.lower() == "status":
         return farm_report(what)
     if what == "cropfarm" and rest.lower().split(" ")[0] in ("crop", "plant"):
@@ -1604,7 +1612,7 @@ def command(t, mc):
         if low in ("finish", "finishing") and mode in CAN_FINISH:
             return switch(mode, "finish", f"{what} finish")
         if low not in ON + OFF:
-            return usage + f"\n{escape(DOC[what][1])}. More: <b>!help {what}</b>"
+            return usage + f"\n{escape(named(DOC[what][1]))}. More: <b>!help {what}</b>"
         return switch(mode, "on" if low in ON else "off", f"{what} {'on' if low in ON else 'off'}")
     if what in ("crouch", "jump"):
         low = rest.lower()
@@ -1613,7 +1621,7 @@ def command(t, mc):
         since = now_ms()
         order({"cmd": "set", "key": "altJumping" if what == "jump" else "altCrouched", "value": low in ON})
         ok = answer_of(since, ("config_set",)) is not None
-        return f"{'🦘 Jumping' if what == 'jump' else '🧎 Crouching'} {'on' if low in ON else 'off'}" + ("" if ok else "\n⚠ No answer from the mod (offline?)")
+        return f"{'🦘 Jumping' if what == 'jump' else '🧎 Crouching'} {'on' if low in ON else 'off'}" + ("" if ok else "\n⚠ " + quiet(True))
     if what == "dump":
         return dump(rest)
     if what == "schematics":
@@ -1652,7 +1660,7 @@ def pieces(text, limit=3800):
 
 
 def buddy_online():
-    """Is the buddy in the game? Their status comes every five seconds while they are."""
+    """Is the buddy in the game? A status comes every five seconds while in it."""
     st = snapshot().get("status")
     return bool(st) and time.time() - st["t"] / 1000 < 30
 
@@ -1671,7 +1679,7 @@ def buddy_writer():
 
 
 def buddy_say(text):
-    """Ordinary talk in the window: the buddy says it in the game, line by line. Their own line comes back from the game."""
+    """Ordinary talk in the window: the buddy says it in the game, line by line. The line said comes back from the game."""
     lines = [" ".join(l.split()) for l in text.splitlines()]
     lines = [l for l in lines if l]
     if not lines or lines == ["/start"]:
@@ -1682,7 +1690,7 @@ def buddy_say(text):
     if long:
         return f"❌ Too long for the game by {len(long) - MAX_CHAT} characters; nothing said"
     if not buddy_online():
-        return f"⚠ {escape(me())} is not in the game right now: nothing said"
+        return f"⚠ Nothing said: {escape(me(False))} is not in the game"
     for l in lines:
         BUDDY_OUT.put((time.time(), l))
     return None
@@ -1690,7 +1698,7 @@ def buddy_say(text):
 
 def buddy_line(ev):
     """What of the buddy's events comes into the window: every line of the game's chat (the bar above the hotbar is no chat),
-    whether they are connected, and what they lack to help."""
+    the connection, and what is lacking to help."""
     t = ev.get("type")
     if t == "chat":
         text = str(ev.get("text") or "").strip()
@@ -1729,12 +1737,12 @@ def buddy_line(ev):
 
 
 # what comes into the chat, each on or off: "show" in the settings, set in the panel (Settings, Telegram) or with !show here
-SHOW = (("chat", "players' chat", "the lines of players: what the game signs as a player's, or what the server profile's text chat matches"),
+SHOW = (("chat", "players' chat", "the lines the game marks as a player's, or that match the server profile's text chat"),
         ("pm", "private messages", "to and from the buddy: the server profile's texts pm and pmOut"),
-        ("joins", "joins and leaves", "players coming online and going off, from the player list; the server's own lines for it "
-                                      "stay out when the profile's texts join and leave match them"),
+        ("joins", "joins and leaves", "players coming online and going offline, from the player list; the server's own join "
+                                      "and leave lines stay out when they match the profile's texts join and leave"),
         ("server", "other server messages", "everything else the server says: deaths, broadcasts, plugin lines"),
-        ("buddy", "the buddy's own news", "joining or leaving the server, and what they lack to help"))
+        ("buddy", "the buddy's own news", "joining or leaving the server, and what is missing to help"))
 _show = [None, {}]
 
 
@@ -1779,10 +1787,10 @@ def show_command(rest):
         set_show({k: on for k in (names if words[0] == "all" else [words[0]])})
     elif words:
         return "❌ Like this: <b>!show</b>, <b>!show joins off</b> or <b>!show all on</b> (" + ", ".join(names) + ")"
-    out = ["<b>What comes in here</b> (<b>!show name on</b> or <b>off</b>)"]
-    out += [f"{'✅' if show(k) else '⬜'} <b>{k}</b>: {label}, {escape(why)}" for k, label, why in SHOW]
-    out.append("\nThe server profile (panel: Settings, Server profiles) tells the kinds apart: its texts chat, join and leave, "
-               "pm and pmOut. A line that matches none of them counts as a server message.")
+    out = ["<b>What shows up here</b> (<b>!show name on</b> or <b>off</b>)"]
+    out += [f"{'✅' if show(k) else '⬜'} <b>{k}</b>: {escape(named(label))}, {escape(named(why))}" for k, label, why in SHOW]
+    out.append("\nWhich kind a line is comes from the server profile's texts chat, join, leave, pm and pmOut (panel: Settings, "
+               "Server profiles). A line that matches none of them is a server message.")
     return "\n".join(out)
 
 
@@ -1820,7 +1828,7 @@ def no_chat_hint(m):
     if MAIN_CHAT or who in HINTED:
         return
     HINTED.add(who)
-    send_to(m["chat"]["id"], "Seen. This bot has no chat yet: choose this one in the buddy's panel, Settings, Telegram.")
+    send_to(m["chat"]["id"], named("This bot has no chat yet: choose this chat in the buddy's panel, under Settings, Telegram."))
 
 
 def send_to(chat_id, text):
@@ -1880,7 +1888,7 @@ def listener(token):
                     else:
                         continue
                 except Exception as e:
-                    answer = f"❌ That went wrong here: {escape(str(e))}"
+                    answer = f"❌ Something went wrong: {escape(str(e))}"
                 if answer:
                     print("←", mc, ":", text[:100], flush=True)
                     for part in (answer if isinstance(answer, list) else [answer]):
@@ -1940,8 +1948,8 @@ def main():
     threading.Thread(target=site_writer, daemon=True).start()
     bridge_status(state="running")
     threading.Thread(target=buddy_writer, daemon=True).start()
-    send(f"🟢 Bridge started: {escape(me())}'s chat in the game comes in here, and a line without ! they say; "
-         "<b>!help</b> for their commands")
+    send(f"🟢 Bridge on. {escape(me())}'s game chat shows up here. A line you type, {escape(me(False))} says in the game; "
+         "a line starting with ! is a command (<b>!help</b> lists them).")
     # every line apart, as in the game; the sender bundles what waits when Telegram asks to slow down
     for l in tail(EVENTS):
         if l is None:

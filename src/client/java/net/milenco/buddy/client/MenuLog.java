@@ -179,7 +179,7 @@ public final class MenuLog {
 		if (p == null || mc.gameMode == null) return;
 		AbstractContainerMenu menu = p.containerMenu;
 		if (menu == p.inventoryMenu) {
-			// his own inventory shut on the page: what he holds on the cursor and in the crafting grid goes back, as
+			// the buddy's own inventory shut on the page: what is held on the cursor and in the crafting grid goes back, as
 			// closing the game's inventory screen does; not while another screen is open (a sign, the death screen)
 			if (closing && Game.openScreen(mc) == null) { p.closeContainer(); Exchange.emit("menu click", "action", "inventory closed"); return; }
 			Exchange.emit("menu click", "action", "no menu");

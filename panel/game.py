@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The buddy's game in his container, set up from nothing: from the panel (Getting started, Settings) or from a shell in
+"""The buddy's game in the container, set up from nothing: from the panel (Getting started, Settings) or from a shell in
 the container (python3 game.py <command>; on the machine: docker exec <container> python3 /opt/buddy/panel/game.py ...).
 
 A buddy can be set up from nothing through the web panel. Docker is the one way to run it; the way without Docker is
@@ -112,11 +112,11 @@ def set_settings(body):
                 return words[k] + " is not valid"
             cfg[k] = v
     if "offline" in body:
-        # a test machine without his account: HeadlessMC's offline account, which only an offline-mode server takes
+        # a test machine without the buddy's account: HeadlessMC's offline account, which only an offline-mode server takes
         cfg["offline"] = bool(body["offline"])
     if "render_distance" in body:
-        # how many chunks far their game asks the server for, set from the panel's settings: the panel's 3D view shows
-        # what their game holds
+        # how many chunks far the buddy's game asks the server for, set from the panel's settings: the panel's 3D view
+        # shows what the game holds
         try:
             rd = int(body["render_distance"])
         except (TypeError, ValueError):
@@ -482,7 +482,7 @@ def image_update():
     not. A private image is pulled with the machine's own docker login, which Watchtower reads."""
     url, token = watchtower()
     if not url or not token:
-        return "no updater: compose.yaml starts Watchtower, and its token in the volume tower"
+        return "no updater: Watchtower is not running beside this container"
 
     asked = time.time()
     write_private(IMAGE_UPDATE, json.dumps({"asked": asked, "version": image_version()}))
@@ -593,7 +593,7 @@ def start_job(kind):
         return "unknown job"
     j = job_state()
     if j.get("running"):
-        return "a job is running: " + j.get("kind", "?")
+        return "another job is running: " + j.get("kind", "?")
     os.makedirs(STATE, exist_ok=True)
     log = open(JOBLOG, "w", encoding="utf-8")
     p = subprocess.Popen([sys.executable, os.path.abspath(__file__), "job", kind], stdin=subprocess.DEVNULL, stdout=log,
@@ -637,7 +637,7 @@ def do_install(cfg):
     d = game_dir(cfg)
     os.makedirs(d, exist_ok=True)
     if not shutil.which("java"):
-        raise RuntimeError("no java here: the image has Temurin 25")
+        raise RuntimeError("Java is missing (the image comes with Java 25)")
     # 1. HeadlessMC, the version in the settings, checked by the digest GitHub gives its release asset
     have = ""
     try:
@@ -654,7 +654,7 @@ def do_install(cfg):
         with open(os.path.join(d, "headlessmc.version"), "w", encoding="utf-8") as f:
             f.write(cfg["headlessmc"] + "\n")
     else:
-        say("HeadlessMC %s is there" % have)
+        say("HeadlessMC %s: already installed" % have)
     # 2. Minecraft and its loader (the game itself, its libraries and assets come at the first start)
     say("Minecraft %s with %s…" % (cfg["minecraft"], cfg["loader"]))
     if run_hmc(cfg, "version", "install", cfg["loader"], cfg["minecraft"]) != 0:
@@ -672,21 +672,21 @@ def do_install(cfg):
                 os.remove(os.path.join(md, f))
                 say("  removed the older " + f)
         if os.path.exists(dest) and hashlib.sha512(open(dest, "rb").read()).hexdigest() == m["sha512"]:
-            say("  %s is there" % m["file"])
+            say("  %s: already there" % m["file"])
             continue
         say("  %s…" % m["file"])
         download(m["url"], dest, sha512=m["sha512"])
     # 4. the buddy's own jars, the image's (or the mods folder's own: BUDDY_JARS=folder)
     install_buddy(cfg)
-    # 5. the game's options, once: his language, no sound, little to draw but ten chunks far (the panel's 3D view), never paused
+    # 5. the game's options, once: the buddy's language, no sound, little to draw but ten chunks far (the panel's 3D view), never paused
     opt = os.path.join(instance(cfg), "options.txt")
     if not os.path.exists(opt):
         with open(opt, "w", encoding="utf-8") as f:
             f.write("lang:%s\npauseOnLostFocus:false\nsoundCategory_master:0.0\nrenderDistance:%d\nsimulationDistance:5\n"
                     "maxFps:10\nparticles:2\nonboardAccessibility:false\nskipMultiplayerWarning:true\njoinedFirstServer:true\n"
                     "tutorialStep:none\ntelemetryOptInExtra:false\n" % (cfg["language"], int(cfg.get("render_distance", 10))))
-        say("options.txt written (%s)" % cfg["language"])
-    # 6. what the mod has to know before its first start: his exchange folder, his name and the server
+        say("Game options set (language %s)" % cfg["language"])
+    # 6. what the mod has to know before its first start: the exchange folder, the buddy's name and the server
     acc = accounts(cfg)
     change = {"exchangeDir": expand(cfg, "exchange")}
     if acc:
@@ -694,10 +694,11 @@ def do_install(cfg):
     if cfg["server"]:
         change["servers+"] = host_of(cfg["server"])
     with_game_stopped(lambda: mod_settings(change))
-    say("buddy.json: the buddy" + (" " + acc[0] if acc else "") + (", server " + cfg["server"] if cfg["server"] else ""))
+    told = (["name " + acc[0]] if acc else []) + (["server " + cfg["server"]] if cfg["server"] else [])
+    say("The mod's settings written" + (": " + ", ".join(told) if told else ""))
     # 7. the panel's pictures and names of the game, from the client jar (Mojang's art, made here, never in git)
     icons(cfg)
-    say("Installed. Log the account in, fill in the server, and start the game.")
+    say("Installed. Next: log in the account, fill in the server and start the game.")
 
 
 def image_jars(cfg):
@@ -716,7 +717,7 @@ def own_jars():
 
 def install_buddy(cfg):
     if own_jars():
-        say("  the buddy's jars: the mods folder's own (BUDDY_JARS=folder)")
+        say("  Minecraft Buddy's jars: those already in the mods folder (BUDDY_JARS=folder)")
         return status()["buddy"] if os.path.isdir(mods_dir(cfg)) else ""
     v, jars, missing = image_jars(cfg)
     if missing:
@@ -746,7 +747,7 @@ def retire_mods(md):
     for f in os.listdir(md) if retired else []:
         if f.startswith(retired) and f.endswith(".jar"):
             os.remove(os.path.join(md, f))
-            say("  removed %s: the buddy no longer needs it" % f)
+            say("  removed %s: no longer needed" % f)
 
 
 def do_login(cfg):
@@ -762,7 +763,7 @@ def do_login(cfg):
         raise RuntimeError("no account after the login")
     name = new[0]
     say("Logged in as " + name)
-    # his name for the panel and the bridge; the account counts from the next start of the game
+    # the buddy's name for the panel and the bridge; the account counts from the next start of the game
     with_game_stopped(lambda: mod_settings({"altName": name}))
 
 
@@ -797,14 +798,14 @@ def icons(cfg):
     """make-assets.py (names, effect icons) and make-icons.py (item icons, needs Pillow and numpy) from the client jar."""
     jar = client_jar(cfg)
     if not jar:
-        say("The panel's pictures wait for the game's first start (it downloads the client jar)")
+        say("The panel's pictures are made after the game's first start")
         return
-    for script, out in (("make-assets.py", "assets"), ("make-icons.py", "icons")):
+    for script, out, what in (("make-assets.py", "assets", "names and effect icons"), ("make-icons.py", "icons", "item pictures")):
         p = os.path.join(HERE, script)
         if not os.path.exists(p):
             continue
         r = subprocess.run([sys.executable, p, jar, os.path.join(PANEL_DATA, out)], capture_output=True, text=True, timeout=600)
-        say(("  %s: made" % script) if r.returncode == 0 else ("  %s did not run: %s" % (script, (r.stderr or r.stdout).strip()[-200:])))
+        say(("  %s: made" % what) if r.returncode == 0 else ("  %s not made: %s" % (what, (r.stderr or r.stdout).strip()[-200:])))
 
 
 # ---------- the shell ----------

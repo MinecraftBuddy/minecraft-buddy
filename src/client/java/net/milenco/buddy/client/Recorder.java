@@ -46,8 +46,8 @@ import java.util.UUID;
 
 /**
  * Next to the menus ({@link MenuLog}): what the player does with them and around them, to {@code recording.jsonl}.
- * Every click in a menu, every block they use (with the text of a sign), what they type on a sign, the commands
- * they send, and every line, title, action bar and boss bar text the server shows. And what stands around them that
+ * Every click in a menu, every block used (with the text of a sign), what is typed on a sign, the commands sent, and
+ * every line, title, action bar and boss bar text the server shows. And what stands around the player that
  * a server puts there: floating texts (a list of the richest players is one), figures you can click, and where the
  * player is, so that a portal that throws you somewhere else shows up as a jump. With the menus that is enough to
  * see afterwards how something on the server works, step by step. Only reads; behind the same setting {@code menuLog}.
@@ -78,8 +78,8 @@ public final class Recorder {
 	}
 
 	/**
-	 * When a block or an entity was last used, recording or not: a menu may be on its way. A click in his own inventory
-	 * sent before the server has opened it lands in the chest's menu, where the server drops it, and his game kept the
+	 * When a block or an entity was last used, recording or not: a menu may be on its way. A click in the player's own
+	 * inventory sent before the server has opened it lands in the chest's menu, where the server drops it, and the game kept the
 	 * chestplate on that the server never put on (the scenarios of 23 Oct 2026). Stash.wearBest waits for it.
 	 */
 	public static volatile long lastUseAt;

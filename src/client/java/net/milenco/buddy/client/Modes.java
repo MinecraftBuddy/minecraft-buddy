@@ -14,11 +14,11 @@ import net.minecraft.client.player.LocalPlayer;
  * read from what the buddy does (building, keeping a
  * base, following), and switching it uses the commands that were there. The settings are switches in the config.
  * <ul>
- * <li>{@code {"cmd":"mode","mode":"base"}}: stop building, stay (when he follows someone), and walk to the nearest base
- * of this dimension when he is not in one.</li>
+ * <li>{@code {"cmd":"mode","mode":"base"}}: stop building, stay (when following someone), and walk to the nearest base
+ * of this dimension when not in one.</li>
  * <li>{@code {"cmd":"mode","mode":"follow","player":"Name"}}: stop building and follow, or follow again after staying.</li>
  * <li>{@code {"cmd":"mode","mode":"build"}}: start the builder on its placement.</li>
- * <li>{@code {"cmd":"mode","mode":"afk"}}: AFK mode on: he stands where he is; the panel shows it as a main switch.
+ * <li>{@code {"cmd":"mode","mode":"afk"}}: AFK mode on: the buddy stands still; the panel shows it as a main switch.
  * Any other mode switches it off again.</li>
  * <li>{@code {"cmd":"setting","name":"baseHarvest","value":false}}: one switch; see {@link #settings()}.</li>
  * </ul>
@@ -26,7 +26,7 @@ import net.minecraft.client.player.LocalPlayer;
 final class Modes {
 	private Modes() {}
 
-	/** What he does, as the panel names it: afk, build, base, follow, stay or idle. */
+	/** What the buddy does, as the panel names it: afk, build, base, follow, stay or idle. */
 	static String current() {
 		if (AfkConfig.get().afk) return "afk";
 		if (Builder.isOn()) return "build";
@@ -60,16 +60,16 @@ final class Modes {
 		m.put("pathDig", c.pathDig);
 		m.put("pathPlace", c.pathPlace);
 		m.put("stayOffline", c.stayOffline);
-		// AFK mode and what he does in it, each a switch in the panel
+		// AFK mode and what the buddy does in it, each a switch in the panel
 		m.put("afk", c.afk);
 		m.put("lookAround", c.lookAround);
 		m.put("wander", c.wander);
 		m.put("afkCrouch", c.afkCrouch);
 		m.put("wanderMaxBlocks", c.wanderMaxBlocks);
 		m.put("wanderEveryMin", c.wanderEveryMin);
-		// crouching when a trusted player crouches beside him (Alt), and the !crouch command; "Crouch" under Follow a player
+		// crouching when a trusted player crouches alongside (Alt), and the !crouch command; "Crouch" under Follow a player
 		m.put("crouchAlong", c.altCrouchAlong);
-		// the recording of menus and of what the server sends him (MenuLog, Recorder), for the panel's logs
+		// the recording of menus and of what the server sends (MenuLog, Recorder), for the panel's logs
 		m.put("menuLog", c.menuLog);
 		return m;
 	}
@@ -78,8 +78,8 @@ final class Modes {
 		String name = o.has("name") ? o.get("name").getAsString() : "";
 		if (!o.has("value")) { Exchange.emit("error", "msg", "setting: no value"); return; }
 		AfkConfig c = AfkConfig.get();
-		// the amounts, set in the panel: ingots of iron and gold he leaves (Chores)
-		// and how far and how often he walks about in AFK mode, against a server's own AFK check
+		// the amounts, set in the panel: ingots of iron and gold to leave (Chores)
+		// and how far and how often to walk about in AFK mode, against a server's own AFK check
 		if (name.equals("keepIron") || name.equals("keepGold") || name.equals("wanderMaxBlocks") || name.equals("wanderEveryMin")) {
 			int n;
 			try { n = o.get("value").getAsInt(); } catch (RuntimeException e) { Exchange.emit("error", "msg", "setting: " + name + " is a number"); return; }
@@ -130,7 +130,7 @@ final class Modes {
 	static void mode(JsonObject o, Minecraft mc) {
 		String want = o.has("mode") ? o.get("mode").getAsString() : "";
 		LocalPlayer p = mc.player;
-		// a mode chosen ends a pen he farms: his newest instruction wins
+		// a mode chosen ends a pen being farmed: the newest instruction wins
 		if (want.equals("base") || want.equals("follow") || want.equals("build") || want.equals("afk")) Pen.stop("mode");
 		// AFK mode is a mode of its own on the panel: choosing another one ends it
 		if (want.equals("base") || want.equals("follow") || want.equals("build")) Switches.setAfk(false);

@@ -6,10 +6,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Where a jump over a gap comes down when it goes wrong, and whether he lives through that. A jump that falls short,
- * goes too far or drifts lands in whatever lies under it, so before Follow takes a jump every column his middle can
- * come down in is looked at: lava, fire or magma anywhere under the arc rules the jump out, and so does a drop
- * deeper than he can take. Water catches him. On 18 Oct 2026 he jumped short over a pool of lava two blocks wide,
+ * Where a jump over a gap comes down when it goes wrong, and whether the jumper lives through that. A jump that falls
+ * short, goes too far or drifts lands in whatever lies under it, so before Follow takes a jump every column the jumper's
+ * middle can come down in is looked at: lava, fire or magma anywhere under the arc rules the jump out, and so does a drop
+ * deeper than can be taken. Water catches any fall. On 18 Oct 2026 the buddy jumped short over a pool of lava two blocks wide,
  * and then, burning, from a floor five blocks onto a single block three lower above a cave thirteen deep, missed it
  * and died of the fall and the fire (test {@code MissTest}, from that world).
  */
@@ -32,12 +32,12 @@ final class Miss {
 	static final double RISE = 1.25;
 	/** Beyond the middle of the landing a jump that goes too far comes down: a block. */
 	static final double OVER = 1.0;
-	/** To either side of the line: half his width where he leaves, growing with the drift to this at the landing. */
+	/** To either side of the line: half the jumper's width at the take-off, growing with the drift to this at the landing. */
 	static final double SIDE = 0.6;
 
 	/**
-	 * The columns (x, z) his middle can come down in on a jump from the middle of one cell to the middle of the other:
-	 * along the line and a block beyond the landing, 0.3 to either side where he leaves (the cell he stands in, not
+	 * The columns (x, z) the jumper's middle can come down in on a jump from the middle of one cell to the middle of the
+	 * other: along the line and a block beyond the landing, 0.3 to either side at the take-off (the cell stood in, not
 	 * the ones beside or behind it) up to {@link #SIDE} at the landing and beyond.
 	 */
 	static List<int[]> columns(int fx, int fz, int tx, int tz) {
@@ -60,10 +60,10 @@ final class Miss {
 
 	/**
 	 * Whether a jump from feet height {@code fc} in cell (fx, fz) to feet height {@code fh} in cell (tx, tz) can go wrong
-	 * without killing him: in every column he can come down in, the first thing under the top of the arc is water, or
-	 * however deep, or a block he falls onto no more than {@code maxFall} below the top of the arc, and nothing on the
+	 * without killing the jumper: in every column the jumper can come down in, the first thing under the top of the arc is
+	 * water, or however deep, or a block to fall onto no more than {@code maxFall} below the top of the arc, and nothing on the
 	 * way down is lava, fire, magma or the like. With {@code voidOk} (the games' dimension, where the parkour course
-	 * hangs in the void and a miss puts him back at his checkpoint) a column with nothing in it down to that depth
+	 * hangs in the void and a miss puts the jumper back at the checkpoint) a column with nothing in it down to that depth
 	 * counts as safe; lava and fire still do not.
 	 */
 	static boolean safe(Probe w, int fx, int fz, double fc, int tx, int tz, double fh, double maxFall, boolean voidOk) {
@@ -75,7 +75,7 @@ final class Miss {
 		return true;
 	}
 
-	/** Below the depth he may fall, a column is still looked into this far for water, which takes any fall. */
+	/** Below the depth of a fall allowed, a column is still looked into this far for water, which takes any fall. */
 	static final int WATER_LOOK = 64;
 
 	private static boolean safeColumn(Probe w, int x, int z, int top, int bottom, double apex, double maxFall, boolean voidOk) {
@@ -94,7 +94,7 @@ final class Miss {
 	}
 
 	/**
-	 * How far he may fall when a jump goes wrong, with this much health: the three blocks that cost nothing, and up to
+	 * How far a fall may be when a jump goes wrong, with this much health: the three blocks that cost nothing, and up to
 	 * two hearts more, never so much that fewer than three hearts are left.
 	 */
 	static double maxFall(float health) {

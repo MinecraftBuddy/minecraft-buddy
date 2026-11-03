@@ -10,7 +10,7 @@ events-archive/ (named after the moment it was last written). This reads both as
       a report of what went wrong: deaths, damage, getting stuck and giving up, the same failure again and again,
       doors left open, refused beds, errors, standing still while busy
   buddylog.py where --at T [--server S]
-      where the buddy was and what they did at that moment
+      where the buddy was at that moment, and doing what
 
 D is a date (2026-10-23), "today" or "yesterday"; T is "2026-10-23 14:05", "14:05" (today) or a date. Times are
 the machine's local time. --server takes the start of the address ("play" for play.example.net, "127" for the test
@@ -28,7 +28,7 @@ from collections import Counter, defaultdict
 DIR = os.environ.get("BUDDY_EXCHANGE") or os.path.expanduser("~/Development/minecraft-afk")
 CHATTER = {"status", "location", "chat", "inventory", "players_near", "players", "farmstatus", "player_join",
            "player_leave", "scoreboard", "sent", "jump", "crouch", "menu", "profile", "wheat"}
-# what "busy" means for standing still: he should be moving while doing these
+# what "busy" means for standing still: moving is expected while doing these
 BUSY = {"chest", "chore", "work", "goto", "open door", "close door", "carrier", "get loose", "farm mobs"}
 
 

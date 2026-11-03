@@ -134,14 +134,14 @@ class MissTest {
 	@Test
 	void notOverThePoolOfLava() {
 		// from the floor at z -983 over the lava at z -986 and -985 to the floor at z -987, all at feet height 1:
-		// he came down in the lava (20:04:33)
+		// the buddy came down in the lava (20:04:33)
 		assertFalse(Miss.safe(MissTest::cave, -999, -983, 1, -999, -987, 1, Miss.maxFall(20), false));
 	}
 
 	@Test
 	void notOntoTheBlockAboveTheCave() {
 		// from the floor at z -991, feet 1, to the lone block at -999 -3 -997, feet -2, five on and three down over a
-		// cave whose floor is at -15: he missed it and fell sixteen blocks (20:04:37)
+		// cave whose floor is at -15: the buddy missed it and fell sixteen blocks (20:04:37)
 		assertFalse(Miss.safe(MissTest::cave, -999, -991, 1, -999, -997, -2, Miss.maxFall(20), false));
 	}
 
@@ -199,7 +199,7 @@ class MissTest {
 	@Test
 	void theColumnsALineCoversAndOneBeyond() {
 		// straight on along z from cell 0 0 to 0 4: the line and a block beyond the landing, beside it at the landing,
-		// and of where he leaves only that cell: a cliff behind him or beside the spot he jumps from rules nothing out
+		// and of the take-off only that cell: a cliff behind it or beside the spot jumped from rules nothing out
 		List<int[]> cols = Miss.columns(0, 0, 0, 4);
 		for (int z = 0; z <= 6; z++) assertTrue(has(cols, 0, z), "z " + z);
 		assertTrue(has(cols, -1, 4) && has(cols, 1, 4) && has(cols, -1, 5) && has(cols, 1, 5));

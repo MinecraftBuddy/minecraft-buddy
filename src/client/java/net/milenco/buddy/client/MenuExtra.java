@@ -190,7 +190,7 @@ final class MenuExtra {
 				if (!(m instanceof BeaconMenu b)) return;
 				var primary = effectOf(o, "primary");
 				var secondary = effectOf(o, "secondary");
-				// the server throws him off for a choice the beacon refuses, with nothing in the payment slot too ("tried to
+				// the server throws the buddy off for a choice the beacon refuses, with nothing in the payment slot too ("tried to
 				// set invalid beacon effects", Paper on the test server, 31 Oct 2026): asked here first, as the game's Done
 				// button is only lit then
 				if (!b.hasPayment()) { Exchange.emit("error", "msg", "beacon: nothing in the payment slot"); return; }

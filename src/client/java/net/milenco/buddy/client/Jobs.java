@@ -23,7 +23,7 @@ final class Jobs {
 
 	enum Job {
 		/**
-		 * The alt's water bucket against a fire on him and a fall that would hurt (alt only). First: what it does takes a
+		 * The alt's water bucket against a fire on the alt and a fall that would hurt (alt only). First: what it does takes a
 		 * tick, and from the pour to the scoop the others wait, the following too.
 		 */
 		WATER(false, Water::busy, Water::busy, Water::stop, Water::startTick, Water::tick),
@@ -34,13 +34,13 @@ final class Jobs {
 		WHEAT(true, WheatFarm::isOn, WheatFarm::isOn, WheatFarm::stop, WheatFarm::startTick, WheatFarm::tick),
 		BUILD(true, Builder::isOn, Builder::isBusy, Builder::stop, Builder::startTick, (mc, p, c) -> Builder.tick(p, c)),
 		/**
-		 * Flying with an elytra, after the player he follows or to a point. Before the following: while it flies, the
+		 * Flying with an elytra, after the followed player or to a point. Before the following: while it flies, the
 		 * following pauses, and a stop is a landing, never letting go of the keys in the air.
 		 */
 		GLIDE(false, Glide::active, Glide::airborne, Glide::stop, Glide::startTick, Glide::tick),
 		/**
-		 * The alt with the player he follows. It gives way: a farm that is on pauses it and it carries on afterwards,
-		 * and switching a farm on does not switch it off (what he follows changes only by "follow").
+		 * The alt with the followed player. It gives way: a farm that is on pauses it and it carries on afterwards,
+		 * and switching a farm on does not switch it off (whom the alt follows changes only by "follow").
 		 */
 		FOLLOW(false, Follow::isOn, Follow::walking, Follow::stop, Follow::startTick, Follow::tick);
 
@@ -109,8 +109,8 @@ final class Jobs {
 	static boolean othersOn(Job self) { return anyOn(self, Job.FOLLOW); }
 
 	/**
-	 * This job is switched on: the others go off, the following excepted, which pauses while a farm runs. A pen he farms
-	 * goes off too (Pen, no job of its own): his newest instruction wins.
+	 * This job is switched on: the others go off, the following excepted, which pauses while a farm runs. A pen being
+	 * farmed goes off too (Pen, no job of its own): the newest instruction wins.
 	 */
 	static void switchedOn(Job self, String why) { Pen.stop("another farm"); stop(why, self, Job.FOLLOW); }
 
@@ -129,9 +129,9 @@ final class Jobs {
 
 	/** The tick: every job moves in its turn, also when another one already moved the player. */
 	static boolean tick(Minecraft mc, LocalPlayer p, AfkConfig c) {
-		// the web panel's hands on the keys: no job moves him meanwhile, and they carry on when it lets go
+		// the web panel's hands on the keys: no job moves the buddy meanwhile, and they carry on when it lets go
 		if (Steer.tick(mc, p)) { Arbiter.at("panel steers", true); Arbiter.endTick(); return true; }
-		// the panel holds his inventory (an item moved on the page): the jobs wait, with their keys let go once
+		// the panel holds the buddy's inventory (an item moved on the page): the jobs wait, with their keys let go once
 		if (Control.panel()) {
 			if (!panelHeld) { panelHeld = true; HeldKeys.releaseAll(); }
 			Arbiter.at("panel", true);

@@ -4,10 +4,10 @@ package net.milenco.buddy.client;
  * Flying with an elytra, worked out tick by tick with the game's own numbers (26.3: LivingEntity.updateFallFlyingMovement,
  * travelFallFlying, handleFallFlyingCollisions, Entity.checkFallDistanceAccumulation, FireworkRocketEntity.tick), and the way
  * to fly that goes with it, so that the buddy can follow a player who flies without dying of kinetic or fall damage.
- * Two rules keep him alive, both from those sources:
+ * Two rules keep the buddy alive, both from those sources:
  * <ul>
- * <li>a wall costs health only when it takes more than 0.3 blocks a tick of his horizontal speed ((loss * 10) - 3);</li>
- * <li>while he glides the fall distance goes back to 1 every tick he descends slower than 0.5 a tick, so a landing that
+ * <li>a wall costs health only when it takes more than 0.3 blocks a tick of the horizontal speed ((loss * 10) - 3);</li>
+ * <li>while gliding the fall distance goes back to 1 every tick of a descent slower than 0.5 a tick, so a landing that
  * comes in slower than that costs nothing (the safe fall distance is 3).</li>
  * </ul>
  * So the planner never lets a path touch a block on the way, and only lets it touch the ground coming down slowly.
@@ -22,8 +22,8 @@ final class Flight {
 		boolean solid(int x, int y, int z);
 
 		/**
-		 * The surface for the height he keeps: what is solid, and water too. Water is no wall (flying into it costs
-		 * nothing), but counted as air the cruise height was measured to the sea floor, and over the sea he dived in and
+		 * The surface for the height kept: what is solid, and water too. Water is no wall (flying into it costs
+		 * nothing), but counted as air the cruise height was measured to the sea floor, and over the sea the buddy dived in and
 		 * the flight ended (18 Oct 2026).
 		 */
 		default boolean floor(int x, int y, int z) { return solid(x, y, z); }
@@ -48,7 +48,7 @@ final class Flight {
 	/** How far ahead a plan looks, and for how long the first move in it is held before it carries on to the goal. */
 	static final int HORIZON = 44, HOLD = 10;
 
-	/** Where he is and how he moves; yaw and pitch are the game's (pitch positive is looking down). */
+	/** Position and motion of the flyer; yaw and pitch are the game's (pitch positive is looking down). */
 	static final class State {
 		double x, y, z, vx, vy, vz, yaw, pitch;
 		int rocket;   // ticks of a rocket's pull left
@@ -89,7 +89,7 @@ final class Flight {
 	static final class Result {
 		Event event = Event.NONE;
 		int tick = -1;
-		/** At a landing: how fast he came down and how fast sideways. */
+		/** At a landing: how fast the flyer came down and how fast sideways. */
 		double landVy, landHorizontal;
 		/** The least room around the box on the way, in blocks (0.25, 0.75 or 1.5: rough on purpose). */
 		double room = 1.5;
@@ -98,7 +98,7 @@ final class Flight {
 
 	/**
 	 * One tick of flight: the turn toward the wanted look (as fast as the mouse turns), a rocket's pull, the glide, the move.
-	 * Returns the event of this tick; on a landing the state stands where he touched down.
+	 * Returns the event of this tick; on a landing the state stands where the flyer touched down.
 	 */
 	static Event step(World w, State s, double wantYaw, double wantPitch) {
 		s.yaw += Math.max(-YAW_RATE, Math.min(YAW_RATE, wrap(wantYaw - s.yaw)));
@@ -115,9 +115,9 @@ final class Flight {
 		// difference never decides between a hit and none)
 		double ny = s.y + s.vy;
 		if (blocked(w, s.x, ny, s.z)) {
-			if (s.vy >= 0) return Event.HIT;   // his head against something
-			// coming down onto something: a landing where the box stands on it; in the same tick the game still moves him
-			// across, so an edge or a step there is a collision while he glides, with its damage
+			if (s.vy >= 0) return Event.HIT;   // the head against something
+			// coming down onto something: a landing where the box stands on it; in the same tick the game still moves the
+			// flyer across, so an edge or a step there is a collision while gliding, with its damage
 			double top = Math.floor(ny) + 1;
 			while (top <= s.y + 1e-9 && blocked(w, s.x, top, s.z)) top++;
 			s.y = top;
@@ -186,7 +186,7 @@ final class Flight {
 		return 0.25;
 	}
 
-	/** Blocks of air under him down to the ground or the water, up to 64. */
+	/** Blocks of air underneath down to the ground or the water, up to 64. */
 	static int heightAbove(World w, double x, double y, double z) {
 		int bx = (int) Math.floor(x), bz = (int) Math.floor(z), by = (int) Math.floor(y);
 		for (int d = 1; d <= 64; d++) if (w.floor(bx, by - d, bz)) return d - 1;
@@ -207,7 +207,7 @@ final class Flight {
 			else {
 				double[] g = goal.at(t);
 				yaw = yawTo(s.x, s.z, g[0], g[2]);
-				// landing: glide toward the spot, and close to it nose up, so that he comes down slowly both ways
+				// landing: glide toward the spot, and close to it nose up, so that the flyer comes down slowly both ways
 				pitch = goal.landing ? (Math.hypot(g[0] - s.x, g[2] - s.z) < 16 || s.y - g[1] < 6 ? FLARE : 4)
 					: s.y < g[1] - 2 && s.horizontal() > 0.7 ? -15 : 4;
 			}
@@ -223,7 +223,7 @@ final class Flight {
 		return r;
 	}
 
-	/** Where to fly: a point, which may move (the player he follows); and whether the aim is to come down there. */
+	/** Where to fly: a point, which may move (the followed player); and whether the aim is to come down there. */
 	static final class Goal {
 		final double x, y, z, vx, vy, vz;
 		final boolean landing;
@@ -254,7 +254,7 @@ final class Flight {
 
 	static final double[] YAWS = { 0, -15, 15, -35, 35, -60, 60, -95, 95, 135, -135 };
 	static final double[] PITCHES = { -40, -30, -20, -10, -3, 6, 15, 30 };
-	/** Low over the ground he keeps at least this much air under him while cruising. */
+	/** Low over the ground, keep at least this much air underneath while cruising. */
 	static final int CRUISE_HEIGHT = 8;
 
 	/**
@@ -296,7 +296,7 @@ final class Flight {
 			if (r.event == Event.LANDED || r.event == Event.WATER) score -= 60;   // not the aim: safe, but down and alone
 			int h = heightAbove(w, e.x, e.y, e.z);
 			if (h < CRUISE_HEIGHT) score -= (CRUISE_HEIGHT - h) * 3;
-			if (e.horizontal() < 0.35) score -= (0.35 - e.horizontal()) * 30;   // too slow and he stalls
+			if (e.horizontal() < 0.35) score -= (0.35 - e.horizontal()) * 30;   // too slow: a stall
 		}
 		return score;
 	}

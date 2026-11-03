@@ -18,10 +18,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 
 /**
- * {@code {"cmd":"blocks","x":100,"y":64,"z":-200,"r":6,"dy":3}}: the blocks in a box round a spot as his game
+ * {@code {"cmd":"blocks","x":100,"y":64,"z":-200,"r":6,"dy":3}}: the blocks in a box round a spot as the buddy's game
  * knows them, written to {@code blocks.txt} in the exchange folder, one layer a block from the top down, a character a
  * block with a legend (21 Oct 2026: to see why a place is "unreachable" without hundreds of questions to the server's
- * console). {@code @} is where his feet are. Without x, y, z: round him. At most 12 across and 8 up or down.
+ * console). {@code @} is where the buddy's feet are. Without x, y, z: round the buddy. At most 12 across and 8 up or down.
  */
 final class BlockDump {
 	private BlockDump() {}
@@ -41,7 +41,7 @@ final class BlockDump {
 		BlockPos feet = p.blockPosition();
 		out.append("blocks round ").append(cx).append(' ').append(cy).append(' ').append(cz).append(" r ").append(r).append(" dy ").append(dy)
 			.append(", x from ").append(cx - r).append(" (left) to ").append(cx + r).append(", z from ").append(cz - r).append(" (top) to ").append(cz + r)
-			.append("; the buddy stands at ").append(feet.toShortString()).append('\n');
+			.append("; ").append(p.getGameProfile().name()).append(" stands at ").append(feet.toShortString()).append('\n');
 		for (int y = cy + dy; y >= cy - dy; y--) {
 			out.append("\ny ").append(y).append('\n');
 			for (int z = cz - r; z <= cz + r; z++) {
@@ -67,7 +67,7 @@ final class BlockDump {
 			Files.writeString(f, out.toString());
 			Exchange.emit("blocks", "file", f.toString(), "kinds", legend.size());
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "blocks.txt: " + e.getMessage());
+			Exchange.emit("error", "msg", "block view not saved: " + e.getMessage());
 		}
 	}
 

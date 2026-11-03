@@ -37,7 +37,7 @@ public class Switches {
 
 	public static void setMobFarm(boolean on) {
 		AfkConfig c = AfkConfig.get();
-		// on the alt a pen he farms goes first: the AFK farm would take him into its own way of hitting (a Telegram !farm)
+		// on the alt a pen being farmed goes first: the AFK farm would take the alt into its own way of hitting (a Telegram !farm)
 		if (on && Pen.on()) { Exchange.emit("error", "msg", "switch mobfarm: stop the pen first"); return; }
 		if (on) {
 			if (raidBefore == null) raidBefore = c.raidMode;

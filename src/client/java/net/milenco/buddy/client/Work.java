@@ -54,26 +54,27 @@ import java.util.function.Predicate;
 
 /**
  * Work alongside the player the alt follows: when that player digs a tunnel (2x2, 2x3, 3x3 and so on) the buddy helps
- * for as long as the player keeps breaking, once it is sure it is a tunnel, and stops in time; when the player chops
+ * for as long as the player keeps breaking, once sure it is a tunnel, and stops in time; when the player chops
  * trees nearby, the buddy may do so too.
  * <p>
- * What he breaks the client sees by itself: every tick it notes the block he looks at (his look is synced) and the
- * blocks around it, and one of those that is gone half a second later is his. A tunnel is a straight run of at least
- * three open slices of one cross-section, two to five wide and high, with a floor under it, of which he broke at least
- * half in two of them, seen the same twice in a row. Then the alt breaks with him in the slice he is breaking and
- * behind it, never in front of it, so the tunnel never gets longer than where he put his pickaxe; three seconds without
- * a block of his and the alt stops, half a minute and the tunnel is forgotten. Trees: once he chopped two logs of a
- * tree that grew (leaves that are not placed) within a minute, the alt chops the other trees within fourteen blocks of
- * him that it can reach from the ground, one trunk, at most six high, picks up what fell and plants a sapling of the
- * kind back. Breaking is the real crosshair on the block, never through another block or out of reach, with the
- * fastest tool that gives the drop; a block next to water or lava, one with something inside (a chest, a spawner) and
- * one only a tool he lacks gives, he leaves, and the last he tells through {@link Needs}.
+ * What the player breaks the client sees by itself: every tick it notes the block the player looks at (that look is
+ * synced) and the blocks around it, and one of those that is gone half a second later is the player's. A tunnel is a
+ * straight run of at least three open slices of one cross-section, two to five wide and high, with a floor under it,
+ * of which the player broke at least half in two of them, seen the same twice in a row. Then the alt breaks along in
+ * the slice being broken and behind it, never in front of it, so the tunnel never gets longer than where the player
+ * put the pickaxe; three seconds without a block of the player's and the alt stops, half a minute and the tunnel is
+ * forgotten. Trees: once the player chopped two logs of a tree that grew (leaves that are not placed) within a minute,
+ * the alt chops the other trees within fourteen blocks of the player that can be reached from the ground, one trunk,
+ * at most six high, picks up what fell and plants a sapling of the kind back. Breaking is the real crosshair on the
+ * block, never through another block or out of reach, with the fastest tool that gives the drop; a block next to water
+ * or lava, one with something inside (a chest, a spawner) and one only a missing tool gives are left, and the last is
+ * told through {@link Needs}.
  */
 final class Work {
 	private Work() {}
 
 	/** All of it, tunnels, trees, crops: on by default, also after a restart. The chests are {@link Stash}'s. */
-	// Digging, chopping and the fields only after a tap of his (Tap): a few things such as the corpse guard and the tap
+	// Digging, chopping and the fields only after a tap of the player's (Tap): a few things such as the corpse guard and the tap
 	// itself run by themselves, the rest only on the player's command. Kept
 	// over a restart in the config. The chests and giving stay on.
 	static boolean on = true;
@@ -95,21 +96,21 @@ final class Work {
 	private record Seen(int tick, BlockState state) {}
 	private record Brk(BlockPos pos, BlockState state, long at, String dim, boolean naturalLog) {}
 
-	// what he breaks
+	// what the player breaks
 	private static final Map<BlockPos, Seen> seen = new HashMap<>();
 	private static final ArrayDeque<Brk> breaks = new ArrayDeque<>();
 	private static BlockPos hisLook;
 	private static long lastHisLog, chopTold;
-	/** How long after his last log he counts as still chopping. */
+	/** How long after the player's last log the chopping still counts as going on. */
 	static final long CHOPPING = 15_000;
-	/** Blocks the alt broke itself, with the moment: never taken for his, and where its own drops lie. */
+	/** Blocks the alt broke, with the moment: never taken for the player's, and where the alt's own drops lie. */
 	private static final Map<BlockPos, Long> mine = new HashMap<>();
-	/** The alt's own breaks of the last five minutes, to see him put one back: a correction (0.4.44). */
+	/** The alt's own breaks of the last five minutes, to see the player put one back: a correction (0.4.44). */
 	private static final Map<BlockPos, Long> mineLong = new HashMap<>();
 	private record Fix(String dim, BlockPos pos, long at) {}
 	/** A block of {@link #mineLong} that is solid again, with the moment it was first seen so. */
 	private static final Map<BlockPos, Long> fixSeen = new HashMap<>();
-	/** Blocks he put back where the alt broke, for ten minutes: never broken again, and a wall for the pit's look. */
+	/** Blocks the player put back where the alt broke, for ten minutes: never broken again, and a wall for the pit's look. */
 	private static final List<Fix> fixes = new ArrayList<>();
 	static final long FIX_KEEP = 600_000;
 	private static int workedAt = -10, lastNeeds;
@@ -130,7 +131,7 @@ final class Work {
 	}
 	private static Tunnel tunnel, candidate;
 
-	// an open stretch he makes larger by breaking its edges away (0.4.42)
+	// an open stretch the player makes larger by breaking its edges away (0.4.42)
 	private static final class Pit {
 		String dim;
 		int xMin, xMax, zMin, zMax, yMin, yMax;
@@ -142,18 +143,18 @@ final class Work {
 	static final int PIT_START = 20;
 	private static boolean pitSeen;
 
-	// a tree of his kind
+	// a tree of the kind the player chops
 	private static final class Tree {
 		BlockPos base;
 		String dim, sapling;
 		int phase;          // 0 chop, 1 pick up, 2 plant
 		long phaseAt;
-		boolean own;        // his own: wood for sticks, in the base, without anyone chopping
+		boolean own;        // the buddy's own: wood for sticks, in the base, without anyone chopping
 	}
 	private static Tree tree;
-	/** Whether the last look for a tree for his own wood found one: when not, the panel says he lacks wood. */
+	/** Whether the last look for a tree for the buddy's own wood found one: when not, the panel says wood is lacking. */
 	static boolean woodTree = true;
-	/** Trees done, or not for him (too tall, two trunks, placed): left alone until the moment given. */
+	/** Trees done, or not for the buddy (too tall, two trunks, placed): left alone until the moment given. */
 	private static final Map<BlockPos, Long> treeDone = new HashMap<>();
 
 	// breaking: the block to hit at the start of the next tick, and the one under way
@@ -164,7 +165,7 @@ final class Work {
 	// planting: the block to click the sapling on at the start of the next tick
 	private static BlockPos plantAt;
 	private static int plantedAt = -1;
-	// picking up his own drops
+	// picking up the buddy's own drops
 	private static ItemEntity fetching;
 	private static long fetchSince;
 	private static final Set<Integer> gaveUp = new HashSet<>();
@@ -176,11 +177,11 @@ final class Work {
 
 	static boolean testing() { return (tunnel != null && tunnel.test) || (pit != null && pit.test) || testTree || testFarm; }
 
-	/** A harvest without him, to try the farming: the nearest crops count as a field, for three minutes. */
+	/** A harvest without the player, to try the farming: the nearest crops count as a field, for three minutes. */
 	private static boolean testFarm;
 	private static long testFarmUntil;
 
-	/** Trees to chop without him, to try the chopping: the alt stands in for him, for two minutes. */
+	/** Trees to chop without the player, to try the chopping: the alt stands in for the player, for two minutes. */
 	private static boolean testTree;
 	private static long testTreeUntil;
 
@@ -190,7 +191,7 @@ final class Work {
 
 	// ---------- switching ----------
 
-	/** {@code {"cmd":"help"}}: "on", "dig", "chop", "harvest", "chests", "give" switch; "test" for a tunnel without him. */
+	/** {@code {"cmd":"help"}}: "on", "dig", "chop", "harvest", "chests", "give" switch; "test" for a tunnel without the player. */
 	static void command(JsonObject o) {
 		boolean changed = false;
 		if (o.has("on")) { on = o.get("on").getAsBoolean(); changed = true; }
@@ -226,9 +227,9 @@ final class Work {
 	}
 
 	/**
-	 * A tunnel to dig without him, to try the digging: {@code "test":"tunnel"} with the first slice's lower corner
-	 * x, y, z, the axis "x" or "z", "direction" 1 or -1, "wide", "high" and "length". It stands in for his breaking:
-	 * a slice done, the next one is his. {@code "test":"stop"} ends it.
+	 * A tunnel to dig without the player, to try the digging: {@code "test":"tunnel"} with the first slice's lower corner
+	 * x, y, z, the axis "x" or "z", "direction" 1 or -1, "wide", "high" and "length". It stands in for the player's
+	 * breaking: a slice done, the next one counts as the player's. {@code "test":"stop"} ends it.
 	 */
 	private static void test(JsonObject o) {
 		String what = o.get("test").getAsString();
@@ -255,7 +256,7 @@ final class Work {
 			return;
 		}
 		if (p != null && what.equals("pit")) {
-			// a pit of this box without him: every ground block of it (no ring since 0.4.44), for "duration" seconds
+			// a pit of this box without the player: every ground block of it (no ring since 0.4.44), for "duration" seconds
 			Pit pt = new Pit();
 			pt.xMin = Math.min(o.get("x1").getAsInt(), o.get("x2").getAsInt()); pt.xMax = Math.max(o.get("x1").getAsInt(), o.get("x2").getAsInt());
 			pt.zMin = Math.min(o.get("z1").getAsInt(), o.get("z2").getAsInt()); pt.zMax = Math.max(o.get("z1").getAsInt(), o.get("z2").getAsInt());
@@ -300,9 +301,9 @@ final class Work {
 		digAt = null; digging = null; stand = null; standFor = null; plantAt = null; fetching = null;
 	}
 
-	// ---------- what he breaks ----------
+	// ---------- what the player breaks ----------
 
-	/** Every tick he is in sight: what he looks at, and what he looked at a moment ago that is gone. */
+	/** Every tick the player is in sight: what the player looks at, and what was looked at a moment ago that is gone. */
 	static void watch(LocalPlayer p, Player t) {
 		Level level = p.level();
 		long now = System.currentTimeMillis();
@@ -324,7 +325,7 @@ final class Work {
 		}
 		mine.values().removeIf(at -> now - at > 60_000);
 		ourPlants.values().removeIf(at -> now - at > 10_000);
-		// something planted where he looked a moment ago: he sows or renews a field there
+		// something planted where the player looked a moment ago: the player sows or renews a field there
 		for (var it = plantWatch.entrySet().iterator(); it.hasNext(); ) {
 			var e = it.next();
 			if (tick - e.getValue() > 20) { it.remove(); continue; }
@@ -337,7 +338,7 @@ final class Work {
 		if (t == null || t.distanceTo(p) > 40) return;
 		if (t.pick(5.0, 1f, false) instanceof BlockHitResult bh && bh.getType() == HitResult.Type.BLOCK) {
 			hisLook = bh.getBlockPos().immutable();
-			// the block he looks at, and those around it: his look reaches us a little rounded, a block off at the edge
+			// the block the player looks at, and those around it: that look reaches us a little rounded, a block off at the edge
 			note(level, hisLook, tick);
 			for (Direction d : Direction.values()) note(level, hisLook.relative(d), tick);
 			if (level.getBlockState(hisLook.above()).isAir()) plantWatch.put(hisLook.above().immutable(), tick);
@@ -347,7 +348,7 @@ final class Work {
 
 	private static void note(Level level, BlockPos pos, int tick) {
 		BlockState st = level.getBlockState(pos);
-		if (st.getCollisionShape(level, pos).isEmpty() && !planted(st)) return;   // a crop has no collision, and is his harvest
+		if (st.getCollisionShape(level, pos).isEmpty() && !planted(st)) return;   // a crop has no collision, and is the player's harvest
 		seen.put(pos.immutable(), new Seen(tick, st));
 	}
 
@@ -367,8 +368,8 @@ final class Work {
 	}
 
 	/**
-	 * A block the alt broke that is solid again, and did not fall there: he put it back, so the alt was wrong there
-	 * (0.4.44; on 19 Oct 2026 he set cobblestone back in 44 of the 253 blocks the alt broke in his room).
+	 * A block the alt broke that is solid again, and did not fall there: the player put it back, so the alt was wrong there
+	 * (0.4.44; on 19 Oct 2026 the player set cobblestone back in 44 of the 253 blocks the alt broke in the player's room).
 	 */
 	private static void corrections(Level level, LocalPlayer p, long now) {
 		String dim = dimOf(level);
@@ -392,7 +393,7 @@ final class Work {
 		}
 	}
 
-	/** He put a block back in this column at these heights. */
+	/** The player put a block back in this column at these heights. */
 	private static boolean fixedColumn(String dim, int x, int z, int yMin, int yMax) {
 		for (Fix f : fixes)
 			if (f.dim().equals(dim) && f.pos().getX() == x && f.pos().getZ() == z && f.pos().getY() >= yMin - 1 && f.pos().getY() <= yMax + 1) return true;
@@ -422,7 +423,7 @@ final class Work {
 
 	// ---------- every tick ----------
 
-	/** While following and he is in sight: work along with him. True while it works. */
+	/** While following and the player is in sight: work along. True while that works. */
 	/** Set by {@link Base} while it runs the base's work: then the base's own switches decide (Modes). */
 	static boolean baseRun;
 
@@ -469,8 +470,8 @@ final class Work {
 	private static int lastNeedsTick = -1;
 
 	/**
-	 * What he lacks every five seconds, and the need told when it is time: from Work.tick and from the pen (Pen), which
-	 * holds the tick while he farms. Once a tick at most, whoever calls it.
+	 * What the buddy lacks every five seconds, and the need told when it is time: from Work.tick and from the pen (Pen),
+	 * which holds the tick while farming. Once a tick at most, whoever calls it.
 	 */
 	static void needsTick(LocalPlayer p) {
 		int t = Follow.ticks();
@@ -478,7 +479,7 @@ final class Work {
 		if (t % 20 == 0 && t != lastNeedsTick) { lastNeedsTick = t; Needs.tick(); }
 	}
 
-	/** A tunnel to dig without him: the same, with himself as the one who stands there. */
+	/** A tunnel to dig without the player: the same, with the buddy as the one who stands there. */
 	static boolean testTick(Minecraft mc, LocalPlayer p) {
 		Level level = p.level();
 		long now = System.currentTimeMillis();
@@ -531,7 +532,7 @@ final class Work {
 		}
 	}
 
-	/** A chat line: a claim that does not let him break here. */
+	/** A chat line: a claim that does not let the buddy break here. */
 	static void chat(String line) {
 		if (digging == null || !Profiles.has("noPermission", line)) return;
 		skipped.put(digging, System.currentTimeMillis() + 600_000);
@@ -566,9 +567,9 @@ final class Work {
 	}
 
 	/**
-	 * Is what he broke last a tunnel along this axis? Long along it, narrow across, the order he broke in going one
-	 * way; the cross-section is the cells he broke in two slices or more; at least three slices of it open with a
-	 * floor under them, all three at least half his work (two until 0.4.44: he started too soon).
+	 * Is what the player broke last a tunnel along this axis? Long along it, narrow across, the breaking order going one
+	 * way; the cross-section is the cells broken in two slices or more; at least three slices of it open with a floor
+	 * under them, all three at least half the player's work (two until 0.4.44: the buddy started too soon).
 	 */
 	private static Tunnel shape(Level level, List<Brk> rec, Direction.Axis axis, String dim) {
 		int aMin = Integer.MAX_VALUE, aMax = Integer.MIN_VALUE, qMin = Integer.MAX_VALUE, qMax = Integer.MIN_VALUE;
@@ -648,7 +649,7 @@ final class Work {
 			if (ahead > 0) tn.face = a;
 			return;
 		}
-		// three blocks of his near the face outside the cross-section: he widens it or turns off
+		// three blocks of the player's near the face outside the cross-section: the player widens it or turns off
 		if (!in && ahead >= -2 && ahead <= 3) {
 			if (now - tn.oddAt > 15_000) tn.odd = 0;
 			tn.odd++;
@@ -662,7 +663,7 @@ final class Work {
 		Level level = p.level();
 		if (!dimOf(level).equals(tn.dim)) { endTunnel("another dimension"); return false; }
 		if (tn.test) {
-			// standing in for him: a slice done, the next one is his, until the length asked for
+			// standing in for the player: a slice done, the next one counts as the player's, until the length asked for
 			while (open(level, tn.axis, tn.face, tn.pMin, tn.pMax, tn.yMin, tn.yMax)) {
 				if (tn.face == tn.testEnd) { endTunnel("test done"); return false; }
 				tn.face += tn.dir;
@@ -674,7 +675,7 @@ final class Work {
 				int behind = (tn.face - along(f, tn.axis)) * tn.dir, q = perp(f, tn.axis);
 				if (behind > 8 || q < tn.pMin - 2 || q > tn.pMax + 2 || Math.abs(f.getY() - tn.yMin) > 3) { endTunnel("you are out of it"); return false; }
 			}
-			// he does not break: neither does the alt
+			// the player does not break: neither does the alt
 			boolean pause = now - tn.lastHis > 3000;
 			if (pause != tn.paused) { tn.paused = pause; Exchange.emit("helper", "action", pause ? "tunnel pause" : "tunnel on"); }
 			if (pause) return false;
@@ -697,7 +698,7 @@ final class Work {
 		return tn == null ? null : Direction.fromAxisAndDirection(tn.axis, tn.dir > 0 ? Direction.AxisDirection.POSITIVE : Direction.AxisDirection.NEGATIVE);
 	}
 
-	/** A block in the tunnel's cross-section or inside the pit at its heights: one he digs, no torch goes on it. */
+	/** A block in the tunnel's cross-section or inside the pit at its heights: one still to dig, no torch goes on it. */
 	static boolean stillToDig(BlockPos w) {
 		Tunnel tn = tunnel;
 		if (tn != null) {
@@ -716,8 +717,8 @@ final class Work {
 	}
 
 	/**
-	 * The next block of the tunnel: in the slice he breaks or a slice behind it, inside the cross-section, still solid,
-	 * safe, and not the one he hits. One the alt reaches from where it stands first, then the nearest.
+	 * The next block of the tunnel: in the slice the player breaks or a slice behind it, inside the cross-section, still
+	 * solid, safe, and not the one the player hits. First one within reach of the alt's own spot, then the nearest.
 	 */
 	private static BlockPos tunnelTarget(Level level, LocalPlayer p, Player t, Tunnel tn, long now) {
 		Vec3 eye = p.getEyePosition();
@@ -737,7 +738,7 @@ final class Work {
 		return best;
 	}
 
-	/** He put a block back in this row of the cross-section, near the face: the tunnel keeps that row. */
+	/** The player put a block back in this row of the cross-section, near the face: the tunnel keeps that row. */
 	private static boolean fixedLine(Tunnel tn, int q, int y) {
 		for (Fix f : fixes)
 			if (f.dim().equals(tn.dim) && perp(f.pos(), tn.axis) == q && f.pos().getY() == y && Math.abs(along(f.pos(), tn.axis) - tn.face) <= 32) return true;
@@ -758,7 +759,7 @@ final class Work {
 
 	/**
 	 * Natural ground: what a pit is dug in. Never planks, cobblestone, bricks or anything else a player sets down, and
-	 * no ores (his to take): the alt breaks only kinds of this that he broke himself there.
+	 * no ores (the player's to take): the alt breaks only kinds of this the player broke there.
 	 */
 	static boolean ground(BlockState st) {
 		if (st.is(Blocks.SUSPICIOUS_SAND) || st.is(Blocks.SUSPICIOUS_GRAVEL)) return false;
@@ -768,7 +769,7 @@ final class Work {
 	}
 
 	/**
-	 * His ground breaks of the last window near the latest one: the box they fill and the kinds. Null with fewer than
+	 * The player's ground breaks of the last window near the latest one: the box they fill and the kinds. Null with fewer than
 	 * {@code least}, or when the box is not wide both ways (a tunnel, a trench, a staircase) or higher than six.
 	 */
 	private static Pit pitOf(String dim, long now, long window, int least) {
@@ -797,8 +798,8 @@ final class Work {
 	}
 
 	/**
-	 * Twenty ground breaks of his in a minute, at least twenty seconds of work, wide both ways: a pit, the second
-	 * time running half a second apart. Twelve until 0.4.44, when he joined in too eagerly and too soon.
+	 * Twenty ground breaks of the player's in a minute, at least twenty seconds of work, wide both ways: a pit, the second
+	 * time running half a second apart. Twelve until 0.4.44, when the buddy joined in too eagerly and too soon.
 	 */
 	private static void detectPit(Level level, long now) {
 		if (pit != null) return;
@@ -819,7 +820,7 @@ final class Work {
 		if (pt.test) {
 			if (now > pt.testUntil) { endPit("test done"); return false; }
 		} else {
-			// the box follows his work: the last two minutes of it
+			// the box follows the player's work: the last two minutes of it
 			Pit now2 = pitOf(pt.dim, now, 120_000, 6);
 			if (now2 != null) {
 				pt.xMin = now2.xMin; pt.xMax = now2.xMax; pt.zMin = now2.zMin; pt.zMax = now2.zMax;
@@ -841,10 +842,10 @@ final class Work {
 	}
 
 	/**
-	 * The next block: in his box (never the ring around it since 0.4.44), between his work (see {@link PitShape}), at
-	 * the heights he digs at (never the floor under them or the roof above), of a kind he broke there, with an open
-	 * side, safe, not the one he hits, not where he put a block back, and never in the column under his feet or the
-	 * alt's own. One the alt reaches from where it stands first, then the nearest.
+	 * The next block: in the player's box (never the ring around it since 0.4.44), between the player's work (see
+	 * {@link PitShape}), at the heights dug at (never the floor under them or the roof above), of a kind the player broke
+	 * there, with an open side, safe, not the one being hit, not where a block was put back, and never in the column
+	 * under the player's feet or the alt's own. First one within reach of the alt's own spot, then the nearest.
 	 */
 	private static BlockPos pitTarget(Level level, LocalPlayer p, Player t, Pit pt, long now) {
 		Vec3 eye = p.getEyePosition();
@@ -885,7 +886,7 @@ final class Work {
 		return false;
 	}
 
-	/** Where to stand for a pit block: in or around the pit, never on top of the block itself, never in his cell. */
+	/** Where to stand for a pit block: in or around the pit, never on top of the block itself, never in the player's cell. */
 	private static boolean pitStand(Pit pt, BlockPos f, BlockPos target, BlockPos hisCell) {
 		if (f.getX() == target.getX() && f.getZ() == target.getZ() && f.getY() > target.getY()) return false;
 		if (hisCell != null && (f.equals(hisCell) || f.equals(hisCell.above()))) return false;
@@ -914,8 +915,8 @@ final class Work {
 	private static boolean treeTick(Minecraft mc, LocalPlayer p, Player t, long now) {
 		Level level = p.level();
 		if (tree == null && baseRun && t == p && Follow.ticks() % 100 == 0 && Chores.woodWanted(p)) {
-			// no sticks, planks or logs with him or in his chests for the tool he makes: a tree of the base, outside the
-			// garden around his chests
+			// no sticks, planks or logs carried or in the chests for the tool to make: a tree of the base, outside the
+			// garden around the chests
 			var home = Tap.baseAt(dimOf(level), p.position(), Base.RADIUS);
 			Tree own = home == null ? null : findTree(level, p, p, home.bed(), (int) Base.RADIUS - 4, 8, now);
 			woodTree = own != null;
@@ -928,7 +929,7 @@ final class Work {
 		}
 		if (tree == null) {
 			if (!chop || t == null || Follow.ticks() % 20 != 0) return false;
-			// only while he still chops: a log of his in the last fifteen seconds; once a tree is done, look whether the
+			// only while the player still chops: a log of the player's in the last fifteen seconds; once a tree is done, look whether the
 			// player still chops, and if not, collect and stop
 			if (!testTree && (now - lastHisLog > CHOPPING || hisLogs(now) < 2)) {
 				if (chopTold < lastHisLog && now - lastHisLog > CHOPPING && hisLogs(now) >= 2) {
@@ -938,7 +939,7 @@ final class Work {
 				}
 				return false;
 			}
-			// he chops too far off: no tree picked and dropped again every second
+			// the player chops too far off: no tree picked and dropped again every second
 			if (t != p && t.distanceTo(p) > 24) return false;
 			tree = findTree(level, p, t, t.blockPosition(), 14, 4, now);
 			if (tree == null) return false;
@@ -970,7 +971,7 @@ final class Work {
 		}
 	}
 
-	/** The nearest tree he could chop: grown, one trunk on dirt, all of it within reach from the ground, not his. */
+	/** The nearest tree the buddy could chop: grown, one trunk on dirt, all of it within reach from the ground, not the player's. */
 	private static Tree findTree(Level level, LocalPlayer p, Player t, BlockPos c, int r, int dy, long now) {
 		Tree best = null;
 		double bestD = Double.MAX_VALUE;
@@ -979,7 +980,7 @@ final class Work {
 			BlockPos base = q.immutable();
 			if (treeDone.containsKey(base) || skipped.containsKey(base)) continue;
 			if (t != p && (Math.hypot(base.getX() + 0.5 - t.getX(), base.getZ() + 0.5 - t.getZ()) < 3.5 || his(base, now))) continue;
-			// the trees around his chests are his garden: those he chops himself
+			// the trees around the owner's chests are the owner's garden: the owner chops those
 			if (Stash.nearChest(level, base, 24)) continue;
 			double d = p.distanceToSqr(Vec3.atCenterOf(base));
 			if (d >= bestD) continue;
@@ -991,7 +992,7 @@ final class Work {
 		return best;
 	}
 
-	/** The tree he chops right now: one he broke a log near in the last twenty seconds, or one he looks at. */
+	/** The tree the player chops right now: one with a log broken near it in the last twenty seconds, or one looked at. */
 	private static boolean his(BlockPos base, long now) {
 		for (Brk b : breaks)
 			if (now - b.at() < 20_000 && Math.abs(b.pos().getX() - base.getX()) <= 4 && Math.abs(b.pos().getZ() - base.getZ()) <= 4) return true;
@@ -1067,12 +1068,12 @@ final class Work {
 		return best;
 	}
 
-	/** A sapling of the kind back where the trunk stood, when he has one. */
+	/** A sapling of the kind back where the trunk stood, when one is carried. */
 	private static boolean plant(Minecraft mc, LocalPlayer p, Player t, long now) {
 		Level level = p.level();
 		BlockPos ground = tree.base.below();
 		BlockState here = level.getBlockState(tree.base);
-		if (here.getBlock() instanceof SaplingBlock || here.is(Blocks.MANGROVE_PROPAGULE)) return finishTree(plantedAt >= 0 ? "planted" : "stond er al");
+		if (here.getBlock() instanceof SaplingBlock || here.is(Blocks.MANGROVE_PROPAGULE)) return finishTree(plantedAt >= 0 ? "planted" : "sapling already there");
 		if (tree.sapling == null || now - tree.phaseAt > 10_000 || !here.isAir() || !Game.plantable(level.getBlockState(ground))) return finishTree("not planted");
 		int slot = -1;
 		for (int i = 0; i < 36 && slot < 0; i++) if (AfkHelperClient.itemId(p.getInventory().getItem(i)).equals(tree.sapling)) slot = i;
@@ -1138,7 +1139,7 @@ final class Work {
 	// ---------- crops ----------
 
 	/**
-	 * A place where the player he works for sowed or renewed crops, one per four by four blocks, kept per player in
+	 * A place where the player the buddy works for sowed or renewed crops, one per four by four blocks, kept per player in
 	 * {@code fields.json}. Its field is
 	 * what grows within seven blocks of it.
 	 */
@@ -1150,15 +1151,15 @@ final class Work {
 	private static final List<Field> fields = new ArrayList<>();
 	private static boolean fieldsLoaded;
 
-	/** The fields he knows on this server in this dimension, for the panel's map. */
+	/** The known fields on this server in this dimension, for the panel's map. */
 	static List<BlockPos> knownFields(String dim) {
 		List<BlockPos> out = new ArrayList<>();
 		for (Field f : fields) if (Profiles.key().equals(f.server) && dim.equals(f.dim)) out.add(f.pos);
 		return out;
 	}
-	/** The air above a block he looked at, with the tick: something planted there within a second is his. */
+	/** The air above a block the player looked at, with the tick: something planted there within a second is the player's. */
 	private static final Map<BlockPos, Integer> plantWatch = new HashMap<>();
-	/** What the alt planted itself, a moment ago: never taken for his sowing. */
+	/** What the alt planted, a moment ago: never taken for the player's sowing. */
 	private static final Map<BlockPos, Long> ourPlants = new HashMap<>();
 	private static long lastHisHarvest;
 	private static BlockPos hisHarvestAt;
@@ -1166,7 +1167,7 @@ final class Work {
 	private static final class Round {
 		Field field;
 		BlockPos center;
-		boolean join;       // he harvests here himself: along with him, whatever is ripe
+		boolean join;       // the player harvests here in person: alongside, whatever is ripe
 		int phase;          // 0 harvest, 1 pick up, 2 plant again
 		long phaseAt, startedAt, cellSince;
 		BlockPos plantNext, cellFor;
@@ -1175,15 +1176,15 @@ final class Work {
 		final Map<BlockPos, String> till = new HashMap<>();
 		BlockPos tillFor, tillStand;
 		long tillSince;
-		int broke;          // ripe crops he went for in this round
+		int broke;          // ripe crops gone for in this round
 		boolean bareLooked; // the field's bare farmland put on the list to sow, once a round
 	}
 	private static Round round;
-	/** A cell he could not sow (no reach, the click did nothing): left alone for a while, not tried every round. */
+	/** A cell that could not be sown (no reach, the click did nothing): left alone for a while, not tried every round. */
 	private static final Map<BlockPos, Long> plantFailed = new HashMap<>();
 	private static final long PLANT_RETRY = 10 * 60_000L;
 
-	/** Harvest a field of his by itself only when this much of it is ripe, and not twice within ten minutes. */
+	/** Harvest a field of the player's alone only when this much of it is ripe, and not twice within ten minutes. */
 	private static final int RIPE_MANY = 24, RIPE_PERCENT = 60;
 	private static final long FIELD_REST = 10 * 60_000L;
 
@@ -1290,9 +1291,9 @@ final class Work {
 	}
 
 	/**
-	 * A field of his to harvest now: along with him where he harvested in the last half minute, whatever is ripe; by
-	 * itself where much of it is ripe, not back at every single crop that ripens, and not within ten minutes of the last
-	 * time. Near him and near the alt.
+	 * A field of the player's to harvest now: alongside the player where the player harvested in the last half minute,
+	 * whatever is ripe; alone where much of it is ripe, not back at every single crop that ripens, and not within ten
+	 * minutes of the last time. Near the player and near the alt.
 	 */
 	private static Round planRound(Level level, LocalPlayer p, Player t, long now) {
 		loadFields();
@@ -1318,7 +1319,7 @@ final class Work {
 				if (crop) ripe++; else other++;
 			}
 			boolean due = now - f.last > FIELD_REST && (ripe >= RIPE_MANY || (total >= 4 && ripe * 100 >= total * RIPE_PERCENT) || other >= 8);
-			// trampled farmland is mended at once, when he has a hoe
+			// trampled farmland is mended at once, when a hoe is carried
 			if (!due && hasHoe(p) && !trampledOf(level, f.pos).isEmpty()) due = true;
 			if (!(join && ripe + other > 0) && !due) continue;
 			double d = c.distanceToSqr(p.position());
@@ -1334,7 +1335,7 @@ final class Work {
 		return r;
 	}
 
-	/** The nearest ripe crop of the round's field, one the alt reaches from where it stands first. */
+	/** The nearest ripe crop of the round's field, the one reached first from where the alt stands. */
 	private static BlockPos nextRipe(Level level, LocalPlayer p) {
 		Vec3 eye = p.getEyePosition();
 		BlockPos best = null;
@@ -1369,7 +1370,7 @@ final class Work {
 
 	/**
 	 * The trampled cells of the field around this spot, with the seed to sow there: plain dirt with air above that was
-	 * farmland when he last looked, or that has farmland on three sides; the seed of the crop most grown beside it.
+	 * farmland at the last look, or that has farmland on three sides; the seed of the crop most grown beside it.
 	 */
 	private static Map<BlockPos, String> trampledOf(Level level, BlockPos center) {
 		Map<BlockPos, String> out = new HashMap<>();
@@ -1420,7 +1421,7 @@ final class Work {
 		return trampledLast;
 	}
 
-	/** A hoe he can use, not about to break. */
+	/** A usable hoe, not about to break. */
 	private static boolean hasHoe(LocalPlayer p) {
 		for (int i = 0; i < 36; i++) { ItemStack st = p.getInventory().getItem(i); if (st.is(ItemTags.HOES) && !nearlyBroken(st)) return true; }
 		return false;
@@ -1449,7 +1450,7 @@ final class Work {
 		return best;
 	}
 
-	/** The hoe on the top of this dirt, from where he reaches it; when it is farmland, its seed on the list to sow. */
+	/** The hoe on the top of this dirt, from a spot within reach; when it is farmland, its seed on the list to sow. */
 	private static boolean tillCell(Minecraft mc, LocalPlayer p, BlockPos dirt, long now) {
 		Level level = p.level();
 		if (!dirt.equals(round.tillFor)) { round.tillFor = dirt.immutable(); round.tillSince = now; round.tillStand = null; }
@@ -1541,7 +1542,7 @@ final class Work {
 		BlockHitResult ray = level.clip(new ClipContext(eye, point, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, p));
 		boolean reach = eye.distanceTo(point) < REACH && ray.getType() == HitResult.Type.BLOCK && ray.getBlockPos().equals(cell.below()) && ray.getDirection() == Direction.UP;
 		if (!reach) {
-			// standing on the cell itself, the farmland is straight under him: a seed goes in under your own feet
+			// standing on the cell itself, the farmland is straight underfoot: a seed goes in under your own feet
 			if (!approach(mc, p, cell, Vec3.atBottomCenterOf(cell), now)) { round.replant.remove(cell); plantFailed.put(cell.immutable(), now); return false; }
 			return true;
 		}
@@ -1606,7 +1607,7 @@ final class Work {
 				fields.add(v);
 			}
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "fields.json: " + e.getMessage());
+			Exchange.emit("error", "msg", "fields not read: " + e.getMessage());
 		}
 	}
 
@@ -1630,11 +1631,11 @@ final class Work {
 			Files.writeString(tmp, new GsonBuilder().setPrettyPrinting().create().toJson(root));
 			Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "writing fields.json: " + e.getMessage());
+			Exchange.emit("error", "msg", "fields not saved: " + e.getMessage());
 		}
 	}
 
-	/** {@code {"cmd":"fields"}}: which fields of the player it works for it knows; "forget" forgets them. */
+	/** {@code {"cmd":"fields"}}: which known fields of the player being worked for; "forget" forgets them. */
 	static void fieldsCommand(JsonObject o) {
 		loadFields();
 		String owner = Follow.boss();
@@ -1649,9 +1650,9 @@ final class Work {
 		Exchange.emit("fields", "for", owner == null ? "" : owner, "count", list.size(), "list", String.join("; ", list));
 	}
 
-	// ---------- his own drops ----------
+	// ---------- the buddy's own drops ----------
 
-	/** What the alt broke fell somewhere: pick it up, if it is still there and he is not standing on it. */
+	/** What the buddy broke fell somewhere: pick it up, if it is still there and not underfoot. */
 	// ---------- walking ----------
 
 	private static Object walkKey;
@@ -1661,7 +1662,7 @@ final class Work {
 	/** Cells a walk got no closer to: not chosen to stand in for a minute. */
 	private static final Map<BlockPos, Long> badStand = new HashMap<>();
 
-	/** A cell that got him nowhere: no spot for a minute (a chore's own spots, which are no standCell). */
+	/** A cell that got the buddy nowhere: no spot for a minute (a chore's own spots, which are no standCell). */
 	static void badStand(BlockPos c) { badStand.put(c.immutable(), System.currentTimeMillis() + 60_000); }
 
 	static boolean badStandAt(BlockPos c) { Long until = badStand.get(c); return until != null && until > System.currentTimeMillis(); }
@@ -1694,20 +1695,20 @@ final class Work {
 		// in bed nobody walks: no failure counted for the goal (the bed is left by the morning or by sleep())
 		if (p.isSleeping()) { walkKey = null; return true; }
 		double d = p.position().distanceTo(goal);
-		// a goal he failed to reach twice is left alone for a while (Failures): no walking there every few seconds
+		// a goal not reached twice is left alone for a while (Failures): no walking there every few seconds
 		String goalName = walkName(key, goal.x, goal.y, goal.z);
 		if (Failures.blocked(goalName)) return false;
 		if (d < 2) Failures.succeeded(goalName);
 		if (!key.equals(walkKey)) { walkKey = key; walkBest = d; walkBestAt = now; walkCells = Follow.cellsWalked(); }
 		if (d < walkBest - 0.5) { walkBest = d; walkBestAt = now; }
 		// on along the planned route is getting there too, also when the way goes off first: up out of the farm strip and
-		// down the stairs to a chest of the cellar he gave up after four seconds, the goal blocked ten minutes (22 Oct 2026)
+		// down the stairs to a chest of the cellar the buddy gave up after four seconds, the goal blocked ten minutes (22 Oct 2026)
 		if (Follow.cellsWalked() != walkCells) { walkCells = Follow.cellsWalked(); walkBestAt = now; }
 		// opening a door on the way (turning to it, the click, the server's answer) is no standing still (21 Oct 2026:
-		// in the base he gave up in front of his own door, "cannot get there" for the cell beside his bed)
+		// in the base the buddy gave up in front of the buddy's own door, "cannot get there" for the cell beside the bed)
 		if (Follow.atDoor()) walkBestAt = now;
 		if (now - walkBestAt > 4000) {
-			// close and no nearer: he is there, as near as the room lets him (beside a bed, in a corner by a chest), and
+			// close and no nearer: that is there, as near as the room allows (beside a bed, in a corner by a chest), and
 			// that is no failure (21 Oct 2026: 189 "cannot get there" in a night, most of them a step from the goal)
 			if (Math.hypot(p.getX() - goal.x, p.getZ() - goal.z) <= 1.6 && Math.abs(p.getY() - goal.y) <= 1.1) {
 				Failures.succeeded(goalName);
@@ -1752,7 +1753,7 @@ final class Work {
 	static final int HAND = -1, NONE = -2;
 
 	/**
-	 * Break this block: from where the alt stands when it reaches it, otherwise from a cell the test allows first.
+	 * Break this block: from where the alt stands on reaching it, otherwise from a cell the test allows first.
 	 * True while busy with it; false when it gave the block up (it will not be asked again for a while).
 	 */
 	private static boolean dig(Minecraft mc, LocalPlayer p, BlockPos target, Player t, Predicate<BlockPos> standOk) {
@@ -1790,14 +1791,14 @@ final class Work {
 		Follow.aim(p, point);
 		if (!target.equals(digging)) {
 			float progress = st.getDestroyProgress(p, level, target);
-			if (progress <= 0 || 1 / progress > 600) { skipped.put(target, now + 300_000); return false; }   // over half a minute: not his to do
+			if (progress <= 0 || 1 / progress > 600) { skipped.put(target, now + 300_000); return false; }   // over half a minute: not the buddy's to do
 			digging = target.immutable();
 			digSince = now;
 			digLimit = (long) (1 / progress * 50 * 2.5) + 4000;
 		}
 		if (now - digSince > digLimit) {
-			// what he had in sight, to tell a protected block from an aim that never lands (21 Oct 2026: many of these
-			// in the owner's field while he stood there)
+			// what was in sight, to tell a protected block from an aim that never lands (21 Oct 2026: many of these
+			// in the owner's field while the buddy stood there)
 			Exchange.emit("helper", "action", "does not break", "x", target.getX(), "y", target.getY(), "z", target.getZ(),
 				"block", BuiltInRegistries.BLOCK.getKey(st.getBlock()).getPath(), "sees", Work.sight(mc), "hits", hitsOn(target));
 			skipped.put(target, now + 120_000);
@@ -1809,8 +1810,8 @@ final class Work {
 	}
 
 	/**
-	 * A block in the way of his walk (PathShape's dig): the fastest tool in hand, the crosshair on an open face, the hit
-	 * at the start of the next tick. True while it goes; false when he cannot (no tool for it, no face in reach).
+	 * A block in the way of the buddy's walk (PathShape's dig): the fastest tool in hand, the crosshair on an open face, the
+	 * hit at the start of the next tick. True while it goes; false when that cannot be (no tool for it, no face in reach).
 	 */
 	static boolean breakForWalk(Minecraft mc, LocalPlayer p, BlockPos target) {
 		Level level = p.level();
@@ -1853,7 +1854,7 @@ final class Work {
 	}
 
 	/**
-	 * Wood or earth he breaks with his hand because he has no axe or shovel, none in a chest he knows either: a need
+	 * Wood or earth broken by hand for want of an axe or shovel, none in a known chest either: a need
 	 * all the same (0.4.41; until then only a block without drops was reported). It does
 	 * not stop the work: by hand it goes, only slower.
 	 */
@@ -1874,13 +1875,13 @@ final class Work {
 
 	/**
 	 * A block's name in English whatever the game's language: its id without the namespace, with spaces ("diamond ore").
-	 * The game's own name follows his game's language, which put Dutch block names in the needs (31 Oct 2026).
+	 * The game's own name follows the language the buddy's game is set to, which put Dutch block names in the needs (31 Oct 2026).
 	 */
 	static String plainName(BlockState st) {
 		return BuiltInRegistries.BLOCK.getKey(st.getBlock()).getPath().replace('_', ' ');
 	}
 
-	/** A block only a tool he does not have gives: a need, with the block's name. */
+	/** A block only a missing tool gives: a need, with the block's name. */
 	private static void lacking(BlockState st) {
 		String name = plainName(st);
 		boolean pick = st.is(BlockTags.MINEABLE_WITH_PICKAXE);
@@ -1896,7 +1897,7 @@ final class Work {
 
 	/**
 	 * Slot 0-35 of the fastest tool for this block that is not about to break, {@link #HAND} if the hand does as well,
-	 * {@link #NONE} if only a tool he does not have gives the drop.
+	 * {@link #NONE} if only a missing tool gives the drop.
 	 */
 	static int toolFor(LocalPlayer p, BlockState st) {
 		var inv = p.getInventory();
@@ -1913,7 +1914,7 @@ final class Work {
 			if (s.is(Items.SHEARS) && !st.is(BlockTags.WOOL) && !st.is(Blocks.COBWEB)) continue;
 			if (need && !s.isCorrectToolForDrops(st)) continue;
 			float speed = s.getDestroySpeed(st);
-			// of equally fast tools the most worn first, so a new one he carries waits until the old one is used up;
+			// of equally fast tools the most worn first, so a new one that is carried waits until the old one is used up;
 			// then the hotbar
 			boolean same = speed == best && slot >= 0, worn = same && left(s) < left(inv.getItem(slot));
 			if (speed > best || worn || (same && left(s) == left(inv.getItem(slot)) && slot >= 9 && i < 9)) { best = speed; slot = i; }
@@ -1940,8 +1941,8 @@ final class Work {
 	}
 
 	/**
-	 * Nearly worn out: a tenth of its durability or less left, ten uses at least. With {@code baseRenew} he makes a new iron
-	 * one then, while there is enough iron (a switch in the panel).
+	 * Nearly worn out: a tenth of its durability or less left, ten uses at least. With {@code baseRenew} a new iron one is made
+	 * then, while there is enough iron (a switch in the panel).
 	 */
 	static boolean lowWear(ItemStack s) {
 		return s.isDamageableItem() && s.getMaxDamage() - s.getDamageValue() <= Math.max(10, s.getMaxDamage() / 10);
@@ -1980,7 +1981,7 @@ final class Work {
 	/**
 	 * An item frame on the way to this point: the game's pick takes it instead of the block behind it at any distance
 	 * within the block reach (GameRenderer.pick looks for entities as far as for blocks); within the reach for entities a
-	 * click turns the thing in it, beyond it the crosshair hits nothing at all. His cellar has frames on 45 of its chests,
+	 * click turns the thing in it, beyond it the crosshair hits nothing at all. The base's cellar has frames on 45 of its chests,
 	 * each covering all of the front but a sixteenth at its edges, and from 4.1 blocks the chest never opened: a
 	 * right-click has to be very precise or it lands in the frame.
 	 */
@@ -2052,10 +2053,10 @@ final class Work {
 	}
 
 	/**
-	 * A cell near the block to stand in and reach it from: one the test allows, not where he stands, nearest to the alt.
-	 * First one from which the block is in reach wherever in the cell he stops ({@link #CELL_SLACK} inside {@link #REACH}),
-	 * only then one in reach from its middle alone: on 22 Oct 2026 he stopped off the middle of such a cell, the chest
-	 * 4.1 off, and the click never went.
+	 * A cell near the block to stand in and reach it from: one the test allows, not where the player stands, nearest to
+	 * the buddy. First one from which the block is in reach wherever in the cell the buddy stops ({@link #CELL_SLACK}
+	 * inside {@link #REACH}), only then one in reach from its middle alone: on 22 Oct 2026 the buddy stopped off the
+	 * middle of such a cell, the chest 4.1 off, and the click never went.
 	 */
 	static BlockPos standCell(Level level, LocalPlayer p, BlockPos target, Player t, Predicate<BlockPos> ok) {
 		BlockPos best = standCell(level, p, target, t, ok, REACH - CELL_SLACK);
@@ -2063,8 +2064,8 @@ final class Work {
 	}
 
 	/**
-	 * A door's or a gate's own cell: he walks through it but never stops in it to work, or it cannot be shut behind him and
-	 * the animals of a pen walk out past him. He chose the open doorway of the sheep pen as the cell to shear from and stood
+	 * A door's or a gate's own cell: walked through but never stopped in to work, or it cannot be shut behind the buddy and
+	 * the animals of a pen walk out past. The buddy chose the open doorway of the sheep pen as the cell to shear from and stood
 	 * there seven seconds while three sheep went out (the test server's copy of the base, 22 Oct 2026; a chest under the
 	 * door, so a chest round could have chosen it as well).
 	 */
@@ -2073,7 +2074,7 @@ final class Work {
 		return b instanceof net.minecraft.world.level.block.DoorBlock || b instanceof net.minecraft.world.level.block.FenceGateBlock;
 	}
 
-	/** Half a cell's diagonal: how far from its middle he can stand in it. */
+	/** Half a cell's diagonal: how far off its middle a spot in it can be. */
 	static final double CELL_SLACK = 0.71;
 
 	private static BlockPos standCell(Level level, LocalPlayer p, BlockPos target, Player t, Predicate<BlockPos> ok, double reach) {
@@ -2102,7 +2103,7 @@ final class Work {
 		return n;
 	}
 
-	// ---------- what he lacks ----------
+	// ---------- what the buddy lacks ----------
 
 	/** Every five seconds: food, a weapon, room, a tool about to break. */
 	private static void needs(LocalPlayer p) {
@@ -2114,13 +2115,13 @@ final class Work {
 		for (int i = 0; i < 36; i++) if (Guard.isWeapon(inv.getItem(i))) armed = true;
 		Needs.set("wood", "{me} has no wood for sticks and finds no tree in the base to chop.", !woodTree && Chores.woodWanted(p));
 		Needs.set("weapon", "{me} has no weapon to guard you with.", Guard.on() && !armed && !Stash.has(id -> id.endsWith("_sword") && Stash.allowed(id)));
-		// two and a half game days without a bed outside a base: phantoms come at three (Rest; in a base he lies down himself)
+		// two and a half game days without a bed outside a base: phantoms come at three (Rest; in a base the buddy goes to bed unprompted)
 		int rest = Rest.estimate();
-		Needs.set("rest", "{me} has not slept for " + String.format(java.util.Locale.ROOT, "%.1f", rest / 24000.0) + " game days: after three, phantoms come for them.",
+		Needs.set("rest", "{me} has not slept for " + String.format(java.util.Locale.ROOT, "%.1f", rest / 24000.0) + " game days; phantoms come after three.",
 			rest >= Rest.WARN && Base.keeper() == null);
-		// a bow and arrows for what he cannot hit (Bow): none with him, in a chest, or to make
+		// a bow and arrows for what is out of reach (Bow): none carried, in a chest, or to make
 		boolean bow = Chores.hasBow(p);
-		Needs.set("bow", "{me} has no bow, so cannot hit phantoms or skeletons up on a pillar, and makes one from three string.",
+		Needs.set("bow", "{me} has no bow for phantoms and skeletons out of reach, and makes one from three string.",
 			Guard.on() && !bow && !Stash.chestHasTool("bow") && !Chores.bowToMake(p) && Base.keeper() != null);
 		Needs.set("arrows", "{me} has a bow but no arrows, and makes them from flint, sticks and feathers.",
 			Guard.on() && bow && !Bow.armed(p) && !Stash.has(id -> id.endsWith("arrow")) && !Chores.arrowsToMake(p));

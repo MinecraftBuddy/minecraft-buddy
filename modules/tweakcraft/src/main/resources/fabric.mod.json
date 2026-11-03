@@ -3,7 +3,7 @@
 	"id": "minecraft-buddy-tweakcraft",
 	"version": "${version}",
 	"name": "Minecraft Buddy: Tweakcraft",
-	"description": "Tweakcraft's extras for the buddy: the parkour course of its events. On only where a server profile names the module.",
+	"description": "Tweakcraft's extras for the buddy: running the parkour course of the server's events. Only on where a server profile names the module.",
 	"authors": [
 		"Minecraft Buddy contributors"
 	],

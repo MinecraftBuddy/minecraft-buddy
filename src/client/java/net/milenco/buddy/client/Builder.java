@@ -275,7 +275,7 @@ public class Builder {
 		BuildStore.Data d = BuildStore.get();
 		// The same file put down somewhere else is another build. The third wheat floor carried the name of the
 		// second, so it kept that floor's count and its shulker boxes, and one of those (known to hold leaves) won
-		// from the new ones he stood beside.
+		// from the new ones the buddy stood beside.
 		String corner = pl.min().toShortString();
 		// no corner yet: a file from before it was kept, so a build that is under way goes on with its chests
 		boolean samePlacement = pl.name().equals(d.placement) && (d.corner.isEmpty() || corner.equals(d.corner));
@@ -307,15 +307,15 @@ public class Builder {
 			"chests", chestsHere(p).size(), "scaffold", scaffold.size(), "resumed", resumed);
 	}
 
-	/** Stops that are not the player's choice: the build is still wanted, and the alt takes it up again when it is back. */
+	/** Stops that are not the player's choice: the build is still wanted, and the alt takes it up again once back. */
 	private static final Set<String> COMES_BACK = Set.of("teleport", "new connection", "another world");
 	private static boolean resumePlanned = false;
 
 	/** Switched on and not switched off since, also while a teleport or a new connection has it stopped. */
 
 	/**
-	 * Back in the world after a restart or a kick: the alt carries on the build it was on, like the wheat
-	 * field does. It stood still until someone turned building on again, and the alt's own /home pulled it away.
+	 * Back in the world after a restart or a kick: the alt carries on the build that was under way, like the wheat
+	 * field does. It stood still until someone turned building on again, and the alt's own /home took the alt away from it.
 	 */
 	public static void resumeLater() {
 		if (resumePlanned || isOn || !BuildStore.get().wanted) return;
@@ -324,8 +324,8 @@ public class Builder {
 			resumePlanned = false;
 			BuildStore.Data d = BuildStore.get();
 			if (isOn || !d.wanted || Minecraft.getInstance().player == null) return;
-			// Only the build he was on. After a restart his placement was gone and another one was nearest: he
-			// "resumed" on that, a floor that was finished long ago.
+			// Only the build that was under way. After a restart its placement was gone and another one was nearest: the
+			// buddy "resumed" on that, a floor that was finished long ago.
 			if (!d.corner.isEmpty() && !placementThere(d.placement, d.corner)) {
 				Exchange.emit("build", "action", "not resumed", "reason", "placement gone", "placement", d.placement, "corner", d.corner, "litematica", Schematic.describe());
 				return;
@@ -530,7 +530,7 @@ public class Builder {
 
 	/**
 	 * Can this container open at all? A shulker box whose lid side is covered, or a chest under a solid block,
-	 * does not: he kept walking to one and clicking. Unloaded counts as openable, it is checked again there.
+	 * does not: the buddy kept walking to one and clicking. Unloaded counts as openable, it is checked again there.
 	 */
 	static boolean openable(Level level, BlockPos pos) {
 		if (!level.isLoaded(pos)) return true;
@@ -629,7 +629,7 @@ public class Builder {
 		signCloseAt = 0;
 		// a container screen the server sees (not the chat or the Esc menu): wait, unless it is our own chest visit
 		if (screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> && !(current instanceof ChestVisit)) {
-			pause(300, "scherm open");
+			pause(300, "screen open");
 			return false;
 		}
 		Player other = Lumberjack.playerNearby(p, c.buildPauseRadius);
@@ -1110,7 +1110,7 @@ public class Builder {
 		skipped.values().removeIf(t -> t < now);
 		noMaterial.values().removeIf(t -> now - t > 5 * 60_000L);
 		// what you now carry is not missing any more (the HUD itself only shows what the build still lacks; scaffolding
-		// and dirt are never in the build's needs, and dropping them here sent him back to an empty chest every plan)
+		// and dirt are never in the build's needs, and dropping them here sent the buddy back to an empty chest every plan)
 		noMaterial.keySet().removeIf(it -> Lumberjack.countInInventory(p, it) > 0);
 		refreshScaffold(level);
 
@@ -1243,8 +1243,8 @@ public class Builder {
 			if (planWalkToPlace(p, c, restore, now, false)) return;
 		}
 
-		// A tool a finishing touch waits for, in a chest we know of: fetch it before the next pass. With his hoe worn
-		// down he went on to sow and would only have looked for another hoe once every seed was in.
+		// A tool a finishing touch waits for, in a chest we know of: fetch it before the next pass. With the hoe worn
+		// down the buddy went on to sow and would only have looked for another hoe once every seed was in.
 		if (!cleanup && tower == null && !toolsLacking.isEmpty() && Lumberjack.freeSlots(p) > 1) {
 			Set<Item> tools = new HashSet<>();
 			for (Finisher.Fix f : toolsLacking) {
@@ -1299,7 +1299,7 @@ public class Builder {
 			}
 			boolean lowNeedsFetch = false;
 			for (Job j : jobs) if (j.pos().getY() == low && lacking.contains(itemFor(j))) { lowNeedsFetch = true; break; }
-			// Not with a full bag while there is work for what you carry: he walked back to the shulker boxes for
+			// Not with a full bag while there is work for what you carry: the buddy walked back to the shulker boxes for
 			// leaves with the bag full of dirt, could take nothing, and reported the leaves as gone.
 			boolean room = carried.isEmpty() || Lumberjack.freeSlots(p) > 1;
 			if (!lacking.isEmpty() && (lowNeedsFetch || carried.isEmpty()) && digs.isEmpty() && room) {
@@ -1335,7 +1335,7 @@ public class Builder {
 			if (planWalkToPlace(p, c, carried, now, false)) return;
 		}
 		if (carried.isEmpty() && digs.isEmpty()) { steps.add(new Wait(5000, jobs.isEmpty() ? "only skipped blocks left, trying again soon" : "waiting for material")); return; }
-		// say where: without a position you could not help him get there
+		// say where: without a position nobody could help the buddy get there
 		List<BlockPos> stuck = new ArrayList<>();
 		for (Job j : carried) stuck.add(j.pos());
 		stuck.addAll(digs);
@@ -1407,11 +1407,11 @@ public class Builder {
 		double range = p.blockInteractionRange() + 0.9;
 		List<Job> near = new ArrayList<>();
 		for (Job j : carried) if (eye.distanceToSqr(Vec3.atCenterOf(j.pos())) <= range * range) near.add(j);
-		// Strictly layer by layer had him swing round for every block of the lowest layer that lay behind him; a block
+		// Strictly layer by layer meant a swing round for every block of the lowest layer that lay behind; a block
 		// one layer up may now go first when it saves more than LAYER_TURN degrees of turning.
 		int low = near.stream().mapToInt(j -> j.pos().getY()).min().orElse(0);
 		Map<Job, Double> key = new HashMap<>();
-		// within reach the turn counts most: at full weight the order rules had him swing between both sides
+		// within reach the turn counts most: at full weight the order rules made the buddy swing between both sides
 		for (Job j : near) key.put(j, (j.pos().getY() - low) * LAYER_TURN + turn(p, eye, Vec3.atCenterOf(j.pos())) + priority(j) * IN_REACH_ORDER);
 		near.sort(Comparator.comparingDouble(key::get));
 		int tries = 0, checks = 0;
@@ -1537,7 +1537,7 @@ public class Builder {
 
 	/**
 	 * Walk to the nearest spot from where one of the lowest remaining blocks can really be placed. We check that
-	 * with the same click simulation, from the eye height of that spot: otherwise he walks to a place from where the
+	 * with the same click simulation, from the eye height of that spot: otherwise the walk goes to a place from where the
 	 * stairs would face the wrong way. The spots include the ones only scaffold reaches. Where no spot works, the
 	 * block gets a support to click on.
 	 */
@@ -1603,7 +1603,7 @@ public class Builder {
 		ItemStack stack = new ItemStack(itemFor(j));
 		Vec3 bc = Vec3.atCenterOf(j.pos());
 		// Walking distance alone put the first thirty spots all on the ground below a high block, from where no
-		// face shows; the spots up the stairs never got a turn and he said he could not reach it. So first the
+		// face shows; the spots up the stairs never got a turn and the buddy said it could not be reached. So first the
 		// spots whose eye is at the height of the block, then walking distance.
 		// Spots where a block still comes count too, at a price: stairs, gates and observers take their facing
 		// from where you stand, and their one right side was often such a spot, so they were never placed.
@@ -1969,8 +1969,8 @@ public class Builder {
 		// The candidates spread out: with thousands of source blocks around (water above or beside the build) the
 		// twelve nearest were twelve cells of one body of water out of reach, and the pool laid out for it was never
 		// tried from afar; every miss then cost a round of the chests. The source that worked before is always one
-		// of them, but no longer the first: with a new pool on his own floor he kept climbing the stairs to the old
-		// one a floor up. The shortest walk wins, not the shortest line: that old pool was right above his head.
+		// of them, but no longer the first: with a new pool on the buddy's own floor the stairs up to the old one a floor up
+		// were climbed again and again. The shortest walk wins, not the shortest line: that old pool was right overhead.
 		List<BlockPos> tryFirst = new ArrayList<>();
 		for (BlockPos src : sources) {
 			if (tryFirst.size() >= 12) break;
@@ -2239,7 +2239,7 @@ public class Builder {
 
 	/**
 	 * Walk into the foot of the tower, and only once in the middle hold jump, without walking on, until you are on
-	 * top. Jumping while still walking in had him jump beside the tower, and walking on at the top off it.
+	 * top. Jumping while still walking in meant a jump beside the tower, and walking on at the top off it.
 	 */
 	static class Climb extends Step {
 		final Tower t; boolean climbing = false, released = false;
@@ -2526,7 +2526,7 @@ public class Builder {
 			if (e.getKey().distSqr(p.blockPosition()) > 64) continue;   // thousands of fixes on a field: only the near ones are worth aiming at
 			near.add(e.getKey());
 		}
-		// The one that takes the least turning first. In the order of the map he swung round between every two
+		// The one that takes the least turning first. In the order of the map the buddy swung round between every two
 		// blocks of a field, which looked odd and took most of the time.
 		near.sort(Comparator.comparingDouble(pos -> turn(p, eye, new Vec3(pos.getX() + 0.5, pos.getY() + 1, pos.getZ() + 0.5))));
 		for (BlockPos pos : near) if (fixAim(p, eye, pos, finishing.get(pos).rule()) != null) return new Finish(pos, null);
@@ -2735,7 +2735,7 @@ public class Builder {
 		}
 		for (BlockPos pos : options) {
 			if (solid(level, pos) || !canScaffold(level, pos) || supports.containsKey(pos)) continue;
-			if (p.getBoundingBox().intersects(new AABB(pos))) continue;   // not where you stand: that walled him in
+			if (p.getBoundingBox().intersects(new AABB(pos))) continue;   // not where you stand: that walled the buddy in
 			supports.put(pos, ((BlockItem) f).getBlock().defaultBlockState());
 			supportsFor.merge(j.pos(), 1, Integer::sum);
 			supportOf.put(pos, j.pos());
@@ -2830,7 +2830,7 @@ public class Builder {
 			int score = 0;
 			for (Item it : lacking) if (ch.contents.getOrDefault(Lumberjack.itemId(it), 0) > 0) score = 3;
 			// unknown or a while ago: maybe (four minutes, so a chest the player refilled is found again soon). Seen
-			// lately without any of it: not worth the walk (he toured all five shulker boxes for water buckets none of
+			// lately without any of it: not worth the walk (the buddy toured all five shulker boxes for water buckets none of
 			// them held, every few minutes)
 			if (score == 0 && (ch.seen == 0 || now - ch.seen > 4 * 60_000L)) score = 2;
 			if (score == 0) continue;
@@ -3022,8 +3022,8 @@ public class Builder {
 		 * Every cell you can get to and back from, by cost, nearest first: also those where a block of the build still
 		 * comes. For what you do without putting a block down (breaking, a chest, scooping water) your body is in
 		 * nobody's way. In an empty room where farmland still came on every floor cell none of them was in
-		 * {@link #order}: he ran to the stairs outside the field to break a torch, and from there called the shulker
-		 * boxes he had stood beside unreachable.
+		 * {@link #order}: the buddy ran to the stairs outside the field to break a torch, and from there called the shulker
+		 * boxes that had been right beside unreachable.
 		 */
 		final List<BlockPos> all = new ArrayList<>();
 		/** Cells where a block of the build still comes: only for a block that has no other spot to be placed from. */
@@ -3045,7 +3045,7 @@ public class Builder {
 			BlockPos start = footing(p);
 			nav.start = start;
 			// Only where your body would be in the way of the block that comes. Every cell of a field is one where wheat
-			// still comes, so none of them counted as a place to work from: he hoed what he could reach from the top
+			// still comes, so none of them counted as a place to work from: the buddy hoed what could be reached from the top
 			// of a leaf and then stood still with 3800 blocks of the field left to hoe.
 			Set<BlockPos> notToStand = scan == null ? Set.of() : scan.inTheWay(level);
 			PriorityQueue<BlockPos> q = new PriorityQueue<>(Comparator.comparingInt(b -> nav.cost.getOrDefault(b, Integer.MAX_VALUE)));
@@ -3073,8 +3073,8 @@ public class Builder {
 						double dy = fh - fc;
 						if (Math.abs(dy) <= 0.6) { nav.relax(q, closed, cur, cand, base + 10, spent, Move.WALK); moved = true; break; }
 						// Farmland is trampled by a fall of more than half a block: a drop onto it, or a low hop. A jump up a
-						// whole block lands after a fall of about a third and is fine; without it he could not get onto the
-						// field at all once everything around him was hoed.
+						// whole block lands after a fall of about a third and is fine; without it the buddy could not get onto the
+						// field at all once everything around was hoed.
 						if (onFarmland(level, cand) && dy < 0.8) { moved = true; break; }
 						if (dy > 0.6 && dy <= 1.25 && roomToJump(level, cur, fc, dy)) { nav.relax(q, closed, cur, cand, base + 18, spent, Move.UP); moved = true; break; }
 						if (dy < -0.6 && dy >= -3.2) { nav.relax(q, closed, cur, cand, base + 12 + (int) (-dy * 3), spent, Move.DROP); moved = true; break; }
@@ -3107,10 +3107,10 @@ public class Builder {
 			// into the stair hole to get in reach of a chest and stood at the bottom with no way out.
 			ArrayDeque<BlockPos> todo = new ArrayDeque<>();
 			todo.add(start); nav.returnable.add(start);
-			// Where you are is not always a cell that anything walks into: standing on farmland he took the farmland
-			// block itself as his cell, found no way back to it from anywhere, dropped every standing spot and said
-			// he could not reach dirt three blocks away. The start is now the cell he really stands in; where even
-			// that is no cell (in water, on a chest), the cells he steps to from there count as back.
+			// Where you are is not always a cell that anything walks into: standing on farmland the buddy took the farmland
+			// block itself as the buddy's cell, found no way back to it from anywhere, dropped every standing spot and said
+			// dirt three blocks away was out of reach. The start is now the cell really stood in; where even
+			// that is no cell (in water, on a chest), the cells stepped to from there count as back.
 			if (!nav.stepsInto.containsKey(start)) for (BlockPos c : nav.firstSteps) if (nav.returnable.add(c)) todo.add(c);
 			while (!todo.isEmpty()) {
 				List<BlockPos> into = nav.stepsInto.get(todo.poll());
@@ -3150,7 +3150,7 @@ public class Builder {
 		void failed(LocalPlayer p, AfkConfig c) {}
 		/** Name for the events: the watcher matches on it. */
 		abstract String name();
-		/** What the player sees in the HUD status line, in their own language. */
+		/** What the player sees in the HUD status line, in the player's own language. */
 		abstract String label();
 		long elapsed() { return System.currentTimeMillis() - startedAt; }
 	}
@@ -3224,8 +3224,8 @@ public class Builder {
 			boolean bridging = mv == Move.BRIDGE || (idx + 1 < cells.size() && route.moves().get(idx + 1) == Move.BRIDGE);
 			crouch(Math.abs(wf - p.getY()) < 0.1 && (bridging || (last && d < 1.8 && edge(level, wp))));
 			if (idxSince == 0) idxSince = System.currentTimeMillis();
-			// A step up he could not make (something over his head, or two high) had him jump and circle round the
-			// spot for a minute: jumping moved him, so standing still never showed. Now a few jumps or a few seconds
+			// A step up that could not be made (something overhead, or two high) meant jumping and circling round the
+			// spot for a minute: jumping moved the buddy, so standing still never showed. Now a few jumps or a few seconds
 			// without reaching the next cell count as stuck.
 			if (jumpsHere > 3 || System.currentTimeMillis() - idxSince > 6000) {
 				stopKeys(mc); crouch(false);
@@ -3235,7 +3235,7 @@ public class Builder {
 				return BUSY;
 			}
 			// In water a tap on the jump key lifts you a few centimetres. Hold it, the way you swim to the edge and
-			// climb out: pushed into a leaf hole he had just filled, he tapped at its wall until the walk gave up.
+			// climb out: pushed into a leaf hole just filled, the buddy tapped at its wall until the walk gave up.
 			if (p.isInWater()) { crouch(false); HeldKeys.set(mc.options.keyJump, true); jumpTicks = 3; }
 			if (up && d < 1.5 && p.onGround() && jumpTicks == 0) { crouch(false); jump(mc); jumpsHere++; }
 			if (d < (last ? 0.3 : 0.45) && (!up || p.getY() >= wf - 0.05)) { idx++; jumpsHere = 0; idxSince = 0; return BUSY; }
@@ -3426,7 +3426,7 @@ public class Builder {
 						// The click did not go out. A bucket is checked once more at the click itself (standing still,
 						// and rays from a shifted eye along the view as it really is). A view a fraction off a sliver
 						// of a face inside a 1x1 hole failed that every time, while from here all still looked right:
-						// he asked for the same click again, for minutes and without a word, until someone pushed him.
+						// the buddy asked for the same click again, for minutes and without a word, until someone gave the buddy a push.
 						if (++notOut > 5) {
 							notOut = 0;
 							if (aim != null) tried.add(aim.point());
@@ -3463,7 +3463,7 @@ public class Builder {
 			if (wantCrouch && !p.isCrouching()) { crouch(true); return elapsed() > 3000 ? fail("crouching failed") : BUSY; }
 			ItemStack stack = p.getMainHandItem();
 			if (aim == null) {
-				if (standsInTheWay(p, target)) return fail("stands in their own way");
+				if (standsInTheWay(p, target)) return fail("stands where the block goes");
 				aimSkip = tried;
 				try { aim = findAim(p, p.getEyePosition(), target, want, stack); } finally { aimSkip = Set.of(); }
 				if (aim == null && !centring && tower == null) {
@@ -3583,7 +3583,7 @@ public class Builder {
 		}
 		void failed(LocalPlayer p, AfkConfig c) {
 			int n = failures.merge(pos, 1, Integer::sum);
-			// never shorten a longer wait set on the way (water behind it): that brought him back every twenty seconds
+			// never shorten a longer wait set on the way (water behind it): that brought the buddy back every twenty seconds
 			skipped.merge(pos, System.currentTimeMillis() + skipFor(n), Math::max);
 		}
 		String name() { return "breek " + pos.toShortString(); }
@@ -3709,7 +3709,7 @@ public class Builder {
 					menu = p.containerMenu; phase = 2; wait = R.nextInt(3, 7);
 					snapshot(p);
 					wanted = shortage(p);
-					// Only what this pass can use. With the dirt gone he filled the bag with seeds for the sowing still
+					// Only what this pass can use. With the dirt gone the buddy filled the bag with seeds for the sowing still
 					// to come, had no room when the dirt was back, and reported the dirt as gone.
 					if (!neededNow.isEmpty()) wanted.keySet().removeIf(it -> !neededNow.contains(it));
 					// a tool goes by what fits (see toolWanted), one at a time, never by count
@@ -3788,8 +3788,8 @@ public class Builder {
 			snapshot(p);
 			close(p, mc);
 			Exchange.emit("build", "action", "chest", "pos", pos.toShortString(), "clicks", clicks, "back", putBack, "free", Lumberjack.freeSlots(p));
-			// Only a visit that brought something starts a new round. Clearing the round on every plan sent him back
-			// to the same chest each second for scaffold dirt it did not have, and he never said he lacked it.
+			// Only a visit that brought something starts a new round. Clearing the round on every plan sent the buddy back
+			// to the same chest each second for scaffold dirt it did not have, and the lack was never told.
 			if (clicks > 0) visitedThisRound.clear();
 			return DONE;
 		}
@@ -3815,7 +3815,7 @@ public class Builder {
 			if (ch == null || menu == null) return;
 			Map<String, Integer> contents = new LinkedHashMap<>();
 			int n = menu.slots.size() - 36;
-			// a tool that is nearly gone does not count as stock: he would come back for it every few minutes
+			// a tool that is nearly gone does not count as stock: the buddy would come back for it every few minutes
 			for (int i = 0; i < n; i++) { ItemStack s = menu.getSlot(i).getItem(); if (!s.isEmpty() && !wornOut(s)) contents.merge(Lumberjack.itemId(s.getItem()), s.getCount(), Integer::sum); }
 			ch.contents = contents; ch.seen = System.currentTimeMillis();
 			BuildStore.save();

@@ -29,10 +29,10 @@ final class Shield {
 	/** Up from the next tick, for this reason; asked again every tick it should stay up. */
 	static void want(String reason) { want = true; why = reason; }
 
-	/** He holds it up now. */
+	/** Held up now. */
 	static boolean up() { return up; }
 
-	/** A shield he can block with in his off hand. */
+	/** A shield to block with in the off hand. */
 	static boolean ready(LocalPlayer p) {
 		return p.getOffhandItem().is(Items.SHIELD) && !Work.nearlyBroken(p.getOffhandItem()) && !p.getCooldowns().isOnCooldown(p.getOffhandItem());
 	}
@@ -73,8 +73,8 @@ final class Shield {
 	}
 
 	/**
-	 * A creeper that swells within four blocks of him (the reflex, before anything he does): the nearest, or null. Its
-	 * blast is blocked by a shield held up towards it; he stands and faces it until it went off or stopped swelling.
+	 * A creeper that swells within four blocks of the buddy (the reflex, before any other step): the nearest, or null. Its
+	 * blast is blocked by a shield held up towards it; the buddy stands and faces it until it went off or stopped swelling.
 	 */
 	static Creeper swelling(LocalPlayer p) {
 		Creeper best = null;

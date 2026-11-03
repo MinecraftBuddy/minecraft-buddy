@@ -10,14 +10,14 @@ import net.milenco.buddy.client.BuddyModule;
 
 /**
  * Parkour on Tweakcraft at a word, also as {@code !parkour} from Telegram. {@code {"cmd":"parkour"}} joins a Parkour
- * that players voted open and walks him to the finish; {@code {"cmd":"parkour","on":false}} stops the walk and takes him
- * out of the game.
+ * that players voted open and walks the buddy to the finish; {@code {"cmd":"parkour","on":false}} stops the walk and
+ * leaves the game.
  * <ul>
  * <li>Only a voted game, which has no prize: a game of the half-hourly draw pays its winner, and the buddy is
  * faster than the players.</li>
- * <li>No Parkour open, or one of the draw: he refuses and says why, and does nothing.</li>
- * <li>The walk is the core's goto with a dimension ({@link Buddy#walkTo}): in the waiting room he waits, the game's
- * teleport onto the start sets him going, and once he is out of the dimension again the walk ends.</li>
+ * <li>No Parkour open, or one of the draw: a refusal that says why, and nothing else.</li>
+ * <li>The walk is the core's goto with a dimension ({@link Buddy#walkTo}): in the waiting room the buddy waits, the
+ * game's teleport onto the start sets the walk going, and once the buddy is out of the dimension again the walk ends.</li>
  * </ul>
  * The course is the server's, so where it is comes from the server's profile:
  * <pre>"modules": {"parkour": {"dim": "events:arenas", "finish": [1676, 104, 1]}}</pre>
@@ -25,9 +25,9 @@ import net.milenco.buddy.client.BuddyModule;
  * regular expressions {@code "opened"}, {@code "voted"} and {@code "calledOff"}. The defaults are Tweakcraft's own lines
  * (the server's own event rules, in either language). Leaving is the profile's {@code eventLeave} command.
  *
- * <p>Every game of Parkour he is in is recorded, to set his run against the players' and learn where a run can be
- * faster: from the game's start line ({@code "started"}) until he leaves the dimension or two minutes are up, each tick
- * where the server put every player within 200 blocks and himself, to {@code parkour-runs.jsonl} in the exchange
+ * <p>Every game of Parkour the buddy is in is recorded, to set the buddy's run against the players' and learn where a
+ * run can be faster: from the game's start line ({@code "started"}) until the buddy leaves the dimension or two minutes
+ * are up, each tick where the server put every player within 200 blocks and the buddy, to {@code parkour-runs.jsonl} in the exchange
  * folder: {@code run} (the start's time), {@code p}, {@code x}, {@code y}, {@code z}, {@code g} (on the ground),
  * {@code sp} (sprinting), {@code yaw}.
  */

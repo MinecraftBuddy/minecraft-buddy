@@ -48,33 +48,34 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 
 /**
- * The world around him, for the panel's 3D view: the chunks his game holds, drawn in the browser with the game's own
- * block models and textures, as a server list site's 3D map does with the region files its bot kept; the view keeps up
- * by itself.
+ * The world around the buddy, for the panel's 3D view: the chunks the buddy's game holds, drawn in the browser with the
+ * game's own block models and textures, as a server list site's 3D map does with the region files its bot kept; the view
+ * keeps up by itself.
  * <p>
  * <b>The copy</b>: {@code {"cmd":"world3d","radius":6}} writes {@code world3d.bin} in the exchange folder: gzip of "MQ3D";
- * an int and that many bytes of JSON (the base this copy starts, its seq, the game's version, the dimension, where he is
- * and where he looks, the lowest y and the number of sections, every block state and biome so far by number, the players
+ * an int and that many bytes of JSON (the base this copy starts, its seq, the game's version, the dimension, where the buddy
+ * is and looks, the lowest y and the number of sections, every block state and biome so far by number, the players
  * and other entities); an int with the number of chunks; and per chunk its x and z (ints), a short with how many sections
  * follow, and per section its index from the bottom (a byte), 4096 block numbers and 64 biome numbers (unsigned shorts, x
  * fastest, then z, then y, as the game keeps them). Sections of air alone are left out.
  * <p>
  * <b>Keeping up</b>: while a page asks ({@code {"cmd":"world3d","live":true}}, at least every 30 seconds), every half second
- * {@code world3d-ent.json} has where he and the others are, and whatever changed in the blocks goes into
- * {@code world3d-live/<seq>.bin}: gzip of "MQ3L", the JSON (base, seq, the seq before it, a reset when he changed
+ * {@code world3d-ent.json} has where the buddy and the others are, and whatever changed in the blocks goes into
+ * {@code world3d-live/<seq>.bin}: gzip of "MQ3L", the JSON (base, seq, the seq before it, a reset after a change of
  * dimension, the world's height as in the copy ({@code minY}, {@code sections}) and its light ({@code skylight},
- * {@code ambient}), the block states and biomes that are new since the last file, the chunks that left his radius), the number
+ * {@code ambient}), the block states and biomes that are new since the last file, the chunks that left the radius), the number
  * of chunks, and per chunk x, z, a byte that says whether the chunk is whole (sections not named are air), the number of
  * sections, and per section its index, a byte that says it is air now, and else its numbers as above. A chunk that came
- * into his radius, or that the server sent again, comes whole; a block that changed brings its section. The numbers of
+ * into the radius, or that the server sent again, comes whole; a block that changed brings its section. The numbers of
  * block states and biomes hold for the whole session, so a page reads the files one after the other. A page that comes
  * back after the files stopped, or finds a gap, takes the copy again; a new copy takes the place of the files before it.
  * <p>
  * <b>Watching closely</b> ({@code {"cmd":"world3d","watch":true}}, which the panel sends every few seconds while its Take
- * control window is open, for {@link #WATCH_MS}): the positions file every tick, as while he is played, so that a page
- * that watches sees him turn, swing and eat as the game moved him; and {@link Details} writes state.json four times a
- * second. The positions file carries {@code breaks} too: the blocks broken around him since the last one (the game's
- * level event 2001, his own and the other players'), each {@code [x, y, z, state]}, for the page to throw their bits.
+ * control window is open, for {@link #WATCH_MS}): the positions file every tick, as while the buddy is played, so that
+ * a page that watches sees the buddy turn, swing and eat just as in the game; and {@link Details} writes state.json four
+ * times a second. The positions file carries {@code breaks} too: the blocks broken nearby since the last one (the game's
+ * level event 2001, by the buddy and by the other players), each {@code [x, y, z, state]}, for the page to throw their
+ * bits.
  * <p>
  * Sections are copied on the game's thread (a few milliseconds); everything else happens on a thread of its own, in the
  * order it was asked for.
@@ -86,7 +87,7 @@ public final class World3d {
 	private static final long LIVE_MS = 30_000;
 	/** How long one ask to watch closely lasts (the panel asks every four seconds while its Take control window is open). */
 	private static final long WATCH_MS = 8_000;
-	/** Chunks that come into his radius in one round: the nearest first, so that a teleport does not make one huge file. */
+	/** Chunks that come into the radius in one round: the nearest first, so that a teleport does not make one huge file. */
 	private static final int MAX_NEW_CHUNKS = 40;
 	/** Past this many bytes of files since the copy, the next round makes a new copy instead. */
 	private static final long CHAIN_LIMIT = 24L << 20;
@@ -108,11 +109,12 @@ public final class World3d {
 
 	// the game thread's own
 	private static long liveUntil, base, watchUntil;
-	/** Blocks broken around him since the last positions file: x, y, z and the state (at most 64 between two files). */
+	/** Blocks broken around the buddy since the last positions file: x, y, z and the state (at most 64 between two files). */
 	private static final List<Object> broken = new ArrayList<>();
 	private static int radius = 6, tick;
-	/** His game's ticks since it started, every one: the page draws his places by these (twenty a second, as the game
-	 *  moved him), not by the clock of the moment a file was written, which runs unevenly when two ticks fall in one frame. */
+	/** Ticks of the buddy's game since it started, every one: the page draws the places by these (twenty a second, as the
+	 *  game moved the buddy), not by the clock of the moment a file was written, which runs unevenly when two ticks fall in
+	 *  one frame. */
 	private static long gameTicks;
 	private static ClientLevel level0;
 	private static boolean resetNext;
@@ -157,7 +159,7 @@ public final class World3d {
 	}
 	private record Out(int x, int z, boolean whole, List<Sec> secs) {}
 
-	/** The block entities of a chunk as his game has them (what the server sends: a sign's text, a banner's patterns, a
+	/** The block entities of a chunk as the buddy's game has them (what the server sends: a sign's text, a banner's patterns, a
 	 *  head's owner, a spawner's mob; a chest's contents only when it is opened), by "x,y,z": type and SNBT. */
 	private static Map<String, Object> blockEntities(ClientLevel level, int cx, int cz) {
 		Map<String, Object> out = new LinkedHashMap<>();
@@ -175,11 +177,11 @@ public final class World3d {
 		return out;
 	}
 
-	/** A page's Take control window is open: everything that moves is written as often as while he is played, so that
+	/** A page's Take control window is open: everything that moves is written as often as while the buddy is played, so that
 	 *  the window shows the buddy's own work or another driver's too, sleeping, eating and block breaking included. */
 	static boolean watched() { return System.currentTimeMillis() < watchUntil; }
 
-	/** A block broken near him, his own or another player's (ClientLevel.addDestroyBlockEffect, the game's thread). */
+	/** A block broken near the buddy, by the buddy or another player (ClientLevel.addDestroyBlockEffect, the game's thread). */
 	public static void broke(BlockPos pos, BlockState state) {
 		if (System.currentTimeMillis() > liveUntil || broken.size() >= 64 || state.isAir()) return;
 		broken.add(List.of(pos.getX(), pos.getY(), pos.getZ(), BlockStateParser.serialize(state)));
@@ -202,7 +204,7 @@ public final class World3d {
 		snapshot(mc, radius);
 	}
 
-	/** A block changed in his world (the game's thread). */
+	/** A block changed in the buddy's world (the game's thread). */
 	public static void changed(BlockPos pos) {
 		if (System.currentTimeMillis() > liveUntil) return;
 		dirty.add(SectionPos.asLong(pos.getX() >> 4, pos.getY() >> 4, pos.getZ() >> 4));
@@ -217,7 +219,7 @@ public final class World3d {
 		else breaking.put(id, new long[] { pos.getX(), pos.getY(), pos.getZ(), stage, System.currentTimeMillis() });
 	}
 
-	/** The cracks to draw: his own breaking and the others', each x, y, z and a stage of 0 to 9. */
+	/** The cracks to draw: the buddy's own breaking and the others', each x, y, z and a stage of 0 to 9. */
 	private static List<int[]> cracks(Minecraft mc) {
 		List<int[]> out = new ArrayList<>();
 		var gm = mc.gameMode;
@@ -227,7 +229,7 @@ public final class World3d {
 		}
 		long now = System.currentTimeMillis();
 		breaking.values().removeIf(v -> now - v[4] > 10_000);
-		// his own breaking comes from the game mode above; the level hears of it too, under his own number
+		// the buddy's own breaking comes from the game mode above; the level hears of it too, under the same entity number
 		int me = mc.player == null ? -1 : mc.player.getId();
 		for (var en : breaking.entrySet()) if (en.getKey() != me) { long[] v = en.getValue(); out.add(new int[] { (int) v[0], (int) v[1], (int) v[2], (int) v[3] }); }
 		return out;
@@ -283,8 +285,8 @@ public final class World3d {
 	static void tick(Minecraft mc) {
 		gameTicks++;
 		long now = System.currentTimeMillis();
-		// while the page drives him, five times a second, so that the view keeps up with his steps
-		// played from the panel or watched closely every tick (his place drives the view), else every half second
+		// while the page drives the buddy, five times a second, so that the view keeps up with every step
+		// played from the panel or watched closely every tick (the buddy's place drives the view), else every half second
 		if (now > liveUntil || base == 0) { relight.clear(); broken.clear(); return; }
 		if (++tick % (Steer.active() || watched() ? 1 : 10) != 0) return;
 		LocalPlayer p = mc.player;
@@ -338,7 +340,7 @@ public final class World3d {
 		meta.put("dim", Work.dimOf(level));
 		meta.put("reset", resetNext);
 		// the new dimension's height: without it a page kept the old one's, and drew the nether (from y 0) 64 blocks too
-		// low, its bedrock roof a floor under their feet
+		// low, its bedrock roof a floor underfoot
 		meta.put("minY", level.getMinY());
 		meta.put("sections", level.getSectionsCount());
 		meta.put("skylight", level.dimensionType().hasSkyLight());
@@ -362,7 +364,7 @@ public final class World3d {
 		return new Out(cx, cz, true, secs);
 	}
 
-	/** Where he is and looks, and who and what is around him. */
+	/** Where the buddy is and looks, and who and what is around. */
 	private static Map<String, Object> common(ClientLevel level, LocalPlayer p) {
 		Map<String, Object> m = new LinkedHashMap<>();
 		m.put("dim", Work.dimOf(level));
@@ -376,7 +378,7 @@ public final class World3d {
 		skin(p, m);
 		m.put("yaw", p.getYRot());
 		m.put("pitch", p.getXRot());
-		// his own motion, for the view to carry him on between two messages, and his crouch
+		// the buddy's own motion, for the view to carry the figure on between two messages, and the crouch
 		var dm = p.getDeltaMovement();
 		m.put("vx", round(dm.x)); m.put("vy", round(dm.y)); m.put("vz", round(dm.z));
 		if (p.isCrouching()) m.put("crouch", true);
@@ -385,7 +387,7 @@ public final class World3d {
 		m.put("body", round(p.yBodyRot));
 		m.put("at", System.currentTimeMillis());
 		m.put("tk", gameTicks);
-		// what he uses (eating, drinking, a bow, a shield) and with which hand, for the view through his eyes
+		// what the buddy uses (eating, drinking, a bow, a shield) and with which hand, for the view through the buddy's eyes
 		if (p.isUsingItem()) {
 			m.put("using", BuiltInRegistries.ITEM.getKey(p.getUseItem().getItem()).getPath());
 			if (p.getUsedItemHand() == net.minecraft.world.InteractionHand.OFF_HAND) m.put("use_hand", "off");

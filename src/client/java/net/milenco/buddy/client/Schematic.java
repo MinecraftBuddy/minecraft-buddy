@@ -375,7 +375,7 @@ final class Schematic {
 	/**
 	 * A placement's material list, as Litematica's (the panel shows it in a modal), into
 	 * materials.json: per item what the whole schematic takes (Litematica's own count from the file, so also where the
-	 * schematic is not loaded), how much of it is still missing in the world where it is loaded, what they carry, what
+	 * schematic is not loaded), how much of it is still missing in the world where it is loaded, what the buddy carries, what
 	 * the builder's chests held when last seen, and whether the item is ignored.
 	 */
 	private static void materials(Object pl, LocalPlayer p) throws ReflectiveOperationException {

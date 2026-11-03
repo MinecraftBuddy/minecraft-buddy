@@ -21,16 +21,16 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * The bow (the plan for fighting, step 2: for phantoms, and for skeletons on pillars). For
- * a foe he cannot or should not reach with a blow: one that flies (a phantom, a ghast, a blaze, a vex), a creeper (shot
- * before it is close enough to swell), one that stands two and a half blocks or more above him, or one he has gone for
- * four seconds without a blow (on a pillar, across water). He stands, draws a full second (a bow's full power, 20
+ * a foe the buddy cannot or should not reach with a blow: one that flies (a phantom, a ghast, a blaze, a vex), a creeper
+ * (shot before it is close enough to swell), one that stands two and a half blocks or more above the buddy, or one gone
+ * for four seconds without a blow (on a pillar, across water). The buddy stands, draws a full second (a bow's full power, 20
  * ticks: BowItem.getPowerForTime), aims where the arrow will meet the foe and lets go once the aim is right:
  * <p>
  * The arrow's way is worked out tick by tick as the game moves it (AbstractArrow.tick: on by its speed, then times 0.99
- * and 0.05 down), from his eye less a tenth, at three blocks a tick at full power; the pitch is the one whose way passes
+ * and 0.05 down), from the eye less a tenth, at three blocks a tick at full power; the pitch is the one whose way passes
  * closest over the foe's spot when the arrow gets there, and that spot is where the foe will be by then at its present
- * speed (worked out twice). He does not shoot when a block stands in the way or a player is within a block of it: an
- * arrow hits the first one in its way, and that could be the player he follows.
+ * speed (worked out twice). No shot goes out when a block stands in the way or a player is within a block of it: an
+ * arrow hits the first one in its way, and that could be the followed player.
  */
 final class Bow {
 	private Bow() {}
@@ -42,10 +42,10 @@ final class Bow {
 	private static int drawnAt;
 	private static long toldAt, usedAt;
 
-	/** He shot or drew within the last second and a half: Guard.arm leaves the bow in his hand. */
+	/** A shot or a draw within the last second and a half: Guard.arm leaves the bow in hand. */
 	static boolean active() { return System.currentTimeMillis() - usedAt < 1500; }
 
-	/** A bow and arrows with him. */
+	/** A bow and arrows in the inventory. */
 	static boolean armed(LocalPlayer p) {
 		boolean bow = false, arrows = false;
 		var inv = p.getInventory();
@@ -58,8 +58,8 @@ final class Bow {
 	}
 
 	/**
-	 * Whether this foe is one for the bow now: armed, out of a blow's reach and within forty blocks, in sight, and one he
-	 * cannot or should not hit (see the class). Not at the pen, which farms by hand.
+	 * Whether this foe is one for the bow now: armed, out of a blow's reach and within forty blocks, in sight, and one the
+	 * buddy cannot or should not hit (see the class). Not at the pen, which farms by hand.
 	 */
 	static boolean wanted(LocalPlayer p, Entity e, double reach, long noBlowFor) {
 		if (!armed(p) || Pen.busy() || reach < MIN || reach > MAX || !p.hasLineOfSight(e)) return false;
@@ -162,8 +162,8 @@ final class Bow {
 	}
 
 	/**
-	 * The arrow's way at his present pitch and yaw is free up to the foe: no block, no player within a block of it (the
-	 * one he follows above all); the foe itself and others of its kind may be in it.
+	 * The arrow's way at the present pitch and yaw is free up to the foe: no block, no player within a block of it (the
+	 * followed player above all); the foe itself and others of its kind may be in it.
 	 */
 	private static boolean clear(LocalPlayer p, Entity e, float[] aim) {
 		Vec3 pos = p.getEyePosition().subtract(0, 0.1, 0);

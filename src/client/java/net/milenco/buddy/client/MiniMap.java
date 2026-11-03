@@ -32,16 +32,16 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.scores.PlayerTeam;
 
 /**
- * A map of what lies around him, for the web panel, updated live: where he is and what is around him (with a cave mode,
+ * A map of what lies around the buddy, for the web panel, updated live: the buddy's place and its surroundings (with a cave mode,
  * as Xaero's minimap has), so that a place to go to can be picked on it.
  * <p>
- * While the panel asks for his state, every two seconds {@code map.json} in the exchange folder: {@link #SIZE} by
- * {@link #SIZE} blocks around him, north up, each column in the colour a vanilla map gives its top block (shaded by the
+ * While the panel asks for the buddy's state, every two seconds {@code map.json} in the exchange folder: {@link #SIZE} by
+ * {@link #SIZE} blocks around the buddy, north up, each column in the colour a vanilla map gives its top block (shaded by the
  * height of the columns north and west of it, in the biome's own colours for grass, leaves and water, as Xaero's map
  * does, where a river is easier to see) and with that block's height, so that a click on the page is a real spot to
  * walk to. Under the sky it shows the surface; underground, in the nether, or when the page asks for it, the
- * layer he is on: per column the first floor below his head with air above it (Xaero's cave mode). With it the players
- * and monsters within the map, and the places he knows here: the base's bed, the chests and the fields. The work is
+ * layer the buddy is on: per column the first floor below the buddy's head with air above it (Xaero's cave mode). With it the
+ * players and monsters within the map, and the places known here: the base's bed, the chests and the fields. The work is
  * spread over the ticks, a few rows a tick.
  */
 final class MiniMap {
@@ -66,7 +66,7 @@ final class MiniMap {
 		nextStart = 0;
 	}
 
-	/** Once a tick while the panel wants his state. */
+	/** Once a tick while the panel wants the buddy's state. */
 	static void tick(Minecraft mc, boolean wanted) {
 		LocalPlayer p = mc.player;
 		if (p == null || mc.level == null || !wanted) { row = -1; return; }
@@ -77,7 +77,7 @@ final class MiniMap {
 			nextStart = now + 2000;
 			x0 = p.getBlockX() - SIZE / 2;
 			z0 = p.getBlockZ() - SIZE / 2;
-			// his head as MapMemory keeps it: the ground he stood on a moment ago during a jump, so a hop does not move the slice
+			// the head as MapMemory keeps it: the ground stood on a moment ago during a jump, so a hop does not move the slice
 			y0 = MapMemory.headY(p);
 			cave = caveForced() || (mode.equals("auto") && underground(level, p));
 			row = 0;
@@ -118,15 +118,15 @@ final class MiniMap {
 		}
 		if (cave) f *= y > y0 - 6 ? 1 : 0.85;
 		int rr = clamp(((colour >> 16) & 255) * f), gg = clamp(((colour >> 8) & 255) * f), bb = clamp((colour & 255) * f);
-		// the height of the top he would stand on or swim at (it was y + depth, above a fluid: Walk there aimed in the air)
+		// the height of the top to stand or swim at (it was y + depth, above a fluid: Walk there aimed in the air)
 		set(i, (rr << 16) | (gg << 8) | bb, (short) y);
 	}
 
 	private static int clamp(double v) { return Math.max(0, Math.min(255, (int) v)); }
 
 	/**
-	 * The cave layer's floor in the column of {@code at} (its x and z) for a head at {@code y0}: from his head down,
-	 * through a solid block first (he may stand beside a wall), then to the first floor with air above it, at most 24
+	 * The cave layer's floor in the column of {@code at} (its x and z) for a head at {@code y0}: from the head down,
+	 * through a solid block first (the buddy may stand beside a wall), then to the first floor with air above it, at most 24
 	 * below; {@link Integer#MIN_VALUE} when there is none. Shared with {@link MapMemory}, so that what it remembers of a
 	 * cave layer looks like the live map.
 	 */
@@ -142,13 +142,13 @@ final class MiniMap {
 	/** The cave layer a head at this height is in: sixteen blocks a layer, as {@link MapMemory} keeps them. */
 	static int layer(int y0) { return Math.floorDiv(y0, 16); }
 
-	/** Underground: rock well above his head (a roof of his house or a tree over him is still the surface), or a roof dimension. */
+	/** Underground: rock well above the head (the roof of a house or a tree overhead is still the surface), or a roof dimension. */
 	static boolean underground(Level level, LocalPlayer p) {
 		return level.dimensionType().hasCeiling()
 			|| level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, p.getBlockX(), p.getBlockZ()) > p.getBlockY() + 8;
 	}
 
-	/** The page chose the cave view: MapMemory then keeps the cave layer too, wherever he is. */
+	/** The page chose the cave view: MapMemory then keeps the cave layer too, wherever the buddy is. */
 	static boolean caveForced() { return mode.equals("cave"); }
 
 	/**
@@ -265,7 +265,7 @@ final class MiniMap {
 		m.put("npcs", npcs);
 		m.put("mobs", mobs);
 		List<Object> places = new ArrayList<>();
-		// within 512 blocks, not only on the live map: the page also draws what he remembers (MapMemory) and can be moved
+		// within 512 blocks, not only on the live map: the page also draws what is remembered (MapMemory) and can be moved
 		var base = Tap.baseAt(Work.dimOf(level), p.position(), 512);
 		if (base != null) places.add(Map.of("kind", "bed", "x", base.bed().getX(), "y", base.bed().getY(), "z", base.bed().getZ()));
 		for (BlockPos c : Stash.known(Work.dimOf(level))) if (near(c, p)) places.add(Map.of("kind", "chest", "x", c.getX(), "z", c.getZ()));
@@ -276,7 +276,7 @@ final class MiniMap {
 			Files.writeString(tmp, GSON.toJson(m), StandardCharsets.UTF_8);
 			Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "map.json: " + e.getMessage());
+			Exchange.emit("error", "msg", "map for the panel not saved: " + e.getMessage());
 		}
 	}
 

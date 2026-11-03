@@ -12,13 +12,13 @@ import net.minecraft.world.entity.player.Player;
  * Whether other players sleep, so that a setting can have the buddy sleep only while others do too. Two signs, either
  * is enough:
  * <ul>
- * <li>a player he can see lies in a bed (the game sends every player's pose within view);</li>
+ * <li>a player in sight lies in a bed (the game sends every player's pose within view);</li>
  * <li>the line above the hotbar that counts the sleepers, "Slapen... (1/2)" on Tweakcraft (our rule {@code slapen_balk},
  * shown to everyone in the overworld from the first sleeper) or the game's own "1/2 players sleeping": a line with
- * "slap" or "sleep" and a count. That reaches him wherever in the world the sleeper lies. The count holds him too
- * while he sleeps, so then it takes two.</li>
+ * "slap" or "sleep" and a count. That line reaches the buddy wherever in the world the sleeper lies. The count holds the
+ * buddy too while the buddy sleeps, so then it takes two.</li>
  * </ul>
- * With {@code baseSleepOthers} on he goes to bed only while someone else sleeps, and gets up when for
+ * With {@code baseSleepOthers} on the buddy goes to bed only while someone else sleeps, and gets up when for
  * {@link #GRACE} ms nobody else has.
  */
 final class Sleepers {
@@ -41,7 +41,7 @@ final class Sleepers {
 		barAt = System.currentTimeMillis();
 	}
 
-	/** Someone other than him sleeps right now, as far as he can tell. */
+	/** Someone other than the buddy sleeps right now, as far as can be told. */
 	static boolean now(LocalPlayer p) {
 		long t = System.currentTimeMillis();
 		boolean seen = false;
@@ -51,13 +51,13 @@ final class Sleepers {
 		return seen || bar;
 	}
 
-	/** Someone else slept within the grace: he stays in bed. */
+	/** Someone else slept within the grace: stay in bed. */
 	static boolean lately(LocalPlayer p) {
 		return now(p) || System.currentTimeMillis() - othersAt <= GRACE;
 	}
 
 	/**
-	 * Whether he may go to bed (or stay in it) now, with the option on. Off: always. Says once a night that he waits.
+	 * Whether the buddy may go to bed (or stay in it) now, with the option on. Off: always. Says once a night that the buddy waits.
 	 */
 	static boolean allows(LocalPlayer p) {
 		if (!AfkConfig.get().baseSleepOthers) return true;

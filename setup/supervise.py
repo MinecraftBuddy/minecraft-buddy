@@ -8,7 +8,7 @@ The panel and the bridge always run, and start again a moment after they stop. T
 panel/game.py writes game-want.json in the state folder ({"run": bool, "restart": n}) and this writes what it does to
 game-runs.json beside it, every few seconds, as systemd did for the user unit. A game that stops by itself starts again
 after twenty seconds, as Restart=always did; before every start the image's jars of the buddy go into the mods folder,
-so a new image is a new buddy. Its lines go to game.log in the state folder (the one before as game.log.1), not to the
+so a new image is a new buddy. The game's lines go to game.log in the state folder (the one before as game.log.1), not to the
 container's log. A stop of the container stops the game first, the whole process group (HeadlessMC and the game it
 started), and waits for it.
 
@@ -63,7 +63,7 @@ class Child:
 
     def tick(self):
         if self.p and self.p.poll() is not None:
-            say("%s stopped (%s)" % (self.name, self.p.returncode))
+            say("%s stopped (exit code %s)" % (self.name, self.p.returncode))
             self.pause = 2.0 if time.time() - self.started > 60 else min(self.pause * 2, 60.0)
             self.next, self.p = time.time() + self.pause, None
         if not self.p and not STOPPING[0] and time.time() >= self.next:
@@ -138,7 +138,7 @@ class Game:
             game.install_buddy(cfg)
         except Exception as e:
             self.state, self.why = "failed", str(e)[:200]
-            say("the buddy's jars: " + self.why)
+            say("Minecraft Buddy's jars not installed: " + self.why)
             return
         os.makedirs(game.STATE, exist_ok=True)
         if os.path.exists(GAME_LOG):
@@ -149,7 +149,7 @@ class Game:
         self.started = time.time()
         self.since = time.strftime("%a %Y-%m-%d %H:%M:%S %Z")
         self.state, self.why = "activating", ""
-        say("the game started (pid %d), its lines in %s" % (self.p.pid, GAME_LOG))
+        say("the game started (pid %d); its output goes to %s" % (self.p.pid, GAME_LOG))
 
     def stop(self, wait=60):
         if not self.p:
@@ -182,10 +182,9 @@ class Game:
         if refused == "401" and time.time() - self.tokens_at > 3600:
             self.tokens_at = time.time()
             if expire_game_tokens(game.settings()):
-                say("Minecraft's services refused the cached login (401): its last two tokens are marked expired, so the "
-                    "next start fetches them anew")
+                say("Minecraft's services refused the saved login (401): the next start renews it")
         elif refused == "429":
-            say("Minecraft's services ask to slow down (429): the next start in five minutes")
+            say("Minecraft's services ask to slow down (429): next start in five minutes")
             return 300
         return 20
 
@@ -194,7 +193,7 @@ class Game:
         if self.p and self.p.poll() is not None:
             code = self.p.returncode
             self.done()
-            say("the game ended by itself (%s)" % code)
+            say("the game stopped by itself (exit code %s)" % code)
             if w.get("run") and not STOPPING[0]:
                 self.state, self.why, self.next = "activating", "auto-restart", time.time() + self.login_wait()
                 self.restarts += 1
@@ -229,15 +228,15 @@ def main():
     if code:
         bar = "=" * 64
         say(bar)
-        say("No owner yet. Open the panel%s and give this setup code with your new password:" % (" (" + os.environ["BUDDY_URL"] + ")" if os.environ.get("BUDDY_URL") else ""))
+        say("No password yet. Open the panel%s and enter this setup code with a new password:" % (" (" + os.environ["BUDDY_URL"] + ")" if os.environ.get("BUDDY_URL") else ""))
         say("")
         say("    " + code)
         say("")
         say(bar)
     say("Minecraft Buddy %s" % (game.image_version() or "?") + (", at " + os.environ["BUDDY_URL"] if os.environ.get("BUDDY_URL") else ""))
     if os.environ.get("BUDDY_PROXY_HOST") and not os.environ.get("BUDDY_PROXY_SECRET_FILE"):
-        say("Caddy sends no secret (BUDDY_PROXY_SECRET_FILE): any program on this machine can pose as an allowed address. "
-            "Take the proxy-secret lines of the image's compose.yaml into yours (docker run --rm IMAGE compose).")
+        say("Caddy sends no secret (BUDDY_PROXY_SECRET_FILE), so any program on this machine can pose as an allowed address. "
+            "Copy the proxy-secret lines of the image's compose.yaml (docker run --rm IMAGE compose) into yours.")
     env = dict(os.environ, BUDDY_BRIDGE_CONFIG=os.path.join(DATA, "telegram.json"))
     kids = [Child("panel", panel_argv()), Child("bridge", [sys.executable, os.path.join(IMAGE, "bridge", "chat2telegram.py")], env)]
     g = Game()

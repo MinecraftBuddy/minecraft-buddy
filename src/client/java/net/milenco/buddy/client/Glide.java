@@ -28,9 +28,9 @@ import net.milenco.buddy.version.Game;
 /**
  * Flying with an elytra in the game: taking off, steering by {@link Flight}'s plan, rockets, landing. It follows the
  * player the buddy follows when that player takes off, without dying of kinetic or fall damage, and flies to a point
- * on {@code {"cmd":"fly","to":[x,y,z]}}. He wears the elytra all the time, so Stash keeps it on.
+ * on {@code {"cmd":"fly","to":[x,y,z]}}. The buddy wears the elytra all the time, so Stash keeps it on.
  * While it flies, following and everything else that steers keeps off the keys (Jobs: GLIDE). Once in the air it never lets
- * go of the keys until he stands on the ground: a stop or a lost target only makes it land.
+ * go of the keys until the buddy stands on the ground: a stop or a lost target only makes it land.
  */
 final class Glide {
 	private Glide() {}
@@ -70,7 +70,7 @@ final class Glide {
 	}
 
 	/**
-	 * Off. In the air that is a landing where he is (never letting go of the keys mid-air: the glide would carry him into
+	 * Off. In the air that is a landing on the spot (never letting go of the keys mid-air: the glide would carry the buddy into
 	 * whatever stands ahead); on the ground at once.
 	 */
 	static void stop(String why) {
@@ -105,7 +105,7 @@ final class Glide {
 		return true;
 	}
 
-	/** Why he cannot take off now, or null. */
+	/** Why the buddy cannot take off now, or null. */
 	private static String cannotFly(LocalPlayer p) {
 		if (!LivingEntity.canGlideUsing(p.getItemBySlot(EquipmentSlot.CHEST), EquipmentSlot.CHEST)) return "no elytra on";
 		if (elytraLeft(p) < LOW_ELYTRA) return "elytra nearly broken";
@@ -139,7 +139,7 @@ final class Glide {
 		if (slot != was) restoreSlot = was;
 	}
 
-	/** The tick, after the game moved him: the next look, a rocket, the keys. True while it steers. */
+	/** The tick, after the game moved the buddy: the next look, a rocket, the keys. True while it steers. */
 	static boolean tick(Minecraft mc, LocalPlayer p, AfkConfig c) {
 		if (p == null) return false;
 		if (mode == Mode.OFF) { maybeFollowUp(p); return false; }
@@ -157,16 +157,16 @@ final class Glide {
 		return true;
 	}
 
-	/** Following someone who takes off: up after him. */
+	/** Following someone who takes off: up after that player. */
 	private static void maybeFollowUp(LocalPlayer p) {
 		// AFK mode keeps the following still (the respawn after a death used it), so it keeps the flying still too
 		if (!Follow.isOn() || Follow.target() == null || !AfkHelperClient.active() || AfkConfig.get().afk) return;
-		// not from the pen he farms, and not while told to stay: a buddy told to stay took off after a gliding owner (0.4.80)
+		// not from the pen being farmed, and not while told to stay: a buddy told to stay took off after a gliding owner (0.4.80)
 		if (Pen.busy() || Follow.staying()) return;
 		Player t = target(p);
 		if (t == null || !t.isFallFlying()) return;
-		if (p.isPassenger()) return;   // on a seat or his ghast: a take-off there is no take-off (on the ghast it is a fall)
-		if (cannotFly(p) != null) return;   // no elytra or no rockets: he follows on foot, and asks for a /tpa when he loses him
+		if (p.isPassenger()) return;   // on a seat or a ghast: a take-off there is no take-off (on the ghast it is a fall)
+		if (cannotFly(p) != null) return;   // no elytra or no rockets: following on foot, with a /tpa when the player is lost
 		point = null;
 		start(p, "follows " + t.getGameProfile().name());
 	}
@@ -181,7 +181,7 @@ final class Glide {
 		}
 		if (ticks > 80 || jumpTries > 4) { Exchange.emit("flight", "action", "take-off fails", "attempts", jumpTries); end("take-off fails"); return; }
 		if (!roomAbove(p)) { end("no room above"); return; }
-		// look up toward where he goes, then: jump, let go, and jump again in the air (LocalPlayer starts the glide on a
+		// look up toward where the flight goes, then: jump, let go, and jump again in the air (LocalPlayer starts the glide on a
 		// jump pressed while not on the ground)
 		float yaw = p.getYRot();
 		Vec3 g = goalPoint(p);
@@ -197,10 +197,10 @@ final class Glide {
 	}
 
 	private static void fly(Minecraft mc, LocalPlayer p) {
-		// in water the server keeps the glide on until he stands on the bottom: in water he is down, and it cost nothing
+		// in water the server keeps the glide on until the buddy stands on the bottom: water counts as down, and it cost nothing
 		if (p.isInLiquid()) { end(mode == Mode.LAND ? "landed in water" : "in water"); return; }
 		if (!p.isFallFlying()) {
-			// The glide ends as he comes down: on a slope or a block's edge a tick before he stands. Low over the ground
+			// The glide ends on the way down: on a slope or a block's edge a tick before standing. Low over the ground
 			// that is the landing; pressing jump there started a new glide at no speed, over and over (18 Oct 2026: 45 s on
 			// a mountain). Only high in the air is it the server stopping the glide, and worth starting again.
 			if (p.onGround() || Flight.heightAbove(world(p.level()), p.getX(), p.getY(), p.getZ()) < 4) {
@@ -235,7 +235,7 @@ final class Glide {
 				"x", Math.round(p.getX()), "y", Math.round(p.getY()), "z", Math.round(p.getZ()));
 		}
 		turn(p, (float) plan.yaw, (float) plan.pitch);
-		// where the plan expects him after the next tick, with the look as the turn leaves it
+		// where the plan expects the buddy after the next tick, with the look as the turn leaves it
 		Flight.State next = s.copy();
 		Flight.step(world(level), next, plan.yaw, plan.pitch);
 		predictedX = next.x; predictedY = next.y; predictedZ = next.z;
@@ -255,7 +255,7 @@ final class Glide {
 		if (!Follow.isOn() || Follow.target() == null) return "following off";
 		if (targetGroundTicks > 10) return "landed";
 		if (targetUnseen > 200) return "lost";
-		// out of rockets he can no longer climb or catch up: down while he still has the height to choose where
+		// out of rockets there is no more climbing or catching up: down while there is still the height to choose where
 		if (rockets(p) == 0 && rocketLeft == 0 && (Flight.heightAbove(world(p.level()), p.getX(), p.getY(), p.getZ()) < 25
 				|| targetLast != null && targetLast.distanceTo(p.position()) > 80)) return "out of rockets";
 		return null;
@@ -287,7 +287,7 @@ final class Glide {
 		return targetLast;
 	}
 
-	/** Where the plan flies to: the point, the landing spot, or a place behind and above the player he follows. */
+	/** Where the plan flies to: the point, the landing spot, or a place behind and above the followed player. */
 	private static Flight.Goal goal(LocalPlayer p) {
 		if (mode == Mode.LAND) {
 			Vec3 l = landAt != null ? landAt : p.position();
@@ -303,7 +303,7 @@ final class Glide {
 	}
 
 	/**
-	 * A place to land near this one: open ground, the nearest in a ring of up to {@code radius}. A block he can stand on
+	 * A place to land near this one: open ground, the nearest in a ring of up to {@code radius}. A block to stand on
 	 * that is no leaves, no lava or the like, with the three by three around it free for two blocks up, so that the slow
 	 * last metres come down in the open and not into a tree (18 Oct 2026: a landing beside trees hung in a crown for 13 s).
 	 * Water counts: coming down in it costs nothing. Null when there is none: then the plan lands where it can.
@@ -394,9 +394,9 @@ final class Glide {
 	}
 
 	/**
-	 * Is his rocket still pulling? A rocket's time is drawn on the server (10 to 21 ticks for one of flight 1) and the
+	 * Is the buddy's rocket still pulling? A rocket's time is drawn on the server (10 to 21 ticks for one of flight 1) and the
 	 * client never hears it; it hears the end, because the server takes the rocket away when it bursts. So: a rocket at
-	 * him means a pull, none means none, and the guess only fills in how long.
+	 * the buddy means a pull, none means none, and the guess only fills in how long.
 	 */
 	private static void rocketSeen(LocalPlayer p) {
 		boolean pulling = !p.level().getEntitiesOfClass(net.minecraft.world.entity.projectile.FireworkRocketEntity.class, p.getBoundingBox().inflate(2.0)).isEmpty();
@@ -404,7 +404,7 @@ final class Glide {
 		else if (!pulling && rocketLeft > 0 && rocketCooldown < 7) rocketLeft = 0;   // three ticks after the shot it should be there
 	}
 
-	// ---------- what he carries ----------
+	// ---------- what the buddy carries ----------
 
 	/** Below this the elytra has a minute or less of gliding left: down before it breaks. */
 	private static final int LOW_ELYTRA = 40;

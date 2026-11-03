@@ -27,9 +27,9 @@ import net.minecraft.world.phys.Vec3;
  *     opening 12/16 wide, the funnel under it)
  * '_' a bottom slab     '^' a top slab        't' 'T' a closed trapdoor at the bottom and at the top (3/16; OPENS, as
  *                                             every trapdoor is to LevelWorld, and the walker never opens one)
- * 'F' a fence (collision 1.5 high, outline 1.0)   'D' a fence gate (the same, and he opens it: OPENABLE)
+ * 'F' a fence (collision 1.5 high, outline 1.0)   'D' a fence gate (the same, and the walker opens it: OPENABLE)
  * 'W' water (a source)  'w' flowing water     'L' lava              'C' a chest (1/16 inset, 0.875 high)
- * 'O' a half of a door (26.3's DoorBlock: a slab 3/16 thick along the south face, the whole height; he opens it)
+ * 'O' a half of a door (26.3's DoorBlock: a slab 3/16 thick along the south face, the whole height; the walker opens it)
  * 'I' a half of an iron door (the same, and no hand opens it)
  * 'f' farmland (15/16 high)   'M' mud or soul sand (14/16 high)
  * 'Q' waterlogged stairs (a bottom half and the north half over it)   'S' the same stairs dry
@@ -41,7 +41,7 @@ import net.minecraft.world.phys.Vec3;
  * </pre>
  * Every fluid is HAZARD too, as LevelWorld has it (Grinder.hazard). {@code stand} is the rule of Follow.floorY: 1.8 of
  * head room, no hazard, no lava beside it, no block that holds a fluid under the cell, and through a door or gate only
- * where he opens it. The ring players stand on is at y 10 throughout (its blocks at y 9 and lower); a mob is a zombie
+ * where the walker opens it. The ring players stand on is at y 10 throughout (its blocks at y 9 and lower); a mob is a zombie
  * unless said otherwise.
  */
 class PenShapeTest {
@@ -257,7 +257,7 @@ class PenShapeTest {
 
 	@Test
 	void aWallCellWithASlitIsHitFromTheTrench() {
-		// south of the slit a trench one deep: crouched in it his eye is at the height of the slit
+		// south of the slit a trench one deep: crouched in it, the eye is at the height of the slit
 		Chars w = wallCell().fill(6, 9, 9, 8, 9, 9, '.');
 		Seen s = look(w, zombie(7.5, 7.5, 10), true, 1);
 		assertTrue(s.flood().closed(), s.flood().refusal());
@@ -291,7 +291,7 @@ class PenShapeTest {
 
 	@Test
 	void theFenceTopsAreNoPlaceToStand() {
-		// a ring of fences round a 2x2 floor: on a fence top a zombie hits him; behind the fence he reaches over it
+		// a ring of fences round a 2x2 floor: on a fence top a zombie lands a hit; behind the fence a blow reaches over it
 		Chars w = ground();
 		w.fill(6, 10, 6, 9, 10, 9, 'F').fill(7, 10, 7, 8, 10, 8, '.');
 		w.fill(7, 9, 7, 8, 9, 8, 'H');
@@ -346,7 +346,7 @@ class PenShapeTest {
 
 	@Test
 	void lavaOnTheRimLeavesNowhereToStand() {
-		// lava where his feet would be on the rim: nobody stands in it or beside it, and from three back the mob is out of
+		// lava where the feet would be on the rim: nobody stands in it or beside it, and from three back the mob is out of
 		// reach; the same pit without the lava has its spots
 		Chars w = pit(ground(), 7, 7, 7, 7, 2, 'H');
 		w.fill(6, 10, 6, 8, 10, 8, 'L').set(7, 10, 7, '.');
@@ -359,7 +359,7 @@ class PenShapeTest {
 
 	@Test
 	void lavaUnderTheRimKeepsHimTwoBack() {
-		// lava in place of the rim's blocks, under where his feet would be (the VPS pit N4): the rim is no floor, but two
+		// lava in place of the rim's blocks, under where the feet would be (the VPS pit N4): the rim is no floor, but two
 		// deep a mob is in reach from two back
 		Chars w = pit(ground(), 7, 7, 7, 7, 2, 'H');
 		w.fill(6, 9, 6, 8, 9, 8, 'L').set(7, 9, 7, '.');
@@ -376,7 +376,7 @@ class PenShapeTest {
 		Chars w = shaft(pit(ground(), 7, 7, 7, 7, 2, 'H'), 7, 7, 7, 7, 12);
 		Seen s = look(w, zombie(7.5, 7.5, 7 + BOWL), false, 1);
 		assertEquals("you stand in it", PenShape.inside(s.flood(), s.ev().top(), new Vec3(7.5, 22, 7.5), new Vec3(5.5, 10, 7.5)));
-		assertEquals("the buddy stands in it", PenShape.inside(s.flood(), s.ev().top(), new Vec3(3.5, 10, 7.5), new Vec3(7.5, 9, 7.5)));
+		assertEquals("{me} stands in it", PenShape.inside(s.flood(), s.ev().top(), new Vec3(3.5, 10, 7.5), new Vec3(7.5, 9, 7.5)));
 		assertNull(PenShape.inside(s.flood(), s.ev().top(), new Vec3(5.5, 10, 7.5), new Vec3(9.5, 10, 7.5)));
 	}
 
@@ -464,19 +464,19 @@ class PenShapeTest {
 		assertTrue(Double.isNaN(PenShape.floor(w, high)), "more than four up: no floor yet");
 	}
 
-	/** What the fight makes of a mob there, for him with his feet here on this ground: why it leaves it, or null. */
+	/** What the fight makes of a mob there, for the buddy with the feet here on this ground: why it leaves it, or null. */
 	private static String fight(PenShape.World w, PenShape.Mob m, Vec3 feet, double ground) {
 		return PenShape.pitFoe(PenShape.pit(w, m), feet, ground);
 	}
 
 	@Test
 	void aHoleOneDeepIsNoPitForTheFight() {
-		// a 1x1 hole one deep in stone with nothing that makes it a farm: closed, but he steps down and out again
+		// a 1x1 hole one deep in stone with nothing that makes it a farm: closed, but stepped down into and out of again
 		Chars w = pit(ground(), 7, 7, 7, 7, 1, '#');
 		PenShape.Mob m = zombie(7.5, 7.5, 9);
 		assertTrue(PenShape.flood(w, m, 9).closed(), "a closed space all the same");
 		assertNull(fight(w, m, new Vec3(5.5, 10, 7.5), 10));
-		// half way up a jump his feet are higher, the ground he jumped from is not
+		// half way up a jump the feet are higher, the ground jumped from is not
 		assertNull(fight(w, m, new Vec3(5.5, 10.9, 7.5), 10));
 	}
 
@@ -491,7 +491,7 @@ class PenShapeTest {
 
 	@Test
 	void aWaterHoleInAFieldIsNoPitForTheFight() {
-		// farmland all round a hole of water one deep: the farmland's 15/16 closes it, and he wades in and out
+		// farmland all round a hole of water one deep: the farmland's 15/16 closes it, and it is waded in and out of
 		Chars w = ground().fill(0, 9, 0, 14, 9, 14, 'f').set(7, 9, 7, 'W');
 		PenShape.Mob m = zombie(7.5, 7.5, 9);
 		assertTrue(PenShape.flood(w, m, 9).closed(), PenShape.flood(w, m, 9).refusal());
@@ -504,14 +504,14 @@ class PenShapeTest {
 		Chars w = pit(ground(), 7, 7, 7, 7, 2, '#');
 		PenShape.Mob m = zombie(7.5, 7.5, 8);
 		assertEquals("in a pit", fight(w, m, new Vec3(5.5, 10, 7.5), 10));
-		// down in it himself he fights what is there with him
+		// down in it, the buddy fights what is there alongside
 		assertNull(fight(w, m, new Vec3(7.5, 8, 7.5), 8));
 	}
 
 	@Test
 	void aHopperPitOneDeepIsOneForTheFight() {
-		// one deep, the mobs in the hoppers' bowl 1.31 below the rim: no fall he stays in (he steps onto a hopper's rim and
-		// jumps out), but a farm by its hoppers
+		// one deep, the mobs in the hoppers' bowl 1.31 below the rim: no fall to stay in (a step onto a hopper's rim and
+		// a jump out), but a farm by its hoppers
 		Chars w = pit(ground(), 7, 7, 8, 8, 1, 'H');
 		PenShape.Mob m = zombie(7.5, 7.5, 8 + BOWL);
 		assertEquals("in a pen", fight(w, m, new Vec3(5.5, 10, 7.5), 10));
@@ -523,7 +523,7 @@ class PenShapeTest {
 	@Test
 	void aHoleOneDeepSeenFromHigherUpIsNoPitForTheFight() {
 		// the hole of one in stone, seen from a bottom slab and from a block up a slope: its rim is a jump from its floor
-		// and within a jump of the ground he stands on
+		// and within a jump of the ground stood on
 		Chars w = pit(ground(), 7, 7, 7, 7, 1, '#');
 		PenShape.Mob m = zombie(7.5, 7.5, 9);
 		assertNull(fight(w, m, new Vec3(3.5, 10.5, 7.5), 10.5));
@@ -534,14 +534,14 @@ class PenShapeTest {
 
 	@Test
 	void aCraterHeClimbsOutOfInStepsIsNoPitForTheFight() {
-		// a hole two deep with a step one deep beside it: from its floor he jumps onto the step, from there onto the rim
+		// a hole two deep with a step one deep beside it: from its floor a jump onto the step, from there onto the rim
 		Chars w = pit(ground(), 7, 7, 7, 7, 2, '#').set(6, 9, 7, '.');
 		assertNull(fight(w, zombie(7.5, 7.5, 8), new Vec3(3.5, 10, 7.5), 10));
 	}
 
 	@Test
 	void aStepThatIsAHoleOfItsOwnIsNoWayOut() {
-		// two deep beside a ledge one higher that is a hole itself, two under a rim at 11: the ledge gets him nowhere
+		// two deep beside a ledge one higher that is a hole itself, two under a rim at 11: the ledge gets nowhere
 		Chars w = ground().fill(0, 10, 0, 14, 10, 14, '#');
 		w.fill(7, 8, 7, 7, 10, 7, '.').fill(8, 9, 7, 8, 10, 7, '.');
 		assertEquals("in a pit", fight(w, zombie(7.5, 7.5, 8), new Vec3(4.5, 11, 7.5), 11));
@@ -550,10 +550,10 @@ class PenShapeTest {
 
 	@Test
 	void aDipOneDeepSeenFromTwoUpIsNoPitForTheFight() {
-		// the dip of one at the foot of a stair of whole blocks up to him (11, 12 and 13 to the west, a slab on the
-		// first step), the dip's rim and the stair walled in to 13 so that only the stair leads up to his ground: out
-		// onto the rim and up the stair, however high up he stands (until the third review of 22 Oct 2026 only the rim
-		// counted, against his own ground, and from 11.5 up it was a pit; until the review of the fourth round the rim
+		// the dip of one at the foot of a stair of whole blocks up to the buddy (11, 12 and 13 to the west, a slab on the
+		// first step), the dip's rim and the stair walled in to 13 so that only the stair leads up to that ground: out
+		// onto the rim and up the stair, however high up the stand is (until the third review of 22 Oct 2026 only the rim
+		// counted, against the ground stood on, and from 11.5 up it was a pit; until the review of the fourth round the rim
 		// ran on to open ground at 10, and the test held without a single jump up the stair)
 		Chars w = pit(ground(), 7, 7, 7, 7, 1, '#').fill(0, 10, 0, 14, 12, 14, '#');
 		w.fill(6, 10, 6, 10, 12, 8, '.').fill(5, 11, 6, 5, 12, 8, '.').fill(4, 12, 6, 4, 12, 8, '.').set(5, 11, 7, '_');
@@ -587,7 +587,7 @@ class PenShapeTest {
 	void aPitWhoseClimbEndsBelowHisGroundIsOneForTheFight() {
 		// the check of the third review (22 Oct 2026): a pit two by one, three deep, on a slope, the high side at 11 and the
 		// low one at 10; out of it to the west a step at 8 and a ledge at 9, with 11 all round them. Seen from the low east
-		// rim the climb tops out at 9, within a jump of his ground and no way back up to it
+		// rim the climb tops out at 9, within a jump of the buddy's ground and no way back up to it
 		Chars w = ground().fill(0, 10, 0, 5, 10, 14, '#');
 		w.fill(6, 7, 7, 7, 9, 7, '.').fill(5, 8, 7, 5, 10, 7, '.').fill(4, 9, 7, 4, 10, 7, '.');
 		PenShape.Mob m = zombie(6.5, 7.5, 7);
@@ -598,23 +598,23 @@ class PenShapeTest {
 	@Test
 	void aClimbUpToAClosedLedgeIsNoWayBack() {
 		// the review of the fourth round (22 Oct 2026): the slope above with its high side at 12 and the stair one step
-		// longer, 8, 9 and a ledge at 10, the high side all round. The climb tops out at his own height, but never
-		// stands where he stands: down there he gets no farther than the ledge, two under the high side and three cells
-		// from the low one (until then the top of the climb was held against his ground, and the fight walked him in)
+		// longer, 8, 9 and a ledge at 10, the high side all round. The climb tops out at the buddy's own height, but never
+		// stands where the buddy stands: down there the way up ends at the ledge, two under the high side and three cells
+		// from the low one (until then the top of the climb was held against that ground, and the fight walked the buddy in)
 		Chars w = ground().fill(0, 10, 0, 5, 11, 14, '#');
 		w.fill(6, 7, 7, 7, 9, 7, '.').fill(5, 8, 7, 5, 11, 7, '.').fill(4, 9, 7, 4, 11, 7, '.').fill(3, 10, 7, 3, 11, 7, '.');
 		PenShape.Mob m = zombie(6.5, 7.5, 7);
-		assertEquals(10, PenShape.pit(w, m).up(), 1e-9, "the climb ends on the ledge, at his height");
+		assertEquals(10, PenShape.pit(w, m).up(), 1e-9, "the climb ends on the ledge, at the buddy's height");
 		assertEquals("in a pit", fight(w, m, new Vec3(8.5, 10, 7.5), 10), "on the low east rim");
 		assertEquals("in a pit", fight(w, m, new Vec3(9.5, 10, 7.5), 10), "a cell farther");
 		assertEquals("in a pit", fight(w, m, new Vec3(6.5, 10, 5.5), 10), "on the north rim");
-		// on the ledge himself he walks down the stair to the mob and back up
+		// standing on the ledge, the buddy walks down the stair to the mob and back up
 		assertNull(fight(w, m, new Vec3(3.5, 10, 7.5), 10), "on the ledge");
-		// a closed ledge over his ground: steps 8, 9 and 10 to the west, the ledge at 11 north of the last, walls to 13
+		// a closed ledge over the buddy's ground: steps 8, 9 and 10 to the west, the ledge at 11 north of the last, walls to 13
 		Chars hi = ground().fill(7, 7, 7, 7, 9, 7, '.').fill(6, 8, 7, 6, 9, 7, '.').set(5, 9, 7, '.');
 		hi.fill(3, 10, 5, 6, 12, 8, '#').fill(4, 10, 7, 6, 12, 7, '.').fill(4, 11, 6, 4, 12, 6, '.');
 		PenShape.Mob z = zombie(7.5, 7.5, 7);
-		assertEquals(11, PenShape.pit(hi, z).up(), 1e-9, "the climb ends on the ledge, over his ground");
+		assertEquals(11, PenShape.pit(hi, z).up(), 1e-9, "the climb ends on the ledge, over the buddy's ground");
 		assertEquals("in a pit", fight(hi, z, new Vec3(8.5, 10, 7.5), 10));
 	}
 
@@ -622,7 +622,7 @@ class PenShapeTest {
 	void aClosedCourtyardHeStandsInIsNoPitForTheFight() {
 		// the review of the fourth round: a courtyard of seven by seven at 10, walled to 13 all round, the pit three
 		// deep in it with two steps down to its floor and a stair in its corner. The climb stays in the courtyard and
-		// stands where he stands, also on the stair's low half, half a block under the top the climb records for its
+		// stands where the buddy stands, also on the stair's low half, half a block under the top the climb records for its
 		// column. On the wall the courtyard is the trap
 		Chars w = ground().fill(3, 10, 3, 11, 12, 11, '#').fill(4, 10, 4, 10, 12, 10, '.');
 		w.fill(7, 7, 7, 7, 9, 7, '.').fill(6, 8, 7, 6, 9, 7, '.').set(5, 9, 7, '.').set(9, 10, 9, 'S');
@@ -646,7 +646,7 @@ class PenShapeTest {
 		assertTrue(c.backUp(new Vec3(4.2, 10, 7.5), 10), "half over it");
 		assertFalse(c.backUp(new Vec3(4.5, 10, 7.5), 10), "a cell beside it");
 		assertFalse(c.backUp(new Vec3(2.7, 10, 7.5), 10), "a box that only touches its column");
-		// and along z: the inset on both sides of his box
+		// and along z: the inset on both sides of the box
 		assertTrue(c.backUp(new Vec3(3.5, 10, 6.8), 10), "half over it, along z");
 		assertFalse(c.backUp(new Vec3(3.5, 10, 6.7), 10), "a box that only touches its row");
 		assertFalse(c.backUp(new Vec3(3.5, 10, 8.3), 10), "a box that only touches its row from the south");
@@ -660,10 +660,10 @@ class PenShapeTest {
 	@Test
 	void aJumpUnderABlockIsNoWayOut() {
 		// the crater with two steps, a block two over its first step: from that step the jump onto the second wants room up
-		// to 10.85 (Follow.roomToJump), so once in he gets no farther than the first step
+		// to 10.85 (Follow.roomToJump), so once in, there is no getting farther than the first step
 		Chars w = ground().fill(7, 7, 7, 7, 9, 7, '.').fill(6, 8, 7, 6, 9, 7, '.').set(5, 9, 7, '.');
 		PenShape.Mob m = zombie(7.5, 7.5, 7);
-		assertNull(fight(w, m, new Vec3(3.5, 10, 7.5), 10), "without the block he climbs out");
+		assertNull(fight(w, m, new Vec3(3.5, 10, 7.5), 10), "without the block the climb gets out");
 		w.set(6, 10, 7, '#');
 		assertEquals("in a pit", fight(w, m, new Vec3(3.5, 10, 7.5), 10));
 	}
@@ -693,7 +693,7 @@ class PenShapeTest {
 
 	@Test
 	void waterHeSwimsOutOfIsNoPitForTheFight() {
-		// a water hole two deep in a field: he swims up and climbs onto the farmland
+		// a water hole two deep in a field: a swim up and a climb onto the farmland
 		Chars f = ground().fill(0, 9, 0, 14, 9, 14, 'f').set(7, 9, 7, 'W').set(7, 8, 7, 'W');
 		assertNull(fight(f, zombie(7.5, 7.5, 8), new Vec3(5.5, 9 + 15 / 16.0, 7.5), 9 + 15 / 16.0));
 		// a pit two deep full of water: the same
@@ -710,7 +710,7 @@ class PenShapeTest {
 		// (until the third review of 22 Oct 2026 its run began in the mud's own cell, which holds none)
 		Chars w = pit(ground(), 7, 7, 7, 7, 2, '#').set(7, 7, 7, 'M').fill(7, 8, 7, 7, 9, 7, 'W');
 		assertNull(fight(w, zombie(7.5, 7.5, 7.875), new Vec3(5.5, 10, 7.5), 10));
-		// a hole two deep in a swamp all of mud, full of water: he swims up and climbs onto the mud's top, past the
+		// a hole two deep in a swamp all of mud, full of water: a swim up and a climb onto the mud's top, past the
 		// eighth of a block between two stacked blocks of it (no room to stand in, no top of a wall)
 		Chars swamp = new Chars().fill(0, 5, 0, 14, 9, 14, 'M').fill(7, 8, 7, 7, 9, 7, 'W');
 		assertNull(fight(swamp, zombie(7.5, 7.5, 7.875), new Vec3(5.5, 9.875, 7.5), 9.875));
@@ -738,7 +738,7 @@ class PenShapeTest {
 		// the review of the fourth round (22 Oct 2026): the corridor runs on past the climb's range, but the walker
 		// stands on no low block in it that holds a fluid or lies on one or on a block that burns (Follow.floorY:
 		// Grinder.hazard on the cell and the one under it; nor is there water to swim in, under a lily pad or in
-		// roots), as moss carpets lie on mangrove roots at the water line of a swamp: down there he gets no farther
+		// roots), as moss carpets lie on mangrove roots at the water line of a swamp: down there the buddy gets no farther
 		// than the step
 		PenShape.Mob m = zombie(7.5, 7.5, 9);
 		Vec3 rim = new Vec3(10.5, 11, 7.5);
@@ -765,8 +765,8 @@ class PenShapeTest {
 
 	@Test
 	void aFenceTopIsAFloorOverTheFence() {
-		// a fence's or wall's 1.5 reaches into the cell over it from its own: he stands on the fence, so one that holds
-		// water is no floor, and water over it is water he swims in, as over a whole block (until the review of the
+		// a fence's or wall's 1.5 reaches into the cell over it from its own: the buddy stands on the fence, so one that holds
+		// water is no floor, and water over it is water to swim in, as over a whole block (until the review of the
 		// fourth round, 22 Oct 2026, its top was taken for a low block of the cell over it, and the fence itself not
 		// looked at)
 		assertEquals(List.of(11.5), PenShape.floorsBeside(ground().set(3, 10, 3, 'F'), 3, 3, 10.5, Double.NaN), "a fence");
@@ -784,7 +784,7 @@ class PenShapeTest {
 
 	@Test
 	void onlyADoorHeOpensWithGroundBeyondItLetsHimOut() {
-		// what the walker opens (Follow.openable: a door a hand opens, a fence gate), with room for him in the doorway and
+		// what the walker opens (Follow.openable: a door a hand opens, a fence gate), with room for a player in the doorway and
 		// ground beyond it; until the third review of 22 Oct 2026 every door, gate or trapdoor did, at any height
 		PenShape.Mob m = zombie(7.5, 7.5, 8);
 		Vec3 rim = new Vec3(4.5, 10, 7.5);
@@ -794,33 +794,33 @@ class PenShapeTest {
 		assertEquals("in a pit", fight(doorway('I', 'I'), m, rim, 10), "an iron door to rock");
 		assertEquals("in a pit", fight(corridor(doorway('I', 'I')), m, rim, 10), "an iron door to a corridor");
 		assertEquals("in a pit", fight(corridor(doorway('D', '#')), m, rim, 10), "a gate under a block");
-		assertEquals("in a pit", fight(corridor(doorway('T', '#')), m, rim, 10), "a top trapdoor's slit at the floor, under a block that would stop him even if he opened it");
-		assertEquals("in a pit", fight(corridor(doorway('T', 'T')), m, rim, 10), "trapdoors he never opens");
+		assertEquals("in a pit", fight(corridor(doorway('T', '#')), m, rim, 10), "a top trapdoor's slit at the floor, under a block that would stop the buddy even with the trapdoor open");
+		assertEquals("in a pit", fight(corridor(doorway('T', 'T')), m, rim, 10), "trapdoors the walker never opens");
 		assertTrue(PenShape.pit(corridor(doorway('O', 'O')), m).door());
 		assertFalse(PenShape.pit(corridor(doorway('I', 'I')), m).door());
 		assertFalse(PenShape.pit(corridor(doorway('T', 'T')), m).door());
-		// a closed bottom trapdoor under a block two up: there is room for him on it (World.stand) and the zombie's
-		// head meets the block, but it is no door he opens (throughDoor's own OPENABLE: the iron doors above never come
-		// to it, World.stand refuses them first), and over it he walks into a corridor that ends blind (the review of
+		// a closed bottom trapdoor under a block two up: there is room for a player on it (World.stand) and the zombie's
+		// head meets the block, but it is no door the walker opens (throughDoor's own OPENABLE: the iron doors above never come
+		// to it, World.stand refuses them first), and over it a walk leads into a corridor that ends blind (the review of
 		// the fourth round, 22 Oct 2026)
 		Chars blind = doorway('t', '.').set(8, 10, 7, '#').fill(9, 8, 7, 10, 9, 7, '.');
 		assertTrue(PenShape.flood(blind, m, 8).closed(), PenShape.flood(blind, m, 8).refusal());
 		assertEquals(1, PenShape.flood(blind, m, 8).cols().size(), "the trapdoor's cell is a wall to the zombie");
-		assertFalse(PenShape.pit(blind, m).door(), "no door he opens");
+		assertFalse(PenShape.pit(blind, m).door(), "no door the walker opens");
 		assertEquals("in a pit", fight(blind, m, rim, 10), "a bottom trapdoor to a corridor that ends blind");
 	}
 
 	@Test
 	void aFencedCellAtHisLevelIsNoPitForTheFight() {
-		// fences round three by three at his level, nothing that makes it a farm
+		// fences round three by three at the buddy's level, nothing that makes it a farm
 		Chars w = ground().fill(5, 10, 5, 9, 10, 9, 'F').fill(6, 10, 6, 8, 10, 8, '.');
 		assertNull(fight(w, zombie(7.5, 7.5, 10), new Vec3(7.5, 10, 11.5), 10));
 	}
 
 	@Test
 	void aCellUnderADropShaftBehindADoorIsOneForTheFight() {
-		// a kill cell at his level under a drop shaft, a door in its wall and no collector: a farm by its shaft alone, as
-		// after a restart, which he would walk into through the door
+		// a kill cell at the buddy's level under a drop shaft, a door in its wall and no collector: a farm by its shaft alone, as
+		// after a restart, which a walk through the door would lead into
 		Chars w = ground().fill(6, 10, 6, 8, 11, 8, '#').fill(7, 10, 7, 7, 11, 7, '.').set(7, 10, 8, 'O').set(7, 11, 8, 'O');
 		shaft(w, 7, 7, 7, 7, 12);
 		PenShape.Mob m = zombie(7.5, 7.5, 10);
@@ -850,7 +850,7 @@ class PenShapeTest {
 
 	@Test
 	void aStreamOutUnderTheWallIsACollector() {
-		// a cell of one at his level, a source at the mob's feet whose water runs east under its wall (a gap one high) and
+		// a cell of one at the buddy's level, a source at the mob's feet whose water runs east under its wall (a gap one high) and
 		// on: flowing water there, as in the game (until the third review of 22 Oct 2026 this test drew the stream as
 		// sources, still water, which carries nothing off)
 		Chars w = ground().fill(6, 10, 6, 8, 12, 8, '#').fill(7, 10, 7, 7, 12, 7, '.');

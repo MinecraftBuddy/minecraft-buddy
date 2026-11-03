@@ -55,17 +55,17 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
 
 /**
- * The chests in his base: filled and emptied with sense (emptied for food and tools, for instance), and the best armour
- * he has is worn.
+ * The chests in the player's base: filled and emptied with sense (emptied for food and tools, for instance), and the
+ * best armour at hand is worn.
  * <p>
- * Which chests are his the alt learns by watching: a chest or barrel he looks at while its lid is open is one he
- * opened. Those are kept in {@code chests.json} in the exchange folder, with what lay in each the last time the alt
- * looked inside. While he and the alt are both within reach of such chests and the alt has nothing else to do, it
- * fetches what it lacks (food when it has fewer than eight, a pickaxe, axe or shovel when it has none or only one about
- * to break, a weapon, better armour than it wears; unenchanted before enchanted, so his best gear stays where it is),
- * puts what it carries in a chest that already holds that item, and only when its inventory is nearly full the rest in
- * the chest with the most room. It keeps its best tool of each kind, its weapon, two stacks' worth of food, saplings,
- * torches and the like. Better armour it carries goes on, every second it looks.
+ * Which chests are the player's the buddy learns by watching: a chest or barrel the player looks at while its lid is
+ * open is one the player opened. Those are kept in {@code chests.json} in the exchange folder, with what lay in each the
+ * last time the buddy looked inside. While both are within reach of such chests and the buddy has nothing else to do,
+ * the buddy fetches what is lacking (food when fewer than eight are left, a pickaxe, axe or shovel when there is none or
+ * only one about to break, a weapon, better armour than is worn; unenchanted before enchanted, so the player's best gear
+ * stays where it is), puts what is carried in a chest that already holds that item, and only when the inventory is
+ * nearly full the rest in the chest with the most room. Kept on the buddy: the best tool of each kind, the weapon, two
+ * stacks' worth of food, saplings, torches and the like. Better armour that is carried goes on, at a look every second.
  */
 final class Stash {
 	private Stash() {}
@@ -80,12 +80,12 @@ final class Stash {
 		long seen;
 		boolean full;
 		/**
-		 * What has lain in it, ever, less what he put in himself only because it had room. It decided where a thing went
+		 * What has lain in it, ever, less what the buddy put in only because it had room. It decided where a thing went
 		 * when no chest held it any more (21 Oct 2026); since the copper golem's way (22 Oct 2026) it is kept for the
 		 * record only.
 		 */
 		final Set<String> had = new HashSet<>();
-		/** What he put in it only because it had room: never counted as its own. */
+		/** What the buddy put in it only because it had room: never counted as its own. */
 		final Set<String> strays = new HashSet<>();
 		/** Tools and armour in it with more than a tenth of their durability left (not {@link Work#lowWear}). */
 		final Set<String> fresh = new HashSet<>();
@@ -94,21 +94,21 @@ final class Stash {
 	private static final List<Chest> chests = new ArrayList<>();
 	/**
 	 * A visit that gets nowhere for this long ends: no step nearer the chest, no click sent, no stack moved. No limit on
-	 * the whole visit: the walk to a chest may be long, and he has to be able to fill or empty a whole chest. On 22 Oct
-	 * he stood 17 minutes in his cellar in front of one chest, a click
+	 * the whole visit: the walk to a chest may be long, and a whole chest has to be filled or emptied. On 22 Oct
+	 * the buddy stood 17 minutes in the cellar in front of one chest, a click
 	 * that never went out and no clock on that step.
 	 */
 	static final long STUCK = 10_000;
 	/**
-	 * What was gone from a chest where it lay at his last look, and since when: no look every hour, only when a thing is
+	 * What was gone from a chest where it lay at the last look, and since when: no look every hour, only when a thing is
 	 * no longer where it lay, and then the known chests first and new ones after. Before such a thing goes into a chest
-	 * it never lay in, every chest he looked into before then is looked
+	 * it never lay in, every chest looked into before then is looked
 	 * into again. Found again (a chest holds it) it is no longer missing.
 	 */
 	private static final Map<String, Long> missing = new HashMap<>();
 	private static boolean loaded;
 
-	/** The chests he knows on this server in this dimension, for the panel's map. */
+	/** The known chests on this server in this dimension, for the panel's map. */
 	static List<BlockPos> known(String dim) {
 		List<BlockPos> out = new ArrayList<>();
 		for (Chest c : chests) if (server().equals(c.server) && dim.equals(c.dim)) out.add(c.pos);
@@ -121,11 +121,12 @@ final class Stash {
 	private static String why;
 	private static boolean fallback, depositDone, read;
 	private static long stepSince, nextClick, lastRun, nextPlan, nextWear, progressAt, lastTickAt;
-	/** His eyes' nearest distance to the chest in this visit: only a new best is a step forward (a walk to and fro is none). */
+	/** The eyes' nearest distance to the chest in this visit: only a new best is a step forward (a walk to and fro is none). */
 	private static double bestDist;
 	/**
-	 * His nearest distance to the spot he walks to, from where he was when it was chosen: a way round a wall gets nearer the
-	 * spot before it gets nearer the chest. A new spot starts at his distance then, so choosing one is no step forward.
+	 * The nearest distance to the spot walked to, from where the buddy was when it was chosen: a way round a wall gets
+	 * nearer the spot before it gets nearer the chest. A new spot starts at the distance of that moment, so choosing one
+	 * is no step forward.
 	 */
 	private static double bestStand;
 	private static BlockPos bestStandFor;
@@ -147,7 +148,7 @@ final class Stash {
 
 	// ---------- learning ----------
 
-	/** His look is on a chest or barrel that stands open: one he opened, so one of his. */
+	/** The player looks at a chest or barrel that stands open: opened by the player, so one of the player's. */
 	static void watch(LocalPlayer p, Player t, BlockPos look) {
 		if (!on || look == null || t.distanceTo(p) > 32) return;
 		Level level = p.level();
@@ -158,7 +159,7 @@ final class Stash {
 		learn(level, look, "seen", t.getGameProfile().name());
 	}
 
-	/** The player the alt works for now, in small letters: his chests are the ones it uses. */
+	/** The player the alt works for now, in small letters: that player's chests are the ones used. */
 	private static String owner() {
 		String t = Follow.boss();
 		return t == null ? "" : t.toLowerCase(java.util.Locale.ROOT);
@@ -166,7 +167,7 @@ final class Stash {
 
 	private static boolean mine(Chest c) { return c.server.equals(server()) && c.owner.equals(owner()); }
 
-	/** Chests of a base the alt has not opened yet: one that does not open for him is forgotten again (Base). */
+	/** Chests of a base the alt has not opened yet: one that does not open for the alt is forgotten again (Base). */
 	private static final Set<BlockPos> trial = new HashSet<>();
 
 	/** A chest in a base: tried as one of the owner's, if not known yet. True when it is new. */
@@ -182,7 +183,7 @@ final class Stash {
 
 	// ---------- for Chores: what the chests hold ----------
 
-	/** How many of this item his known chests hold, on this server. */
+	/** How many of this item the owner's known chests hold, on this server. */
 	static int inChests(String id) {
 		load();
 		int n = 0;
@@ -190,7 +191,7 @@ final class Stash {
 		return n;
 	}
 
-	/** Room in his known chests: {the least free slots of one that holds this item (99 if none), all free slots, chests looked into}. */
+	/** Room in the owner's known chests: {the least free slots of one that holds this item (99 if none), all free slots, chests looked into}. */
 	static int[] room(String id) {
 		load();
 		int least = 99, total = 0, seen = 0;
@@ -203,14 +204,14 @@ final class Stash {
 		return new int[] { least, total, seen };
 	}
 
-	/** A tool of this kind lies in one of his chests (shears by their own name). */
+	/** A tool of this kind lies in one of the owner's chests (shears by their own name). */
 	static boolean chestHasTool(String kind) {
 		load();
 		for (Chest c : chests) if (mine(c)) for (String id : c.items.keySet()) if ((id.equals(kind) || id.endsWith("_" + kind)) && allowed(id)) return true;
 		return false;
 	}
 
-	/** A tool of this kind with more than a tenth of its durability left lies in one of his chests. */
+	/** A tool of this kind with more than a tenth of its durability left lies in one of the owner's chests. */
 	static boolean chestHasFreshTool(String kind) {
 		load();
 		for (Chest c : chests) if (mine(c)) for (String id : c.fresh) if ((id.equals(kind) || id.endsWith("_" + kind)) && allowed(id)) return true;
@@ -218,8 +219,8 @@ final class Stash {
 	}
 
 	/**
-	 * Renewing a tool of this kind is on: {@code baseRenew}, and every one of it he carries is {@link Work#lowWear} (he
-	 * carries at least one).
+	 * Renewing a tool of this kind is on: {@code baseRenew}, and every one of it carried is {@link Work#lowWear} (at
+	 * least one is carried).
 	 */
 	static boolean renewing(LocalPlayer p, String kind) {
 		if (!AfkConfig.get().baseRenew) return false;
@@ -235,8 +236,8 @@ final class Stash {
 	}
 
 	/**
-	 * Renewing the armour of this slot is on: {@code baseRenew}, what he wears there is {@link Work#lowWear}, and nothing
-	 * he carries for it is as good and fresh.
+	 * Renewing the armour of this slot is on: {@code baseRenew}, what is worn there is {@link Work#lowWear}, and nothing
+	 * carried for it is as good and fresh.
 	 */
 	static boolean renewingArmour(LocalPlayer p, EquipmentSlot slot) {
 		if (!AfkConfig.get().baseRenew) return false;
@@ -251,7 +252,7 @@ final class Stash {
 		return true;
 	}
 
-	/** A piece for this slot in one of his chests that he may take, at least this good and fresh. */
+	/** A piece for this slot in one of the owner's chests that may be taken, at least this good and fresh. */
 	static boolean chestHasFreshArmour(EquipmentSlot slot, double atLeast) {
 		load();
 		for (Chest c : chests) if (mine(c)) for (String id : c.fresh) {
@@ -264,15 +265,15 @@ final class Stash {
 	}
 
 	/**
-	 * Gear he may take from a chest by himself: food always, armour and tools of iron at most. Diamond and netherite stay
-	 * where they are; what he is
-	 * given or picks up he keeps and wears.
+	 * Gear the buddy may take from a chest unasked: food always, armour and tools of iron at most. Diamond and netherite
+	 * stay where they are; what the buddy is
+	 * given or picks up is kept and worn.
 	 */
 	static boolean allowed(String id) { return !id.startsWith("diamond_") && !id.startsWith("netherite_"); }
 
 	private static boolean allowed(ItemStack st) { return allowed(AfkHelperClient.itemId(st)); }
 
-	/** A piece for this slot in one of his chests that he may take, at least this good. */
+	/** A piece for this slot in one of the owner's chests that may be taken, at least this good. */
 	static boolean chestHasArmour(EquipmentSlot slot, double atLeast) {
 		load();
 		for (Chest c : chests) if (mine(c)) for (String id : c.items.keySet()) {
@@ -284,13 +285,13 @@ final class Stash {
 		return false;
 	}
 
-	/** The best he wears or carries for that slot. */
+	/** The best worn or carried for that slot. */
 	static double bestArmourFor(LocalPlayer p, EquipmentSlot slot) { return bestArmour(p, slot); }
 
-	/** He carries one of this kind that is not about to break. */
+	/** One of this kind is carried that is not about to break. */
 	static boolean hasUsable(LocalPlayer p, String kind) { return usable(p, tag(kind)); }
 
-	/** A tap on a chest of his (Tap): one of his. */
+	/** A chest the player taps (Tap): one of the player's. */
 	static void learnTapped(Level level, BlockPos pos, String player) { learn(level, pos, "tapped", player); }
 
 	private static void learn(Level level, BlockPos pos, String how, String player) {
@@ -298,7 +299,7 @@ final class Stash {
 		String server = server(), dim = Work.dimOf(level), who = player.toLowerCase(java.util.Locale.ROOT);
 		BlockPos other = otherHalf(level, pos);
 		for (Chest c : chests) if (c.server.equals(server) && c.owner.equals(who) && c.dim.equals(dim) && (c.pos.equals(pos) || c.pos.equals(other))) {
-			// he opened a chest that is known: what lies in it may have changed, so a look inside soon (chests that were
+			// the player opened a chest that is known: what lies in it may have changed, so a look inside soon (chests that were
 			// moved or sorted anew are learnt again)
 			if (how.equals("seen") && c.free >= 0) { c.free = -1; save(); }
 			return;
@@ -328,14 +329,14 @@ final class Stash {
 		return n;
 	}
 
-	/** A chest of his on this server with an item whose id matches. */
+	/** A chest of the owner's on this server with an item whose id matches. */
 	static boolean has(Predicate<String> id) {
 		load();
 		for (Chest c : chests) if (mine(c)) for (String i : c.items.keySet()) if (id.test(i)) return true;
 		return false;
 	}
 
-	/** One of his chests within this distance, in this world. */
+	/** One of the owner's chests within this distance, in this world. */
 	static boolean nearChest(Level level, BlockPos pos, double r) {
 		load();
 		String dim = Work.dimOf(level);
@@ -345,7 +346,7 @@ final class Stash {
 
 	static boolean hasFood() { return has(id -> AfkHelperClient.eatable(stackOf(id))); }
 
-	/** A chest of his that holds something he carries and has room, or has room at all. */
+	/** A chest of the owner's that holds something carried and has room, or has room at all. */
 	static boolean hasRoom(LocalPlayer p) {
 		load();
 		for (Chest c : chests) if (mine(c) && c.free > 0 && !c.full) return true;
@@ -369,7 +370,7 @@ final class Stash {
 			stop("forgotten");
 		}
 		if (o.has("learn") && p != null) {
-			if (Follow.target() == null) { Exchange.emit("error", "msg", "the buddy follows nobody: whose chest is that?"); return; }
+			if (Follow.target() == null) { Exchange.emit("error", "msg", Needs.named("chests: {me} follows nobody, so the chest has no owner")); return; }
 			JsonArray a = o.getAsJsonArray("learn");
 			BlockPos pos = new BlockPos(a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt());
 			if (p.level().getBlockEntity(pos) instanceof Container) learn(p.level(), pos, "asked", Follow.target());
@@ -386,7 +387,7 @@ final class Stash {
 
 	// ---------- every tick ----------
 
-	/** When the alt has nothing else to do: a visit to one of his chests, if there is a reason for one. */
+	/** When the alt has nothing else to do: a visit to one of the owner's chests, if there is a reason for one. */
 	static boolean tick(Minecraft mc, LocalPlayer p, Player t) {
 		long now = System.currentTimeMillis();
 		skip.values().removeIf(until -> until < now);
@@ -456,7 +457,7 @@ final class Stash {
 						BlockPos up = visit.pos.above();
 						Exchange.emit("helper", "action", "chest refuses", "x", visit.pos.getX(), "y", visit.pos.getY(), "z", visit.pos.getZ(),
 							"above", net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(level.getBlockState(up).getBlock()).getPath(), "sees", Work.sight(mc));
-						// a chest of the base he only tried: not one of both of them, so not one of the base
+						// a chest of the base the buddy only tried: not one of both of them, so not one of the base
 						if (trial.remove(visit.pos)) { chests.remove(visit); save(); Exchange.emit("base", "action", "chest without access", "x", visit.pos.getX(), "y", visit.pos.getY(), "z", visit.pos.getZ()); }
 						stop("does not open");
 						return false;
@@ -473,7 +474,7 @@ final class Stash {
 		Vec3 pt = Work.aimPoint(level, p, eye, visit.pos);
 		BlockPos other = otherHalf(level, visit.pos);
 		if (pt == null && other != null) pt = Work.aimPoint(level, p, eye, other);
-		// the reach the spot was chosen with (Work.standCell): with 4.0 here he could stand on his spot, the chest 4.1 off,
+		// the reach the spot was chosen with (Work.standCell): with 4.0 here the buddy could stand on the spot, the chest 4.1 off,
 		// and never click (22 Oct 2026)
 		return pt != null && eye.distanceTo(pt) <= Work.REACH ? pt : null;
 	}
@@ -515,8 +516,8 @@ final class Stash {
 		Exchange.emit("helper", "action", "chest step", "step", "click sent", "x", want.getX(), "y", want.getY(), "z", want.getZ());
 	}
 
-	/** The chest is open: look what lies in it, take what he lacks, put away what belongs there, close it. */
-	/** The land plugin refused the chest he tries to open (the profile's geenKistToegang): a trial chest is forgotten. */
+	/** The chest is open: look what lies in it, take what is lacking, put away what belongs there, close it. */
+	/** The land plugin refused the chest being opened (the profile's geenKistToegang): a trial chest is forgotten. */
 	static void chat(String line) {
 		if (visit == null || step != OPEN || !Profiles.has("noChestAccess", line)) return;
 		if (trial.remove(visit.pos)) {
@@ -574,9 +575,9 @@ final class Stash {
 	}
 
 	/**
-	 * What the open chest holds. {@code first}: the look as he opens it, before he takes or puts anything; what lay in it at
-	 * his last look and is gone now has been moved (or used up), and becomes {@link #missing}. The look as he closes it
-	 * would count what he took himself.
+	 * What the open chest holds. {@code first}: the look on opening it, before anything is taken or put; what lay in it at
+	 * the last look and is gone now has been moved (or used up), and becomes {@link #missing}. The look on closing it
+	 * would count what the buddy took.
 	 */
 	private static void readInto(Chest c, AbstractContainerMenu m, int n, boolean first) {
 		Set<String> before = first && c.seen > 0 ? new HashSet<>(c.items.keySet()) : Set.of();
@@ -586,8 +587,8 @@ final class Stash {
 		for (int i = 0; i < n; i++) {
 			ItemStack st = m.slots.get(i).getItem();
 			if (st.isEmpty()) free++;
-			// a tool or a piece of armour about to break counts as nothing: he took none such from a chest while one lay in
-			// it was what the chest had for him, so he walked to it every few seconds and made no new one (the review of
+			// a tool or a piece of armour about to break counts as nothing: none such was taken from a chest while one lay in
+			// it was what the chest had to offer, so the buddy walked to it every few seconds and made no new one (the review of
 			// 22 Oct 2026)
 			else if (worn(st)) continue;
 			else {
@@ -667,12 +668,12 @@ final class Stash {
 
 	// ---------- what to do ----------
 
-	/** Is there a reason to go to a chest, and which one: what he lacks first, then what he carries, then a look. */
+	/** Is there a reason to go to a chest, and which one: what is lacking first, then what is carried, then a look. */
 	private static boolean plan(LocalPlayer p, Player t, long now) {
 		load();
 		Level level = p.level();
 		String dim = Work.dimOf(level);
-		// a chest of his that is gone from where it stood (moved, broken): forgotten, its contents with it
+		// a known chest of the owner's that is gone from where it stood (moved, broken): forgotten, its contents with it
 		boolean gone = false;
 		for (var it = chests.iterator(); it.hasNext(); ) {
 			Chest c = it.next();
@@ -682,7 +683,7 @@ final class Stash {
 			Exchange.emit("helper", "action", "chest gone", "x", c.pos.getX(), "y", c.pos.getY(), "z", c.pos.getZ());
 		}
 		// both halves of one double chest known as two chests (placed one at a time, each learnt while single): one
-		// is kept, the half he looked into, with what both had (21 Oct 2026: the back halves of the cellar's double
+		// is kept, the half looked into, with what both had (21 Oct 2026: the back halves of the cellar's double
 		// chests stand against the wall, "no spot to stand" for each while the front half opens the same chest)
 		for (var it = chests.iterator(); it.hasNext(); ) {
 			Chest c = it.next();
@@ -711,18 +712,18 @@ final class Stash {
 				continue;
 			}
 			// a chest that empties into a hopper (on a composter, a furnace, a sorter) is no store: what goes in is gone
-			// (he put wheat in the chest over a composter while another chest was set up for wheat; it had some wheat, so
+			// (the buddy put wheat in the chest over a composter while another chest was set up for wheat; it had some wheat, so
 			// it was the nearest chest that "holds some")
 			if (feeds(level, c.pos)) continue;
 			if (Failures.blocked("chest " + c.pos.toShortString())) continue;
 			Vec3 at = Vec3.atCenterOf(c.pos);
-			// keeping the base (he is his own anchor): every chest of the base, not only those near him
+			// keeping the base (the buddy is the anchor): every chest of the base, not only those near the buddy
 			if (home != null ? at.distanceTo(Vec3.atCenterOf(home.bed())) <= Base.RADIUS : at.distanceTo(p.position()) <= 20 && at.distanceTo(t.position()) <= 24) near.add(c);
 		}
 		if (near.isEmpty()) return false;
 		near.sort(Comparator.comparingDouble(c -> Vec3.atCenterOf(c.pos).distanceToSqr(p.position())));
 		for (Chest c : near) {
-			// a chest a hopper fills (under a composter: its bone meal) is the farm's: he only adds to it, never takes
+			// a chest a hopper fills (under a composter: its bone meal) is the farm's: only added to, never taken from
 			if (collects(level, c.pos)) continue;
 			String w = lacks(p, c);
 			if (w != null) return go(c, w, false, now);
@@ -733,7 +734,7 @@ final class Stash {
 		int free = Work.freeSlots(p);
 		// Storing as a copper golem does, with a memory: a chest that holds it; else first a look in every chest that may
 		// hold it; and only then the
-		// rest in an empty chest. He had put "the rest" in the emptiest of the 7 chests he had looked into, with 39 of the
+		// rest in an empty chest. The buddy had put "the rest" in the emptiest of the 7 chests looked into, with 39 of the
 		// base's 46 never opened. No longer: the chest where it once lay, or the roomiest when no chest is empty.
 		if ((forcing && storable > 0) || storable >= 4 || (storable > 0 && free <= 5)) {
 			String w = forcing ? "carrying" : "storing";
@@ -741,22 +742,22 @@ final class Stash {
 			Chest look = toLookIn(near, p, keep);
 			if (look != null) return go(look, w + (look.seen > 0 ? ", look again" : ", look into a new chest"), false, now);
 			if (forcing || free <= 4) {
-				// an empty chest, the nearest, so that the rest does not end up among other things; none: he keeps it, and
+				// an empty chest, the nearest, so that the rest does not end up among other things; none: the rest is kept, and
 				// a full inventory is told (Needs "vol")
 				for (Chest c : near) if (c.free > 0 && c.items.isEmpty() && !collects(level, c.pos)) return go(c, w + ", de rest", true, now);
 			}
 		}
-		// no look every hour any more: a chest gets one when he does not know what is in it (never opened, or opened by
-		// the player since), or when something he stores is gone from where it lay (toLookIn)
+		// no look every hour any more: a chest gets one when what is in it is not known (never opened, or opened by
+		// the player since), or when something being stored is gone from where it lay (toLookIn)
 		for (Chest c : near) if (c.free < 0) return go(c, "looking what is in it", false, now);
 		lastRun = now - 10_000;   // nothing to do: look again in ten seconds
 		return false;
 	}
 
 	/**
-	 * Before what he carries goes where it never lay: the chest to look into first, or null when he has had them all. A
-	 * chest whose contents he does not know (never opened, or opened by the player since his look); and when a thing he
-	 * carries is {@link #missing}, every chest he looked into before it went. Known chests first, then new ones, each the
+	 * Before what is carried goes where it never lay: the chest to look into first, or null when all have been had. A
+	 * chest whose contents are not known (never opened, or opened by the player since the buddy's look); and when a thing
+	 * carried is {@link #missing}, every chest looked into before it went. Known chests first, then new ones, each the
 	 * nearest first ({@code near} is sorted by distance).
 	 */
 	private static Chest toLookIn(List<Chest> near, LocalPlayer p, boolean[] keep) {
@@ -790,7 +791,7 @@ final class Stash {
 		return true;
 	}
 
-	/** What this chest has that he lacks, as far as the last look inside it says. */
+	/** What this chest has that is lacking, as far as the last look inside it says. */
 	private static String lacks(LocalPlayer p, Chest c) {
 		if (AfkHelperClient.countFood(p, 0, 36) < 8) for (String id : c.items.keySet()) if (AfkHelperClient.eatable(stackOf(id))) return "food";
 		for (String kind : new String[] { "pickaxe", "axe", "shovel" }) {
@@ -798,15 +799,15 @@ final class Stash {
 			if (renewing(p, kind)) for (String id : c.fresh) if (id.endsWith("_" + kind) && allowed(id)) return kind;
 		}
 		if (Guard.on() && !armed(p)) for (String id : c.items.keySet()) if (id.endsWith("_sword") && allowed(id)) return "weapon";
-		// for the fight (24 Oct 2026): a shield while he guards, golden apples, and better food than beetroot
+		// for the fight (24 Oct 2026): a shield while guarding, golden apples, and better food than beetroot
 		if (Guard.on() && !Chores.hasShield(p) && c.items.containsKey("shield")) return "shield";
 		if (Chores.count(p, "golden_apple") < 2 && c.items.containsKey("golden_apple")) return "golden apples";
 		if (Guard.on() && !Chores.hasBow(p) && c.items.containsKey("bow")) return "bow";
 		if (Guard.on() && Chores.hasBow(p) && arrowCount(p) < 16 && (c.items.containsKey("arrow") || c.items.containsKey("spectral_arrow") || c.items.containsKey("tipped_arrow"))) return "arrows";
 		if (poorFood(p)) for (String id : c.items.keySet()) if (nutrition(stackOf(id)) >= GOOD_FOOD) return "better food";
-		// what his furnaces smelt or burn (Ovens)
+		// what the buddy's furnaces smelt or burn (Ovens)
 		for (String id : c.items.keySet()) if (Ovens.wants(p, stackOf(id))) return "for the furnaces";
-		// torches while he digs along (Torches)
+		// torches while digging along (Torches)
 		if (Torches.wants(p) && c.items.containsKey("torch")) return "torches";
 		// what a chore of the base needs (Chores)
 		for (String id : c.items.keySet()) if (Chores.wants(p, stackOf(id))) return "for a chore";
@@ -820,7 +821,7 @@ final class Stash {
 		return null;
 	}
 
-	/** Something he carries that lay in this chest before, and that no chest of his holds now. */
+	/** Something carried that lay in this chest before, and that no chest of the owner's holds now. */
 
 	private static boolean holdsSome(LocalPlayer p, boolean[] keep, Chest c) {
 		for (int i = 0; i < 36; i++) {
@@ -830,7 +831,7 @@ final class Stash {
 		return false;
 	}
 
-	/** In the open chest: the slot of something he lacks, one of each kind a visit. */
+	/** In the open chest: the slot of something lacking, one of each kind a visit. */
 	private static int takeSlot(LocalPlayer p, AbstractContainerMenu m, int n) {
 		int best = -1;
 		String kind = null;
@@ -849,7 +850,7 @@ final class Stash {
 		for (int i = 0; i < n; i++) {
 			ItemStack st = m.slots.get(i).getItem();
 			if (st.isEmpty()) continue;
-			// unenchanted first: his own good gear stays in the chest as long as there is something else
+			// unenchanted first: the player's own good gear stays in the chest as long as there is something else
 			double plain = st.isEnchanted() ? 0 : 1000;
 			if (hungry && AfkHelperClient.eatable(st)) {
 				var f = st.get(DataComponents.FOOD);
@@ -902,7 +903,7 @@ final class Stash {
 		return best;
 	}
 
-	/** In the open chest: the slot of his own inventory with something that belongs in this chest. */
+	/** In the open chest: the slot of the buddy's own inventory with something that belongs in this chest. */
 	private static int depositSlot(LocalPlayer p, AbstractContainerMenu m, int n) {
 		boolean[] keep = keep(p);
 		Set<Item> here = new HashSet<>();
@@ -921,14 +922,14 @@ final class Stash {
 		return -1;
 	}
 
-	// ---------- what he keeps ----------
+	// ---------- what the buddy keeps ----------
 
 	/**
-	 * Which of his 36 slots stay with him: the two best of each kind of tool and sword (by speed or damage, enchantments
-	 * and what durability is left; one about to break counts last), the weapon he fights with, for each armour slot the best
-	 * piece he does not wear (one on, one spare), up to two stacks each of food, torches and rockets, two totems,
-	 * saplings up to 16 and a stack of each kind of seed, and the few things he always carries (a shield, a compass, a
-	 * clock, a map, an elytra, shears). What a furnace of his needs and what the corpse guard holds for its owner stay
+	 * Which of the 36 slots stay with the buddy: the two best of each kind of tool and sword (by speed or damage,
+	 * enchantments and what durability is left; one about to break counts last), the weapon to fight with, for each armour
+	 * slot the best piece not worn (one on, one spare), up to two stacks each of food, torches and rockets, two totems,
+	 * saplings up to 16 and a stack of each kind of seed, and the few things always carried (a shield, a compass, a
+	 * clock, a map, an elytra, shears). What one of the buddy's furnaces needs and what the corpse guard holds for its owner stay
 	 * too. The rest goes to the chests.
 	 */
 	static boolean[] keep(LocalPlayer p) {
@@ -981,7 +982,7 @@ final class Stash {
 		for (int i = 0; i < 36; i++) {
 			ItemStack st = inv.getItem(i);
 			if (st.is(ItemTags.SAPLINGS) && saplings < 16) { keep[i] = true; saplings += st.getCount(); }
-			// the seeds of his fields, to plant again: a stack of each kind
+			// the seeds of the buddy's fields, to plant again: a stack of each kind
 			String id = AfkHelperClient.itemId(st);
 			if (SEEDS.contains(id) && seeds.merge(id, st.getCount(), Integer::sum) - st.getCount() < 64) keep[i] = true;
 			if (st.is(Items.SHIELD) || st.is(Items.COMPASS) || st.is(Items.RECOVERY_COMPASS)
@@ -989,7 +990,7 @@ final class Stash {
 		}
 		// what the corpse guard fetched goes back to its owner's hands, not into a chest; what a furnace needs stays
 		for (int i = 0; i < 36; i++) if (Dump.heldBack(i) || Ovens.keeps(inv.getItem(i)) || Chores.keeps(p, inv.getItem(i))) keep[i] = true;
-		// what was thrown at him to take home goes home, whatever the rules above (Carrier)
+		// what was thrown at the buddy to take home goes home, whatever the rules above (Carrier)
 		for (int i = 0; i < 36; i++) if (Carrier.carried(i)) keep[i] = false;
 		return keep;
 	}
@@ -1035,7 +1036,7 @@ final class Stash {
 		return n;
 	}
 
-	/** Food at least this filling is worth a trip to the chests when all he carries is poor (beetroot, a carrot). */
+	/** Food at least this filling is worth a trip to the chests when all that is carried is poor (beetroot, a carrot). */
 	static final int GOOD_FOOD = 5;
 
 	private static int nutrition(ItemStack st) {
@@ -1044,7 +1045,7 @@ final class Stash {
 	}
 
 	/**
-	 * All the food he carries fills little (two or less a bite): on 24 Oct 2026 he carried 133 beetroot and nothing else,
+	 * All the food carried fills little (two or less a bite): on 24 Oct 2026 the buddy carried 133 beetroot and nothing else,
 	 * one point a bite, while a fight heals on a full belly. A chest with better food is then worth a visit.
 	 */
 	private static boolean poorFood(LocalPlayer p) {
@@ -1083,7 +1084,7 @@ final class Stash {
 	/** How much this piece protects in that slot: its armour points, toughness at half. */
 	static double armour(ItemStack st, EquipmentSlot slot) {
 		if (st.isEmpty()) return 0;
-		// the elytra stays on: he flies after the player he follows
+		// the elytra stays on: the buddy flies after the followed player
 		if (slot == EquipmentSlot.CHEST && LivingEntity.canGlideUsing(st, slot)) return 100;
 		double a = 0;
 		for (ItemAttributeModifiers.Entry e : st.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY).modifiers()) {
@@ -1094,7 +1095,7 @@ final class Stash {
 		return a;
 	}
 
-	/** The best he wears or carries for that slot. */
+	/** The best worn or carried for that slot. */
 	private static double bestArmour(LocalPlayer p, EquipmentSlot slot) {
 		double best = armour(p.getItemBySlot(slot), slot);
 		for (int i = 0; i < 36; i++) {
@@ -1106,15 +1107,15 @@ final class Stash {
 	}
 
 	/**
-	 * Better armour than he wears, in his inventory: on, one click a second, without a screen (the inventory's own menu
-	 * takes clicks without one). A worse piece he wears comes off first, into the inventory.
+	 * Better armour than is worn, in the inventory: on, one click a second, without a screen (the inventory's own menu
+	 * takes clicks without one). A worse piece that is worn comes off first, into the inventory.
 	 */
 	static void wearBest(Minecraft mc, LocalPlayer p) {
-		// not while he carries a dead player's things: one of them would go on
+		// not while carrying a dead player's things: one of them would go on
 		if (Corpse.holding()) return;
 		long now = System.currentTimeMillis();
 		if (now < nextWear || mc.gameMode == null || p.containerMenu != p.inventoryMenu || AfkHelperClient.isEating()) return;
-		// a chest or a crafting table clicked a moment ago may open any tick: a click on his armour now would be lost
+		// a chest or a crafting table clicked a moment ago may open any tick: a click on the armour now would be lost
 		if (now - Recorder.lastUseAt < 1500) return;
 		// a person takes a moment between two pieces, never the same moment (21 Oct 2026, after SoulFire's random min-max delays)
 		nextWear = now + java.util.concurrent.ThreadLocalRandom.current().nextLong(700, 1600);
@@ -1128,7 +1129,7 @@ final class Stash {
 			Equippable e = st.get(DataComponents.EQUIPPABLE);
 			if (e == null || e.slot().getType() != EquipmentSlot.Type.HUMANOID_ARMOR || Work.nearlyBroken(st)) continue;
 			double g = armour(st, e.slot()) - armour(p.getItemBySlot(e.slot()), e.slot());
-			// as good, and fresh where the one he wears is nearly worn out (a new piece he made: baseRenew)
+			// as good, and fresh where the one worn is nearly worn out (a new piece the buddy made: baseRenew)
 			if (g == 0 && Work.lowWear(p.getItemBySlot(e.slot())) && !Work.lowWear(st) && !p.getItemBySlot(e.slot()).isEmpty()) g = 0.01;
 			// a nearly worn-out piece loses a tie to a fresh one: with the slot empty the first one found went on, came
 			// off a second later for the fresh one, and went on again, for a minute (the scenarios of 23 Oct 2026)
@@ -1150,8 +1151,8 @@ final class Stash {
 	}
 
 	/**
-	 * The off hand. A totem whenever he has one (21 Oct 2026, after SoulFire's AutoTotem: he kept two totems and never held
-	 * one; and since 1 Nov 2026 before a shield). A shield otherwise while he guards (the plan for fighting: Shield
+	 * The off hand. A totem whenever there is one (21 Oct 2026, after SoulFire's AutoTotem: the buddy kept two totems and
+	 * never held one; and since 1 Nov 2026 before a shield). A shield otherwise while guarding (the plan for fighting: Shield
 	 * raises it). Only over an empty hand or a shield about to break: seeds or bone meal a farm holds there stay.
 	 * One click, the game's own swap with the off hand.
 	 */
@@ -1166,7 +1167,7 @@ final class Stash {
 		}
 		boolean shieldOn = off.is(Items.SHIELD) && !Work.nearlyBroken(off);
 		boolean canShield = Guard.on() && (shieldOn || shield >= 0);
-		// a totem goes before a shield, always: the shield only while he has no totem
+		// a totem goes before a shield, always: the shield only while there is no totem
 		boolean wantTotem = totem >= 0 || off.is(Items.TOTEM_OF_UNDYING);
 		if (wantTotem) {
 			if (off.is(Items.TOTEM_OF_UNDYING) || totem < 0) return false;
@@ -1231,7 +1232,7 @@ final class Stash {
 				chests.add(c);
 			}
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "chests.json: " + e.getMessage());
+			Exchange.emit("error", "msg", "chests not read: " + e.getMessage());
 		}
 	}
 
@@ -1271,7 +1272,7 @@ final class Stash {
 			Files.writeString(tmp, GSON.toJson(root));
 			Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "writing chests.json: " + e.getMessage());
+			Exchange.emit("error", "msg", "chests not saved: " + e.getMessage());
 		}
 	}
 }

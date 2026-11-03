@@ -29,8 +29,8 @@ import net.minecraft.world.phys.Vec3;
  * {@code PitShape} in 0.4.44): it takes two points of a collector under the floor, a weakened mob, a shaft above it, a
  * crowd.</li>
  * <li>{@link Search}: the cells around it to stand in, with what each reaches through what a crosshair stops at, and
- * whether a mob in there can hit him back.</li>
- * <li>{@link #pit} and {@link #pitFoe}: for the fight, whether a mob stands where the way to it is a fall he does not
+ * whether a mob in there can hit back.</li>
+ * <li>{@link #pit} and {@link #pitFoe}: for the fight, whether a mob stands where the way to it is a fall the buddy does not
  * climb back out of, or in a farm's cell.</li>
  * </ul>
  */
@@ -54,7 +54,7 @@ final class PenShape {
 	static final double HOLE_DROP = 1.2;
 	/**
 	 * A swimmer at the top of water climbs onto a block whose top is this much higher at most (LivingEntity
-	 * .jumpOutOfFluid lifts him once his box raised 0.6 holds no water).
+	 * .jumpOutOfFluid lifts a swimmer once the box raised 0.6 holds no water).
 	 */
 	static final double SWIM_OUT = 0.5;
 	/** How far down the floor of a falling mob and of a column is looked for. */
@@ -62,7 +62,7 @@ final class PenShape {
 	static final int MAX_SIDE = 3, MAX_COLS = 9;
 	/** A shaft is this many walled levels, starting within SHAFT_GAP of the mobs' heads (the band players stand in). */
 	static final int SHAFT_RUN = 5, SHAFT_GAP = 6, SHAFT_SCAN = 40;
-	/** A player: eye and height standing and crouched, half his width. */
+	/** A player: eye and height standing and crouched, half the width. */
 	static final double STAND_EYE = 1.62, STAND_H = 1.8, CROUCH_EYE = 1.27, CROUCH_H = 1.5, HALF = 0.3;
 	/** How far a mob's melee reaches beyond its box: Mob.getAttackBoundingBox's sqrt(2.04) - 0.6, checked in 26.3. */
 	static final double MELEE = Math.sqrt(2.04) - 0.6;
@@ -86,7 +86,7 @@ final class PenShape {
 		 * {@link #HAZARD}.
 		 */
 		int flags(int x, int y, int z);
-		/** The feet height of a player standing in this cell, NaN when he cannot stand there. */
+		/** The feet height of a player standing in this cell, NaN when a player cannot stand there. */
 		double stand(int x, int y, int z);
 		boolean loaded(int x, int z);
 	}
@@ -130,7 +130,7 @@ final class PenShape {
 	/**
 	 * A cell to stand in: its feet height, where exactly (pushed toward the pen), crouched, on an edge, its side (0 north,
 	 * 1 east, 2 south, 3 west), the columns it reaches (a bit per column of {@link Flood#list}), how many sample points it
-	 * reaches, whether a mob in there sees him or a creeper would swell, its angle round the pen, and whether its rays
+	 * reaches, whether a mob in there sees the buddy or a creeper would swell, its angle round the pen, and whether its rays
 	 * pass over a fence or wall.
 	 */
 	record Spot(BlockPos cell, double feet, Vec3 at, boolean crouch, boolean edge, int side, long reach, int samples,
@@ -309,9 +309,9 @@ final class PenShape {
 
 	/**
 	 * The closed space a mob stands in, as the fight sees it (Pen.enclosed): its columns, the top of its shaft, a farm
-	 * by its blocks, how a player who lands in it gets out again by himself ({@link #climbOut}: open ground, or the
-	 * places a closed climb stands on), and a door or gate he opens in its wall with ground beyond it
-	 * ({@link #throughDoor}), which lets him out at any height.
+	 * by its blocks, how a player who lands in it gets out again unaided ({@link #climbOut}: open ground, or the
+	 * places a closed climb stands on), and a door or gate to open in its wall with ground beyond it
+	 * ({@link #throughDoor}), which lets the player out at any height.
 	 */
 	record Pit(Flood flood, double top, boolean farm, Climb climb, boolean door) {
 		/**
@@ -323,21 +323,21 @@ final class PenShape {
 	}
 
 	/**
-	 * Where a player who lands in a pit gets to by himself ({@link #climbOut}): {@code up}, the highest floor outside
+	 * Where a player who lands in a pit gets to unaided ({@link #climbOut}): {@code up}, the highest floor outside
 	 * its columns (positive infinity: open ground; negative infinity: nowhere), and for a climb that stays closed the
 	 * floors it stands on, per column ({@link #key}); empty for open ground. Not measured against anyone's ground: the
-	 * shape is kept a second per mob (Pen.enclosedWhy), {@link #backUp} is asked with his feet every time.
+	 * shape is kept a second per mob (Pen.enclosedWhy), {@link #backUp} is asked with the player's feet every time.
 	 */
 	record Climb(double up, Map<Long, List<Double>> reached) {
 		/**
-		 * Whether the climb gets him back to where he stands: open ground, or a column under his box (those it overlaps
-		 * by more than a hair: pressed against a block he only touches the next one) where the climb stood on a floor
-		 * at his ground or up to a step above it. A column's floor is the top of its merged boxes, so on a stair's low
-		 * half he stands half a block under what the climb records there, in a hopper's bowl 5/16 under it; two floors
-		 * the climb records in one column lie more than STAND_H apart, so the window takes no other. A cauldron (3/4
-		 * under its rim) or anything else deeper than a step is no match: the conservative side, he leaves the mob be.
-		 * Until the review of the fourth round (22 Oct 2026) {@code up} was held against his ground instead: a climb
-		 * that topped out at it or over it counted as one back to him, wherever it ended.
+		 * Whether the climb leads back to {@code feet}: open ground, or a column under the box there (those it overlaps by
+		 * more than a hair: pressed against a block, the box only touches the next one) where the climb stood on a floor at
+		 * {@code ground} or up to a step above it. A column's floor is the top of its merged boxes, so on a stair's low half
+		 * the feet are half a block under what the climb records there, in a hopper's bowl 5/16 under it; two floors the
+		 * climb records in one column lie more than STAND_H apart, so the window takes no other. A cauldron (3/4 under its
+		 * rim) or anything else deeper than a step is no match: the conservative side, and the mob is left be. Until the
+		 * review of the fourth round (22 Oct 2026) {@code up} was held against the ground instead: a climb that topped out at
+		 * it or over it counted as one back, wherever it ended.
 		 */
 		boolean backUp(Vec3 feet, double ground) {
 			if (up == Double.POSITIVE_INFINITY) return true;
@@ -354,8 +354,8 @@ final class PenShape {
 	 * The closed space a mob stands in, or null for open ground (no floor, a hole beside it, past 3 by 3). A farm here by
 	 * its blocks alone: a collector in or under its floor, or a shaft over it, either by itself, as Pen.fromEntry takes a
 	 * farm after a restart. Neither how hurt the mob is (in a fight that is the fight's own doing) nor water at its feet
-	 * (a hole in a field, which he wades into and out of) counts. Its ways out start from each column's own floor (a
-	 * hopper's rim, not its bowl: he steps up onto that).
+	 * (a hole in a field, waded into and out of) counts. Its ways out start from each column's own floor (a
+	 * hopper's rim, not its bowl: a step up onto that).
 	 */
 	static Pit pit(World w, Mob m) {
 		double F = floor(w, m);
@@ -382,18 +382,18 @@ final class PenShape {
 	/** The deepest drop the walker takes (Follow's planner). */
 	static final double DROP = 3.2;
 
-	/** A place to stand: a column and the height of his feet on its floor. */
+	/** A place to stand: a column and the height of the feet on its floor. */
 	private record Stand(int x, int z, double feet) {}
 
 	/**
-	 * Where outside the pit's columns a player who lands in it gets to by himself, and the highest floor of it: from
+	 * Where outside the pit's columns a player who lands in it gets to unaided, and the highest floor of it: from
 	 * each column's own floor over the cells beside it (four ways) onto a floor less than a jump up (HOLE_DROP), or
-	 * from water standing over his floor onto one within SWIM_OUT of its top, or down a drop of DROP at most, as often
+	 * from water standing over that floor onto one within SWIM_OUT of its top, or down a drop of DROP at most, as often
 	 * as it takes ({@link #floorsBeside}). Open ground (up positive infinity, no places kept) once a place lies more
 	 * than CLIMB_RANGE beside the pit's box or the climb has stood on CLIMB_MAX places; up negative infinity when it
-	 * gets nowhere outside the columns. Not measured against his ground: the shape is kept a second per mob
-	 * (Pen.enclosedWhy), his ground every tick ({@link Climb#backUp}). Until the third review of 22 Oct 2026 only the
-	 * tops of the blocks right beside the columns counted, one jump each against his ground: a dip one deep seen from
+	 * gets nowhere outside the columns. Not measured against anyone's ground: the shape is kept a second per mob
+	 * (Pen.enclosedWhy), the ground every tick ({@link Climb#backUp}). Until the third review of 22 Oct 2026 only the
+	 * tops of the blocks right beside the columns counted, one jump each against the ground stood on: a dip one deep seen from
 	 * two up and a crater with two steps were pits, and the fight left their mobs be. A fixed distance from the pit is
 	 * no end of the climb: out of a hole one deep in the floor of a pit five by five and three deep it walks two cells
 	 * over that floor, and that pit is the trap.
@@ -410,7 +410,7 @@ final class PenShape {
 			double water = waterTop(w, s.x(), s.z(), s.feet());
 			for (int[] d : dirs) {
 				int nx = s.x() + d[0], nz = s.z() + d[1];
-				// the columns themselves are where he lands; a column not loaded is no way out
+				// the columns themselves are where the player lands; a column not loaded is no way out
 				if (f.has(nx, nz) || !w.loaded(nx, nz)) continue;
 				for (double t : floorsBeside(w, nx, nz, s.feet(), water, ceiling(w, s.x(), s.z(), s.feet()))) {
 					List<Double> was = seen.computeIfAbsent(key(nx, nz), k -> new ArrayList<>());
@@ -429,8 +429,8 @@ final class PenShape {
 	}
 
 	/**
-	 * The bottom of the lowest box over a floor at {@code h} in this column, within a jump and his height, or positive
-	 * infinity for none: what his head meets when he jumps from there.
+	 * The bottom of the lowest box over a floor at {@code h} in this column, within a jump and a player's height, or positive
+	 * infinity for none: what the head meets on a jump from there.
 	 */
 	static double ceiling(World w, int x, int z, double h) {
 		double c = Double.POSITIVE_INFINITY;
@@ -442,7 +442,7 @@ final class PenShape {
 
 	/**
 	 * The top of the water standing over a floor at {@code feet} in this column: of the run of water cells from the
-	 * cell above the floor's block up, the cell his feet are in (a whole block, mud, soul sand or farmland under him), NaN
+	 * cell above the floor's block up, the cell the feet are in (a whole block, mud, soul sand or farmland under them), NaN
 	 * for none. Until the third review of 22 Oct 2026 the run began in the floor block's own cell, which for a floor that
 	 * is no whole block holds no water: water two deep over mud or soul sand was nothing to swim out of.
 	 */
@@ -455,10 +455,10 @@ final class PenShape {
 
 	/**
 	 * The floors in column (x, z) a player standing on {@code h} beside it gets onto: a collision top less than a jump
-	 * up (HOLE_DROP), within SWIM_OUT of the top of the water he stands in ({@code water}, NaN: none), or down as far
+	 * up (HOLE_DROP), within SWIM_OUT of the top of the water stood in ({@code water}, NaN: none), or down as far
 	 * as DROP, with STAND_H free over it and over h, every box that overlaps the column's square in any part counting
 	 * (as the flood takes it). Not a floor, as Follow.floorY refuses them: one over lava or fire or beside lava, nor a
-	 * block that holds water or lava under the cell his feet are in, nor a low block in that cell (a slab, a carpet, a
+	 * block that holds water or lava under the cell the feet are in, nor a low block in that cell (a slab, a carpet, a
 	 * lily pad, a lantern, a candle on a fence) that holds a fluid itself or stands on one or on a block that burns, nor
 	 * the top of something that hangs low in its cell (a chain lying flat: floorY stands in neither that cell nor the one
 	 * over it). A top with no room over it is no floor, so stacked blocks that leave a gap (mud, soul sand: 1/8) are one wall to the top of the stack: until the
@@ -471,9 +471,9 @@ final class PenShape {
 	static List<Double> floorsBeside(World w, int x, int z, double h, double water) { return floorsBeside(w, x, z, h, water, Double.POSITIVE_INFINITY); }
 
 	/**
-	 * The same, with {@code ceil} the bottom of the lowest box over him in the column he stands in ({@link #ceiling}): a
-	 * jump wants room over his head there up to the floor he jumps onto and STAND_H and a little more, as the walker's
-	 * Follow.roomToJump does. Without it a step under a low overhang was a way out of a crater that he cannot climb (the
+	 * The same, with {@code ceil} the bottom of the lowest box over the player in the column stood in ({@link #ceiling}): a
+	 * jump wants room over the head there up to the floor jumped onto and STAND_H and a little more, as the walker's
+	 * Follow.roomToJump does. Without it a step under a low overhang was a way out of a crater that cannot be climbed (the
 	 * check of the third review of 22 Oct 2026).
 	 */
 	static List<Double> floorsBeside(World w, int x, int z, double h, double water, double ceil) {
@@ -490,10 +490,10 @@ final class PenShape {
 			if (t < h - DROP - 1e-6 || !(jump || swim)) continue;
 			double next = i + 1 < m.size() ? m.get(i + 1)[0] : Double.POSITIVE_INFINITY;
 			if (next - Math.max(t, h) < STAND_H - 1e-6) continue;
-			// a jump (more than a step, not out of water) wants room over his head where he jumps from
+			// a jump (more than a step, not out of water) wants room over the head where it starts
 			if (t - h > STEP + 1e-6 && !swim && ceil - t < STAND_H + 0.05 - 1e-6) continue;
-			// the cell his feet are in: a low block's own (a slab, a carpet, a lily pad: Follow.floorY's own
-			// collision), else the one over the block he stands on, a fence or wall too (its 1.5 reaches into that cell)
+			// the cell the feet are in: a low block's own (a slab, a carpet, a lily pad: Follow.floorY's own
+			// collision), else the one over the block stood on, a fence or wall too (its 1.5 reaches into that cell)
 			double frac = t - Math.floor(t);
 			boolean low = frac > 1e-6 && frac <= STEP + 1e-6;
 			int feet = low ? fl(t) : fl(t - 1e-6) + 1;
@@ -502,10 +502,10 @@ final class PenShape {
 			boolean own = low && ownFloor(w, x, feet, z);
 			int under = own ? feet : feet - 1;
 			if (burns(w, x, feet, z) || burns(w, x, under, z) || besideLava(w, x, feet, z)) continue;
-			// the block he stands on holds no fluid (a waterlogged block, fence or wall); water over it, in his cell,
-			// is water he swims in
+			// the block stood on holds no fluid (a waterlogged block, fence or wall); water over it, in the feet's cell,
+			// is water to swim in
 			if (under != feet && (w.flags(x, under, z) & FLUID) != 0) continue;
-			// nor a low block in his cell, nor what it lies on (floorY's Grinder.hazard on the cell and the one under
+			// nor a low block in the feet's cell, nor what it lies on (floorY's Grinder.hazard on the cell and the one under
 			// it): a waterlogged slab, a lily pad on water, a carpet on waterlogged roots or on magma, a slab over lava
 			if (own && ((w.flags(x, feet, z) & FLUID) != 0 || burns(w, x, feet - 1, z) || (w.flags(x, feet - 1, z) & FLUID) != 0)) continue;
 			out.add(t);
@@ -555,12 +555,12 @@ final class PenShape {
 	}
 
 	/**
-	 * A door that opens by hand or a fence gate in this cell of the pit's wall ({@link #OPENABLE}), with room for him in
-	 * the doorway (World.stand, which lets only those through, with his height free over it) less than a jump up or down
+	 * A door that opens by hand or a fence gate in this cell of the pit's wall ({@link #OPENABLE}), with room for a player in
+	 * the doorway (World.stand, which lets only those through, with a player's height free over it) less than a jump up or down
 	 * from the floor fc beside it, and a place to stand beyond it ({@code dx, dz} on) less than a jump up or down from
 	 * the doorway, no column of the pit. An iron door, a trapdoor, a gate under a block or a door to rock is a wall like
-	 * any other: until the third review of 22 Oct 2026 every door, gate or trapdoor let him out at any height, and the
-	 * fight walked him into such a pit.
+	 * any other: until the third review of 22 Oct 2026 every door, gate or trapdoor counted as a way out at any height, and the
+	 * fight walked the buddy into such a pit.
 	 */
 	static boolean throughDoor(World w, Flood f, int nx, int nz, int dx, int dz, double fc) {
 		int bx = nx + dx, bz = nz + dz;
@@ -579,17 +579,17 @@ final class PenShape {
 
 	/**
 	 * Why the fight does not go to a mob in this closed space (Follow.fight), or null: "in a pit" when its floor is
-	 * HOLE_DROP or more below the ground he stands on, there is no door out of it, and the climb out of it does not get
-	 * him back to where he stands ({@link Climb#backUp}: open ground, or a place of the climb under his box at his
-	 * ground; the way there is a fall he does not climb back out of), "in a pen" when it is a farm (a cell of it at
-	 * his own level he would walk into). Never while he stands in it himself. A dip one deep, a crater he climbs out of
-	 * in steps, seen from wherever, a water hole he swims out of, a room behind a door at his level with no shaft over
-	 * it: he steps in and out of those, and fights as ever. Asked every tick with the ground he stands on: a nook two
+	 * HOLE_DROP or more below the buddy's ground, there is no door out of it, and the climb out of it does not lead back
+	 * to where the buddy stands ({@link Climb#backUp}: open ground, or a place of the climb under the buddy's box at that
+	 * ground; the way there is a fall with no climb back out), "in a pen" when it is a farm (a cell of it at the buddy's
+	 * own level would be walked into). Never while the buddy stands in it. A dip one deep, a crater to climb out of in
+	 * steps, seen from wherever, a water hole to swim out of, a room behind a door at the same level with no shaft over
+	 * it: those are stepped in and out of, and fought in as ever. Asked every tick with the ground stood on: a nook two
 	 * deep seen from lower ground is none, for every way into it goes over its rim, and on the rim it is one, so out of
 	 * reach there the fight is given up before any drop. Until the review of the fourth round (22 Oct 2026) the highest
-	 * floor the climb got to, {@link Pit#up}, was held against his ground, and a climb that topped out at it or over it
-	 * was a way back, wherever it ended: a stair up the inside of a slope to a closed ledge at his height was one, and
-	 * the fight walked him into that pit (until the check of the third review a climb ending within a jump below his
+	 * floor the climb got to, {@link Pit#up}, was held against that ground, and a climb that topped out at it or over it
+	 * was a way back, wherever it ended: a stair up the inside of a slope to a closed ledge at the same height was one,
+	 * and the fight walked the buddy into that pit (until the check of the third review a climb ending within a jump below
 	 * ground was one too).
 	 */
 	static String pitFoe(Pit pit, Vec3 feet, double ground) {
@@ -599,13 +599,13 @@ final class PenShape {
 	}
 
 	/**
-	 * Feet in a pen column between F - 1 and the top of its shaft + 2: "you stand in it" for the player he follows, "the
-	 * buddy stands in it" for himself. A pen nobody may stand in or over: that is where the blows go, and a 1x1 mining shaft he
-	 * stands over is no farm.
+	 * Feet in a pen column between F - 1 and the top of its shaft + 2: "you stand in it" for the followed player, "{me}
+	 * stands in it" for the buddy ({me} is the buddy's name, filled in by Pen.refuse). A pen nobody may stand in or over: that is where the blows go, and a 1x1 mining shaft
+	 * stood over is no farm.
 	 */
 	static String inside(Flood f, double top, Vec3 owner, Vec3 bot) {
 		if (owner != null && in(f, top, owner)) return "you stand in it";
-		if (bot != null && in(f, top, bot)) return "the buddy stands in it";
+		if (bot != null && in(f, top, bot)) return "{me} stands in it";
 		return null;
 	}
 
@@ -618,7 +618,7 @@ final class PenShape {
 	/**
 	 * Whether a closed space is a farm. A shaft: from the mobs' heads up, levels where every pen cell is open and every
 	 * cell beside the pen is closed over its whole height (glass, fences and walls are), five or more in a row starting
-	 * within six (the band he stands in may be open). Points: a collector under the floor 2 (a hopper, chest or barrel
+	 * within six (the band the buddy stands in may be open). Points: a collector under the floor 2 (a hopper, chest or barrel
 	 * in or under a floor cell, water there, a hopper minecart, or a stream at the mobs' feet that runs on out of the
 	 * pen), a weakened mob 2, a shaft 1, a crowd of two or more 1; a farm at 2.
 	 */
@@ -768,7 +768,7 @@ final class PenShape {
 	 * The cells to stand in, time-boxed over ticks: every cell within three of the pen, from three down to as high as a
 	 * crouched eye still reaches the top of a mob (three up at least), that a player stands in, not in or over a pen
 	 * column, not a door or gate, with what it reaches from a standing and a crouched eye, pushed toward the pen by up to
-	 * 0.3. A cell from which a mob in there hits him is left out; on an edge he crouches. The best per side is the ring.
+	 * 0.3. A cell from which a mob in there hits the buddy is left out; on an edge, crouched. The best per side is the ring.
 	 */
 	static final class Search {
 		private final World w;
@@ -833,7 +833,7 @@ final class PenShape {
 				for (double push : PUSH) {
 					double px = cx + ux * push, pz = cz + uz * push;
 					AABB body = new AABB(px - HALF, feet, pz - HALF, px + HALF, feet + (crouch ? CROUCH_H : STAND_H), pz + HALF);
-					// he never stands over the pen, and stops pushing where his body would run into something
+					// never over the pen, and no pushing on where the body would run into something
 					if (push > 0 && (overPen(body) || collides(body))) break;
 					Variant v = reach(px, pz, feet, crouch, push, body, cx, cz);
 					if (better(v, best)) best = v;
@@ -882,7 +882,7 @@ final class PenShape {
 			return v;
 		}
 
-		/** The sample points of this box he reaches through what a crosshair stops at, three at most. */
+		/** The sample points of this box reached through what a crosshair stops at, three at most. */
 		private int count(Vec3 eye, AABB box, Variant v) {
 			int n = 0;
 			for (double fy : YF) for (double fx : XZ) for (double fz : XZ) {
@@ -896,7 +896,7 @@ final class PenShape {
 			return n;
 		}
 
-		/** Whether a mob of the pen sees him there, can hit him, or would swell as a creeper. */
+		/** Whether a mob of the pen sees the buddy there, can land a hit, or would swell as a creeper. */
 		private void danger(Variant v) {
 			Vec3 eye = new Vec3(v.x, v.eye, v.z);
 			for (long k : order) {
@@ -927,7 +927,7 @@ final class PenShape {
 			return new AABB(x - hw, y, z - hw, x + hw, y + m.h(), z + hw);
 		}
 
-		/** The same mob pushed 0.2 to the far side, away from him (knockback and crowding do that), kept in its column. */
+		/** The same mob pushed 0.2 to the far side, away from the buddy (knockback and crowding do that), kept in its column. */
 		private AABB away(AABB v0, long k, double qcx, double qcz) {
 			double cx = (v0.minX + v0.maxX) / 2, cz = (v0.minZ + v0.maxZ) / 2, ux = cx - qcx, uz = cz - qcz, ul = Math.hypot(ux, uz);
 			if (ul < 1e-9) return v0;
@@ -938,7 +938,7 @@ final class PenShape {
 			return v0.move(mx, 0, mz);
 		}
 
-		/** A drop beside the cell: a neighbour with no floor within 1.25 under his feet. Then he crouches there. */
+		/** A drop beside the cell: a neighbour with no floor within 1.25 under the feet. Then crouch there. */
 		private boolean edge(int qx, int qz, double feet) {
 			int[][] dirs = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };
 			for (int[] d : dirs) {
@@ -946,7 +946,7 @@ final class PenShape {
 				boolean floor = false;
 				for (int y = fl(feet - 1.25); y <= fl(feet) && !floor; y++)
 					for (AABB c : w.collision(nx, y, nz)) if (c.maxY >= feet - 1.25 - 1e-6 && c.maxY <= feet + STEP + 1e-6) { floor = true; break; }
-				// a wall beside him is no edge: its blocks reach over his feet
+				// a wall beside the cell is no edge: its blocks reach over the feet
 				boolean wall = false;
 				for (AABB c : w.collision(nx, fl(feet + 0.01), nz)) if (c.minY <= feet + 0.01 && c.maxY > feet + STEP) { wall = true; break; }
 				if (!floor && !wall) return true;

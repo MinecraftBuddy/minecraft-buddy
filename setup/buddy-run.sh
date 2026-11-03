@@ -19,7 +19,7 @@ PY
 [ -n "$SERVER" ] || { echo "no server: fill it in in the panel (Settings, Game)"; exit 1; }
 export XDG_CONFIG_HOME=$GAME_DIR/config XDG_DATA_HOME=$GAME_DIR/data XDG_CACHE_HOME=$GAME_DIR/cache XDG_STATE_HOME=$GAME_DIR/state
 cd "$GAME_DIR"
-# OFFLINE is --offline on a test machine without his account (an offline-mode server only), empty otherwise
+# OFFLINE is --offline on a test machine without the buddy's account (an offline-mode server only), empty otherwise
 # the game's own user.home is $HOME (the mod's exchange folder lies under it): in a container that runs as a uid without
 # an entry in its passwd (a home of its own, user: in compose.yaml), Java would not know a home at all
 exec java -Duser.home="$GAME_DIR/home" -jar headlessmc.jar launch -lwjgl -eula $OFFLINE -j "-Xmx$MEMORY -Duser.home=$HOME" --server "$SERVER" "$LOADER" "$MINECRAFT"

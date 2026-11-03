@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""The buddy's web panel: read his chat, type as him, see and rearrange his inventory, see a live map around him and send
-him somewhere on it, steer him with the keys and the mouse, put a schematic up for him to build, take him off the
-server and back, and look after his server profiles, who may open this page, and the Telegram bridge's settings
+"""The buddy's web panel: read the chat and type in it, see and rearrange the inventory, see a live map around the buddy
+and pick a spot on it to go to, steer with the keys and the mouse, put a schematic up to be built, take the buddy off the
+server and back, and look after the server profiles, who may open this page, and the Telegram bridge's settings
 (bridgecfg.py).
 
 On the page one reads the buddy's chat and types in it or gives / commands as the buddy, drops things from the
@@ -63,9 +63,9 @@ SCHEMATIC = re.compile(r"^[A-Za-z0-9 _().-]{1,80}\.litematic$")
 MAX_SCHEMATIC = 8 * 1024 * 1024
 STEER_KEYS = {"w", "a", "s", "d", "jump", "sneak", "sprint", "left", "use"}
 # One page plays the buddy at a time: another page that tries is told that someone else (at an address) is controlling
-# the buddy at the moment. The page that steers holds him while it keeps sending (four times a second); another page is
-# refused until it lets go or has sent nothing for LEASE_S seconds. What playing him sends besides the steering is refused
-# to the others too: clicks in his inventory and his screens, the hotbar slot, a picked block. Chat, his modes and the
+# the buddy at the moment. The page that steers keeps control while it keeps sending (four times a second); another page
+# is refused until it lets go or has sent nothing for LEASE_S seconds. What playing sends besides the steering is refused
+# to the others too: clicks in the inventory and the screens, the hotbar slot, a picked block. Chat, the modes and the
 # settings are not.
 LEASE_S = 2.0
 GAME_ACTIONS = {"invclick", "menuclose", "select", "pickblock", "menubutton", "trade", "rename", "beacon", "slotstate",
@@ -78,17 +78,18 @@ DIM = re.compile(r"^[a-z0-9_.-]{1,32}:[a-z0-9_./-]{1,64}$")
 SETTINGS = {"baseHarvest", "baseFurnaces", "baseStore", "baseFight", "baseSleep", "baseSleepOthers", "baseShear", "baseHerd", "basePenGates", "baseRenew", "assistDig", "assistChop",
             "assistFarm", "followGuard", "followGuardPlayers", "followCarry", "followMobFarm", "pathDig", "pathPlace", "stayOffline",
             "afk", "lookAround", "wander", "afkCrouch", "crouchAlong", "menuLog"}
-# the amounts of the mode card (Modes in the mod): ingots of iron and gold he leaves when he makes something, and how far
-# (blocks) and how often (minutes) he walks about in AFK mode; the lowest and highest each may be
+# the amounts of the mode card (Modes in the mod): ingots of iron and gold left over when something is made, and how far
+# (blocks) and how often (minutes) to walk about in AFK mode; the lowest and highest each may be
 AMOUNTS = {"keepIron": (0, 10000), "keepGold": (0, 10000), "wanderMaxBlocks": (1, 8), "wanderEveryMin": (1, 60)}
 # the logs Settings, Behavior lists: a name, where it lies (exchange folder, the panel's own, the game's state folder), what
-# it is, and whether the page may empty it (what the mod or the game itself writes and reads back is only downloaded)
-LOGS = [("events.jsonl", "exchange", "What he does and sees, since his game last started (the Activity and Chat tabs read it)", False),
-        ("history.jsonl", "panel", "The chat and activity kept beyond a restart of his game; the oldest goes past 30 MB", True),
-        ("recording.jsonl", "exchange", "Everything the server sends him: chat, titles, the line above the hotbar, clicks (with Record menus and screens)", True),
-        ("menus.jsonl", "exchange", "Every menu a server opened for him, with its items (with Record menus and screens)", True),
-        ("parkour-runs.jsonl", "exchange", "Every Parkour game he was in, tick by tick", True),
-        ("yield.jsonl", "exchange", "What his farms brought in", True),
+# it is, and whether the page may empty it (what the mod or the game itself writes and reads back is only downloaded);
+# "the buddy" in what it is becomes the buddy's name on the page (logs())
+LOGS = [("events.jsonl", "exchange", "What the buddy does and sees since the game last started (the Activity and Chat tabs)", False),
+        ("history.jsonl", "panel", "The chat and activity, kept across restarts of the game; past 30 MB the oldest goes", True),
+        ("recording.jsonl", "exchange", "Everything the server sends the buddy: chat, titles, the line above the hotbar, clicks (with Record menus and screens)", True),
+        ("menus.jsonl", "exchange", "Every menu a server opened for the buddy, with its items (with Record menus and screens)", True),
+        ("parkour-runs.jsonl", "exchange", "Every Parkour game the buddy was in, step by step", True),
+        ("yield.jsonl", "exchange", "What the buddy's farms brought in", True),
         ("game.log", "state", "The game's own output (Minecraft, Fabric and the mod)", False)]
 
 
@@ -266,8 +267,8 @@ class Panel(BaseHTTPRequestHandler):
     proxy_secret = None
     last_ask = [0.0]
     lock = threading.Lock()
-    # who plays him now: the page (its own id, X-Buddy-Page), its address, when it last sent, what it has open over the
-    # view ("inv": his inventory, for those who watch), and since when it holds him
+    # who plays the buddy now: the page (its own id, X-Buddy-Page), its address, when it last sent, what it has open over
+    # the view ("inv": the inventory, for those who watch), and since when it has control
     lease = {"page": None, "ip": None, "t": 0.0, "ui": "", "since": 0.0}
     lease_lock = threading.Lock()
     last_watch = [0.0]
@@ -385,26 +386,26 @@ class Panel(BaseHTTPRequestHandler):
         return p if PAGE.match(p or "") else ""
 
     def holder(self):
-        """The page that plays him now, or None when nobody has steered for LEASE_S seconds."""
+        """The page that plays the buddy now, or None when nobody has steered for LEASE_S seconds."""
         with self.lease_lock:
             lease = dict(Panel.lease)
         return lease if lease["page"] and time.time() - lease["t"] < LEASE_S else None
 
     def name_now(self):
-        """His name as his game last wrote it, for what the page says."""
+        """The buddy's name as the game last wrote it, for what the page says."""
         try:
             return json.loads(self.file("state.json") or b"{}").get("name") or "the buddy"
         except (ValueError, AttributeError):
             return "the buddy"
 
     def busy(self, h):
-        """The refusal for a page while another plays him."""
+        """The refusal for a page while another one plays."""
         ip = h["ip"] or "an unknown address"
         who = ("Another window (at " + ip + ", your own address)") if ip == self.peer() else ("Someone else (at " + ip + ")")
-        return self.answer(409, {"error": who + " is controlling " + self.name_now() + " at the moment.", "busy": True, "ip": h["ip"]})
+        return self.answer(409, {"error": who + " is controlling " + self.name_now() + ".", "busy": True, "ip": h["ip"]})
 
     def keep_watch(self):
-        """A Take control window is open: the mod writes everything that moves as often as while he is played
+        """A Take control window is open: the mod writes everything that moves as often as while the buddy is played
         (World3d.watched), for a few seconds after each ask."""
         with self.lease_lock:
             ask = time.time() - self.last_watch[0] > 4
@@ -414,7 +415,7 @@ class Panel(BaseHTTPRequestHandler):
             self.send_cmd({"cmd": "world3d", "watch": True})
 
     def control_info(self, page):
-        """For the page: whether someone plays him, whether that is this page, from where, and what they have open."""
+        """For the page: whether someone plays the buddy, whether that is this page, from where, and what that page has open."""
         h = self.holder()
         if not h:
             return {"held": False}
@@ -422,7 +423,7 @@ class Panel(BaseHTTPRequestHandler):
                 "for": round(time.time() - h["since"])}
 
     def control(self):
-        """May steer him: an address of the allow file, or the owner's session."""
+        """May steer the buddy: an address of the allow file, or the owner's session."""
         return self.allow.ok(self.peer()) or self.is_owner()
 
     def do_GET(self):
@@ -439,7 +440,7 @@ class Panel(BaseHTTPRequestHandler):
             return self.answer(401, {"error": "password"})
         if path in ("/", "/index.html"):
             return self.answer(200, open(os.path.join(HERE, "index.html"), "rb").read(), "text/html; charset=utf-8")
-        # the 3D view (world3d.html, its scripts in 3d/) and the copy of the world around him it draws (World3d in the mod)
+        # the 3D view (world3d.html, its scripts in 3d/) and the copy of the world around the buddy it draws (World3d in the mod)
         if path == "/3d":
             return self.answer(200, open(os.path.join(HERE, "world3d.html"), "rb").read(), "text/html; charset=utf-8")
         m = re.match(r"^/3d/([A-Za-z0-9_.-]+\.js)$", path)
@@ -475,7 +476,7 @@ class Panel(BaseHTTPRequestHandler):
             data = (self.file("state.json") or b"").strip()
             if not data.startswith(b"{"):
                 return self.answer(200, {"empty": True})
-            # who plays him, beside his state (the file is passed on as it is, with this in front)
+            # who is playing, beside the buddy's state (the file is passed on as it is, with this in front)
             ctl = json.dumps({"control": self.control_info(self.page((q.get("page") or [""])[0]))}).encode("utf-8")
             rest = data[1:].lstrip()
             return self.answer(200, ctl[:-1] + (b"}" if rest.startswith(b"}") else b",") + (rest[1:] if rest.startswith(b"}") else rest))
@@ -527,7 +528,7 @@ class Panel(BaseHTTPRequestHandler):
                                    "font/woff2" if m.group(2) == "woff2" else "text/css; charset=utf-8", cache=True)
             except OSError:
                 return self.answer(404, {"error": "not found"})
-        # what he remembers of the map (MapMemory): which tiles there are in a box, and one tile as the mod wrote it
+        # what the buddy remembers of the map (MapMemory): which tiles there are in a box, and one tile as the mod wrote it
         if path == "/api/players":
             return self.answer(200, self.players())
         if path in ("/api/tiles", "/api/tile"):
@@ -560,8 +561,8 @@ class Panel(BaseHTTPRequestHandler):
     last_world3d = [0.0]
 
     def world3d(self):
-        """The last copy of the world around him; with fresh=1 a new one first, at most one every ten seconds, waited for
-        up to ten seconds (a copy of six chunks around him takes the mod about a second)."""
+        """The last copy of the world around the buddy; with fresh=1 a new one first, at most one every ten seconds, waited
+        for up to ten seconds (a copy of six chunks around takes the mod about a second)."""
         q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
         f = os.path.join(self.exchange, "world3d.bin")
         if (q.get("fresh") or ["0"])[0] == "1":
@@ -605,7 +606,7 @@ class Panel(BaseHTTPRequestHandler):
     account_skins = {}
 
     def account_skin(self):
-        """His account's own skin, by the name the state has, from Mojang: on a server in offline mode (a test server) the
+        """The account's own skin, by the name the state has, from Mojang: on a server in offline mode (a test server) the
         game shows a built-in skin, while the panel's figure should wear the buddy's own skin. By name, so a new name is
         followed by itself; kept half an hour."""
         try:
@@ -635,8 +636,8 @@ class Panel(BaseHTTPRequestHandler):
         return out
 
     def containers(self):
-        """What lay in the containers he had open, on the server he is on now, by "dim|x,y,z": the mod's containers.json
-        (every container, by slot) and, where that has nothing, the chests of his base (chests.json, totals by item).
+        """What lay in the containers the buddy had open, on the current server, by "dim|x,y,z": the mod's containers.json
+        (every container, by slot) and, where that has nothing, the chests of the base (chests.json, totals by item).
         The 3D view shows it when the mouse is on such a block."""
         try:
             server = json.loads(self.file("state.json") or b"{}").get("profile") or ""
@@ -670,7 +671,9 @@ class Panel(BaseHTTPRequestHandler):
 
     def logs(self):
         out = []
+        name = self.name_now()
         for n, _where, what, empty in LOGS:
+            what = what.replace("the buddy", name)
             f = self.log_path(n)
             try:
                 st = os.stat(f)
@@ -721,7 +724,7 @@ class Panel(BaseHTTPRequestHandler):
         return self.answer(200, data, "image/png")
 
     def world3d_stream(self):
-        """His place and what is around him as the mod writes it (world3d-ent.json, every tick while he is played), sent
+        """The buddy's place and what is around, as the mod writes it (world3d-ent.json, every tick while played), sent
         on one open connection as server-sent events the moment it changes: an answer per poll came late and unevenly,
         and moving looked jerky. Two minutes at a time; the page opens it again."""
         self.send_response(200)
@@ -821,11 +824,11 @@ class Panel(BaseHTTPRequestHandler):
 
     def players(self):
         """Who is online now and since when. The game's list (the mod's `players` event, then its joins and leaves) says
-        who; since when comes from the Telegram bridge's online_since.json, which keeps it across his reconnects, or
-        else from the join he saw. `exact` false: on already when he came, so not later than that. The buddy itself is on
-        since its last connection, which the log has exactly; and the bridge's file counts only while the bridge keeps it
-        up to date (written in the last quarter of an hour, as the bridge itself reads it), or the buddy showed itself as
-        online since 21 Oct, the last time the file was written for it, an unrealistic time online."""
+        who; since when comes from the Telegram bridge's online_since.json, which keeps it across reconnects, or else from
+        the join that was seen. `exact` false: on already at the buddy's arrival, so not later than that. The buddy's own
+        time online starts at the last connection, which the log has exactly; and the bridge's file counts only while the
+        bridge keeps it up to date (written in the last quarter of an hour, as the bridge itself reads it), or the buddy
+        would show as online since 21 Oct, the last time the file was written with that name, an unrealistic time online."""
         online, seen_at, connected = {}, 0, 0
         try:
             with open(os.path.join(self.exchange, "events.jsonl"), encoding="utf-8", errors="replace") as fh:
@@ -878,7 +881,7 @@ class Panel(BaseHTTPRequestHandler):
         # the dimension's folder as the mod names it (MapMemory.dimFolder): '/' and ".." cannot reach out of maptiles
         d = re.sub(r"[^A-Za-z0-9._-]", "_", dim.replace(":", "_")).replace("..", "__")
         folder = os.path.join(self.exchange, "maptiles", srv, "_" if d == "." else d)
-        # a cave layer (MapMemory keeps what he saw underground per sixteen blocks of height): its own folder
+        # a cave layer (MapMemory keeps what the buddy saw underground per sixteen blocks of height): its own folder
         layer = (q.get("layer") or [""])[0]
         return os.path.join(folder, layer) if re.match(r"^cave-?\d{1,3}$", layer) else folder
 
@@ -949,9 +952,9 @@ class Panel(BaseHTTPRequestHandler):
             if tg and not bridgecfg.WHO.match(tg):
                 return self.answer(400, {"error": "not a Telegram user id or name: " + tg})
             if name and name.lower() in (n.lower() for n in names):
-                return self.answer(400, {"error": name + " stands twice in the list"})
+                return self.answer(400, {"error": name + " is in the list twice"})
             if tg and tg.lower() in ids:
-                return self.answer(400, {"error": tg + " stands twice in the list"})
+                return self.answer(400, {"error": tg + " is in the list twice"})
             if name:
                 names.append(name)
             if tg:
@@ -966,9 +969,10 @@ class Panel(BaseHTTPRequestHandler):
             online = bool(json.loads(self.file("state.json") or b"{}").get("online"))
         except ValueError:
             online = False
-        # the mod takes a setting only while he is on a server: say so before anything is saved
+        # the mod takes a setting only while the buddy is on a server: say so before anything is saved
         if sorted(before) != sorted(n.lower() for n in names) and not online:
-            return self.answer(400, {"error": "he is not on a server, and only then can the players he trusts in the game change: nothing saved"})
+            return self.answer(400, {"error": "the players trusted in the game change only while " + self.name_now() +
+                                              " is on a server"})
         err = self.bridge.save({"admins": admins})
         if err:
             return self.answer(400, {"error": err})
@@ -1048,7 +1052,7 @@ class Panel(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(n) or b"{}")
         except ValueError:
             return self.answer(400, {"error": "no json"})
-        # playing him, while another page plays him: refused, with who and from where
+        # playing the buddy while another page plays: refused, with who and from where
         if path in ("/api/inv", "/api/menu-close", "/api/select") or (path == "/api/command" and isinstance(body, dict) and
                 isinstance(body.get("command"), dict) and body["command"].get("cmd") in GAME_ACTIONS):
             h = self.holder()
@@ -1069,7 +1073,7 @@ class Panel(BaseHTTPRequestHandler):
             mode = body.get("mode", "pickup")
             slot, button = body.get("slot", -1), body.get("button", 0)
             # a click in an open menu (a chest, /shards) names it, and its slots are the menu's own: up to a large chest
-            # and his 36 below it, a little more for menus with extra slots
+            # and the inventory's 36 below it, a little more for menus with extra slots
             menu = body.get("menu")
             top = 45 if menu is None else 127
             if menu is not None and (not isinstance(menu, int) or isinstance(menu, bool)):
@@ -1296,7 +1300,7 @@ class Panel(BaseHTTPRequestHandler):
                 if k in p and (not isinstance(p[k], list) or not all(isinstance(v, str) for v in p[k])):
                     return self.answer(400, {"error": k + " is a list of lines"})
             if "sleepFrom" in p and not (isinstance(p["sleepFrom"], int) and not isinstance(p["sleepFrom"], bool) and 0 <= p["sleepFrom"] < 24000):
-                return self.answer(400, {"error": "sleepFrom is a tick from 0 to 23999"})
+                return self.answer(400, {"error": "sleep from is a game time from 00:00 to 23:59"})
             if "modules" in p and not isinstance(p["modules"], dict):
                 return self.answer(400, {"error": "modules is an object of modules and their settings"})
             for k in ("texts",):
@@ -1340,7 +1344,7 @@ class Panel(BaseHTTPRequestHandler):
     def steer(self, body):
         """What the page holds, in steer.json, written whole (a new file renamed over the old): the mod reads it the
         tick it changes and lets go of everything when it is more than a second old (Steer.java). Only the page that
-        holds him writes it (LEASE_S); another is refused, and its letting go changes nothing."""
+        has control writes it (LEASE_S); another is refused, and its letting go changes nothing."""
         keys = [k for k in str(body.get("keys", "")).split() if k in STEER_KEYS]
         try:
             state = {"t": int(time.time() * 1000), "on": bool(body.get("on")), "session": str(body.get("session", ""))[:40],
@@ -1379,7 +1383,7 @@ class Panel(BaseHTTPRequestHandler):
         return self.ok()
 
     def upload(self, n):
-        """A .litematic for the builder, into the schematics folder of his game (the name in the header X-Name)."""
+        """A .litematic for the builder, into the schematics folder of the buddy's game (the name in the header X-Name)."""
         name = os.path.basename(self.headers.get("X-Name", ""))
         if not SCHEMATIC.match(name):
             self.close_connection = True
@@ -1389,7 +1393,7 @@ class Panel(BaseHTTPRequestHandler):
             return self.answer(413, {"error": "empty or larger than 8 MB"})
         data = self.rfile.read(n)
         if data[:2] != b"\x1f\x8b":
-            return self.answer(400, {"error": "not a Litematica file (that is gzip)"})
+            return self.answer(400, {"error": "not a Litematica file"})
         os.makedirs(self.schematics, exist_ok=True)
         target = os.path.join(self.schematics, name)
         with open(target + ".tmp", "wb") as fh:

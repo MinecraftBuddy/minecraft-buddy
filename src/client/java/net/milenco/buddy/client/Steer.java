@@ -26,20 +26,20 @@ import net.minecraft.world.phys.Vec3;
 import net.milenco.buddy.version.Game;
 
 /**
- * Steering from the web panel: the buddy with WASD and the mouse from the website, for instance to move them for a
+ * Steering from the web panel: the buddy with WASD and the mouse from the website, for instance to move the buddy for a
  * while. The panel's server writes steer.json in the exchange folder whenever the page sends its keys,
  * and again every quarter of a second while the page has control: what is held (w a s d, jump, sneak, sprint, the left
- * mouse button), how far the mouse turned him since the page took control, a count of right clicks and the hotbar slot.
- * It is read in the tick in which the file changed. While it is fresh (under {@link #FRESH} ms old) no job moves him:
- * the following, the base and the farms wait and their keys are let go. When it goes stale (the page closed or gave
- * control back, the connection dropped) every key is let go and the jobs carry on as they were; who followed someone
- * follows again, so "stay" (volg blijf) before giving control back keeps him where you left him.
+ * mouse button), how far the mouse turned the buddy since the page took control, a count of right clicks and the hotbar
+ * slot. It is read in the tick in which the file changed. While it is fresh (under {@link #FRESH} ms old) no job moves
+ * the buddy: the following, the base and the farms wait and their keys are let go. When it goes stale (the page closed
+ * or gave control back, the connection dropped) every key is let go and the jobs carry on as they were; who followed
+ * someone follows again, so "stay" (volg blijf) before giving control back keeps the buddy at the spot where you stopped.
  */
 final class Steer {
 	private Steer() {}
 
 	static final long FRESH = 1000;
-	/** The most he turns in one tick: a mouse flicked across the page does not snap him round. */
+	/** The most the buddy turns in one tick: a mouse flicked across the page does not snap the view round. */
 	private static final float TURN = 40f;
 
 	private static long seen = Long.MIN_VALUE, written;
@@ -50,16 +50,16 @@ final class Steer {
 	/** Ticks until the right button held uses again: four, as the game's own use key (rightClickDelay). */
 	private static int useDelay;
 	/** The block the page's 3D view has under its crosshair and its side (31 Oct 2026): a click goes there, as the
-	 *  person sees it, when it is within his reach. The game's own crosshair (hitResult) of a client without a window
-	 *  went to nothing now and then while he stood still. */
+	 *  person sees it, when it is within reach. The game's own crosshair (hitResult) of a client without a window
+	 *  went to nothing now and then while the buddy stood still. */
 	private static BlockPos target;
 	private static Direction targetFace;
-	/** Or the entity the crosshair is on (a villager, a mob, a player), by its number in his game. */
+	/** Or the entity the crosshair is on (a villager, a mob, a player), by its number in the buddy's game. */
 	private static int targetEntity = -1;
 
 	static boolean active() { return on; }
 
-	/** Frames a second while the page plays him (his own setting otherwise). */
+	/** Frames a second while the page plays the buddy (the buddy's own setting otherwise). */
 	private static final int STEER_FPS = 40;
 
 	/** The panel holds the left button on a block: the game's own stop of the breaking stays out (ContinueAttackMixin). */
@@ -82,7 +82,7 @@ final class Steer {
 			String s = o.has("session") ? o.get("session").getAsString() : "";
 			int clicks = o.has("right") ? o.get("right").getAsInt() : 0;
 			if (!s.equals(session)) {
-				// a new hold of the controls: the turn counts from where he looks now, and old right clicks are done
+				// a new hold of the controls: the turn counts from where the buddy looks now, and old right clicks are done
 				session = s;
 				yaw0 = p.getYRot();
 				pitch0 = p.getXRot();
@@ -113,15 +113,15 @@ final class Steer {
 		}
 	}
 
-	/** Every tick, before the jobs: true while the page steers him, and then no job moves him. */
+	/** Every tick, before the jobs: true while the page steers the buddy, and then no job moves the buddy. */
 	static boolean tick(Minecraft mc, LocalPlayer p) {
 		read(p);
 		boolean fresh = written > 0 && System.currentTimeMillis() - written < FRESH;
 		if (fresh && !on) {
 			on = true;
-			// his game draws ten frames a second (maxFps:10, to spare the machine), and so does two ticks in one frame:
-			// his places then reach the page in pairs, and the view moved unevenly. Forty while
-			// he is played, without touching his options file.
+			// the buddy's game draws ten frames a second (maxFps:10, to spare the machine), and so does two ticks in one
+			// frame: the places then reach the page in pairs, and the view moved unevenly. Forty while
+			// played, without touching the options file.
 			mc.getFramerateLimitTracker().setFramerateLimit(Math.max(STEER_FPS, mc.options.framerateLimit().get()));
 			HeldKeys.releaseAll();
 			Exchange.emit("steer", "action", "on");
@@ -155,7 +155,7 @@ final class Steer {
 		HeldKeys.set(mc.options.keyJump, space);
 		HeldKeys.set(mc.options.keyShift, shift);
 		HeldKeys.set(mc.options.keySprint, run);
-		// the game's use key only while he uses something (eating, a bow, a shield): then the game goes on with it and lets
+		// the game's use key only while something is in use (eating, a bow, a shield): then the game goes on with it and lets
 		// go when the button does. Otherwise the game would click again by itself, at its own crosshair, at once and every
 		// four ticks, besides the click of the page (blocks were placed faster than the game places them)
 		HeldKeys.set(mc.options.keyUse, use && on && mc.player != null && mc.player.isUsingItem());
@@ -163,7 +163,7 @@ final class Steer {
 
 	/**
 	 * The start of the tick, where vanilla clicks: a right click uses what the crosshair is on (an entity, a block, else
-	 * the item in his hand), the left button held breaks the block he looks at or hits what stands there, once the swing
+	 * the item in hand), the left button held breaks the block looked at or hits what stands there, once the swing
 	 * has charged.
 	 */
 	static void startTick(Minecraft mc) {
@@ -176,13 +176,13 @@ final class Steer {
 			return;
 		}
 		HitResult hit = mc.hitResult;
-		// the page's entity, where it stands, within his reach
+		// the page's entity, where it stands, within reach
 		if (targetEntity >= 0) {
 			Entity e = p.level().getEntity(targetEntity);
 			hit = e != null && e.isAlive() && p.isWithinEntityInteractionRange(e, 1.0) ? new EntityHitResult(e, e.getBoundingBox().getCenter()) : null;
 		}
 		BlockHitResult block = hit instanceof BlockHitResult b && b.getType() == HitResult.Type.BLOCK ? b : null;
-		// the page's target, where the page shows it: the middle of that side of the block, within his reach
+		// the page's target, where the page shows it: the middle of that side of the block, within reach
 		if (target != null && targetEntity < 0 && !(hit instanceof EntityHitResult) && !p.level().getBlockState(target).isAir()) {
 			Vec3 at = Vec3.atCenterOf(target).add(targetFace.getStepX() * 0.5, targetFace.getStepY() * 0.5, targetFace.getStepZ() * 0.5);
 			if (p.getEyePosition().distanceTo(at) <= p.blockInteractionRange() + 0.5) block = new BlockHitResult(at, targetFace, target, false);
@@ -191,7 +191,7 @@ final class Steer {
 		boolean click = uses != usesDone;
 		if (click) usesDone = uses;
 		if (useDelay > 0) useDelay--;
-		// held: again every four ticks, as the game does, while he is not busy using the item (eating, drawing a bow)
+		// held: again every four ticks, as the game does, while the item is not in use already (eating, drawing a bow)
 		if (click || use && useDelay == 0 && !p.isUsingItem()) {
 			useDelay = 4;
 			InteractionResult r = InteractionResult.PASS;
@@ -214,7 +214,7 @@ final class Steer {
 			if (p.getAttackStrengthScale(0.5f) >= 1f) { mc.gameMode.attack(p, eh.getEntity()); Game.swingAttack(p); }
 		} else if (attack && block != null) {
 			// a new press begins anew, as the game's own click does (startAttack): continueDestroyBlock alone, on the block
-			// of a press that was let go, counted on in his game without telling the server, which never broke it
+			// of a press that was let go, counted on in the buddy's game without telling the server, which never broke it
 			boolean go = breaking ? mc.gameMode.continueDestroyBlock(block.getBlockPos(), block.getDirection())
 				: mc.gameMode.startDestroyBlock(block.getBlockPos(), block.getDirection());
 			if (go) Game.swingAttack(p);

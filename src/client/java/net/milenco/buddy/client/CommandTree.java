@@ -51,7 +51,7 @@ public final class CommandTree {
 		o.add("commands", commands);
 		Path file = Path.of(AfkConfig.get().exchangeDir, "commandtree.json");
 		try { Files.writeString(file, GSON.toJson(o), StandardCharsets.UTF_8); }
-		catch (IOException e) { Exchange.emit("error", "msg", "commandtree.json not written: " + e.getMessage()); return; }
+		catch (IOException e) { Exchange.emit("error", "msg", "the server's command list not saved: " + e.getMessage()); return; }
 		Exchange.emit("commandtree", "file", file.toString(), "commands", roots.size(), "nodes", count[0]);
 	}
 

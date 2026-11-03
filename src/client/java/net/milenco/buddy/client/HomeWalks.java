@@ -19,7 +19,7 @@ import net.minecraft.client.player.LocalPlayer;
  * kept for that home, on that server. Kept per server profile in {@code homewalks.json} in the exchange folder: a spot
  * is taught, never in the code.
  * <ul>
- * <li>{@code {"cmd":"homewalk","home":"iron","x":100,"y":64,"z":-200}}: keep it (the dimension he is in, or {@code dim});</li>
+ * <li>{@code {"cmd":"homewalk","home":"iron","x":100,"y":64,"z":-200}}: keep it (the buddy's dimension, or {@code dim});</li>
  * <li>{@code {"cmd":"homewalk","home":"iron","on":false}}: forget it;</li>
  * <li>{@code {"cmd":"homewalk"}}: the walks of this server.</li>
  * </ul>
@@ -85,7 +85,7 @@ final class HomeWalks {
 					o.get("x").getAsInt(), o.get("y").getAsInt(), o.get("z").getAsInt()));
 			}
 		} catch (Exception e) {
-			Exchange.emit("error", "msg", "homewalks.json: " + e);
+			Exchange.emit("error", "msg", "home walks not read: " + e);
 		}
 	}
 
@@ -101,6 +101,6 @@ final class HomeWalks {
 			o.addProperty("z", w.z);
 			a.add(o);
 		}
-		try { Files.writeString(file(), a.toString()); } catch (Exception e) { Exchange.emit("error", "msg", "homewalks.json: " + e); }
+		try { Files.writeString(file(), a.toString()); } catch (Exception e) { Exchange.emit("error", "msg", "home walks not saved: " + e); }
 	}
 }

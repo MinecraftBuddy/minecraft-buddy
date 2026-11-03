@@ -4,11 +4,11 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * Who has his hands on what right now (after SoulFire's control leases and Player2's priority chains). A part of him
+ * Who has the buddy's hands on what right now (after SoulFire's control leases and Player2's priority chains). A part of the buddy
  * (moving, looking, the hand, the inventory) is held by one owner at a time, for a short while that the owner renews as
  * long as it needs it; a higher priority takes it over, a lower one
- * waits. The web panel holds what it uses with the highest priority, so no job clicks in his inventory while someone
- * moves an item there, and no job walks while someone steers him.
+ * waits. The web panel holds what it uses with the highest priority, so no job clicks in the inventory while someone
+ * moves an item there, and no job walks while someone steers.
  * <p>
  * Inside the jobs the order of {@link Follow#tick} still decides (see {@link Arbiter}); a lease is for what comes from
  * outside that chain and has to win from all of it.
@@ -20,9 +20,9 @@ final class Control {
 
 	/** The web panel: the person at the controls. */
 	static final int PANEL = 100;
-	/** What keeps him alive (water against fire, getting loose when stuck). */
+	/** What keeps the buddy alive (water against fire, getting loose when stuck). */
 	static final int SURVIVAL = 80;
-	/** A job of his own. */
+	/** A job of the buddy's own. */
 	static final int JOB = 50;
 
 	private record Lease(String owner, int priority, long until) {}

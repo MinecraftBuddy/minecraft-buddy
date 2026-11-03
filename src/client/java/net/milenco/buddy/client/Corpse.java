@@ -25,15 +25,16 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The corpse guard: when the player he follows dies near him, the alt fetches what fell and gives it back once that
- * player is with him again: only when the alt was near, and never where fetching would kill the alt: not in lava or the
- * void, nor among too many mobs. It runs by itself while he follows; nothing starts it.
+ * The corpse guard: when the followed player dies near the buddy, the buddy fetches what fell and gives it back once
+ * that player is close again: only when the buddy was near, and never where fetching would kill the buddy: not in lava
+ * or the void, nor among too many mobs. It runs by itself while following; nothing starts it.
  *
- * <p>What is his: the items that appear around the spot in the two seconds after the death, and no other; what lay
+ * <p>What is the player's: the items that appear around the spot in the two seconds after the death, and no other; what lay
  * there before stays. Nothing is fetched from lava or below the world, nor while more than {@link #MOBS} hostile mobs or
- * a creeper are near the spot, nor while the alt is low himself: then he waits at a distance, as long as the items last
- * (five minutes on the ground). Killed by another player, he fetches nothing (that is the winner's). With a full
- * inventory the dearest things go first. Back with the player, {@link Dump} throws them at his feet, three tries.
+ * a creeper are near the spot, nor while the buddy's own health is low: then the buddy waits at a distance, as long as
+ * the items last (five minutes on the ground). For a player killed by another player nothing is fetched (that is the
+ * winner's). With a full inventory the dearest things go first. Back with the player, {@link Dump} throws them at the
+ * player's feet, three tries.
  */
 final class Corpse {
 	private Corpse() {}
@@ -49,10 +50,10 @@ final class Corpse {
 	private static String dim, owner;
 	private static long diedAt, waitNoted;
 	private static final Set<Integer> before = new HashSet<>();
-	/** The items that are his, with where each lay last. */
+	/** The items that are the dead player's, with where each lay last. */
 	private static final Map<Integer, Vec3> drops = new LinkedHashMap<>();
 	private static final Set<Integer> gaveUp = new HashSet<>();
-	/** The stack each of his items held when last seen, so that what the alt took is known exactly. */
+	/** The stack each of those items held when last seen, so that what the alt took is known exactly. */
 	private static final Map<Integer, ItemStack> held = new HashMap<>();
 	/** What the alt took off the ground this trip: given back as those very items, not as whatever slot changed. */
 	private static final List<ItemStack> taken = new ArrayList<>();
@@ -60,7 +61,7 @@ final class Corpse {
 
 	static boolean busy() { return step == DROPS || step == FETCH; }
 
-	/** He carries the dead player's things: he puts none of them on (he put on the chestplate he fetched, 20 Oct 2026). */
+	/** Carrying the dead player's things: none of them is put on (the buddy put on a fetched chestplate, 20 Oct 2026). */
 	static boolean holding() { return step == FETCH || step == BACK; }
 
 	static String state() {
@@ -73,7 +74,7 @@ final class Corpse {
 	}
 
 	/**
-	 * Every tick while he follows, before anything else: the moment the player dies, what drops around him then, and
+	 * Every tick while following, before anything else: the moment the player dies, what drops around the body then, and
 	 * the items gone from where they lay.
 	 */
 	static void watch(LocalPlayer p, Player t) {
@@ -113,14 +114,15 @@ final class Corpse {
 	}
 
 	/**
-	 * He died: if the alt was near and in the same world, note what lay there already. His things fell in the same
-	 * server tick just before the event, so an item there that is only a few ticks old is his, an older one is not.
+	 * The player died: if the alt was near and in the same world, note what lay there already. The player's things fell
+	 * in the same server tick just before the event, so an item there that is only a few ticks old is the player's, an
+	 * older one is not.
 	 */
 	private static void died(LocalPlayer p, String name, Vec3 at, Entity killer, long now) {
 		if (step != IDLE) return;
 		double far = at.distanceTo(p.position());
 		if (far > NEAR) { Exchange.emit("corpse guard", "action", "too far", "for", name, "distance", Math.round(far)); return; }
-		// killed by another player: what he dropped is the winner's
+		// killed by another player: what the dead player dropped is the winner's
 		if (killer instanceof Player other && !other.getGameProfile().name().equalsIgnoreCase(name)) {
 			Exchange.emit("corpse guard", "action", "by a player", "for", name, "by", other.getGameProfile().name());
 			return;
@@ -191,7 +193,7 @@ final class Corpse {
 			Follow.stand();
 			return true;
 		}
-		// full: only what goes on a stack he has, or the dearest when a slot is free
+		// full: only what goes on a stack the buddy has, or the dearest when a slot is free
 		boolean full = p.getInventory().getFreeSlot() < 0;
 		Integer best = null;
 		double bestScore = -Double.MAX_VALUE;
@@ -203,7 +205,7 @@ final class Corpse {
 			double score = worth(st) * 100 - item.position().distanceTo(p.position());
 			if (score > bestScore) { bestScore = score; best = id; }
 		}
-		// full: give back what he has, and come for the rest after that
+		// full: give back what the buddy has, and come for the rest after that
 		if (best == null) { done(p, full ? "inventory full" : "not visible", full); return false; }
 		Vec3 goal = drops.get(best);
 		if (!Work.approach(mc, p, "corpse-guard-" + best, goal, now)) gaveUp.add(best);
@@ -246,8 +248,8 @@ final class Corpse {
 	}
 
 	/**
-	 * A trip is over: give back what he took. With things still on the ground (his inventory was full), another
-	 * trip once he gave; a trip that took nothing ends it.
+	 * A trip is over: give back what was taken. With things still on the ground (the buddy's inventory was full), another
+	 * trip once given; a trip that took nothing ends it.
 	 */
 	private static void done(LocalPlayer p, String why, boolean more) {
 		Set<Integer> slots = slotsOf(p, taken);
@@ -262,7 +264,8 @@ final class Corpse {
 		Dump.giveBack(slots, owner);
 	}
 
-	/** The slots that hold what he took: the same items, as many as he took (a stack of his own of it may go along). */
+	/** The slots that hold what the buddy took: the same items, as many as were taken (a stack of the buddy's own of it
+	 *  may go along). */
 	private static Set<Integer> slotsOf(LocalPlayer p, List<ItemStack> took) {
 		Set<Integer> out = new HashSet<>();
 		for (ItemStack want : took) {

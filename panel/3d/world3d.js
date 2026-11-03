@@ -1,6 +1,6 @@
 // The buddy's world in 3D.
 //
-// The mod writes a copy of the chunks his game holds (World3d.java, world3d.bin: block states and biomes by number, the
+// The mod writes a copy of the chunks the buddy's game holds (World3d.java, world3d.bin: block states and biomes by number, the
 // players and other entities). This page reads it and builds the meshes itself, as a server list site's 3D map does with region
 // files: the block models, textures and biome colours come from Mojang's own client jar of the same version, read in
 // pieces straight from piston-data.mojang.com (it allows that from any page) and kept in the browser (IndexedDB), so the
@@ -188,7 +188,7 @@ export async function gameImages(version, names) {
 // ---------- light: sky and block light per corner, the time of day in the shader ----------
 
 // The game's light map, simply: a corner's sky light times the daylight, or its block light, whichever is brighter, through
-// the game's curve (l / (4 - 3 l)), never darker than the dimension's ambient. The daylight follows his clock.
+// the game's curve (l / (4 - 3 l)), never darker than the dimension's ambient. The daylight follows the buddy's clock.
 // Then the brightness the viewer chose, so that a dark cave can be seen while watching: the game's own Brightness slider
 // (gamma, its curve 1 - (1 - x)^4 mixed in), and above it a floor that lifts the dark as Night Vision does.
 const LIGHT = { day: { value: 1 }, ambient: { value: 0 }, gamma: { value: 1 }, floor: { value: 0.55 }, night: 0 };
@@ -216,7 +216,7 @@ function lit(mat) {
   mat.needsUpdate = true;
 }
 
-/** Daylight from his clock, as the game's sky: 1 at noon, low at midnight, the change around sunrise and sunset. */
+/** Daylight from the buddy's clock, as the game's sky: 1 at noon, low at midnight, the change around sunrise and sunset. */
 function daylight(time) {
   const t = ((time % 24000) + 24000) % 24000 / 24000 - 0.25;
   let f = t - Math.floor(t);
@@ -937,15 +937,15 @@ async function show(fresh) {
   const t0 = performance.now();
   live.busy = true;
   try {
-    status(fresh ? `Asking ${who()} for a new copy of the world around them…` : `Loading the world around ${who()}…`);
+    status(fresh ? `Asking ${who()} for a new copy of the world…` : `Loading the world around ${who()}…`);
     let world = await loadWorld(fresh);
     if (!world && !fresh) { status(`No copy yet: asking ${who()} for one…`); world = await loadWorld(true); }
-    // a copy of fewer chunks around him than the view wants (from before the view went further): a new one
+    // a copy of fewer chunks around the buddy than the view wants (from before the view went further): a new one
     else if (world && !fresh && (world.meta.radius || 0) < RADIUS) { status(`Asking ${who()} for a wider copy…`); world = (await loadWorld(true)) || world; }
-    if (!world) { status(`${who(true)} has not sent a copy of the world (are they online?). Try <b>Refresh</b> in a minute.`); return; }
+    if (!world) { status(`${who(true)} has not sent a copy of the world. Is ${who()} online? Try <b>Refresh</b> in a minute.`); return; }
     if (world.meta.name) BUDDY = world.meta.name;
     const { meta } = world;
-    // the numbers of block states hold for his game's session: a copy that does not start with what the page knows
+    // the numbers of block states hold for the buddy's game session: a copy that does not start with what the page knows
     // comes from a new session, and the page starts over
     const same = prep && prep.version === meta.version && prep.states.every((x, i) => meta.states[i] === x) && prep.biomeIds.every((x, i) => meta.biomes[i] === x);
     if (!same) {
@@ -957,8 +957,8 @@ async function show(fresh) {
     loadModels();
     await prep.addBiomes(meta.biomes.slice(prep.biomeIds.length));
     const moved = !current || current.world.meta.dim !== meta.dim;
-    // where he was drawn until now: a new copy comes after he went further (a walk, a teleport), most of all after the page
-    // was in a hidden tab, where it asked for no copy; the view goes along to where the copy has him
+    // where the buddy was drawn until now: a new copy comes after the buddy went further (a walk, a teleport), most of all after the page
+    // was in a hidden tab, where it asked for no copy; the view goes along to where the copy has the buddy
     const was = moved ? null : { x: current.world.meta.x, y: current.world.meta.y, z: current.world.meta.z };
     if (moved) origin = { x: Math.floor(meta.x), z: Math.floor(meta.z) };
     clearFigures();
@@ -968,7 +968,7 @@ async function show(fresh) {
     if (!positioned || moved) { if (mode === 'drive') drive(); else if (mode === 'map') mapView(); else lookAround(); positioned = true; }
     else if (was) caughtUp(was, meta);
     const list = [...world.chunks.values()];
-    // nearest chunks first, so that what is around him shows first
+    // nearest chunks first, so that what is around the buddy shows first
     const pcx = Math.floor(meta.x) >> 4, pcz = Math.floor(meta.z) >> 4;
     list.sort((a, b) => Math.hypot(a.cx - pcx, a.cz - pcz) - Math.hypot(b.cx - pcx, b.cz - pcz));
     let quads = 0;
@@ -997,11 +997,11 @@ function showStatus() {
 }
 setInterval(showStatus, 1000);
 
-// ---------- figures: him, the others, the rest ----------
+// ---------- figures: the buddy, the others, the rest ----------
 
 function entities(m) {
   if (!current || m.dim !== current.world.meta.dim) return;
-  // around him means around him: the view moves along when he walks or is teleported
+  // around the buddy means around the buddy: the view moves along at a walk or a teleport
   const was = current.world.meta;
   if (mode === 'orbit' && Number.isFinite(was.x) && (m.x !== was.x || m.y !== was.y || m.z !== was.z)) {
     const d = new THREE.Vector3(m.x - was.x, m.y - was.y, m.z - was.z);
@@ -1009,10 +1009,10 @@ function entities(m) {
     orbit.target.add(d);
   }
   Object.assign(current.world.meta, { x: m.x, y: m.y, z: m.z, yaw: m.yaw, pitch: m.pitch, eye: m.eye ?? current.world.meta.eye });
-  // his motion per tick, to carry him on between two messages (they come every tenth of a second at best)
+  // the buddy's motion per tick, to carry the figure on between two messages (they come every tenth of a second at best)
   if (typeof m.vx === 'number') MOTION.v = { x: m.vx, y: Math.abs(m.vy) > 0.1 ? m.vy : 0, z: m.vz, at: performance.now() };
   track(m);
-  // his clock, for the daylight; the dimension's own light (the nether has no sky but some light everywhere)
+  // the buddy's clock, for the daylight; the dimension's own light (the nether has no sky but some light everywhere)
   if (typeof m.time === 'number') LIGHT.clock = { time: m.time, at: Date.now() };
   if (m.skylight !== undefined) { LIGHT.sky = m.skylight; LIGHT.ambient.value = m.ambient > 0 ? 0.25 : 0; }
   const seen = new Set();
@@ -1025,7 +1025,7 @@ function entities(m) {
     if (anew) { worldGroup.remove(f.g); dispose(f.g); figures.delete(key); if (key === 'me') me = null; f = null; }
     if (!f) { f = { g: make(), x: e.x, y: e.y, z: e.z, yaw: e.yaw || 0 }; f.g.position.set(e.x - origin.x, e.y, e.z - origin.z); worldGroup.add(f.g); figures.set(key, f); }
     f.x = e.x; f.y = e.y; f.z = e.z; f.yaw = e.yaw || 0;
-    // what the crosshair can point at: its number in his game, its kind or name, its size (or, for what hangs on a wall,
+    // what the crosshair can point at: its number in the buddy's game, its kind or name, its size (or, for what hangs on a wall,
     // its box round its place)
     f.id = e.id; f.kind = e.name || e.kind || 'player'; f.w = e.w || 0.6; f.h = e.h || 1.8; f.box = e.box; f.me = key === 'me';
     // how the model stands: body, head, the walk, a blow, crouching, how hurt (red when the health went down)
@@ -1043,7 +1043,7 @@ function entities(m) {
   const mv = Math.hypot(m.vx || 0, m.vz || 0);
   m.walk_speed = Math.min(1, mv * 4);
   HAND.news = { hand: m.hand || null, off: m.offhand || null, using: m.using || null, useHand: m.use_hand === 'off' ? 'off' : 'main', walk: mv };
-  // a blow he began (the game's swing starts at 0 and grows; a new one starts it again): his hand swings for who watches
+  // a blow the buddy began (the game's swing starts at 0 and grows; a new one starts it again): the buddy's hand swings for who watches
   if (m.tk !== HAND.tk) {
     const sw = typeof m.swing === 'number' ? m.swing : null;
     if (sw !== null && (HAND.prevSwing === null || sw < HAND.prevSwing)) HAND.streamSwing = performance.now();
@@ -1089,7 +1089,7 @@ async function crackTextures() {
   } catch (e) { console.warn('cracks', e); } finally { cracks.loading = false; }
 }
 
-/** The list the mod sends: [x, y, z, stage] for his own breaking and the others'. */
+/** The list the mod sends: [x, y, z, stage] for the buddy's own breaking and the others'. */
 function showCracks(list) {
   if (!worldGroup) return;
   if (list.length && !cracks.tex) crackTextures();
@@ -1120,7 +1120,7 @@ function showCracks(list) {
 // As ClientLevel.addDestroyBlockEffect and TerrainParticle make them: four by four by four bits over the block, each flying
 // out from the middle and a little up, falling with the game's gravity (0.04 a tick), slowed by 0.98 a tick and 0.7 on the
 // ground, alive 4 to 40 ticks, a quarter of the block's particle texture, 0.1 to 0.2 blocks across, always facing the
-// camera. The mod sends what broke near him (World3d.broke: his own blocks and the other players').
+// camera. The mod sends what broke near the buddy (World3d.broke: the buddy's own blocks and the other players').
 const BITS = { prep: null, list: [], geos: new Map(), mats: new Map(), cells: new Map() };
 /** The caches belong to one atlas: a new copy of the world (a new atlas) starts them again. */
 function bitsStore() {
@@ -1662,7 +1662,7 @@ function holdItems(f, hand, off) {
   }
 }
 
-/** His hands through his own eyes: the item of each hand at the bottom of the view, the other hand's mirrored, with the
+/** The buddy's hands through the buddy's own eyes: the item of each hand at the bottom of the view, the other hand's mirrored, with the
  *  game's movements, simply: a blow swings it, eating or drinking brings it to the middle and bobs it, a bow is drawn back,
  *  a shield raised, a spyglass hides them. A scene of its own on a camera of its own, drawn over the world. */
 const HAND = { scene: null, cam: null, main: null, off: null, news: null, swingAt: -1e9, leftWas: false, useWas: false, using: null, useAt: 0, bob: 0,
@@ -1695,7 +1695,7 @@ function hands(t, dt) {
   // the right button on something that is not used (a block put down, a door): a swing too
   if (held.use && !HAND.useWas && !useKind(n.using) && n.hand) HAND.swingAt = t;
   HAND.leftWas = !!held.left; HAND.useWas = !!held.use;
-  // not steered from this page: his own blows as the game swung them (the bot's, or another page's)
+  // not steered from this page: the buddy's own blows as the game swung them (the bot's, or another page's)
   if (HAND.streamSwing > HAND.streamSeen) { HAND.streamSeen = HAND.streamSwing; if (!(CFG.steering && CFG.steering())) HAND.swingAt = t; }
   if (n.using !== HAND.using) { HAND.using = n.using; HAND.useAt = t; }
   const kind = useKind(HAND.using), k = 1 - Math.exp(-dt * 18);
@@ -2221,12 +2221,12 @@ function clearFigures() {
   me = null;
 }
 
-/** The figures glide to where the last news has them; through his eyes the camera goes along. */
+/** The figures glide to where the last news has them; through the buddy's eyes the camera goes along. */
 const MOTION = { v: null };
-// His places by his game's own ticks (tk, fifty milliseconds each): the view shows him a little in the past, between two
-// of them, so that he moves as evenly as the game moved him, whatever the network or his frames do (two ticks in one
+// The buddy's places by the game's own ticks (tk, fifty milliseconds each): the view shows the buddy a little in the past,
+// between two of them, so that the figure moves as evenly as in the game, whatever the network or the frames do (two ticks in one
 // frame, a message late, two at once). The time stamp of the moment a file was written ran unevenly, and the offset
-// between the clocks was pulled to every quick message and let go a millisecond a message, a saw that made him jerk
+// between the clocks was pulled to every quick message and let go a millisecond a message, a saw that made the figure jerk
 // and the position was corrected too hard. Now the offset is the smallest of
 // the last three seconds and the delay what the late ones there needed, and both change by little at a time.
 const TRACK = [], LATE = [];
@@ -2236,13 +2236,13 @@ function track(m) {
   if (t === null) return;
   const now = performance.now(), off = now - t;
   const last = TRACK[TRACK.length - 1];
-  // his game started anew, or a jump (a teleport, another dimension): no gliding over it, and the clocks counted anew
+  // the buddy's game started anew, or a jump (a teleport, another dimension): no gliding over it, and the clocks counted anew
   if (last && (t < last.t - 1000 || Math.abs(off - (SYNC.off ?? off)) > 1500)) { TRACK.length = 0; LATE.length = 0; SYNC.off = null; }
   else if (last && Math.hypot(m.x - last.x, m.z - last.z) > 12) TRACK.length = 0;
   LATE.push({ now, off });
   while (LATE.length && now - LATE[0].now > 3000) LATE.shift();
   const least = Math.min(...LATE.map(v => v.off));
-  // what the late ones of these seconds needed above the quickest, and a little more: the delay to draw him with
+  // what the late ones of these seconds needed above the quickest, and a little more: the delay to draw the buddy with
   const over = LATE.map(v => v.off - least).sort((a, b) => a - b), need = over[Math.floor(over.length * 0.95)] + 30;
   if (SYNC.off === null) { SYNC.off = least; SYNC.delay = Math.max(60, Math.min(300, need)); }
   else {
@@ -2265,28 +2265,28 @@ function trackAt() {
   }
   return { a: TRACK[0], b: TRACK[0], k: 0, past: 0 };
 }
-/** A new copy of the world has him elsewhere than he was drawn: the view goes along, as it does at every step he takes
- *  (back in the tab, Take control showed the world loading and then nothing, until Play or Around them was clicked:
- *  around him the camera stayed where he had been, 1700 blocks off). */
+/** A new copy of the world has the buddy elsewhere than drawn: the view goes along, as it does at every step the buddy
+ *  takes (back in the tab, Take control showed the world loading and then nothing, until Play or Around was clicked:
+ *  around the buddy the camera stayed where the buddy had been, 1700 blocks off). */
 function caughtUp(was, m) {
   const d = new THREE.Vector3(m.x - was.x, m.y - was.y, m.z - was.z);
   if (!Number.isFinite(d.x) || d.lengthSq() === 0) return;
   if (mode === 'orbit') { camera.position.add(d); orbit.target.add(d); }
   else if (mode === 'eyes') camera.position.add(d);
-  // his places of before are of somewhere else: him and the camera through his eyes at the copy's place, not gliding there
+  // the buddy's places of before are of somewhere else: the buddy and the camera through the buddy's eyes at the copy's place, not gliding there
   const last = TRACK[TRACK.length - 1];
   if (last && Math.hypot(m.x - last.x, m.z - last.z) > 12) {
     TRACK.length = 0;
     drivePos.set(m.x - origin.x, m.y + (m.eye || 1.62), m.z - origin.z);
   }
 }
-/** Where he is to be drawn now. */
+/** Where the buddy is to be drawn now. */
 function hisPlace(m) {
   const at = trackAt();
   if (at) {
     const { a, b, k, past } = at;
     if (past) {
-      // beyond the newest: carried on by his motion, a little only
+      // beyond the newest: carried on by the buddy's motion, a little only
       const v = MOTION.v, ticks = v ? Math.min(150, past) / 50 : 0;
       return v ? [a.x + v.x * ticks, a.y + v.y * ticks, a.z + v.z * ticks] : [a.x, a.y, a.z];
     }
@@ -2298,7 +2298,7 @@ function hisPlace(m) {
   return [m.x + v.x * ticks, m.y + v.y * ticks, m.z + v.z * ticks];
 }
 
-/** Where he looks now, as the game turned him, tick by tick: what a page that watches him through his eyes follows
+/** Where the buddy looks now, as the game turned the buddy, tick by tick: what a page that watches through the buddy's eyes follows
  *  (Take control as a spectator mode). Degrees, as the game's yaw and pitch. */
 function hisLook(m) {
   const at = trackAt();
@@ -2325,14 +2325,14 @@ function glide(dt) {
   }
   if ((mode === 'eyes' || mode === 'drive') && current) {
     const m = current.world.meta;
-    // driving, the camera follows him closer: what you steer should show without delay
+    // driving, the camera follows the buddy closer: what you steer should show without delay
     const kk = mode === 'drive' ? (TRACK.length >= 2 ? 1 : Math.min(1, dt * 18)) : k;
     const at = mode === 'drive' ? drivePos : camera.position;
     const [px, py, pz] = mode === 'drive' ? hisPlace(m) : [m.x, m.y, m.z];
     at.x += (px - origin.x - at.x) * kk;
     at.y += (py + (m.eye || 1.62) - at.y) * kk;
     at.z += (pz - origin.z - at.z) * kk;
-    // where he looks, unless the mouse has been turning the view since
+    // where the buddy looks, unless the mouse has been turning the view since
     if (mode === 'eyes' && !fly.turned) {
       let dy = (Math.PI - m.yaw * Math.PI / 180) - fly.yaw;
       dy = Math.atan2(Math.sin(dy), Math.cos(dy));
@@ -2386,7 +2386,7 @@ async function gunzip(bytes) {
 async function apply(d) {
   const m = d.meta, w = current.world;
   // another dimension has another height (the nether from y 0, the overworld from -64): a mod from before 0.4.200 sends
-  // none with the reset, and the old one drew the nether 64 blocks too low, its roof a floor under their feet; a new copy
+  // none with the reset, and the old one drew the nether 64 blocks too low, its roof a floor under the figures' feet; a new copy
   // has it
   if (m.reset && m.minY === undefined && m.dim !== w.meta.dim) return 'fresh';
   if (m.states_from > prep.states.length || m.biomes_from > prep.biomeIds.length) return false;
@@ -2399,15 +2399,15 @@ async function apply(d) {
     w.be.clear();
     w.meta.dim = m.dim;
     if (m.minY !== undefined) Object.assign(w.meta, { minY: m.minY, sections: m.sections, skylight: m.skylight, ambient: m.ambient });
-    // where he is in the new dimension: the newest positions, when they are of it already
+    // where the buddy is in the new dimension: the newest positions, when they are of it already
     const e = live.ent;
     if (e && e.dim === m.dim) Object.assign(w.meta, { x: e.x, y: e.y, z: e.z, yaw: e.yaw, pitch: e.pitch });
   }
   for (const [x, z] of m.removed || []) { w.chunks.delete(x + ',' + z); w.be.delete(x + ',' + z); touched.add(x + ',' + z); }
   for (const [key, be] of Object.entries(m.be || {})) { if (Object.keys(be).length) w.be.set(key, be); else w.be.delete(key); }
   // A block broken or put down builds its own chunk again at once, and a neighbour only when the block lies at the edge
-  // against it; a chunk that came in whole (he walked on) at once too, and its neighbours afterwards, one a frame
-  // (LATER): rebuilding five whole chunks for every change, and the neighbours of every new row first, held his own
+  // against it; a chunk that came in whole (the buddy walked on) at once too, and its neighbours afterwards, one a frame
+  // (LATER): rebuilding five whole chunks for every change, and the neighbours of every new row first, held the buddy's own
   // blocks back behind them: block updates came very late
   const later = new Set(), edits = new Set();
   const SIDES = [[-1, 0, i => (i & 15) === 0], [1, 0, i => (i & 15) === 15], [0, -1, i => ((i >> 4) & 15) === 0], [0, 1, i => ((i >> 4) & 15) === 15]];
@@ -2432,7 +2432,7 @@ async function apply(d) {
     if (!fresh) edits.add(key);
     SIDES.forEach(([dx, dz], k) => { const nk = (c.cx + dx) + ',' + (c.cz + dz); if (fresh || relit) later.add(nk); if (!fresh && edge.has(k)) { touched.add(nk); edits.add(nk); } });
   }
-  // his own changes first, then the nearest
+  // the buddy's own changes first, then the nearest
   const mx = Math.floor((live.ent && live.ent.x || w.meta.x || 0) / 16), mz = Math.floor((live.ent && live.ent.z || w.meta.z || 0) / 16);
   const far = k => { const [x, z] = k.split(',').map(Number); return Math.max(Math.abs(x - mx), Math.abs(z - mz)); };
   const order = [...touched].sort((a, b) => (edits.has(b) - edits.has(a)) || far(a) - far(b));
@@ -2446,7 +2446,7 @@ async function apply(d) {
   return true;
 }
 
-// his place and what is around him come on one open connection (server-sent events) as soon as the mod writes them;
+// the buddy's place and what is around the buddy come on one open connection (server-sent events) as soon as the mod writes them;
 // the changes of the world are still asked for, less often
 const STREAM = { es: null, ok: false, wake: null };
 function stream() {
@@ -2509,7 +2509,7 @@ async function keepUp() {
       live.ok = false;
       console.warn(e);
     }
-    // driving, five times a second: the mod writes his place that often then
+    // driving, five times a second: the mod writes the buddy's place that often then
     if (!more) await new Promise(r => { const t = setTimeout(r, STREAM.ok ? 400 : mode === 'drive' ? 80 : 500); STREAM.wake = () => { clearTimeout(t); STREAM.wake = null; r(); }; });
   }
 }
@@ -2517,13 +2517,13 @@ async function keepUp() {
 // ---------- the cameras ----------
 
 let positioned = false, mode = 'orbit';
-// driving: 0 through his eyes, 1 behind him, 2 in front of him looking at him (F5, as in the game)
+// driving: 0 through the buddy's eyes, 1 behind, 2 in front looking back (F5, as in the game)
 let person = 0;
 const drivePos = new THREE.Vector3();
 const fly = { yaw: 0, pitch: 0, keys: new Set(), locked: false, turned: false };
 // the map in 3D (the panel's map card): seen from the south and above, north up as the flat map; dragged over with the
 // left button, turned with the right one, zoomed by the map's buttons, the wheel or a double click (left nearer, right
-// further), on him again and north up by its centre button
+// further), on the buddy again and north up by its centre button
 const MAP_DIST = 64, MAP_PITCH = Math.atan2(0.82, 0.57);
 const mapCam = { x: 0, y: 64, z: 0, dist: MAP_DIST, yaw: 0, pitch: MAP_PITCH, follow: true, drag: null, moved: false };
 
@@ -2532,7 +2532,7 @@ function setMode(m) {
   canvas.style.cursor = m === 'map' ? 'grab' : '';
   for (const id of ['orbit', 'eyes', 'fly']) el(id)?.classList.toggle('on', id === m);
   orbit.enabled = m === 'orbit';
-  // through his eyes his own box would stand around the camera
+  // through the buddy's eyes the buddy's own box would stand around the camera
   if (me) me.visible = m !== 'eyes' && m !== 'drive';
   if (el('help')) el('help').style.display = m === 'eyes' || m === 'fly' ? 'block' : 'none';
   if (el('cross')) el('cross').style.display = m === 'orbit' ? 'none' : 'block';
@@ -2559,7 +2559,7 @@ function hisEyes() {
   setMode('eyes');
 }
 
-/** Driving him from the panel: the camera at his eyes, looking where the panel says he looks. */
+/** Driving the buddy from the panel: the camera at the buddy's eyes, looking where the panel says. */
 function drive() {
   if (!current) { mode = 'drive'; return; }
   const m = current.world.meta;
@@ -2568,7 +2568,7 @@ function drive() {
   setMode('drive');
 }
 
-/** The map card's view: above and south of him, north up. */
+/** The map card's view: above and south of the buddy, north up. */
 function mapView() {
   mapCam.follow = true;
   mapCam.dist = MAP_DIST;
@@ -2628,7 +2628,7 @@ function pick() {
   const at = fly.locked || (mode !== 'orbit' && mode !== 'map') ? { x: 0, y: 0 } : mouse;
   if (!at) return null;
   ray.setFromCamera(at, camera);
-  // driving seen from behind or in front: what he reaches is still what is in front of his eyes, as in the game
+  // driving seen from behind or in front: what the buddy reaches is still what is in front of the buddy's eyes, as in the game
   if (mode === 'drive' && person) { ray.ray.origin.copy(drivePos); ray.ray.direction.set(0, 0, -1).applyEuler(new THREE.Euler(fly.pitch, fly.yaw, 0, 'YXZ')); }
   const o = ray.ray.origin, d = ray.ray.direction;
   // walk the grid of blocks along the ray (Amanatides and Woo)
@@ -2638,7 +2638,7 @@ function pick() {
   const tDelta = [Math.abs(1 / d.x), Math.abs(1 / d.y), Math.abs(1 / d.z)];
   const next = (p, c, s) => s > 0 ? c + 1 - p : p - c;
   const tMax = [next(px, x, step[0]) * tDelta[0], next(py, y, step[1]) * tDelta[1], next(pz, z, step[2]) * tDelta[2]];
-  // the nearest figure the ray goes through (not him): a block in front of it hides it
+  // the nearest figure the ray goes through (not the buddy): a block in front of it hides it
   let ent = null;
   const bx = new THREE.Box3(), hitAt = new THREE.Vector3();
   for (const f of figures.values()) {
@@ -2648,7 +2648,7 @@ function pick() {
     else { bx.min.set(p.x - f.w / 2, p.y, p.z - f.w / 2); bx.max.set(p.x + f.w / 2, p.y + f.h, p.z + f.w / 2); }
     if (ray.ray.intersectBox(bx, hitAt)) { const t = hitAt.distanceTo(o); if (!ent || t < ent.dist) ent = { entity: f.id, kind: f.kind, dist: t, fig: f }; }
   }
-  // a camera that is not his eyes can stand in the rock: the map hangs 52 blocks above them, so with them in a cave it is
+  // a camera that is not the buddy's eyes can stand in the rock: the map hangs 52 blocks above the buddy, so with the buddy in a cave it is
   // in the stone, which has no faces drawn there and is seen through. The rock it starts in is gone through, up to the
   // first air or water: what the mouse is on is the first face that is drawn (with a buddy mining at y -35, every click
   // on the 3D map hit the block round the camera and offered no Walk there)
@@ -2671,7 +2671,7 @@ function pick() {
   return ent;
 }
 
-// ---------- the camera behind or in front of him (F5) stops at a block, as the game's does ----------
+// ---------- the camera behind or in front of the buddy (F5) stops at a block, as the game's does ----------
 
 /** What of a block stops the camera: the box around its model, or nothing for air, fluids and plants (whose faces all
  *  stand slanted, as grass and flowers), which the game's camera goes through. */
@@ -2725,7 +2725,7 @@ function castBlocks(px, py, pz, d, max) {
   return max;
 }
 
-/** The game's getMaxZoom: eight rays from the corners of a small box around his eyes, the camera at the shortest. */
+/** The game's getMaxZoom: eight rays from the corners of a small box around the buddy's eyes, the camera at the shortest. */
 function cameraDistance(from, d, max) {
   let best = max;
   for (let i = 0; i < 8; i++) {
@@ -2744,13 +2744,13 @@ function blockData(h) {
   return be && be[h.x + ',' + h.y + ',' + h.z];
 }
 
-/* What lay in a container he had open (the mod's containers.json and his base's chests, through /api/containers): a chest's
+/* What lay in a container the buddy had open (the mod's containers.json and the base's chests, through /api/containers): a chest's
    items never reach the block on the client, so the hover shows the last look. Asked again at most every five seconds,
    while the mouse is on one. */
 const CONTAINER = /(^|_)(chest|barrel|shulker_box|hopper|dispenser|dropper|furnace|smoker|crafter|brewing_stand)$/;
 let CONT = { at: 0, map: {}, asking: false };
 function contentsOf(h) {
-  if (!CONTAINER.test(h.info.name) || h.info.name === 'ender_chest') return null;   // an ender chest's items are his own, kept nowhere
+  if (!CONTAINER.test(h.info.name) || h.info.name === 'ender_chest') return null;   // an ender chest's items are the buddy's own, kept nowhere
   if (Date.now() - CONT.at > 5000 && !CONT.asking) {
     CONT.asking = true;
     fetch('/api/containers').then(r => r.json()).then(j => { CONT = { at: Date.now(), map: j.containers || {}, asking: false }; showPick(); })
@@ -2761,7 +2761,7 @@ function contentsOf(h) {
 function contentsHtml(c) {
   if (c === null) return '';
   const box = 'margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)';
-  if (!c) return `<div style="${box};color:var(--soft)">Contents not known: the server sends them only while the buddy has it open. Open it once and they show here.</div>`;
+  if (!c) return `<div style="${box};color:var(--soft)">Contents not known: the server sends them only while ${who()} has the container open. Open it once and they show here.</div>`;
   const totals = new Map();
   if (c.slots) for (const [, id, n] of c.slots) totals.set(id, (totals.get(id) || 0) + n);
   else for (const [id, n] of c.items || []) totals.set(id, n);
@@ -2862,8 +2862,8 @@ function frame(t) {
     mapCamera();
     if (me) me.visible = true;
   } else if (mode === 'drive') {
-    // where he looks: the panel's own sum, at once, so that turning the mouse turns the view without waiting for him; and
-    // while the page only watches, his own look as the game turned him (the panel's look is null then)
+    // where the buddy looks: the panel's own sum, at once, so that turning the mouse turns the view without waiting for the buddy; and
+    // while the page only watches, the buddy's own look as the game turned it (the panel's look is null then)
     const v = (CFG.look && CFG.look()) || (current ? hisLook(current.world.meta) : null);
     if (v) { fly.yaw = Math.PI - v.yaw * Math.PI / 180; fly.pitch = -Math.max(-89.9, Math.min(89.9, v.pitch)) * Math.PI / 180; }
     camera.rotation.set(fly.pitch, fly.yaw, 0, 'YXZ');
@@ -2900,7 +2900,7 @@ function frame(t) {
   if (canvas.clientWidth && (canvas.width !== Math.round(canvas.clientWidth * renderer.getPixelRatio()) || canvas.height !== Math.round(canvas.clientHeight * renderer.getPixelRatio()))) resize();
   if (!CFG.paused || !CFG.paused()) {
     renderer.render(scene, camera);
-    // what he holds, through his own eyes, over the world (the game draws it so too)
+    // what the buddy holds, through the buddy's own eyes, over the world (the game draws it so too)
     if (mode === 'drive' && !person && current && hands(t, dt)) {
       renderer.autoClear = false;
       renderer.clearDepth();
@@ -2957,7 +2957,7 @@ function fail(e) {
 /**
  * Starts the view on a canvas. cfg: canvas; ids (status, hover, help, cross, orbit, eyes, fly, refresh: the ids of the
  * page's elements, each optional); controls (false when the page steers itself, as the panel does); look (a function
- * that gives {yaw, pitch} in the game's degrees while the panel drives him); paused (a function: true while nothing
+ * that gives {yaw, pitch} in the game's degrees while the panel drives the buddy); paused (a function: true while nothing
  * needs drawing). Returns what the page can ask of it.
  */
 export function start3d(cfg) {
@@ -3080,7 +3080,7 @@ export function start3d(cfg) {
     mapFollow: () => mapCam.follow, mapZoomLevel: () => MAP_DIST / mapCam.dist,
     mapTurned: () => Math.abs(mapCam.yaw) > 1e-6 || Math.abs(mapCam.pitch - MAP_PITCH) > 1e-6,
     mapTurn: () => ({ yaw: mapCam.yaw, pitch: mapCam.pitch }),
-    // where he is drawn now (between his places), for the coordinates over the view
+    // where the buddy is drawn now (between the buddy's places), for the coordinates over the view
     where: () => current && hisPlace(current.world.meta),
     /** The view to another place in the page (the map card, the drive window): the canvas and its hover text. */
     moveTo: (parent, hoverParent) => { if (canvas.parentNode !== parent) parent.insertBefore(canvas, parent.firstChild); const h = el('hover'); if (h && hoverParent && h.parentNode !== hoverParent) hoverParent.appendChild(h); resize(); },

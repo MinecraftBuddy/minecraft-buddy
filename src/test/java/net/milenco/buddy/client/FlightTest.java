@@ -65,7 +65,7 @@ class FlightTest {
 
 	@Test
 	void neverIntoAWallItCannotPass() {
-		// a wall from the ground to the sky across the whole way: he must turn away, not fly into it
+		// a wall from the ground to the sky across the whole way: turn away, not fly into it
 		Flight.World w = (x, y, z) -> y <= 63 || x == 60 || x == 61;
 		Flight.State s = new Flight.State(0, 90, 0, 1.2, 0, 0, EAST, 0, 0);
 		Flight.State end = loop(w, s, new Flight.Goal(120, 90, 0, 0, 0, 0, false), 500, 5);
@@ -109,7 +109,7 @@ class FlightTest {
 
 	@Test
 	void aFastTouchdownIsNoSafeOne() {
-		// level ground, coming in at 1.2 a tick just above it: the step lands him, but too fast to count as safe
+		// level ground, coming in at 1.2 a tick just above it: the step lands the flyer, but too fast to count as safe
 		Flight.State s = new Flight.State(0, 64.1, 0, 1.2, -0.2, 0, EAST, 0, 0);
 		assertEquals(Flight.Event.LANDED, Flight.step(FLAT, s, EAST, 0));
 		assertTrue(s.horizontal() > Flight.SAFE_SIDEWAYS);
@@ -121,7 +121,7 @@ class FlightTest {
 
 	@Test
 	void keepsAboveTheSea() {
-		// sea floor at 40, water up to 62: water is no wall, but it is the surface he keeps his height above
+		// sea floor at 40, water up to 62: water is no wall, but it is the surface the height is kept above
 		Flight.World sea = new Flight.World() {
 			@Override public boolean solid(int x, int y, int z) { return y <= 40; }
 			@Override public boolean floor(int x, int y, int z) { return y <= 62; }
@@ -141,7 +141,7 @@ class FlightTest {
 
 	@Test
 	void notIntoWhatIsNotLoaded() {
-		// beyond x 100 nothing is known yet: it counts as solid, so he must turn or wait in front of it
+		// beyond x 100 nothing is known yet: it counts as solid, so turn or wait in front of it
 		Flight.World w = (x, y, z) -> y <= 63 || x >= 100;
 		Flight.State s = new Flight.State(0, 90, 0, 1.4, 0, 0, EAST, 0, 0);
 		Flight.State end = loop(w, s, new Flight.Goal(300, 90, 0, 0, 0, 0, false), 400, 4);
@@ -150,7 +150,7 @@ class FlightTest {
 
 	@Test
 	void followsAFlyingTarget() {
-		// a target that flies off east at 1.2 a tick: he keeps up within reach using rockets, and hits nothing
+		// a target that flies off east at 1.2 a tick: kept up with within reach using rockets, and nothing hit
 		Flight.State s = new Flight.State(0, 90, 0, 0.9, 0, 0, EAST, 0, 0);
 		int left = 20;
 		double tx = 20;

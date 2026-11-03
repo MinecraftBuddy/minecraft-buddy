@@ -73,7 +73,7 @@ public class Grinder {
 	/**
 	 * Stopped involuntarily while you were AFK: where the farm was running, so it turns back on
 	 * as soon as you stand there again. Needed after a night in which the farm stopped at 04:13
-	 * ("too far from the farm spot") and he did nothing until the morning: coming back to the spot did not
+	 * ("too far from the farm spot") and the buddy did nothing until the morning: coming back to the spot did not
 	 * turn the farm on again.
 	 */
 	private static Vec3 resumeSpot = null;
@@ -144,7 +144,7 @@ public class Grinder {
 
 	/**
 	 * Hit with the right weapon. The farm hit with whatever happened to be in hand; on the alt that sword
-	 * sometimes sits in the backpack and he kept whacking with an axe or bread.
+	 * sometimes sits in the backpack and the buddy kept whacking with an axe or bread.
 	 */
 	private static void ensureWeapon(LocalPlayer p, Minecraft mc, long now) {
 		if (now < nextWeaponCheck) return;
@@ -220,7 +220,7 @@ public class Grinder {
 		double median = 1000.0 / clickPace(c, now);
 		// If you wait for full attack strength, the cooldown sets the pace and not your hand. Without this
 		// correction 82% of the hits lay within eight milliseconds of 600 ms (measured 25 Sep 2026) - a
-		// metronome, while a human player sat at a median of 649 ms with a quarter of their hits below it.
+		// metronome, while a human player sat at a median of 649 ms with a quarter of the hits below it.
 		// So: aim for just after the cooldown with a reaction time that differs per hit, and click too
 		// early now and then (that becomes a weaker hit, just like with a human).
 		if (cooldownMs > 0) {
@@ -333,7 +333,7 @@ public class Grinder {
 	/**
 	 * A spot on another side of the landing spot. The server does not count nudges back and forth on the
 	 * same square metre as movement: on 25 Sep the account went to the AFK world in the middle of farming,
-	 * exactly five minutes after the last time he really changed spot. Walking to the far side is a
+	 * exactly five minutes after the last real change of spot. Walking to the far side is a
 	 * real move, and from every side you can hit the mobs on the spot equally well.
 	 */
 	private static Vec3 otherSide(LocalPlayer p) {
@@ -347,7 +347,7 @@ public class Grinder {
 			if (!standable(p.level(), net.minecraft.core.BlockPos.containing(spot))) continue;
 			candidates.add(spot);
 		}
-		// do not immediately retry the side he just failed to reach, if there is another one
+		// do not immediately retry the side the buddy just failed to reach, if there is another one
 		if (switchFailed != null && candidates.size() > 1) candidates.removeIf(k -> k.distanceTo(switchFailed) < 0.5);
 		return candidates.isEmpty() ? null : candidates.get(R.nextInt(candidates.size()));
 	}
@@ -355,7 +355,7 @@ public class Grinder {
 	/**
 	 * Does this segment (with half your body width) cross the landing spot? The first bit does not count:
 	 * after approaching you stand within half a metre of the edge, and back then this rejected every route,
-	 * so that on 26 Sep from 03:45 to 03:51 he did not switch at all and went to the AFK world.
+	 * so that on 26 Sep from 03:45 to 03:51 the buddy did not switch at all and went to the AFK world.
 	 */
 	private static boolean crossesArea(Vec3 a, Vec3 b) {
 		double m = 0.3, len = Math.hypot(b.x - a.x, b.z - a.z);
@@ -368,7 +368,7 @@ public class Grinder {
 	}
 
 	/**
-	 * The way to the far side, around the landing spot: straight ahead he walked right across it or tight
+	 * The way to the far side, around the landing spot: straight ahead the buddy walked right across it or tight
 	 * along the edge, got stuck and never arrived (on 26 Sep five of the seven switches). Corners lie,
 	 * like the sides, one and a half blocks from the edge, in the middle of a block.
 	 */
@@ -418,7 +418,7 @@ public class Grinder {
 		if (p == null) return;
 		if (visitorQuiet) lookAt = null;   // if someone is standing there watching, you look at nobody
 		// only at the raid farm: that is where the mobs stand that kill you in seconds. At the blaze farm
-		// they cannot reach you, so there he may simply pause as always.
+		// they cannot reach you, so there a simple pause as always is fine.
 		if (ms > 0 && raidOn(p)) {
 			LivingEntity danger = threat(p, THREAT_RADIUS);
 			if (danger != null) {
@@ -492,7 +492,7 @@ public class Grinder {
 		if (!c.afk || now > resumeBefore) { resumeSpot = null; return; }
 		if (stillAt == null || p.position().distanceTo(stillAt) > 0.5) { stillAt = p.position(); stillSince = now; }
 		// also next to the landing spot itself: your home is not necessarily within 2.5 blocks of where the
-		// farm started, and then he simply stayed off after the AFK world and /home
+		// farm started, and then the farm simply stayed off after the AFK world and /home
 		boolean atSpot = p.position().distanceTo(resumeSpot) <= 2.5 || (areaOn(p) && !raidOn(p) && distToArea(p) <= 3.0);
 		if (!atSpot || now - stillSince < 5_000 || now < resumeNotBefore) return;
 		if (++resumeAttempts > 5) {   // if it keeps going wrong, something else is the matter
@@ -512,7 +512,7 @@ public class Grinder {
 		long now = System.currentTimeMillis();
 		if (involuntary(why) && AfkConfig.get().afk && start != null) {
 			// a round that simply ran counts as a success: then the counter may go back to zero.
-			// Otherwise every resume would acquit itself and he keeps restarting forever.
+			// Otherwise every resume would acquit itself and the farm keeps restarting forever.
 			if (now - startedAt > 10 * 60_000L) resumeAttempts = 0;
 			resumeSpot = start; resumeBefore = now + 3 * 60 * 60_000L; resumeNotBefore = 0;
 		} else { resumeSpot = null; resumeAttempts = 0; }
@@ -618,7 +618,7 @@ public class Grinder {
 
 	/**
 	 * The same for any box: its points in this order, within reach of the eye and seen past what a crosshair stops at.
-	 * Without {@code view} the first such point; with it the one nearest to where he looks (the pen, 0.4.80, which turns
+	 * Without {@code view} the first such point; with it the one nearest to where the buddy looks (the pen, 0.4.80, which turns
 	 * as little as it can between two mobs).
 	 */
 	static Vec3 aimPoint(AABB b, Vec3 eye, net.minecraft.world.level.Level level, Entity viewer, boolean low, double reach, Vec3 view) {
@@ -683,7 +683,7 @@ public class Grinder {
 		if (!c.farmNudge) return false;
 		boolean self = false;
 		// nextBigStep: if a big step failed (wall or edge behind you), the AFK limit stayed exceeded and the
-		// next one started right away; so he shot back and forth on the same block about five times a second
+		// next one started right away; so the buddy shot back and forth on the same block about five times a second
 		boolean afkLimit = now - lastBlockChange > Math.max(20, c.farmBlockMoveSec) * 1000L && now >= nextBigStep;
 		boolean needBlock = afkLimit || now >= nextWalk;
 		boolean may = antiAfkOnly ? afkLimit : (now >= nextNudge || needBlock);
@@ -737,7 +737,7 @@ public class Grinder {
 	 * Every few minutes go and stand on the other side of the landing spot: that is the only movement
 	 * the server's AFK counter does see (nudges on your own block do not count). True as long as
 	 * it is walking. Also during a pause: on 26 Sep at 05:47 a long pause started right after a switch,
-	 * in it he only did nudges on his block, and at 05:49 he stood in the AFK world.
+	 * in it the buddy only did nudges on one block, and at 05:49 stood in the AFK world.
 	 */
 	private static boolean sideSwitch(LocalPlayer p, Minecraft mc, AfkConfig c, long now, boolean may) {
 		if (may && c.farmSideSwitchSec > 0 && areaOn(p) && !raidOn(p) && !sideSwitching && now >= nextSideSwitch) {
@@ -750,7 +750,7 @@ public class Grinder {
 				nextSideSwitch = now + R.nextLong(15_000, 40_000);
 			} else {
 				// set the anchor directly, not via setAnchor: that bounded the far side to 2 blocks from your
-				// start, so he walked to a point halfway and got stuck there
+				// start, so the buddy walked to a point halfway and got stuck there
 				switchRoute.clear(); switchRoute.addAll(route); anchor = switchRoute.poll(); switchTarget = next;
 				returnBlocked = false; returning = false;
 				sideSwitching = true;
@@ -795,7 +795,7 @@ public class Grinder {
 		if (lastBlock == null || !p.blockPosition().equals(lastBlock)) { lastBlock = p.blockPosition(); lastBlockChange = now; }
 		if (chatOpen && !paused) { savedYaw = p.getYRot(); savedPitch = p.getXRot(); paused = true; releaseKeys(); }   // menu or chat open: idle
 		// As long as someone stands next to you, you do nothing. Pausing three seconds and then hammering on
-		// while that person watches is exactly what a helper waits for; a human stops until they are gone.
+		// while that person watches is exactly what a helper waits for; a human stops until the visitor is gone.
 		net.minecraft.world.entity.player.Player watcher = visitor(p, c);
 		if (watcher != null) {
 			visitorUntil = now + Math.max(1, c.farmVisitorAfterSec) * 1000L + R.nextLong(0, 8000);
@@ -804,25 +804,25 @@ public class Grinder {
 				interrupt(0, null, "visitor " + watcher.getGameProfile().name());
 			}
 			visitorQuiet = true;
-			pauseLookAt = null;            // do not look at them: looking up without saying anything back is what stands out
+			pauseLookAt = null;            // do not look at the visitor: looking up without saying anything back is what stands out
 			look.stop();                   // abort a turn that was still running right away
 			pausedUntil = Math.max(pausedUntil, now + 2000);
 		} else if (paused && now < visitorUntil) {
 			pausedUntil = Math.max(pausedUntil, visitorUntil);   // just left: do not start again right away
 		}
 		if (paused && raidOn(p) && threat(p, THREAT_RADIUS) != null) {
-			pausedUntil = 0;   // a threat is coming while he stands still: continue right away
+			pausedUntil = 0;   // a threat is coming while the buddy stands still: continue right away
 			Exchange.emit("farm", "action", "pause broken off", "why", "danger");
 		}
 		if (paused) {
 			if (chatOpen || now < pausedUntil) {
-				// With a visitor nothing at all: no looking, no turning. Whoever looks up and then says
-				// nothing back gives themselves away; standing still is what a human does who is away for a bit.
+				// With a visitor nothing at all: no looking, no turning. Looking up and then saying nothing back is a
+				// giveaway; standing still is what a human does who is away for a bit.
 				if (!visitorQuiet && pauseLookAt != null && pauseLookAt.isAlive() && !look.busy() && p.distanceTo(pauseLookAt) < 32 && R.nextInt(8) == 0)
 					look.start(p, pauseLookAt.getEyePosition(), 1.5f);
 				// but do change block in time: otherwise the server itself puts you on AFK after a minute or so
 				// and in the middle of a long pause you suddenly stand in the AFK world.
-				if ((chatOpen || visitorQuiet) && sideSwitching) {   // in the middle of a switch: let go, otherwise he keeps walking
+				if ((chatOpen || visitorQuiet) && sideSwitching) {   // in the middle of a switch: let go, otherwise the buddy keeps walking
 					releaseKeys(); sideSwitching = false; switchRoute.clear(); nextSideSwitch = now + R.nextLong(15_000, 40_000);
 				}
 				if (!chatOpen && !visitorQuiet && nudgePhase == 0 && sideSwitch(p, mc, c, now, true)) return true;

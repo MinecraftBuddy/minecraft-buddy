@@ -52,26 +52,26 @@ import java.util.function.Predicate;
  * field, tidies the inventory into the chests there, and then walks the rows one by one, looking down at the
  * ground in front of the feet. A ripe crop under the crosshair is broken and the bare farmland under it gets a
  * seed; a crop that is still growing is walked past. Rows that need nothing are skipped, and of a row only the
- * stretch with work is walked. When the whole field is growing it stands and looks again every two seconds.
+ * stretch with work is walked. When the whole field is growing the buddy stands and looks again every two seconds.
  *
- * It plants one crop ({@code tarweGewas}: wheat seeds, carrots, potatoes, beetroot seeds) and breaks whatever stands
- * ripe, so a field of another crop turns into that one cell by cell as fast as he has something to plant: from a
- * few carrots handed to him, every ripe carrot gives more than the one that goes back in.
+ * One crop is planted ({@code tarweGewas}: wheat seeds, carrots, potatoes, beetroot seeds) and whatever stands ripe is
+ * broken, so a field of another crop turns into that one cell by cell as fast as there is something to plant: from a
+ * few carrots handed to the buddy, every ripe carrot gives more than the one that goes back in.
  *
- * With a full inventory it walks back to the chests, crafts the wheat into hay bales at the crafting table and
- * stores them; seeds it has no use for top up a chest that already holds seeds, and what does not fit goes down the
+ * With a full inventory the buddy walks back to the chests, crafts the wheat into hay bales at the crafting table and
+ * stores them; seeds of no use top up a chest that already holds seeds, and what does not fit goes down the
  * stair hole. Chests follow one rule: a chest with
- * a single kind of item only gets that kind, a mixed or empty chest takes anything. When every chest is full it
- * just carries on harvesting.
+ * a single kind of item only gets that kind, a mixed or empty chest takes anything. When every chest is full the
+ * harvest just carries on.
  *
- * The switch survives a restart ({@code tarweAan}): after a kick, a crash or a server restart it goes back to
+ * The switch survives a restart ({@code tarweAan}): after a kick, a crash or a server restart the buddy goes back to
  * the home and picks the rows up again.
  *
- * With a hoe ({@code tarweSchoffel}) he breaks with the hoe in his hand, so its Fortune counts for what a crop drops,
+ * With a hoe ({@code tarweSchoffel}) the buddy breaks with the hoe in hand, so its Fortune counts for what a crop drops,
  * and plants from the off hand, as a player does: no change of slot between the break and the seed. The hoe with the
- * most Fortune is the one; a worn one goes back into a chest at the home and he takes another there.
+ * most Fortune is the one; a worn one goes back into a chest at the home and another is taken there.
  *
- * Someone else at work on the floor he is on makes him take another floor ({@link #giveWay}).
+ * Someone else at work on the same floor makes the buddy take another floor ({@link #giveWay}).
  *
  * Every click is one a player makes: the crosshair is really on the block (the view ray is computed here, at
  * the start of the tick, the way vanilla does before a click), a break at most every third tick and a seed at
@@ -113,9 +113,9 @@ public final class WheatFarm {
 	private static int[] laneAt = new int[0];
 	private static Climb climb = null;
 	private static After climbAfter = After.LANE;
-	// Since when he works the rows of this floor, and which floor that is. The clock used to start again each time he
-	// set foot on a floor, and the chests and the seed dump lie on other floors: on 3 Oct the round over the top floor
-	// ended 49 s after such a trip, so it was too soon to go down and he began the same floor again.
+	// Since when the rows of this floor are being worked, and which floor that is. The clock used to start again at every
+	// step onto a floor, and the chests and the seed dump lie on other floors: on 3 Oct the round over the top floor
+	// ended 49 s after such a trip, so it was too soon to go down and the buddy began the same floor again.
 	private static long floorSince = 0, nextFloorTry = 0;
 	private static int rowFloor = -1;
 	// under the lowest floor: where to stand and where to aim to throw spare seeds down
@@ -141,15 +141,15 @@ public final class WheatFarm {
 	private static final Map<BlockPos, Long> skipUntil = new HashMap<>();   // cells that would not take the click: leave them for a while
 	private static long laneStartedAt = 0, lapStartedAt = 0, nextTripAt = 0, nextInventoryCheck = 0;
 	private static boolean haveSeeds = false, haveHoe = false;
-	private static boolean lastBreakOwn = false;   // the crop he broke last drops what he plants
-	// the hoe he harvests with this tick (null: by hand), and the Fortune of the one he was last seen with
+	private static boolean lastBreakOwn = false;   // the crop broken last drops what is planted
+	// the hoe harvested with this tick (null: by hand), and the Fortune of the one last seen in hand
 	private static ItemStack farmHoe = null;
 	private static int hoeTold = Integer.MIN_VALUE;
 	private static long lastOffhandSwap = 0, nextHoeTripAt = 0;
-	// others at work on the field: per player where he was last seen to move, and when
+	// others at work on the field: per player where that player was last seen to move, and when
 	private static final Map<java.util.UUID, double[]> seen = new HashMap<>();
 	private static long crowdedSince = 0, nextCrowdCheck = 0, noYieldUntil = 0;
-	// farmland that does not carry his crop yet, for the panel: counted every few seconds
+	// farmland that does not carry the buddy's crop yet, for the panel: counted every few seconds
 	private static int openCount = 0;
 	private static long nextOpenCount = 0;
 	private static Vec3 lanePrev = null;
@@ -177,7 +177,7 @@ public final class WheatFarm {
 	private static int hoesBefore = 0;
 	private static long nextFoodTripAt = 0;
 	private static int fetchLast = -1, foodBefore = 0;
-	/** Below this much food he fetches more from the chests, up to twice as much (the two stacks he keeps). */
+	/** Below this much food more is fetched from the chests, up to twice as much (the two stacks that are kept). */
 	private static final int FOOD_LOW = 64;
 	private static boolean craftWhole = false, spreadDone = false, takeJunk = false, wheatMayGo = false, storageFull = false, storageFullTold = false, chestsDenied = false, noTableTold = false, hayFull = false, hayFullTold = false;
 	private static int dropped = 0;
@@ -270,7 +270,7 @@ public final class WheatFarm {
 		HeldKeys.set(mc.options.keyJump, false);
 	}
 
-	/** A new connection: the server put him wherever he logged out. Start over from the home shortly. */
+	/** A new connection: the server put the buddy wherever the logout was. Start over from the home shortly. */
 	static void newConnection() {
 		if (!isOn() && !wanted()) return;
 		suspend(rnd(25_000, 45_000), "new connection");
@@ -315,7 +315,7 @@ public final class WheatFarm {
 		homeSentAt = 0;
 		pausedUntil = 0;
 		nextBreather = 0;
-		rowFloor = -1;   // the clock of the floor starts with his first row
+		rowFloor = -1;   // the clock of the floor starts with the first row
 		crowdedSince = 0;
 	}
 
@@ -342,7 +342,7 @@ public final class WheatFarm {
 		return f;
 	}
 
-	/** What he is doing right now, in the player's language. */
+	/** What the buddy is doing right now, in the player's language. */
 	static String state() {
 		long now = System.currentTimeMillis();
 		if (phase == Phase.OFF) return "waiting to carry on";
@@ -376,7 +376,7 @@ public final class WheatFarm {
 			return false;
 		}
 		if (othersOn()) { stop("farm on"); return false; }
-		// the setting was changed to something that does not grow: he would break every ripe crop and plant nothing back
+		// the setting was changed to something that does not grow: every ripe crop would be broken and nothing planted back
 		if (crop() == null) { stop("unknown crop"); return false; }
 		if (!AfkHelperClient.active()) { suspend(60_000, "another server"); return false; }
 		if (p.isDeadOrDying()) { suspend(30_000, "dead"); return false; }
@@ -432,7 +432,7 @@ public final class WheatFarm {
 		return !harmless;
 	}
 
-	/** A stranger close by: stand still until they are gone, like the wood farm does. And a breather now and then. */
+	/** A stranger close by: stand still until the stranger is gone, like the wood farm does. And a breather now and then. */
 	private static void watchPlayers(LocalPlayer p, AfkConfig c, long now) {
 		if (now >= nextNearCheck) {
 			nextNearCheck = now + 500;
@@ -475,13 +475,13 @@ public final class WheatFarm {
 		settleUntil = now + settle;
 	}
 
-	/** Find the field around the spot the home put him on. Returns the reason when this is not it. */
+	/** Find the field around the spot the home put the buddy on. Returns the reason when this is not it. */
 	private static String locate(LocalPlayer p, AfkConfig c) {
 		x1 = Math.min(c.wheatX1, c.wheatX2); x2 = Math.max(c.wheatX1, c.wheatX2);
 		z1 = Math.min(c.wheatZ1, c.wheatZ2); z2 = Math.max(c.wheatZ1, c.wheatZ2);
 		Level l = p.level();
 		int px = p.getBlockX(), pz = p.getBlockZ();
-		// nothing he could plant: he would break the whole field and leave it bare
+		// nothing to plant: the whole field would be broken and left bare
 		if (crop() == null) return "unknown crop";
 		if (px < x1 - 8 || px > x2 + 8 || pz < z1 - 8 || pz > z2 + 8) return "home not by the field";
 		// the farmland is the floor you stand on or next to
@@ -582,7 +582,7 @@ public final class WheatFarm {
 
 	private static int left(ItemStack st) { return st.isDamageableItem() ? st.getMaxDamage() - st.getDamageValue() : 9999; }
 
-	/** A hoe with durability to spare: a worn one goes back into a chest instead of breaking in his hand. */
+	/** A hoe with durability to spare: a worn one goes back into a chest instead of breaking in hand. */
 	private static boolean usableHoe(ItemStack st) { return hoe(st) && left(st) > AfkConfig.get().wheatHoeMin; }
 
 	/** Better to harvest with: more Fortune, then more durability left. */
@@ -591,7 +591,7 @@ public final class WheatFarm {
 		return fa != fb ? fa > fb : left(a) > left(b);
 	}
 
-	/** Inventory slot of the hoe he harvests with; -1 without a usable one, or with the setting off. */
+	/** Inventory slot of the hoe to harvest with; -1 without a usable one, or with the setting off. */
 	private static int hoeSlot(LocalPlayer p) {
 		if (!AfkConfig.get().wheatHoe) return -1;
 		int best = -1;
@@ -609,10 +609,10 @@ public final class WheatFarm {
 	/** That very hoe, not any hoe: with a plain one in a lower slot the Fortune hoe would stay in the backpack. */
 	private static boolean theHoe(ItemStack st) { return farmHoe != null && st == farmHoe; }
 
-	/** The hoe for trampled dirt: the one he harvests with, or with that setting off any hoe, as before. */
+	/** The hoe for trampled dirt: the one to harvest with, or with that setting off any hoe, as before. */
 	private static boolean tillHoe(ItemStack st) { return AfkConfig.get().wheatHoe ? theHoe(st) : hoe(st); }
 
-	/** What he plants, in his inventory or in his off hand. */
+	/** What is planted, in the inventory or in the off hand. */
 	private static boolean carries(LocalPlayer p) { return has(p, WheatFarm::plants) || plants(p.getOffhandItem()); }
 
 	// ---------- the crop ----------
@@ -621,7 +621,7 @@ public final class WheatFarm {
 	private static Item cropItem = null;
 
 	/**
-	 * What he plants ({@code tarweGewas}), by the name of the item or of the crop block: "carrot" and "carrots",
+	 * What is planted ({@code tarweGewas}), by the name of the item or of the crop block: "carrot" and "carrots",
 	 * "wheat_seeds" and "wheat". Null when the setting names nothing that grows on farmland.
 	 */
 	private static Item crop() {
@@ -644,18 +644,18 @@ public final class WheatFarm {
 	private static String cropId() { Item c = crop(); return c == null ? "" : BuiltInRegistries.ITEM.getKey(c).getPath(); }
 
 	/**
-	 * The one thing he puts on farmland. Any seed used to do: with carrots to plant and the wheat seeds of the crop
-	 * he replaces in the same inventory, the wheat would have gone straight back in.
+	 * The one thing put on farmland. Any seed used to do: with carrots to plant and the wheat seeds of the crop
+	 * being replaced in the same inventory, the wheat would have gone straight back in.
 	 */
 	private static boolean plants(ItemStack st) { return !st.isEmpty() && st.getItem() == crop(); }
 
-	/** His own crop stands here, at any age. */
+	/** The buddy's own crop stands here, at any age. */
 	private static boolean own(BlockState st) { return crop() instanceof BlockItem b && st.is(b.getBlock()); }
 
 	/**
 	 * Farmland on every floor, as far as the field is loaded: {bare, still to plant}. Still to plant is bare farmland
-	 * and farmland under another crop, which gets his own once that is ripe and broken: that is what the ones he
-	 * carries are for.
+	 * and farmland under another crop, which gets the buddy's own once that is ripe and broken: that is what the ones
+	 * carried are for.
 	 */
 	private static int[] openCells(Level l) {
 		int bare = 0, open = 0;
@@ -681,7 +681,7 @@ public final class WheatFarm {
 
 	/**
 	 * The stretch of a row that needs something, as {first x, last x}; null when the row can be left alone. What is
-	 * not loaded yet may hold anything, so that counts: he has to go and look.
+	 * not loaded yet may hold anything, so that counts: it has to be gone to and looked at.
 	 */
 	private static int[] work(Level l, int z, int from, int to) {
 		int lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
@@ -694,8 +694,8 @@ public final class WheatFarm {
 
 	/**
 	 * Go to the next row that has work, starting with the current one, and in it to the nearest end of the stretch
-	 * that needs something. He used to walk every row from wall to wall: with a field that was mostly bare and no
-	 * seed in his inventory he walked row after row of nothing while the ripe wheat stood on the far side (3 Oct).
+	 * that needs something. Every row used to be walked from wall to wall: with a field that was mostly bare and no
+	 * seed in the inventory the buddy walked row after row of nothing while the ripe wheat stood on the far side (3 Oct).
 	 * Rows without work are skipped now; the order stays the same, so every row still comes round as often.
 	 */
 	private static void startLane(LocalPlayer p) {
@@ -705,7 +705,7 @@ public final class WheatFarm {
 		haveSeeds = carries(p);
 		haveHoe = has(p, WheatFarm::tillHoe);
 		if (floor != rowFloor) { rowFloor = floor; floorSince = now; }
-		// nothing to do for minutes: walk a row anyway, so the server does not take him for someone who left
+		// nothing to do for minutes: walk a row anyway, so the server does not take the buddy for someone who left
 		boolean patrol = idleSince > 0 && now - idleSince > 240_000;
 		boolean asked = false;
 		for (int k = 0; k < lanes(); k++) {
@@ -766,7 +766,7 @@ public final class WheatFarm {
 
 	/**
 	 * The round over this floor is done, or it has nothing left: on to the next floor that has work. Not within five
-	 * minutes of his first row here while this floor still has work (a minute and a half when it has none), or he
+	 * minutes of the first row here while this floor still has work (a minute and a half when it has none), or the buddy
 	 * would walk the stairs for a few crops each time.
 	 */
 	private static boolean toOtherFloor(LocalPlayer p, Level l, long now, boolean counted) {
@@ -796,7 +796,7 @@ public final class WheatFarm {
 		}
 	}
 
-	/** Who else works this floor, as far as he can see them: inside the field, at its height, on the move in the last twenty seconds. */
+	/** Who else works this floor, as far as can be seen: inside the field, at its height, on the move in the last twenty seconds. */
 	private static List<Player> workersOn(LocalPlayer p, int floorY, long now) {
 		List<Player> out = new ArrayList<>();
 		for (Player o : p.level().players()) {
@@ -810,9 +810,9 @@ public final class WheatFarm {
 
 	/**
 	 * Someone else is at work on this floor: take another one. The buddy ran the rows right behind another player, who had
-	 * harvested every cell just before he got there (4 Oct). Two players with this mod would both walk off and meet
+	 * harvested every cell just before the buddy got there (4 Oct). Two players with this mod would both walk off and meet
 	 * again on the next floor, so the name decides: the one whose name comes later goes after a few seconds, the
-	 * other waits a minute and a half to see him leave, and goes himself when he stays (someone farming by hand).
+	 * other waits a minute and a half for that one to leave, and goes after all when nobody does (someone farming by hand).
 	 * A floor without anyone on it and with work first, else any floor without anyone.
 	 */
 	private static boolean giveWay(Minecraft mc, LocalPlayer p, long now) {
@@ -873,7 +873,7 @@ public final class WheatFarm {
 		// say how far the search came: without that nobody can tell what is in the way between the floors
 		Exchange.emit("wheat", "action", "no path to the floor", "floor", climbTo + 1, "x", p.getBlockX(), "y", p.getBlockY(), "z", p.getBlockZ(),
 			"reached", done.reached, "lowest", done.lowest, "highest", done.highest, "walked", done.walked);
-		// on the way to the chests: the home takes him there
+		// on the way to the chests: the home takes the buddy there
 		if (climbAfter == After.TIDY) { phase = Phase.HOME; homeSentAt = 0; homeAttempts = 0; return; }
 		nextFloorTry = now + 600_000;
 		// no way back from where the seeds went down: not there again for half an hour
@@ -890,10 +890,10 @@ public final class WheatFarm {
 	private static boolean dumpPlace() { return hole != null || deepStand != null; }
 
 	/**
-	 * A place under the lowest floor to throw things down: the nearest cell he could walk or drop to that lies two
+	 * A place under the lowest floor to throw things down: the nearest cell to walk or drop to that lies two
 	 * blocks or more under that floor's own ground, with the last cell at the floor's height before it to stand on.
-	 * What went down the stair hole of the home landed in the stairwell he walks through himself on the way to the
-	 * floor below, and he picked it all up again.
+	 * What went down the stair hole of the home landed in the stairwell the buddy walks through on the way to the
+	 * floor below, and was all picked up again.
 	 */
 	private static void findDeep(LocalPlayer p) {
 		deepStand = null; deepAim = null;
@@ -930,7 +930,7 @@ public final class WheatFarm {
 			if (top(l, c) > top(l, stand) - 1.5) continue;
 			if (Math.hypot(c.getX() - stand.getX(), c.getZ() - stand.getZ()) > 3.5) return;   // too far to throw
 			deepStand = stand;
-			// flat and far, in the direction of the drop: aimed down at the cell itself a stack can catch the edge he stands on
+			// flat and far, in the direction of the drop: aimed down at the cell itself a stack can catch the edge stood on
 			double dx = c.getX() - stand.getX(), dz = c.getZ() - stand.getZ(), h = Math.max(1, Math.hypot(dx, dz));
 			deepAim = new Vec3(stand.getX() + 0.5 + dx / h * 3.5, top(l, stand) + 0.9, stand.getZ() + 0.5 + dz / h * 3.5);
 			return;
@@ -939,8 +939,8 @@ public final class WheatFarm {
 
 	/**
 	 * The block you stand on. At an edge your middle can hang over the drop while the block beside it carries you:
-	 * the walk back from the seed dump was then planned from the air over the first stair, sent him off the edge
-	 * onto that stair, and he jumped against the wall there for three and a half minutes.
+	 * the walk back from the seed dump was then planned from the air over the first stair, sent the buddy off the edge
+	 * onto that stair, and there the buddy jumped against the wall for three and a half minutes.
 	 */
 	private static BlockPos standingOn(LocalPlayer p) {
 		Level l = p.level();
@@ -1024,13 +1024,13 @@ public final class WheatFarm {
 			Level l = p.level();
 			if (++ticks > 3600) return FAILED;
 			if (route == null) {
-				if (!p.onGround()) return BUSY;   // falling or jumping: plan from where he lands
+				if (!p.onGround()) return BUSY;   // falling or jumping: plan from the landing
 				route = path(l, standingOn(p));
 				idx = 0;
 				if (route == null) return FAILED;
 			}
 			if (idx >= route.size()) return DONE;
-			// cut corners over a level stretch of the floor he walks on, as the walk over the field does
+			// cut corners over a level stretch of the floor walked on, as the walk over the field does
 			if (standingOn(p).getY() == fy) for (int j = Math.min(route.size() - 1, idx + 10); j > idx; j--) {
 				boolean level = true;
 				for (int i = idx; i <= j && level; i++) level = route.get(i).getY() == fy;
@@ -1044,16 +1044,16 @@ public final class WheatFarm {
 			if (d < 0.45 && p.onGround() && Math.abs(p.getY() - top) < 0.7) {
 				idx++; walked++; still = 0; onThis = 0;
 				if (idx < route.size()) return BUSY;
-				// there: let go at once, one more tick of walking carried him over the middle to the edge
+				// there: let go at once, one more tick of walking carried the buddy over the middle to the edge
 				HeldKeys.set(mc.options.keyUp, false); HeldKeys.set(mc.options.keyJump, false);
 				return DONE;
 			}
 			steerTo(mc, p, m, d);
-			// the last bit to where he has to stand is coasted: with a beacon he slid on past the middle of the cell
+			// the last bit to the spot to stand on is coasted: with a beacon the buddy slid on past the middle of the cell
 			if (idx == route.size() - 1 && d < 0.55 && Math.abs(p.getY() - top) < 0.7) HeldKeys.set(mc.options.keyUp, false);
 			HeldKeys.set(mc.options.keyJump, top - p.getY() > 0.6 && d < 1.4 && p.onGround());
-			// Not getting anywhere: plan again from where he is. Standing still shows it, and so does a waypoint that
-			// is not reached in five seconds: jumping against a wall moves him, so he never stood still.
+			// Not getting anywhere: plan again from here. Standing still shows it, and so does a waypoint that
+			// is not reached in five seconds: jumping against a wall moves the buddy, so there was never any standing still.
 			boolean stuck = ++onThis > 100;
 			if (previous != null && p.position().distanceToSqr(previous) < 0.0001) { if (++still > 40) stuck = true; } else still = 0;
 			previous = p.position();
@@ -1114,9 +1114,9 @@ public final class WheatFarm {
 	private static void laneTick(Minecraft mc, LocalPlayer p, long now) {
 		Level l = p.level();
 		double px = p.getX(), pz = p.getZ();
-		// With no seed left, the crop he breaks next drops some, and they are in his inventory half a second later: wait
-		// for those, or that cell stays bare for a whole round. Only after his own crop: another one drops nothing he
-		// plants, and he would stand a second and a half at each.
+		// With no seed left, the crop broken next drops some, and they are in the inventory half a second later: wait
+		// for those, or that cell stays bare for a whole round. Only after the buddy's own crop: another one drops nothing
+		// to plant, and the buddy would stand a second and a half at each.
 		farmHoe = hoeOf(p);
 		haveSeeds = carries(p) || lastBreakOwn && tickNo - lastBreak <= 30 && Lumberjack.freeSlots(p) > 0;
 		haveHoe = has(p, WheatFarm::tillHoe);
@@ -1130,7 +1130,7 @@ public final class WheatFarm {
 		if (now >= nextInventoryCheck) {
 			nextInventoryCheck = now + 1000;
 			boolean hungry = now >= nextFoodTripAt && foodCount(p) < FOOD_LOW;
-			// no hoe he can use any more (worn, or none yet): the chests at the home may hold one
+			// no usable hoe any more (worn, or none yet): the chests at the home may hold one
 			boolean hoeless = AfkConfig.get().wheatHoe && farmHoe == null && !chests.isEmpty() && now >= nextHoeTripAt;
 			boolean full = Lumberjack.freeSlots(p) == 0;
 			// Not between breaking a crop and planting its cell: the trip would leave the cell bare for a round. Look again
@@ -1159,7 +1159,7 @@ public final class WheatFarm {
 			frontier += dir;
 		}
 		if (!inLane(frontier)) {
-			// the stretch is done; with the seeds he picked up on the way the bare farmland further along is work now
+			// the stretch is done; with the seeds picked up on the way the bare farmland further along is work now
 			int[] more = dir > 0 ? work(l, laneZ, frontier, x2) : work(l, laneZ, x1, frontier);
 			if (more == null) { releaseKeys(mc); nextLane(p); return; }
 			endX = dir > 0 ? more[1] : more[0];
@@ -1253,7 +1253,7 @@ public final class WheatFarm {
 
 		if (pos.getY() == fy + 1 && st.getBlock() instanceof CropBlock crop) {
 			if (!crop.isMaxAge(st) || tickNo - lastBreak < breakGap) return;
-			// with the hoe in his hand: its Fortune counts for what the crop drops
+			// with the hoe in hand: its Fortune counts for what the crop drops
 			if (farmHoe != null && !inHand(p, WheatFarm::theHoe, now)) return;
 			lastBreakOwn = own(st);
 			mc.gameMode.startDestroyBlock(pos, hit.getDirection());
@@ -1282,9 +1282,9 @@ public final class WheatFarm {
 	}
 
 	/**
-	 * Ready to put the crop on farmland. With a hoe he keeps that in his hand and plants from the off hand, as a
-	 * player does who harvests with a Fortune hoe: no change of slot between the break and the seed, and what he
-	 * picks up tops the off hand up by itself. Without a hoe the crop itself is in his hand.
+	 * Ready to put the crop on farmland. With a hoe the buddy keeps that in hand and plants from the off hand, as a
+	 * player does who harvests with a Fortune hoe: no change of slot between the break and the seed, and what is
+	 * picked up tops the off hand up by itself. Without a hoe the crop itself is in hand.
 	 */
 	private static boolean readyToPlant(LocalPlayer p, long now) {
 		if (farmHoe == null) return inHand(p, WheatFarm::plants, now);
@@ -1294,7 +1294,7 @@ public final class WheatFarm {
 		return false;
 	}
 
-	/** The largest stack of what he plants goes into the off hand; what was there comes back in its place. */
+	/** The largest stack of what is planted goes into the off hand; what was there comes back in its place. */
 	private static void toOffhand(LocalPlayer p, long now) {
 		if (now - lastOffhandSwap < 1500) return;
 		int source = -1;
@@ -1350,16 +1350,16 @@ public final class WheatFarm {
 			ItemStack st = p.getInventory().getItem(i);
 			if (what.test(st) && (source < 0 || st.getCount() > p.getInventory().getItem(source).getCount())) source = i;
 		}
-		// only in the off hand, from the time he had a hoe: back to the hotbar
+		// only in the off hand, from the time with a hoe: back to the hotbar
 		boolean fromOffhand = source < 0 && what.test(p.getOffhandItem());
 		if (source < 0 && !fromOffhand) return;
 		int slot = -1;
 		for (int i = 8; i >= 0 && slot < 0; i--) if (p.getInventory().getItem(i).isEmpty()) slot = i;
-		// not the slot with his food while another will do: he eats from the hotbar, and what he is handed to plant
-		// lands in the backpack when the hotbar is full of wheat and seeds
-		// Only a slot that holds what he is fetching is no place for it. Every slot with what he plants used to be
-		// refused, for the hoe as well: with a hotbar of carrots, an axe and a shovel the hoe he picked up stayed in
-		// the backpack, and he walked the rows past every ripe crop (5 Oct).
+		// not the slot with the buddy's food while another will do: the buddy eats from the hotbar, and what is handed over
+		// to plant lands in the backpack when the hotbar is full of wheat and seeds
+		// Only a slot that holds what is being fetched is no place for it. Every slot with what is planted used to be
+		// refused, for the hoe as well: with a hotbar of carrots, an axe and a shovel the hoe that was picked up stayed in
+		// the backpack, and the buddy walked the rows past every ripe crop (5 Oct).
 		for (int i = 8; i >= 0 && slot < 0; i--) { ItemStack st = p.getInventory().getItem(i); if (!st.isDamageableItem() && !what.test(st) && (plants(st) || st.get(DataComponents.FOOD) == null)) slot = i; }
 		for (int i = 8; i >= 0 && slot < 0; i--) { ItemStack st = p.getInventory().getItem(i); if (!st.isDamageableItem() && !what.test(st)) slot = i; }
 		// a hotbar of nothing but tools: one of those makes room
@@ -1383,7 +1383,7 @@ public final class WheatFarm {
 		walk = null;
 		releaseKeys(mc);
 		if (after == After.TIDY) {
-			// close enough to the chests is enough; if not, the home takes him there
+			// close enough to the chests is enough; if not, the home takes the buddy there
 			if (r == DONE || Math.hypot(tidySpot.getX() + 0.5 - p.getX(), tidySpot.getZ() + 0.5 - p.getZ()) <= 3) startTidy(false);
 			else { Exchange.emit("wheat", "action", "no path to the chests"); phase = Phase.HOME; homeSentAt = 0; homeAttempts = 0; }
 			return;
@@ -1527,7 +1527,7 @@ public final class WheatFarm {
 			"gap", hole == null ? "" : hole.toShortString(), "stand", tidySpot.toShortString(), "drop spot", deepStand == null ? "" : deepStand.toShortString());
 	}
 
-	/** The chests, the crafting table and the stair hole around the spot the home put him on. */
+	/** The chests, the crafting table and the stair hole around the spot the home put the buddy on. */
 	private static void scan(Level l) {
 		chests.clear();
 		table = null; hole = null;
@@ -1572,7 +1572,7 @@ public final class WheatFarm {
 
 	/**
 	 * A point on this chest (either half) or table that a view ray from this eye position reaches first, within reach;
-	 * the nearest one. On 3 Oct he aimed at the side of a chest with a second chest on top of it, and the ray hit the
+	 * the nearest one. On 3 Oct the buddy aimed at the side of a chest with a second chest on top of it, and the ray hit the
 	 * upper one every time.
 	 */
 	private static Vec3 sightPoint(LocalPlayer p, Vec3 eye, BlockPos target) {
@@ -1695,7 +1695,7 @@ public final class WheatFarm {
 						deepStand = null; tidy = Tidy.PLAN;
 						return;
 					}
-					setFloor(floors.size() - 1);   // he stands at the lowest floor now
+					setFloor(floors.size() - 1);   // standing at the lowest floor now
 					fromDump = true;
 					look.startByAngle(p, deepAim, 0.1f);
 					tidy = Tidy.SEEDS_AIM;
@@ -1723,7 +1723,7 @@ public final class WheatFarm {
 		keep = keepFlags(p);
 		boolean canCraft = table != null && !unreachable.contains(table);
 		// Whether the hay still fits decides whether crafting is worth it. When no chest takes hay any more, the wheat
-		// goes down the stair hole as it is, like the spare seeds, and he carries on.
+		// goes down the stair hole as it is, like the spare seeds, and the work carries on.
 		if (dumpPlace() && (count(p, Items.WHEAT) >= 9 || count(p, Items.HAY_BLOCK) > 0))
 			for (BlockPos chest : chests) if (!infos.containsKey(chest) && !unreachable.contains(chest)) { open(chest, Purpose.SURVEY); return; }
 		hayFull = dumpPlace() && choose(Items.HAY_BLOCK) == null;
@@ -1732,7 +1732,7 @@ public final class WheatFarm {
 		/*
 		 * Wheat only goes into a chest as bales. Without a crafting table it used to go in as it was, "rather than
 		 * filling the inventory for good": on 3 Oct the table could not be used and ten stacks of loose wheat ended up
-		 * in the chests, which is exactly what the owner had asked not to happen. Now it stays in the inventory and he says so.
+		 * in the chests, which is exactly what the owner had asked not to happen. Now it stays in the inventory and the buddy says so.
 		 */
 		wheatMayGo = false;
 		if (!canCraft && !hayFull && count(p, Items.WHEAT) >= 9 && !noTableTold) {
@@ -1777,8 +1777,8 @@ public final class WheatFarm {
 			}
 			Exchange.emit("wheat", "action", "no food in the chests", "food", foodCount(p));
 		}
-		// A hoe to harvest with: none on him that he can use, or one in a chest with more Fortune than his. The one he
-		// had goes into a chest on the next pass, as it is no longer kept. Nothing beats Fortune III, so then no look.
+		// A hoe to harvest with: no usable one carried, or one in a chest with more Fortune than the buddy's. The one
+		// carried before goes into a chest on the next pass, as it is no longer kept. Nothing beats Fortune III, so then no look.
 		if (AfkConfig.get().wheatHoe && !hoeDone) {
 			ItemStack mine = hoeOf(p);
 			int have = mine == null ? -1 : fortune(mine);
@@ -1822,13 +1822,13 @@ public final class WheatFarm {
 		nextTripAt = now + (full || free == 0 ? 600_000 : 20_000);
 		// still short of food: the chests had none. Not back every minute for that; half an hour gives the owner time to put some in.
 		nextFoodTripAt = foodCount(p) < FOOD_LOW ? now + 30 * 60_000L : 0;
-		// and the same for a hoe: the chests had none he can use
+		// and the same for a hoe: the chests had no usable one
 		nextHoeTripAt = !AfkConfig.get().wheatHoe || hoeSlot(p) >= 0 ? 0 : now + 30 * 60_000L;
-		boolean seedAtHand = hoeSlot(p) >= 0;   // with a hoe he plants from the off hand
+		boolean seedAtHand = hoeSlot(p) >= 0;   // with a hoe, planting is from the off hand
 		for (int i = 0; i < 9; i++) if (plants(p.getInventory().getItem(i))) seedAtHand = true;
 		if (!seedAtHand) { lastHotbarSwap = 0; toHotbar(p, WheatFarm::plants, now); }
-		// Back to the row he left, on the floor he left it. From another floor, or from the place where the seeds
-		// went down (beside the field, a block lower than the farmland), the walk between the floors takes him there.
+		// Back to the row that was left, on the floor it was left on. From another floor, or from the place where the seeds
+		// went down (beside the field, a block lower than the farmland), the walk between the floors leads there.
 		climb = null;
 		if (resumeLane && resumeFloor >= floors.size()) resumeLane = false;
 		int to = resumeLane ? resumeFloor : floor;
@@ -1924,7 +1924,7 @@ public final class WheatFarm {
 	}
 
 	/**
-	 * Food he eats: what the eat list names, or anything edible when that list is empty. Never what he plants: carrots
+	 * Food to eat: what the eat list names, or anything edible when that list is empty. Never what is planted: carrots
 	 * and potatoes are food too, and a field of them is not a stock of food to keep or fetch.
 	 */
 	private static boolean edible(ItemStack st) {
@@ -1964,8 +1964,8 @@ public final class WheatFarm {
 	// ----- what stays in the inventory -----
 
 	/**
-	 * He keeps what he lives and works on: the best pickaxe, axe and shovel, the hoe he harvests with, two stacks of food, two stacks of
-	 * scaffolding, and what the field still needs of the crop he plants (a stack more than it has cells without it).
+	 * Kept: what the buddy lives and works on, the best pickaxe, axe and shovel, the hoe to harvest with, two stacks of food,
+	 * two stacks of scaffolding, and what the field still needs of the crop planted (a stack more than it has cells without it).
 	 * The rest goes, the seeds of another crop too.
 	 */
 	private static boolean[] keepFlags(LocalPlayer p) {
@@ -1973,10 +1973,10 @@ public final class WheatFarm {
 		keepBest(p, k, ItemTags.PICKAXES, Blocks.STONE.defaultBlockState());
 		keepBest(p, k, ItemTags.AXES, Blocks.OAK_LOG.defaultBlockState());
 		keepBest(p, k, ItemTags.SHOVELS, Blocks.DIRT.defaultBlockState());
-		// the hoe he harvests with; a worn one, or one with less Fortune, goes back into a chest
+		// the hoe to harvest with; a worn one, or one with less Fortune, goes back into a chest
 		if (AfkConfig.get().wheatHoe) { int h = hoeSlot(p); if (h >= 0) k[h] = true; }
 		else keepBest(p, k, ItemTags.HOES, Blocks.HAY_BLOCK.defaultBlockState());
-		// the food he actually eats first; anything else edible only fills up what is left of the two stacks
+		// the food actually eaten first; anything else edible only fills up what is left of the two stacks
 		keepStacks(p, k, WheatFarm::edible, 2);
 		int foodKept = 0;
 		for (int i = 0; i < 36; i++) if (k[i]) { ItemStack st = p.getInventory().getItem(i); if (st.get(DataComponents.FOOD) != null) foodKept++; }
@@ -2025,7 +2025,7 @@ public final class WheatFarm {
 		return v <= 0 ? 0 : v + Math.min(8, st.getEnchantments().size()) * 0.5;
 	}
 
-	/** Put on the best armour he carries: pick it up, click the armour slot, put what he wore back in its place. */
+	/** Put on the best armour carried: pick it up, click the armour slot, put what was worn back in its place. */
 	private static boolean wearBest(LocalPlayer p) {
 		boolean any = false;
 		for (int a = 0; a < ARMOR.length; a++) {
@@ -2053,7 +2053,7 @@ public final class WheatFarm {
 
 	private static void tidyClicks(Minecraft mc, LocalPlayer p, long now) {
 		if (useHit != null) {
-			// he comes from the rows with what he plants in his hand: with carrots no chest would open
+			// coming from the rows with what is planted in hand: with carrots no chest would open
 			AfkHelperClient.useOn(p, InteractionHand.MAIN_HAND, useHit);
 			useHit = null;
 			return;
@@ -2075,7 +2075,7 @@ public final class WheatFarm {
 		}
 	}
 
-	/** Shift-click food out of the chest, a stack at a time, as long as it stays within the two stacks he keeps. */
+	/** Shift-click food out of the chest, a stack at a time, as long as it stays within the two stacks that are kept. */
 	private static void fetchStep(Minecraft mc, LocalPlayer p, long now) {
 		if (p.containerMenu != menu) { tidy = Tidy.PLAN; return; }
 		if (fetchHoe) { fetchHoeStep(mc, p, now); return; }

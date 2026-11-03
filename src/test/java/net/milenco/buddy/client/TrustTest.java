@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 /**
- * What a server or another player could use to pass for the one he follows, or to write outside the exchange folder
+ * What a server or another player could use to pass for the followed player, or to write outside the exchange folder
  * (the security review of 1 Nov 2026).
  */
 class TrustTest {
@@ -16,7 +16,7 @@ class TrustTest {
 		assertTrue(Profiles.names("Steve vraagt of je naar hem toe komt [Accepteren]", "Steve"));
 		assertTrue(Profiles.names("/tpaccept steve", "Steve"));
 		assertTrue(Profiles.names("[Admin] Steve » kom", "Steve"));
-		// a Bedrock player of the same gamertag (Floodgate's dot), and a longer name that holds his
+		// a Bedrock player of the same gamertag (Floodgate's dot), and a longer name that holds the player's
 		assertFalse(Profiles.names(".Steve has requested that you teleport to them", "Steve"));
 		assertFalse(Profiles.names("/tpaccept .Steve", "Steve"));
 		assertFalse(Profiles.names("Steve2 has requested that you teleport to them", "Steve"));

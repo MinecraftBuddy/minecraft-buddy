@@ -18,19 +18,19 @@ import net.minecraft.world.phys.Vec3;
 import net.milenco.buddy.version.Game;
 
 /**
- * What he carries and does not keep goes to the player he follows when none of that player's chests is near, so that
+ * What the buddy carries and does not keep goes to the followed player when none of that player's chests is near, so that
  * no stock of it stays in the buddy's inventory, and the buddy makes sure the player picked it up.
- * After a job of {@link Work} (chopping that stopped, a harvest, a tunnel), with no chest of his within 32 blocks: up
- * to him, two blocks off, the crosshair at his feet, and the stacks thrown. Then watched: an item gone while he stood
- * by it went to him. What still lies there after eight seconds the alt picks up again and throws once more; three
- * tries, and then five minutes before the next. What it keeps is {@link Stash#keep}.
+ * After a job of {@link Work} (chopping that stopped, a harvest, a tunnel), with none of the player's chests within 32
+ * blocks: up to the player, two blocks off, the crosshair at the player's feet, and the stacks thrown. Then watched: an
+ * item gone while the player stood by it went to the player. What still lies there after eight seconds the alt picks up
+ * again and throws once more; three tries, and then five minutes before the next. What it keeps is {@link Stash#keep}.
  */
 final class Dump {
 	private Dump() {}
 
 	private static final int IDLE = 0, WALK = 1, THROW = 2, WATCH = 3, PICKUP = 4;
 	private static int step = IDLE;
-	/** A job ended at this moment: give what he carries. */
+	/** A job ended at this moment: give what the buddy carries. */
 	private static long due;
 	private static long stepSince, restUntil, lastThrow;
 	private static int tries, given, back;
@@ -45,7 +45,7 @@ final class Dump {
 	static boolean on = true;
 	/**
 	 * Giving back what the corpse guard fetched ({@link Corpse}): only these inventory slots, to this player, whatever
-	 * {@link #on} says and with his chests near or not. Null when it gives what it does not keep.
+	 * {@link #on} says and with that player's chests near or not. Null when it gives what it does not keep.
 	 */
 	private static Set<Integer> only;
 	private static String onlyFor;
@@ -65,7 +65,7 @@ final class Dump {
 
 	static boolean busy() { return step != IDLE; }
 
-	/** A job of Work is over: what it brought in goes to him, now or once he is near. */
+	/** A job of Work is over: what it brought in goes to the player, now or once the player is near. */
 	static void jobDone() {
 		if (due == 0) due = System.currentTimeMillis();
 	}
@@ -89,7 +89,7 @@ final class Dump {
 
 	private static long now() { return System.currentTimeMillis(); }
 
-	/** What he does not keep, in the inventory's own menu numbers (hotbar 36 to 44). */
+	/** What the buddy does not keep, in the inventory's own menu numbers (hotbar 36 to 44). */
 	private static List<Integer> giveSlots(LocalPlayer p) {
 		List<Integer> out = new ArrayList<>();
 		if (only != null) {
@@ -113,7 +113,7 @@ final class Dump {
 				if (now - due > 30 * 60_000L) { due = 0; return false; }
 				if (t.distanceTo(p) > 24 || p.containerMenu != p.inventoryMenu) return false;
 				if (giveSlots(p).isEmpty()) { due = 0; tries = 0; only = null; return false; }
-				// his chests near: Stash puts it there (not what the corpse guard fetched: that is his, back in his hands)
+				// the player's chests near: Stash puts it there (not what the corpse guard fetched: that is the player's, back in the player's hands)
 				if (only == null && Stash.nearChest(level, p.blockPosition(), NEAR_CHEST)) { due = 0; return false; }
 				step = WALK;
 				stepSince = now;
@@ -134,7 +134,7 @@ final class Dump {
 					return true;
 				}
 				if (now - stepSince > 20_000) { pause("cannot reach you"); return false; }
-				// two blocks from him, on the side the alt comes from
+				// two blocks from the player, on the side the alt comes from
 				Vec3 dir = flat < 0.1 ? new Vec3(1, 0, 0) : new Vec3(me.x - at.x, 0, me.z - at.z).normalize();
 				Vec3 goal = at.add(dir.scale(STAND));
 				if (!Work.approach(mc, p, "give", goal, now)) { pause("cannot reach you"); return false; }
@@ -142,7 +142,7 @@ final class Dump {
 			}
 			case THROW -> {
 				Follow.stand();
-				// the crosshair half a block in front of his feet: what is thrown lands at them
+				// the crosshair half a block in front of the player's feet: what is thrown lands at them
 				Vec3 at = t.position(), me = p.position();
 				Vec3 toward = new Vec3(at.x - me.x, 0, at.z - me.z);
 				Vec3 target = toward.lengthSqr() < 0.01 ? at : at.subtract(toward.normalize().scale(0.5));
@@ -153,12 +153,12 @@ final class Dump {
 				if (!facing && now - stepSince < 3000) return true;
 				if (mc.gameMode == null || p.containerMenu != p.inventoryMenu || AfkHelperClient.isEating()) return true;
 				if (!slots.isEmpty()) {
-					// two stacks a tick: twenty stacks in half a second, as a player who empties his inventory with Q
+					// two stacks a tick: twenty stacks in half a second, as a player who empties an inventory with Q
 					for (int k = 0; k < 2 && !slots.isEmpty(); k++) Game.drop(mc.gameMode, p.inventoryMenu.containerId, slots.remove(0), p);
 					lastThrow = now;
 					return true;
 				}
-				// the items appear a tick or two later: the new ones near him are his
+				// the items appear a tick or two later: the new ones near the alt are the thrown ones
 				for (ItemEntity it : level.getEntitiesOfClass(ItemEntity.class, p.getBoundingBox().inflate(6)))
 					if (!before.contains(it.getId())) thrown.put(it.getId(), it.position());
 				if (now - lastThrow < 500) return true;
@@ -174,7 +174,7 @@ final class Dump {
 				lookAt(p, t);
 				watchThrown(level, p, t);
 				if (thrown.isEmpty()) { finish(); return false; }
-				// he picks them up when he stands on them: what still lies there after a while, back into the alt's hands
+				// the player picks them up when standing on them: what still lies there after a while, back into the alt's hands
 				if (now - stepSince > WAIT) {
 					tries++;
 					step = PICKUP;
@@ -206,7 +206,7 @@ final class Dump {
 		}
 	}
 
-	/** What of the thrown items is gone: near him, it went to him; near the alt, back to the alt. */
+	/** What of the thrown items is gone: near the player, it went to the player; near the alt, back to the alt. */
 	private static void watchThrown(Level level, LocalPlayer p, Player t) {
 		var it = thrown.entrySet().iterator();
 		while (it.hasNext()) {
@@ -235,7 +235,7 @@ final class Dump {
 		only = null;
 	}
 
-	/** It did not come off: five minutes before the next try (three tries), or after a short while (he walked off). */
+	/** It did not come off: five minutes before the next try (three tries), or after a short while (the player walked off). */
 	private static void pause(String why) {
 		boolean done = tries >= 3;
 		restUntil = now() + (done ? REST : 60_000);

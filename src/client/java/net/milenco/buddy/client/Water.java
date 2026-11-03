@@ -22,25 +22,25 @@ import net.minecraft.world.phys.Vec3;
 import net.milenco.buddy.version.Game;
 
 /**
- * The alt's water bucket (alt only): it puts out a fire on him and breaks a fall that would hurt, and the water goes
+ * The alt's water bucket (alt only): it puts out a fire on the buddy and breaks a fall that would hurt, and the water goes
  * back into the bucket afterwards (made after the alt burned to death in a cave).
  *
- * Burning on the ground (out of lava, not in water, no fire resistance) he looks straight down and pours into his own
- * cell, which puts the fire out at once; falling so that the landing would cost two hearts or more, or leave three or
- * fewer, he pours onto the block he will land on as soon as it is within reach, so he lands in water. Each is one
+ * Burning on the ground (out of lava, not in water, no fire resistance) the buddy looks straight down and pours into the
+ * cell stood in, which puts the fire out at once; falling so that the landing would cost two hearts or more, or leave three or
+ * fewer, the buddy pours onto the landing block as soon as it is within reach, and so lands in water. Each is one
  * tick, where vanilla clicks: the bucket into the hand (from the backpack by a swap packet when it is not in the
- * hotbar), the look, the use; the server takes the look from the use packet. Then he waits in the water (the
- * following pauses, {@link #busy()}), scoops it up and puts back what he held. A pour the server refuses (a claim, the
- * spawn) shows as no water two ticks on: then no bucket for half a minute, and the following walks him to water close
+ * hotbar), the look, the use; the server takes the look from the use packet. Then the buddy waits in the water (the
+ * following pauses, {@link #busy()}), scoops it up and puts back what was in hand. A pour the server refuses (a claim, the
+ * spawn) shows as no water two ticks on: then no bucket for half a minute, and the following walks the buddy to water close
  * by instead ({@code Follow}). Not where water evaporates (the nether), not onto a block that would take the water
- * itself (a slab, stairs: waterlogged under his feet is no water around him), not into lava.
+ * itself (a slab, stairs: waterlogged underfoot is no water around the body), not into lava.
  */
 final class Water {
 	private Water() {}
 
 	/** What a fall may cost before the bucket is worth it: two hearts. */
 	static final int SAVE_DAMAGE = 4;
-	/** Or what it may leave him at most: three hearts. */
+	/** Or what it may leave the buddy at most: three hearts. */
 	static final float SAVE_LEFT = 6f;
 	/** After a refused pour: so long no bucket (ms). */
 	private static final long REFUSED_MS = 30_000;
@@ -55,7 +55,7 @@ final class Water {
 	private static double fallAtPour;
 	private static long refusedUntil;
 
-	/** Between the pour and the scoop: the following waits, he stands in the water. */
+	/** Between the pour and the scoop: the following waits, the buddy stands in the water. */
 	static boolean busy() { return poured != null; }
 
 	static void stop(String reason) {
@@ -92,7 +92,7 @@ final class Water {
 		return p.isOnFire() && !p.isInLava() && !p.isInWater() && !p.hasEffect(MobEffects.FIRE_RESISTANCE);
 	}
 
-	/** He can put a fire out himself, here and now: a bucket, not refused, on the ground on a block water goes on. */
+	/** The buddy can put a fire out alone, here and now: a bucket, not refused, on the ground on a block water goes on. */
 	static boolean canDouse(LocalPlayer p) {
 		return System.currentTimeMillis() >= refusedUntil && bucket(p) >= 0 && p.onGround() && douseCell(p) != null;
 	}
@@ -100,14 +100,14 @@ final class Water {
 	private static void douseTick(Minecraft mc, LocalPlayer p) {
 		if (!burning(p) || AfkHelperClient.isEating() || !canDouse(p)) return;
 		BlockPos cell = douseCell(p);
-		// straight down: the ray from the eye meets the block he stands on, and the water goes into his own cell
+		// straight down: the ray from the eye meets the block stood on, and the water goes into the buddy's own cell
 		if (pour(mc, p, p.getYRot(), 90f, cell, "fire")) hpAtPour = p.getHealth();
 	}
 
 	/**
-	 * Where the water goes when he pours straight down, as the bucket's own ray finds it: on top of what the ray meets
-	 * first, which can be the fire he stands in (it has a thin outline at the bottom) or a plant, and then the water
-	 * goes one higher. Good when that cell touches him.
+	 * Where the water goes when poured straight down, as the bucket's own ray finds it: on top of what the ray meets
+	 * first, which can be the fire the buddy stands in (it has a thin outline at the bottom) or a plant, and then the water
+	 * goes one higher. Good when that cell touches the buddy.
 	 */
 	private static BlockPos douseCell(LocalPlayer p) {
 		Level level = p.level();
@@ -153,7 +153,7 @@ final class Water {
 		BlockHitResult seen = level.clip(new ClipContext(eye, eye.add(view.scale(p.blockInteractionRange())), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, p));
 		if (seen.getType() != HitResult.Type.BLOCK) return false;
 		// where the bucket puts it: on what the ray meets, so on the landing block or on a plant on top of it; either
-		// way in the column he comes down in, the first or second cell above the block
+		// way in the column of the landing, the first or second cell above the block
 		BlockPos cell = seen.getBlockPos().relative(seen.getDirection());
 		if (cell.getX() != block.getX() || cell.getZ() != block.getZ() || cell.getY() < block.getY() + 1 || cell.getY() > block.getY() + 2) return false;
 		if (!takes(level, seen.getBlockPos(), cell)) return false;
@@ -165,8 +165,8 @@ final class Water {
 	}
 
 	/**
-	 * Where he comes down: his path tick by tick as the game moves a falling player (gravity 0.08, then 0.98 of it, 0.91
-	 * across), with a ray from his middle and his four corners, the first block whose top it meets.
+	 * Where the buddy comes down: the path tick by tick as the game moves a falling player (gravity 0.08, then 0.98 of it,
+	 * 0.91 across), with a ray from the middle and the four corners, the first block whose top it meets.
 	 */
 	private static BlockHitResult landing(LocalPlayer p) {
 		Level level = p.level();
@@ -201,7 +201,7 @@ final class Water {
 		return in.isAir() || (in.canBeReplaced(Fluids.WATER) && in.getFluidState().isEmpty());
 	}
 
-	/** A slot with a water bucket: the hotbar 0-8 first, then the backpack 9-35; -1 when he has none. */
+	/** A slot with a water bucket: the hotbar 0-8 first, then the backpack 9-35; -1 for none. */
 	static int bucket(LocalPlayer p) {
 		var inv = p.getInventory();
 		for (int i = 0; i < 36; i++) if (inv.getItem(i).is(Items.WATER_BUCKET)) return i;

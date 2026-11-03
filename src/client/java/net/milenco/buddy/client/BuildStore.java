@@ -70,7 +70,7 @@ final class BuildStore {
 		public int spotY = 0;
 		public int spotZ = 0;
 		public boolean running = false;
-		/** Switched on and not switched off by the player: after a restart or a kick the alt carries on by itself. */
+		/** Switched on and not switched off by the player: after a restart or a kick the alt carries on unprompted. */
 		public boolean wanted = false;
 		public String stopReason = "";
 		public long updated = 0;

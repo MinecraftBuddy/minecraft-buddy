@@ -32,11 +32,11 @@ import net.milenco.buddy.mixin.client.SignEditAccessor;
 /**
  * The game's screens that are no menu, so that the panel can show and work them as the game does: the death screen
  * (respawn), the bed (leave it), a sign being written, a book and quill being written, a written book being read, and
- * any other screen by its name (close it). In his state as {@code screen}: {@code kind} and what that kind needs.
+ * any other screen by its name (close it). In the buddy's state as {@code screen}: {@code kind} and what that kind needs.
  * <p>
  * Commands: {@code respawn}; {@code wake}; {@code sign} {@code lines} (four, the screen sends them as it shuts, as the
  * game's Done does); {@code book} {@code pages} and an optional {@code title} (which signs it); {@code screenclose};
- * {@code pickblock} {@code x y z} (the middle button: the server puts that block's item in his hand when he has it).
+ * {@code pickblock} {@code x y z} (the middle button: the server puts that block's item in hand when the inventory holds it).
  */
 final class Screens {
 	private Screens() {}
@@ -60,7 +60,7 @@ final class Screens {
 			o.put("slot", a.buddy$hand() == InteractionHand.MAIN_HAND ? p.getInventory().getSelectedSlot() : 40);
 			o.put("pages", new ArrayList<>(a.buddy$pages()));
 		} else if (sc instanceof BookViewScreen && !(sc instanceof net.minecraft.client.gui.screens.inventory.LecternScreen)) {
-			// a lectern's book is its menu's (MenuExtra), not a book in his hand
+			// a lectern's book is its menu's (MenuExtra), not a book in hand
 			o.put("kind", "book");
 			o.put("pages", written(p.getMainHandItem().has(DataComponents.WRITTEN_BOOK_CONTENT) ? p.getMainHandItem() : p.getOffhandItem()));
 		} else if (sc != null && !(sc instanceof AbstractContainerScreen) && !(sc instanceof ChatScreen)

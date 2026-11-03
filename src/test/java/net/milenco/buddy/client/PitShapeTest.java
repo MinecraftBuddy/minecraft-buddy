@@ -8,9 +8,9 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-/** Which blocks of a pit lie between his work: the shape he digs, not the box around it (0.4.44). */
+/** Which blocks of a pit lie between the player's work: the shape dug, not the box around it (0.4.44). */
 class PitShapeTest {
-	/** A floor plan at one height: '.' open (his work), '#' rock, 'F' a block he put back. Row is z, column is x. */
+	/** A floor plan at one height: '.' open (the player's work), '#' rock, 'F' a block put back. Row is z, column is x. */
 	private static PitShape.Cells plan(String... rows) {
 		Set<Long> open = new HashSet<>(), fixed = new HashSet<>();
 		for (int z = 0; z < rows.length; z++) for (int x = 0; x < rows[z].length(); x++) {
@@ -28,7 +28,7 @@ class PitShapeTest {
 
 	@Test
 	void aBlockBetweenHisBreaksIsTaken() {
-		// he broke the two ends of a row; the middle is between them
+		// the player broke the two ends of a row; the middle is between them
 		PitShape.Cells c = plan(
 			".##.",
 			"....");
@@ -38,8 +38,8 @@ class PitShapeTest {
 
 	@Test
 	void theWallOfHisRoomIsNeverTaken() {
-		// the room he carved is x 0..3; the box ends there, so x 4 lies outside it and the blocks at its edge have rock
-		// behind them: the case of 19 Oct 2026, when the alt broke the whole wall one block past his room
+		// the room the player carved is x 0..3; the box ends there, so x 4 lies outside it and the blocks at its edge have rock
+		// behind them: the case of 19 Oct 2026, when the alt broke the whole wall one block past that room
 		PitShape.Cells c = plan(
 			"....#",
 			"....#",
@@ -49,7 +49,7 @@ class PitShapeTest {
 
 	@Test
 	void theInnerCornerOfAnLIsLeft() {
-		// an L: a bar along z at x 0..1 and a bar along x at z 0..1; the corner x 2..5, z 2..5 he did not dig
+		// an L: a bar along z at x 0..1 and a bar along x at z 0..1; the corner x 2..5, z 2..5 is not dug
 		PitShape.Cells c = plan(
 			"......",
 			"......",
@@ -63,7 +63,7 @@ class PitShapeTest {
 
 	@Test
 	void aGapInTheRimHeWidensIsFilled() {
-		// the old pit at x 0..1, his new rim at x 4: the two blocks between are taken
+		// the old pit at x 0..1, the new rim at x 4: the two blocks between are taken
 		PitShape.Cells c = plan(
 			"..##.",
 			"..##.",
@@ -74,7 +74,7 @@ class PitShapeTest {
 
 	@Test
 	void aBlockHePutBackStopsTheLook() {
-		// he set a block back at x 2; the block at x 3 has only rock and that block on its left
+		// the player set a block back at x 2; the block at x 3 has only rock and that block on its left
 		PitShape.Cells c = plan(
 			"..F#.");
 		assertFalse(PitShape.between(c, 3, 0, 0, 0, 4, 0, 0));

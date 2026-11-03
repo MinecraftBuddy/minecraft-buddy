@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * What the alt lacks to help, for the player in the Telegram chat: no food, no weapon, no pickaxe for a tunnel, a full
  * inventory. One event a
- * message, {@code {"type":"helper","action":"lacks","text":...,"what":...}}, which the Telegram bridge posts in his chat; never
+ * message, {@code {"type":"helper","action":"lacks","text":...,"what":...}}, which the Telegram bridge posts in the chat; never
  * more than one in five minutes, all that is missing at that moment in it. The same need again only after half an
  * hour while it lasts, and once more when it went and came back.
  */
@@ -26,8 +26,8 @@ final class Needs {
 
 	static final long GAP = 5 * 60_000L, AGAIN = 30 * 60_000L;
 
-	/** "{me}" in a text is his own name: the core names no account. */
-	private static String named(String text) {
+	/** "{me}" in a text is the buddy's own name: the core names no account. */
+	static String named(String text) {
 		var p = AfkHelperClient.mc().player;
 		return text.replace("{me}", p != null ? p.getGameProfile().name() : "The buddy");
 	}

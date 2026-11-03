@@ -21,7 +21,7 @@ COPY setup /opt/buddy/setup
 COPY docker /opt/buddy/docker
 COPY build/image/ /opt/buddy/
 
-# everything the buddy keeps lies in /data: the game, his account, the settings, the exchange folder, the panel's state
+# everything the buddy keeps lies in /data: the game, the account, the settings, the exchange folder, the panel's state
 ENV HOME=/data BUDDY_DOCKER=1 BUDDY_IMAGE_DIR=/opt/buddy BUDDY_PANEL_DATA=/data/panel PYTHONDONTWRITEBYTECODE=1 LANG=C.UTF-8
 USER minecraft-buddy
 WORKDIR /data
