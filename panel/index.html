@@ -63,6 +63,13 @@ header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; pa
 .now .m { font-size: 12px; color: var(--accent-note); }
 .hright { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
 .hright a { text-decoration: none; display: flex; align-items: center; gap: 8px; }
+/* the version in the header's corner: quiet, and copper with an arrow when a newer release is out (versionCheck) */
+.ver { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent;
+  background: transparent; color: var(--muted); font: 12px var(--mono); }
+.ver:hover { color: var(--soft); border-color: var(--line2); }
+.ver.new { color: var(--accent-text); background: var(--accent-dim); border-color: var(--accent-line); }
+.ver.new:hover { border-color: var(--accent); }
+.ver.new svg { color: var(--accent); flex: none; }
 
 /* the overview's three columns */
 main { display: grid; gap: 16px; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); align-items: start;
@@ -568,8 +575,8 @@ dialog#rawdlg td code { word-break: break-all; }
   <div class="now"><span class="k">Now</span><span class="v" id="now">–</span><span class="m" id="nowm"></span></div>
   <div class="hright">
     <button class="btn" id="leavejoin">Leave server</button>
-    <a class="btn go" id="updlink" href="#s-game" hidden></a>
     <a class="btn setlink" id="setlink" href="#settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>Settings</a>
+    <button type="button" class="ver" id="ver" hidden></button>
   </div>
 </header>
 
@@ -2952,6 +2959,29 @@ function gRender() {
   $('opwnote').textContent = o.set ? 'Gets you in from any address that is not trusted. Changing it logs out every other session.' : 'No password yet: set one to get in from any address.';
   sRender();
 }
+// Update the image: Watchtower is asked for the newest one, and the page waits for the answer. A new version (the
+// container was made anew, the page was away meanwhile) reloads the page; otherwise Watchtower's summary is told. Asked
+// from Settings, Status and from the version in the header's corner (b is the button that asked).
+async function imageUpdate(b, was, latest) {
+  if (!confirm((latest ? 'Update to ' + latest + '?' : 'Check for a newer image?') + ' If there is one, the container restarts: they go offline and this page is unavailable for a minute or two.')) return;
+  const chip = $('ver'), label = chip.lastChild;
+  b.disabled = chip.disabled = true;
+  if (label) label.textContent = 'Updating…';
+  try { await post('/api/image-update', {}); }
+  catch (e) { note('Not done: ' + e.message); b.disabled = chip.disabled = false; versionCheck(); return; }
+  note('Checking for a newer image…');
+  const until = Date.now() + 240000;
+  while (Date.now() < until) {
+    await new Promise(r => setTimeout(r, 3000));
+    let g; try { g = await (await fetch('/api/game')).json(); } catch (e) { continue; }
+    if (g.docker && g.docker.version && g.docker.version !== was) { note('Updated to ' + g.docker.version); setTimeout(() => location.reload(), 1500); return; }
+    const u = g.docker && g.docker.update;
+    if (u && u.done) { if (!$('settings').hidden) { G = g; gRender(); } note(imageUpdateText(u)); break; }
+  }
+  b.disabled = chip.disabled = false;
+  versionCheck();
+  if (!$('settings').hidden) gameLoad();
+}
 function imageUpdateText(u) {
   const s = u.summary || {};
   if (u.error) return 'Watchtower did not answer: ' + u.error;
@@ -3046,18 +3076,7 @@ $('s-game').addEventListener('click', async ev => {
   try {
     if (k === 'image') {
       const rel = (G && G.docker && G.docker.release) || {};
-      if (!confirm((rel.newer ? 'Update to ' + rel.latest + '?' : 'Check for a newer image?') + ' If there is one, the container restarts: they go offline and this page is unavailable for a minute or two.')) return;
-      b.disabled = true; await post('/api/image-update', {}); note('Checking for a newer image…');
-      // the answer: a new version (the container was made anew, the page was away meanwhile), or Watchtower's summary
-      const was = G.docker.version, until = Date.now() + 240000;
-      while (Date.now() < until) {
-        await new Promise(r => setTimeout(r, 3000));
-        let g; try { g = await (await fetch('/api/game')).json(); } catch (e) { continue; }
-        if (g.docker && g.docker.version !== was) { note('Updated to ' + g.docker.version); setTimeout(() => location.reload(), 1500); return; }
-        const u = g.docker && g.docker.update;
-        if (u && u.done) { G = g; gRender(); note(imageUpdateText(u)); return; }
-      }
-      gameLoad(); return;
+      await imageUpdate(b, G.docker.version, rel.newer ? rel.latest : ''); return;
     }
     if (k === 'discard') { gameLoad(true); return; }
     if (k === 'save') {
@@ -3230,13 +3249,28 @@ addEventListener('scroll', () => {
 
 Promise.all([fetch('/names.json').then(r => r.json()).catch(() => ({})), fetch('/icons.json').then(r => r.json()).catch(() => ({}))])
   .then(([n, i]) => { N = Object.assign(N, n); ICONS = i; route(); state(); log(); map(); players(); telegram(); versionCheck(); });
-/* a newer version of the buddy: the header's button, shown until the image is that version */
+/* the version in the header's corner: the image's version, with an arrow while a newer release is out. A click then
+   updates (it asks first); otherwise, or without Watchtower, it opens Settings, Status */
+const ARROW_UP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16V8M8 12l4-4 4 4"></path></svg>';
+let V = null;
 async function versionCheck() {
-  let v; try { v = await (await fetch('/api/version')).json(); } catch (e) { return; }
-  const a = $('updlink');
-  a.hidden = !v.newer;
-  if (v.newer) { a.textContent = 'Update to ' + v.latest; a.title = 'Version ' + v.latest + ' is out; this buddy runs ' + v.version + '. Settings, Game has the update.'; }
+  let v; try { const r = await fetch('/api/version'); if (!r.ok) return; v = await r.json(); } catch (e) { return; }
+  V = v;
+  const c = $('ver');
+  c.hidden = !v.version;
+  if (!v.version || c.disabled) return;
+  c.classList.toggle('new', !!v.newer);
+  c.innerHTML = (v.newer ? ARROW_UP : '') + '<span>v' + esc(v.version) + '</span>';
+  const t = v.newer ? 'Version ' + v.latest + ' is out; this buddy runs ' + v.version + '. ' + (v.updater ? 'Click to update.' : 'Updating takes Watchtower: see Settings, Status.')
+    : v.latest ? 'Minecraft Buddy ' + v.version + ', the newest version'
+    : v.error ? 'Minecraft Buddy ' + v.version + '. Could not look for a newer version: ' + v.error
+    : 'Minecraft Buddy ' + v.version;
+  c.title = t; c.setAttribute('aria-label', t);
 }
+$('ver').addEventListener('click', () => {
+  if (V && V.newer && V.updater) imageUpdate($('ver'), V.version, V.latest);
+  else location.hash = '#s-game';
+});
 setInterval(versionCheck, 30 * 60000);
 // the first look at GitHub runs in the background: ask again once it has had time to answer
 setTimeout(versionCheck, 15000);

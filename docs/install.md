@@ -115,7 +115,7 @@ All in the folder of `compose.yaml`, with the buddy's name for `steve`:
 | What | How |
 |---|---|
 | The setup code again | `docker compose logs steve` |
-| Update to the newest version | the panel says when a newer version is out: Settings, Game, **Update the image** (Watchtower fetches it and starts every buddy anew, and the panel says what came of it); or `docker compose pull && docker compose up -d` |
+| Update to the newest version | the panel says when a newer version is out: a click on the version at the top right, or Settings, Status, **Update the image** (Watchtower fetches it and starts every buddy anew, and the panel says what came of it); or `docker compose pull && docker compose up -d` |
 | A fixed version | `ghcr.io/minecraftbuddy/minecraft-buddy:<version>` (the version of a [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases)) in place of `:latest`, then `docker compose up -d` |
 | Stop and start one | `docker compose stop steve`, `docker compose start steve` |
 | The game's own log | `docker compose exec steve cat .local/state/buddy/game.log` |
@@ -127,9 +127,10 @@ Everything a buddy keeps (the game, their account, their settings, what they lea
 ## Updates
 
 Every panel looks once an hour at the newest [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases) on
-GitHub (without a login, from the machine's address). When it is newer than the buddy's image, the panel shows
-**Update to <version>** at the top, and Settings, Game says what is out, with a link to what changed. The button there
-asks Watchtower for the new image: it pulls it and starts every buddy of the machine anew, which takes them offline for
+GitHub (without a login, from the machine's address). The panel's version stands at the top right; when the release is
+newer than the buddy's image it gets an arrow, and Settings, Status says what is out, with a link to what changed. A
+click on the version with the arrow, or **Update to <version>** in Settings, Status, asks first and then asks Watchtower
+for the new image: it pulls it and starts every buddy of the machine anew, which takes them offline for
 a minute or two. Their volume and everything in it stay, the Minecraft account's login too: when Minecraft's services refuse its cached token after the container was made anew, the buddy fetches a new one by itself, without a Microsoft link. `BUDDY_UPDATE_CHECK: "off"` in a buddy's environment stops the
 look at GitHub; the button still works.
 
