@@ -131,7 +131,9 @@ at its last tenth counts as gone, so a new one comes while the old still works; 
 in the bag, before the food run when the iron and the wood for it are in the bag already. With Soprano the portal into
 the nether is built from the bag's obsidian when it holds ten and flint and steel, where the buddy stands; otherwise it
 is cast with a bucket of lava and one of water. A frame begun and left (a food run broke in) is finished where it
-stands.
+stands; under the ground the buddy climbs to the surface first. With the bag full, Soprano makes room by
+throwing what no task uses; the brew's things, the portal's, the golden helmet, the shield, the water bucket, blaze
+rods, ender pearls and golden apples are never among them during an order.
 
 ## Staying alive
 

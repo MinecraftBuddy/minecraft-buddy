@@ -23,6 +23,21 @@ final class Alto {
 	/** A task of AltoClef's that the buddy started for a step of its order (food) runs. */
 	private static boolean delegated;
 	private static boolean savedBoats, savedFreeLook = true, savedBucketFall = true, savedAvoid, savedBlast = true;
+	private static java.util.List<net.minecraft.world.item.Item> savedImportant;
+
+	/** What an order keeps whatever the bag's room: the brew, the portal, the nether's gear, what it is all for. */
+	private static final net.minecraft.world.item.Item[] KEEP = {
+		net.minecraft.world.item.Items.NETHER_WART, net.minecraft.world.item.Items.MAGMA_CREAM, net.minecraft.world.item.Items.BLAZE_POWDER,
+		net.minecraft.world.item.Items.REDSTONE, net.minecraft.world.item.Items.POTION, net.minecraft.world.item.Items.OBSIDIAN,
+		net.minecraft.world.item.Items.FLINT_AND_STEEL, net.minecraft.world.item.Items.GOLDEN_HELMET, net.minecraft.world.item.Items.SHIELD,
+		net.minecraft.world.item.Items.WATER_BUCKET, net.minecraft.world.item.Items.BLAZE_ROD, net.minecraft.world.item.Items.ENDER_PEARL,
+		net.minecraft.world.item.Items.GOLDEN_APPLE };
+
+	private static java.util.List<net.minecraft.world.item.Item> withKeep(java.util.List<net.minecraft.world.item.Item> base) {
+		var out = new java.util.ArrayList<>(base);
+		for (var i : KEEP) if (!out.contains(i)) out.add(i);
+		return java.util.List.copyOf(out);
+	}
 
 	/** Soprano with AltoClef is loaded. */
 	static boolean present() {
@@ -72,6 +87,10 @@ final class Alto {
 			// where iron is the slow part of the kit: making one ate the kit's time, which ran out with the boots' iron in the
 			// bag. Soprano's #gamer does the same; one standing in a village is still used
 			if (want) { savedBlast = s.altoUseBlastFurnace.value; s.altoUseBlastFurnace.value = false; } else s.altoUseBlastFurnace.value = savedBlast;
+			// the order's own things never go as garbage: with the bag full, AltoClef makes room by throwing whatever no task
+			// uses right then, and the brew's nether wart went while crafting pickaxes at home, the redstone while crafting a boat
+			if (want) { savedImportant = s.altoImportantItems.value; s.altoImportantItems.value = withKeep(savedImportant); }
+			else if (savedImportant != null) s.altoImportantItems.value = savedImportant;
 			if (!want) { holder = null; cancel(); }
 			Exchange.emit("alto", "action", want ? "up" : "down");
 		}
