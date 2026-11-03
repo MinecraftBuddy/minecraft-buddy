@@ -118,10 +118,12 @@ gate lacks is fetched by safer steps first, all of it planned together.
   tools, and a bed when there is a sheep near or wool in the bag.
 - **The nether**: full armour with a golden helmet worn (the piglins leave the wearer be) and a spare one in the bag, a
   diamond sword when the diamonds are in the bag, 48 blocks, flint and steel, and food to 160 points. Torches and the
-  water bucket are the overworld's. With Soprano also three water bottles and a redstone dust, each a piece of its own
-  and filled in the overworld, the redstone tried once an order: in the fortress Soprano's blaze hunt picks up a nether wart and a magma cream when they are close by and,
-  with two rods for the stand and its fuel, brews three potions of fire resistance (eight minutes each). The potion is
-  drunk when fire is about, and it stops all fire damage: burning, the blazes' fireballs and lava.
+  water bucket are the overworld's. A potion of fire resistance in the bag is drunk when fire is about, and it stops all
+  fire damage: burning, the blazes' fireballs and lava.
+- **The brew, off for now** (`ObtainKit.BREW`): with Soprano the nether kit also takes three water bottles and a redstone
+  dust, each a piece of its own and filled in the overworld, the redstone tried once an order. In the fortress Soprano's
+  blaze hunt then picks up a nether wart and a magma cream when they are close by and, with two rods for the stand and
+  its fuel, brews three potions of fire resistance (eight minutes each). Without water bottles in the bag it brews nothing.
 - **The End**: a bow with arrows on top.
 
 A piece of the kit may take ten game minutes and three more for each ingot; a piece that did not come is not asked again
