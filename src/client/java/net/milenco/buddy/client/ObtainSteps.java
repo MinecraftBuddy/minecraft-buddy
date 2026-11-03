@@ -1602,7 +1602,7 @@ final class ObtainSteps {
 				case 4 -> {
 					BlockPos in = cell(1, 1);
 					if (!id(level.getBlockState(in)).equals("nether_portal")) return fail("the portal went out");
-					if (now - phaseAt > 40_000) return fail("the portal does not take the buddy");
+					if (now - phaseAt > 40_000) return fail("the portal does not take " + p.getName().getString());
 					if (!p.blockPosition().equals(in)) Work.approach(mc, p, "portal-in", Vec3.atBottomCenterOf(in), now);
 					else Follow.stand();
 				}

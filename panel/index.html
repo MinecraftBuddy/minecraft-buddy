@@ -939,8 +939,8 @@ function doingText(s) {
     sleep: 'Sleeping', ride: 'Riding', stay: 'Staying put', air: 'Coming up for air', 'get loose': 'Getting unstuck', 'put out fire': 'Putting out a fire',
     'open door': 'Opening a door', chest: 'At a chest', furnace: 'At a furnace', chore: 'Doing a chore', 'panel steers': 'Driven from this page',
     panel: 'Waiting while you use their inventory', goto: 'Walking to a spot', unload: 'Unloading', tap: 'Answering a tap', answer: 'Answering a sign',
-    obtain: s.obtain && s.obtain.on ? 'Fetching ' + s.obtain.count + ' ' + obName(s.obtain.item) : 'Fetching an order', flee: 'Running from a fight that cannot be won',
-    alto: 'Kept safe by Soprano', watch: 'Staying put and watching after an order', afk: 'Waiting in the AFK zone', tpahere: 'Answering a teleport request', test: 'Running a test'})[s.doing] || first(s.doing || 'idle');
+    obtain: s.obtain && s.obtain.on ? 'Fetching ' + s.obtain.count + ' ' + obName(s.obtain.item) : 'Fetching an order', flee: 'Fleeing a fight that cannot be won',
+    alto: 'Kept safe by Soprano', watch: 'Order done, waiting', afk: 'Waiting in the AFK zone', tpahere: 'Answering a teleport request', test: 'Running a test'})[s.doing] || first(s.doing || 'idle');
 }
 /* the order his steps get the tick in (Follow.tick, and this page's own jobs), with what wakes each */
 const CHAIN = [
@@ -1002,8 +1002,8 @@ const TIPS = {
   follow: 'In the game: look at them and crouch twice quickly, with empty hands or a tool. They follow you; the same sign again and they stay where they are. ' +
     'Only trusted players (Settings, Access) can do this. Tap a block with a bare hand to give them a job: stone or ore to mine, a log to chop, a field, a furnace.',
   afk: 'They stay where they are and do nothing else, for instance to keep the chunks around them loaded (a farm only runs near a player). They accept a teleport request from a trusted player. Switching to another mode ends it.',
-  obtain: 'Pick an item and how many: it is taken from the base chests, or gathered, crafted and smelted, with every step in between (a better pickaxe, a furnace, fuel). ' +
-    'Following stops while the order runs; when the items are there they go to the player named, or stay in the bag when nobody is named. Staying alive comes first: a hole in the ground for the night or when hurt, and an order given up rather than a risk of dying.',
+  obtain: 'Pick an item and how many, then Fetch. The item comes from the base chests, or is gathered, crafted and smelted with every step in between (a better pickaxe, a furnace, fuel). ' +
+    'Following stops while the order runs. When done, the items go to the player named; with nobody named they stay in the bag. Safety first: a hole in the ground at night or when hurt, and an order is given up rather than risk dying.',
   // where a schematic is uploaded, not how one is made
   build: 'Upload a .litematic file in Settings, Schematics. Place it here (the circle opens this card), then press Confirm switch: they build the placed schematic nearest to them, with what they carry and the chests near where they stand.',
   place: 'The schematic\'s start block lands on the spot you choose: the block they stand in, or x y z. Turning and mirroring go around it. ' +

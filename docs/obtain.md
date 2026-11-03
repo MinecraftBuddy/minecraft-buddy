@@ -9,29 +9,30 @@ dying on the way. Orders for everyday things (iron blocks, diamonds, obsidian, t
 
 - **The panel**: the mode **Obtain items**. Search an item by its name (the list shows its picture and is what the
   buddy knows a way to from nothing, worked out from the game's own recipes and drops), type how many and who gets it,
-  and **Fetch**. Under it the progress: how many it has, the step it is on and for how long, or that it is dug in for
-  the night or to heal. **Stop** ends it; once it is over the panel says how it ended.
+  and **Fetch**. Under it the progress: how many are gathered so far, the current step and for how long, or that the
+  buddy is dug in for the night or to heal. **Stop** ends it; once it is over the panel says how it ended.
 - **Telegram**: `!obtain diamond_block 4` fetches four diamond blocks for you, `!obtain iron block 9` works too (the
-  name in words), `for Name` at the end brings them to another player. `!obtain` alone says what it is on, `!obtain stop`
-  ends it. A line comes when the order is done or given up.
+  name in words), `for Name` at the end brings them to another player. `!obtain` alone shows the current order,
+  `!obtain stop` ends it. A line comes when the order is done or given up.
 - **The exchange file**: `{"cmd":"obtain","item":"diamond_block","count":4,"by":"Steve"}` fetches for Steve (without
-  `by` the buddy keeps the items), `{"cmd":"obtain","stop":true}` stops, `{"cmd":"obtain"}` asks what it is on (an
-  `obtain` event, `status`), and `"plan":true` only works the steps out (an `obtain` event, `plan`, with the steps).
+  `by` the buddy keeps the items), `{"cmd":"obtain","stop":true}` stops, `{"cmd":"obtain"}` asks for the current
+  order (an `obtain` event, `status`), and `"plan":true` only works the steps out (an `obtain` event, `plan`, with the
+  steps).
 
 A count runs from 1 to 2304 (a full inventory). Only the panel's trusted players and the bridge's admins can order.
 
-While an order runs, following is off. When the items are there the buddy brings them to whoever ordered them: it
-follows that player and throws the stacks at their feet the way a dump does (watched, picked up and thrown again, three
-tries). With nobody named, or a player who is not online, it keeps them and stays where it is, watching.
+While an order runs, following is off. When the items are there the buddy brings them to whoever ordered them,
+following that player and throwing the stacks at their feet the way a dump does (watched, picked up and thrown again,
+three tries). With nobody named, or a player who is not online, the buddy keeps them and stays put, watching.
 
 An order is kept in `obtain.json` in the exchange folder and taken up again after a restart. `obtain-items.json` holds
 the list of what can be ordered, written once at every start.
 
-Events of type `obtain`: `start`, `resumed`, `step` (what it does now), `step done`, `failed` (a step that did not come
-off, and why), `gives up` (with the reason), `stop`, `done`, `status`, `plan`. Soprano's own lines come as events of
-type `alto` and go to the panel's Activity tab.
+Events of type `obtain`: `start`, `resumed`, `step` (what is being done now), `step done`, `failed` (a step that did
+not come off, and why), `gives up` (with the reason), `stop`, `done`, `status`, `plan`. Soprano's own lines come as
+events of type `alto` and go to the panel's Activity tab.
 
-## What it may use, and what it will not do
+## What the mode may use, and what it will not do
 
 - From the base: an order may take everything its steps need from the base's known chests, diamond tools too. The base's
   own chores keep their own rules.
@@ -54,9 +55,9 @@ With [Soprano](https://github.com/AverWasTaken/soprano) (Baritone with AltoClef)
 | Baritone | walking and mining for the buddy's own steps (paths, digging through, building up, bridging, falls into water) |
 | the buddy | the order itself (panel, Telegram, exchange file), its status, a stop and the delivery; the kit before a danger; the night; an item Soprano does not know (the elytra), planned by the buddy, with every step of it that Soprano knows handed to Soprano; a server's rules; the base's chests |
 
-While a task of Soprano's runs, the buddy's own layer stands down: its fight, flight, creeper shield and meals, the kit,
-the night's hole, out of the water, digging out, throwing junk away, the brink. Without Soprano the buddy does it all
-with its own planner, steps and walker.
+While a task of Soprano's runs, the buddy's own layer stands down: fight, flight, creeper shield and meals, the kit, the
+night's hole, out of the water, digging out, throwing junk away, the brink. Without Soprano the buddy's own planner,
+steps and walker do it all.
 
 The buddy's own parts, all in `net.milenco.buddy.client`:
 
@@ -75,8 +76,8 @@ The buddy's own parts, all in `net.milenco.buddy.client`:
   fill a bucket, cast obsidian in a mould, build and light a nether portal, find the stronghold by eyes of ender.
 - **Searching** (`BlockScan`, `Stronghold`): the blocks the client has in its loaded chunks, an ore only where it
   touches air or a fluid; mining at the depth an ore is common, by a staircase, never straight down; outward to new
-  ground otherwise, in a widening spiral, remembering where it has been. The stronghold is where the lines of two throws
-  of an eye of ender cross.
+  ground otherwise, in a widening spiral, remembering the places already searched. The stronghold is where the lines
+  of two throws of an eye of ender cross.
 - **The kit** (`ObtainKit`): what the buddy carries before a step of a kind (below).
 - **Staying alive** (`ObtainSafe`): what Follow's chain does already runs first (air, fire, creepers, a fight, getting
   loose, doors, the hunger guard), and on top of it the rules below.
@@ -109,8 +110,9 @@ gate lacks is fetched by safer steps first, all of it planned together.
   the helmet and the boots, each as soon as there is iron for it; copper in an empty slot meanwhile), a good sword, a
   water bucket, torches, blocks, food, three stone pickaxes with a table and sticks so that the rock wears out the cheap
   tools, and a bed when there is a sheep near or wool in the bag.
-- **The nether**: full armour with a golden helmet (the piglins leave it be), a diamond sword when the diamonds are in
-  the bag, 48 blocks, flint and steel, and food to 96 points. Torches and the water bucket are the overworld's.
+- **The nether**: full armour with a golden helmet (the piglins leave the wearer be), a diamond sword when the
+  diamonds are in the bag, 48 blocks, flint and steel, and food to 96 points. Torches and the water bucket are the
+  overworld's.
 - **The End**: a bow with arrows on top.
 
 A piece of the kit may take ten game minutes and three more for each ingot; a piece that did not come is not asked again
@@ -119,33 +121,33 @@ its gold. A stock of eight or more (food, torches, blocks) counts as enough at t
 
 ## Staying alive
 
-- **Never without the survival layer**: after an order out in the wild the buddy stays in Follow's chain, so it fights
-  what comes at it. An order given up in the night still leaves it shut in until the morning.
+- **Never without the survival layer**: after an order out in the wild the buddy stays in Follow's chain and fights
+  whatever comes. After an order given up in the night the hole still stays shut until the morning.
 - **The night in the ground**, without iron armour: from 11500, before the dusk, to 1000 (a thunderstorm counts as
-  night). Three blocks down under the open sky and shut, or the open sides shut where it stands underground; out in the
-  morning once nothing waits at the hole's mouth. Deep under the ground the night changes nothing and it works on. A bed
-  it carries skips the night where the server lets one sleeper do that.
+  night). Three blocks down under the open sky and shut, or underground the open sides shut right there; out in the
+  morning once nothing waits at the hole's mouth. Deep under the ground the night changes nothing and the work goes on.
+  A bed in the bag skips the night where the server lets one sleeper do that.
 - **Hurt**: under half health with no fight on and food to heal by, a hole until healed; with nothing to eat, food first.
-- **Fight or flight by numbers**: the time its best weapon takes to kill what comes against the time they take to bring
-  it to two hearts, armour counted. A fight it would lose is run from in the open, never down a tunnel and never where
-  there is no way away; a flight in which a monster still hits it ends in a fight.
-- **Shooters**: from skeletons and the like it digs in three down where it stands, or walls itself in with the blocks it
-  carries, the shooters' side first, and stays while one is about. A drowned with a trident counts as a shooter. Under the
-  ground monsters on their way are walled out at once. Hit at arm's length inside its walls, it fights.
-- **Places to avoid**: where a patrol of pillagers was seen (twenty minutes) or something shot it (ten), no search leg,
-  no ore and no animal within 48 blocks.
-- **No meal with a monster after it** within ten blocks or a shooter in sight, unless only a bite can save it.
-- **Edges**: no bridge over more than three blocks of nothing, and at a brink it walks crouched so it cannot walk off;
-  getting loose never jumps beside a drop.
-- **Water and lava**: in water underground it walks to a dry cell; at night out of the water at once; a boat for more
+- **Fight or flight by numbers**: the time the best weapon in the bag takes to kill what comes against the time they
+  take to bring the buddy to two hearts, armour counted. A fight that would be lost is run from in the open, never down
+  a tunnel and never where there is no way away; a flight that still takes hits from a monster ends in a fight.
+- **Shooters**: from skeletons and the like, a hole three down right there, or walls built of the blocks in the bag, the
+  shooters' side first, kept while one is about. A drowned with a trident counts as a shooter. Under the ground monsters
+  on their way are walled out at once. Hit at arm's length inside the walls, the buddy fights.
+- **Places to avoid**: where a patrol of pillagers was seen (twenty minutes) or the buddy was shot (ten), no search
+  leg, no ore and no animal within 48 blocks.
+- **No meal with a monster in pursuit** within ten blocks or a shooter in sight, unless only a bite can save the buddy.
+- **Edges**: no bridge over more than three blocks of nothing, and at a brink a crouched walk, so there is no walking
+  off; getting loose never jumps beside a drop.
+- **Water and lava**: in water underground, a walk to a dry cell; at night out of the water at once; a boat for more
   than 32 blocks of water ahead. A roof with water or lava over or beside it stays shut, and a block with lava beside it
   is never broken.
-- **Up by a stair of its own**: a step only the surface has, taken deep under the ground, starts with a stair dug up to
-  the sky, not a walk through the caves.
+- **Up by a stair of the buddy's own**: a step only the surface has, taken deep under the ground, starts with a stair
+  dug up to the sky, not a walk through the caves.
 - **Tools renewed in time**: a tool or armour piece in its last tenth counts as gone, so a new one is made while the old
   still works; its last uses are spent only when nothing else breaks the block.
-- **In the nether**: little food to eat sends it home to the overworld for more; it keeps off the rim of a bridge or a
-  ledge; it is never there without something golden on.
+- **In the nether**: little food to eat means a trip home to the overworld for more; away from the rim of a bridge or a
+  ledge; never there without something golden on.
 
 ## Settings
 
@@ -156,7 +158,7 @@ its gold. A stock of eight or more (food, torches, blocks) counts as enough at t
 | `obtainBaritone` | on | the buddy's own steps walk and mine with Baritone when it is in the mods folder |
 | `practiceFastTicks` | off | for a practice server run at a raised `/tick rate`: the client ticks as fast as the server |
 
-On an order the buddy eats whatever feeds it, raw meat too, not only the foods of `eatItems`.
+On an order the buddy eats any food, raw meat too, not only the foods of `eatItems`.
 
 ## Practising on a server of your own
 
