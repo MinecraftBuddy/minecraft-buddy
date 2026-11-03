@@ -157,22 +157,7 @@ each buddy its own, take `x-tower`, `x-tower-env` and a buddy's two blocks from
 
 ## What runs
 
-```mermaid
-flowchart LR
-  you(["your browser"]) -- HTTPS --> caddy["Caddy"]
-  caddy --> steve & alex
-  subgraph steve["steve's container"]
-    panel["web panel"]
-    bridge["Telegram bridge"]
-    game["Minecraft (HeadlessMC) + the mod"]
-  end
-  alex["alex's container"]
-  game -- plays on --> server(["Minecraft server"])
-  bridge <--> tg(["Telegram"])
-  stower["steve-tower"] -. new image .-> steve
-  atower["alex-tower"] -. new image .-> alex
-  panel -. Update the image .-> stower
-```
+![One Caddy takes HTTPS for every buddy and reads their sites from the Docker socket. Each buddy has a container with the web panel, the Telegram bridge and the game, on the network buddies, and its own Watchtower, which fetches the new image from GitHub when that buddy's panel asks. tower-token makes the secrets once.](what-runs.svg)
 
 - **The buddies**: the panel, the Telegram bridge and the game in one container each, on the network `buddies`.
 - **Caddy** ([caddy-docker-proxy](https://github.com/lucaslorentz/caddy-docker-proxy)) runs on the machine's network,

@@ -57,23 +57,9 @@ Click one for the full size.
 - **Server profiles and modules**: a server's commands and chat lines are settings; what only one server has is a
   module next to the core.
 
-## How it fits together
+## Under the hood
 
-```mermaid
-flowchart LR
-  you(["you, in the browser"]) -- HTTPS --> caddy["Caddy"] --> panel
-  subgraph buddy["the buddy's container"]
-    panel["web panel"]
-    bridge["Telegram bridge"]
-    game["Minecraft (HeadlessMC)<br/>+ the mod"]
-    files[("exchange folder")]
-    panel --- files
-    bridge --- files
-    game --- files
-  end
-  game -- plays on --> server(["any Minecraft server"])
-  bridge <--> tg(["Telegram"])
-```
+![You reach the buddy from a browser, through Caddy, or from Telegram. Each buddy has a container with the web panel, the Telegram bridge and the game with the mod around one exchange folder, and a Watchtower of its own for updates. The game plays on any Minecraft server, where you play too.](docs/under-the-hood.svg)
 
 The game runs without a window through [HeadlessMC](https://github.com/3arthqu4ke/headlessmc). Everything outside the
 game talks to the mod through files in one folder, so the panel, the bridge and your own scripts all use the same
