@@ -150,7 +150,7 @@ fetches a new one, without a Microsoft link.
 
 `BUDDY_UPDATE_CHECK: "off"` in a buddy's environment stops the look at GitHub; the button still works.
 
-A `compose.yaml` from before 0.5.5 has one Watchtower for every buddy: an Update in one panel replaces them all. To give
+A `compose.yaml` from before 0.5.14 has one Watchtower for every buddy: an Update in one panel replaces them all. To give
 each buddy its own, take `x-tower`, `x-tower-env` and a buddy's two blocks from
 `docker run --rm ghcr.io/minecraftbuddy/minecraft-buddy compose`, write each buddy's own name in them, delete the block
 `watchtower`, and run `docker compose up -d --remove-orphans`. That starts every buddy again once.

@@ -90,6 +90,11 @@ day and time.
 own view, with the keys at the top (**Hide keys** folds them away). Everything shows as it happens: turning, hitting,
 eating, breaking blocks, a chest or menu being opened. In Play, a click on the view takes control.
 
+A bar shows how far the view is with loading, here and on the 3D map. The first time in a browser takes longest: the
+game's textures come from Mojang then. Back on the page after more than 20 seconds (another tab or app in front, the
+computer asleep), the old view turns grey under the bar until it shows what is there now; the rest of the page is
+fetched again at once.
+
 While you watch:
 
 - **Around the buddy**: drag to turn around the buddy, scroll to zoom. **Fly**: click the view, then `W A S D`, `Space`

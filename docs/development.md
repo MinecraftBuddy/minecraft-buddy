@@ -43,6 +43,10 @@ A push to `master` builds and tests the mod, puts the jars on the GitHub release
 version. The panel compares its own version with the newest release and offers the update. So a change that should
 reach the buddies gets a new version in `gradle.properties`.
 
+The text of the release is the version's section in [CHANGELOG.md](../CHANGELOG.md), written in the commit that raises
+the version: one short item for each thing a user notices. Every build of master sets it again, so a correction reaches
+the release with the next build (a push of only `CHANGELOG.md` builds nothing; `gh release edit` sets it at once).
+
 Work goes on in branches beside each other, each in its own worktree:
 
 - **A branch for master** (a panel feature, a fix) leaves `version=` alone. The version goes up, by one patch step,

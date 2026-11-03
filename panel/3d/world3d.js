@@ -247,11 +247,53 @@ let BUDDY = null;
 fetch('/api/state', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(s => { if (s && s.name && !BUDDY) BUDDY = s.name; }).catch(() => { });
 const who = cap => BUDDY ? escHtml(BUDDY) : cap ? 'The buddy' : 'the buddy';
 
-async function loadWorld(fresh) {
+// ---------- the bar over the view while a copy of the world is read and built ----------
+
+// The page's element ids.load: a title, a bar and a line for the step (data-part title, bar, step), moved along with the
+// canvas. Each step has its own stretch of the bar, about as long as it takes on a first visit (the game's files come from
+// Mojang then, from the browser's store after that); the bar never goes back. Over a view that already shows a world
+// (back after the tab was hidden) that world is dimmed under it ("again"), so that it is not taken for what is there now.
+const STEPS = { world: [0.02, 0.3], files: [0.3, 0.38], states: [0.38, 0.48], models: [0.48, 0.56], textures: [0.56, 0.66], build: [0.66, 1], changes: [0.05, 1] };
+const LOAD = { on: false, again: false, frac: 0 };
+function loadParts() {
+  const box = el('load');
+  return box && { box, title: box.querySelector('[data-part="title"]'), bar: box.querySelector('[data-part="bar"]'), step: box.querySelector('[data-part="step"]') };
+}
+function loading(step, html, done, total) {
+  status(html);
+  if (!LOAD.on) { LOAD.on = true; LOAD.frac = 0; }
+  const [a, b] = STEPS[step] || [0, 0];
+  LOAD.frac = Math.max(LOAD.frac, a + (b - a) * (total ? Math.min(1, done / total) : 0));
+  const p = loadParts();
+  if (!p) return;
+  p.box.hidden = false;
+  p.box.classList.toggle('again', LOAD.again);
+  p.box.classList.remove('failed');
+  if (p.title) p.title.textContent = LOAD.again ? 'Updating the view' : 'Loading the 3D view';
+  if (p.bar) p.bar.style.width = (LOAD.frac * 100).toFixed(1) + '%';
+  if (p.step) p.step.innerHTML = html;
+}
+/** The bar done: gone, or with why (html) when there is no world to show. */
+function loaded(why) {
+  LOAD.on = false; LOAD.again = false;
+  const p = loadParts();
+  if (!p) return;
+  p.box.hidden = !why || !!current;
+  if (!why) return;
+  p.box.classList.add('failed');
+  if (p.title) p.title.textContent = 'No world to show yet';
+  if (p.step) p.step.innerHTML = why;
+}
+
+async function loadWorld(fresh, onBytes) {
   const r = await fetch('/api/world3d' + (fresh ? `?fresh=1&r=${RADIUS}` : ''), { cache: 'no-store' });
   if (r.status === 404) return null;
   if (!r.ok) throw new Error('world3d: ' + r.status);
-  const s = r.body.pipeThrough(new DecompressionStream('gzip'));
+  // counted as it comes, for the bar (a proxy that compresses on the way leaves out the length: then it does not move)
+  const total = Number(r.headers.get('Content-Length')) || 0;
+  let got = 0;
+  const counted = !onBytes || !total ? r.body : r.body.pipeThrough(new TransformStream({ transform(c, ctl) { got += c.byteLength; onBytes(got, total); ctl.enqueue(c); } }));
+  const s = counted.pipeThrough(new DecompressionStream('gzip'));
   const buf = new Uint8Array(await new Response(s).arrayBuffer());
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
   if (new TextDecoder().decode(buf.subarray(0, 4)) !== 'MQ3D') throw new Error('world3d: not a copy of the world');
@@ -520,7 +562,7 @@ class Prep {
   }
 
   async init(onStep) {
-    onStep(`Reading the game's files (Minecraft <b>${this.version}</b>)…`);
+    onStep(`Reading the game's files (Minecraft <b>${this.version}</b>)…`, 0, 0, 'files');
     await this.jar.open();
     const maps = ['assets/minecraft/textures/colormap/grass.png', 'assets/minecraft/textures/colormap/foliage.png'];
     const f = await this.jar.read(maps);
@@ -544,7 +586,7 @@ class Prep {
   async addTextures(ids, onStep) {
     const fresh = [...new Set(ids)].filter(id => id && !this.cells.has(id));
     if (!fresh.length) return;
-    const files = await this.jar.read(fresh.map(textureFile), onStep && ((d, t) => onStep(`Reading textures: <b>${d}</b> of ${t}`)));
+    const files = await this.jar.read(fresh.map(textureFile), onStep && ((d, t) => onStep(`Reading textures: <b>${d}</b> of ${t}`, d, t, 'textures')));
     const g = this.g;
     for (const id of fresh) {
       if (this.nextCell >= PER * PER) { this.cells.set(id, this.cells.get('__missing')); continue; }
@@ -586,7 +628,7 @@ class Prep {
     const names = [...new Set(parsed.map(s => s.name).filter(n => !INVISIBLE.has(n) && !this.blockstates.has(n)))];
     if (names.length) {
       const files = await this.jar.read(names.map(n => `assets/minecraft/blockstates/${n}.json`),
-        (d, t) => step(`Reading block states: <b>${d}</b> of ${t}`));
+        (d, t) => step(`Reading block states: <b>${d}</b> of ${t}`, d, t, 'states'));
       for (const n of names) {
         const b = files.get(`assets/minecraft/blockstates/${n}.json`);
         this.blockstates.set(n, b ? JSON.parse(this.dec.decode(b)) : null);
@@ -596,7 +638,7 @@ class Prep {
     let want = new Set();
     for (const s of parsed) for (const opts of appliedModels(this.blockstates.get(s.name), s.props)) for (const a of opts) if (!this.models.has(bare(a.model))) want.add(bare(a.model));
     for (let round = 0; want.size && round < 12; round++) {
-      const files = await this.jar.read([...want].map(modelFile), (d, t) => step(`Reading block models: <b>${d}</b> of ${t}`));
+      const files = await this.jar.read([...want].map(modelFile), (d, t) => step(`Reading block models: <b>${d}</b> of ${t}`, d, t, 'models'));
       const next = new Set();
       for (const id of want) {
         const b = files.get(modelFile(id));
@@ -936,24 +978,35 @@ function rebuild(key) {
 async function show(fresh) {
   const t0 = performance.now();
   live.busy = true;
+  // a world on screen already: dimmed under the bar until the new one stands
+  if (current) LOAD.again = true;
+  let why = null;
   try {
-    status(fresh ? `Asking ${who()} for a new copy of the world…` : `Loading the world around ${who()}…`);
-    let world = await loadWorld(fresh);
-    if (!world && !fresh) { status(`No copy yet: asking ${who()} for one…`); world = await loadWorld(true); }
+    let what = fresh ? `Asking ${who()} for a new copy of the world…` : `Loading the world around ${who()}…`;
+    const bytes = (d, t) => loading('world', what, d, t);
+    loading('world', what);
+    let world = await loadWorld(fresh, bytes);
+    if (!world && !fresh) { what = `No copy yet: asking ${who()} for one…`; loading('world', what); world = await loadWorld(true, bytes); }
     // a copy of fewer chunks around the buddy than the view wants (from before the view went further): a new one
-    else if (world && !fresh && (world.meta.radius || 0) < RADIUS) { status(`Asking ${who()} for a wider copy…`); world = (await loadWorld(true)) || world; }
-    if (!world) { status(`${who(true)} has not sent a copy of the world. Is ${who()} online? Try <b>Refresh</b> in a minute.`); return; }
+    else if (world && !fresh && (world.meta.radius || 0) < RADIUS) { what = `Asking ${who()} for a wider copy…`; loading('world', what); world = (await loadWorld(true, bytes)) || world; }
+    if (!world) {
+      why = `${who(true)} has not sent a copy of the world. Is ${who()} online? The view tries again by itself.`;
+      status(why);
+      return;
+    }
     if (world.meta.name) BUDDY = world.meta.name;
     const { meta } = world;
+    const step = (html, d, t, s) => loading(s || 'files', html, d, t);
     // the numbers of block states hold for the buddy's game session: a copy that does not start with what the page knows
     // comes from a new session, and the page starts over
     const same = prep && prep.version === meta.version && prep.states.every((x, i) => meta.states[i] === x) && prep.biomeIds.every((x, i) => meta.biomes[i] === x);
     if (!same) {
       if (prep) { prep.texture.dispose(); prep.mats.forEach(m => m.dispose()); }
+      step(`Reading the game's files (Minecraft <b>${meta.version}</b>)…`, 0, 0, 'files');
       prep = new Prep(new Jar(await jarOf(meta.version)), meta.version);
-      await prep.init(status);
+      await prep.init(step);
     }
-    await prep.addStates(meta.states.slice(prep.states.length), status);
+    await prep.addStates(meta.states.slice(prep.states.length), step);
     loadModels();
     await prep.addBiomes(meta.biomes.slice(prep.biomeIds.length));
     const moved = !current || current.world.meta.dim !== meta.dim;
@@ -974,7 +1027,7 @@ async function show(fresh) {
     let quads = 0;
     for (let n = 0; n < list.length; n++) {
       quads += rebuild(list[n].cx + ',' + list[n].cz);
-      if (n % 4 === 3) { status(`Building chunks: <b>${n + 1}</b> of ${list.length}`); await sleep(0); }
+      if (n % 4 === 3) { loading('build', `Building chunks: <b>${n + 1}</b> of ${list.length}`, n + 1, list.length); await sleep(0); }
     }
     entities(meta);
     live.seq = meta.seq || 0;
@@ -982,8 +1035,12 @@ async function show(fresh) {
     summary = `<b>${list.length}</b> chunks, ${quads.toLocaleString('en')} faces, built in ${((performance.now() - t0) / 1000).toFixed(1)} s`;
     lastChange = meta.at || Date.now();
     showStatus();
+  } catch (e) {
+    why = 'Something went wrong: <b>' + escHtml(String(e && e.message || e)) + '</b>';
+    throw e;
   } finally {
     live.busy = false;
+    loaded(why);
   }
 }
 
@@ -2465,20 +2522,38 @@ function stream() {
   // a change of the world written: ask for it now, not at the next round
   es.addEventListener('live', () => { if (STREAM.wake) STREAM.wake(); });
 }
+/** The stream shut while nobody looks: open, it asked the mod to keep writing, a hidden tab too. */
+function unstream() {
+  if (STREAM.es) { STREAM.es.close(); STREAM.es = null; }
+  STREAM.ok = false;
+}
+
+// Back after a while (the tab hidden, the view shut, the computer asleep): the mod stops writing changes half a minute
+// after the last ask and makes a new copy when asked again, or, kept going by another page meanwhile, has many changes to
+// go through. Until the view has caught up, the old one stays dimmed under the bar.
+const AWAY_MS = 20000;
 
 async function keepUp() {
-  stream();
+  let looked = Date.now(), tried = 0, behind = 0;
+  const again = async fresh => { await show(fresh); looked = Date.now(); };
   for (;;) {
     // the panel's view while its window is shut asks for nothing: the mod stops writing half a minute later
-    if (CFG.active && !CFG.active()) { live.ok = false; await sleep(1000); continue; }
+    if (CFG.active && !CFG.active()) { live.ok = false; unstream(); await sleep(1000); continue; }
     // nor while its tab is hidden: the browser runs the page's timers once a minute then, and a copy built that way took
     // minutes, its half-built world on screen when the tab came back; it is asked for when the tab is shown again
-    if (document.hidden) { live.ok = false; await new Promise(r => document.addEventListener('visibilitychange', r, { once: true })); continue; }
+    if (document.hidden) { live.ok = false; unstream(); await new Promise(r => document.addEventListener('visibilitychange', r, { once: true })); continue; }
+    stream();
+    if (current && !live.busy && !LOAD.on && Date.now() - looked > AWAY_MS) { LOAD.again = true; loading('world', `Asking ${who()} what is there now…`); }
+    looked = Date.now();
     let more = false;
     try {
+      // no world yet (the buddy was not on a server, or the copy did not come): asked for again now and then
+      if (!current && !live.busy && Date.now() - tried > 15000) { tried = Date.now(); await again(false); continue; }
       if (current && !live.busy) {
         const r = await fetch(`/api/world3d/live?since=${live.seq}`, { cache: 'no-store' });
         live.ok = r.ok;
+        // how many changes the panel has after this page's, for the bar while it goes through them
+        const pending = Number(r.headers.get('X-Pending')) || 0;
         if (r.ok) {
           const buf = new Uint8Array(await r.arrayBuffer());
           const dv = new DataView(buf.buffer);
@@ -2486,29 +2561,36 @@ async function keepUp() {
           const len = dv.getUint32(p); p += 4;
           const ent = JSON.parse(new TextDecoder().decode(buf.subarray(p, p + len))); p += len;
           live.ent = ent;
-          if (ent.base && ent.base > live.base) { await show(false); continue; }
+          if (ent.base && ent.base > live.base) { await again(false); continue; }
           if (ent.base === live.base && !STREAM.ok) entities(ent);
-          let files = 0, again = false;
+          let files = 0, cut = false;
           while (p < buf.length) {
             const n = dv.getUint32(p); p += 4;
             const d = parseChanges(await gunzip(buf.subarray(p, p + n))); p += n;
             files++;
-            if (d.meta.base !== live.base) { if (d.meta.base > live.base) again = true; break; }
+            if (d.meta.base !== live.base) { if (d.meta.base > live.base) cut = true; break; }
             if (d.meta.seq <= live.seq) continue;
             const done = d.meta.prev === live.seq && await apply(d);
-            if (done !== true) { again = done === 'fresh' ? d.meta.dim : true; break; }
+            if (done !== true) { cut = done === 'fresh' ? d.meta.dim : true; break; }
           }
           // a new dimension without its height: a new copy, and a while before the next when the mod had made one just
           // before (the panel asks it at most every ten seconds and then hands back the old one)
-          if (typeof again === 'string') { await show(true); if (current && current.world.meta.dim !== again) await sleep(10000); continue; }
-          if (again) { await show(false); continue; }
+          if (typeof cut === 'string') { await again(true); if (current && current.world.meta.dim !== cut) await sleep(10000); continue; }
+          if (cut) { await again(false); continue; }
           more = files >= 20;
+          if (more && LOAD.on) {
+            behind = Math.max(behind, pending);
+            const done = Math.max(0, behind - pending + files);
+            loading('changes', `Going through what changed: <b>${done}</b> of ${behind}`, done, behind);
+          }
         }
       }
     } catch (e) {
       live.ok = false;
       console.warn(e);
     }
+    // caught up: the bar goes
+    if (!more && LOAD.on && !live.busy) { loaded(); behind = 0; }
     // driving, five times a second: the mod writes the buddy's place that often then
     if (!more) await new Promise(r => { const t = setTimeout(r, STREAM.ok ? 400 : mode === 'drive' ? 80 : 500); STREAM.wake = () => { clearTimeout(t); STREAM.wake = null; r(); }; });
   }
@@ -2956,7 +3038,7 @@ function fail(e) {
 }
 
 /**
- * Starts the view on a canvas. cfg: canvas; ids (status, hover, help, cross, orbit, eyes, fly, refresh: the ids of the
+ * Starts the view on a canvas. cfg: canvas; ids (status, hover, load, help, cross, orbit, eyes, fly, refresh: the ids of the
  * page's elements, each optional); controls (false when the page steers itself, as the panel does); look (a function
  * that gives {yaw, pitch} in the game's degrees while the panel drives the buddy); paused (a function: true while nothing
  * needs drawing). Returns what the page can ask of it.
@@ -3068,7 +3150,8 @@ export function start3d(cfg) {
   requestAnimationFrame(frame);
   (async () => {
     await store.open();
-    await show(false);
+    // without a world (the buddy not on a server, a copy that did not come) the view goes on: keepUp asks again
+    try { await show(false); } catch (e) { fail(e); }
     // what the page asked for while the world was loading wins over what it asked at the start
     if (mode === 'drive' || (mode === 'orbit' && !orbitAsked && cfg.mode === 'drive')) drive();
     else if (mode === 'map' || (mode === 'orbit' && !orbitAsked && cfg.mode === 'map')) mapView();
@@ -3084,7 +3167,7 @@ export function start3d(cfg) {
     // where the buddy is drawn now (between the buddy's places), for the coordinates over the view
     where: () => current && hisPlace(current.world.meta),
     /** The view to another place in the page (the map card, the drive window): the canvas and its hover text. */
-    moveTo: (parent, hoverParent) => { if (canvas.parentNode !== parent) parent.insertBefore(canvas, parent.firstChild); const h = el('hover'); if (h && hoverParent && h.parentNode !== hoverParent) hoverParent.appendChild(h); resize(); },
+    moveTo: (parent, hoverParent) => { if (canvas.parentNode !== parent) parent.insertBefore(canvas, parent.firstChild); const l = el('load'); if (l && l.parentNode !== parent) parent.appendChild(l); const h = el('hover'); if (h && hoverParent && h.parentNode !== hoverParent) hoverParent.appendChild(h); resize(); },
     hit: () => lastHit,
     mode: () => mode,
     person: n => { if (n === undefined) return person; person = n; },

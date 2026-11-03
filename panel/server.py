@@ -312,7 +312,7 @@ class Panel(BaseHTTPRequestHandler):
         self.end_headers()
         self.close_connection = True
 
-    def answer(self, code, body, kind="application/json; charset=utf-8", cache=False, cookies=()):
+    def answer(self, code, body, kind="application/json; charset=utf-8", cache=False, cookies=(), headers=()):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         # a cookie is (name, value, seconds): seconds 0 takes it away; behind Caddy the browser sees https, so Secure
@@ -321,6 +321,8 @@ class Panel(BaseHTTPRequestHandler):
                              ("; Secure" if self.proxy_host else ""))
         self.send_header("Content-Type", kind)
         self.send_header("Content-Length", str(len(data)))
+        for name, value in headers:
+            self.send_header(name, value)
         self.send_header("Cache-Control", "max-age=86400" if cache else "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -588,7 +590,8 @@ class Panel(BaseHTTPRequestHandler):
 
     def world3d(self):
         """The last copy of the world around the buddy; with fresh=1 a new one first, at most one every ten seconds, waited
-        for up to ten seconds (a copy of six chunks around takes the mod about a second)."""
+        for up to ten seconds (a copy of six chunks around takes the mod about a second). Without, the new copy the mod
+        makes when it had stopped keeping up (keep_live)."""
         q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
         f = os.path.join(self.exchange, "world3d.bin")
         if (q.get("fresh") or ["0"])[0] == "1":
@@ -606,10 +609,96 @@ class Panel(BaseHTTPRequestHandler):
                 until = time.time() + 10
                 while time.time() < until and (os.path.getmtime(f) if os.path.exists(f) else 0) == before:
                     time.sleep(0.2)
+        else:
+            self.keep_live(wait=True)
+            # the mod kept up for a long while (another page looked): the copy is from when that began, and its changes
+            # since then took longer to go through than a new copy takes to build
+            if self.far_behind(self.pending(0)):
+                self.new_copy()
         data = self.file("world3d.bin")
         if data is None:
             return self.answer(404, {"error": "no copy yet"})
         return self.answer(200, data, "application/octet-stream")
+
+    def keep_live(self, wait):
+        """Asks the mod to keep the copy of the world up to date, at most every five seconds. The mod stops half a minute
+        after the last ask and makes a new copy when asked again (World3d.command). With wait, when the mod had stopped and
+        the buddy is on a server, that new copy is waited for (up to ten seconds): else a page built the copy from when
+        someone last looked, and then the new one, the old world on screen meanwhile."""
+        stopped = wait and not self.mod_live() and self.online_now()
+        with self.lock:
+            ask = time.time() - self.last_live[0] > 5
+            if ask:
+                self.last_live[0] = time.time()
+            asked = self.last_live[0]
+        if ask:
+            self.send_cmd({"cmd": "world3d", "live": True})
+        if stopped:
+            # done when the mod writes the buddy's place again: it writes the new copy before that, on the same thread
+            until = time.time() + 10
+            while time.time() < until and self.mtime("world3d-ent.json") < asked:
+                time.sleep(0.2)
+
+    def pending(self, since):
+        """The mod's changes after seq since, oldest first (world3d-live/ holds those of the current copy only)."""
+        try:
+            return sorted(int(n[:-4]) for n in os.listdir(os.path.join(self.exchange, "world3d-live"))
+                          if n.endswith(".bin") and n[:-4].isdigit() and int(n[:-4]) > since)
+        except OSError:
+            return []
+
+    def far_behind(self, seqs):
+        """Whether these changes weigh more than a quarter of the copy: a new copy is quicker then (the mod writes up to
+        24 MB of them before it makes one by itself, three times a copy)."""
+        if len(seqs) < 40:
+            return False
+        d = os.path.join(self.exchange, "world3d-live")
+        try:
+            copy = os.path.getsize(os.path.join(self.exchange, "world3d.bin"))
+        except OSError:
+            return False
+        size = 0
+        for q in seqs:
+            try:
+                size += os.path.getsize(os.path.join(d, str(q) + ".bin"))
+            except OSError:
+                pass
+            if size > copy / 4:
+                return True
+        return False
+
+    def new_copy(self):
+        """A new copy from the mod at its radius, at most one every ten seconds, waited for up to ten seconds with the
+        buddy's place after it (that carries the copy's base, which tells the page to load it)."""
+        with self.lock:
+            ask = time.time() - self.last_world3d[0] > 10
+            if ask:
+                self.last_world3d[0] = time.time()
+            asked = self.last_world3d[0]
+        if ask:
+            self.send_cmd({"cmd": "world3d"})
+        until = time.time() + 10
+        while time.time() < until and (self.mtime("world3d.bin") < asked or self.mtime("world3d-ent.json") < self.mtime("world3d.bin")):
+            time.sleep(0.2)
+
+    def mtime(self, name):
+        try:
+            return os.path.getmtime(os.path.join(self.exchange, name))
+        except OSError:
+            return 0
+
+    def mod_live(self):
+        """Whether the mod keeps the copy up to date now: it writes the buddy's place (world3d-ent.json) every half
+        second then."""
+        return time.time() - self.mtime("world3d-ent.json") < 5
+
+    def online_now(self):
+        """Whether the buddy is on a server, by a state the mod wrote in the last half minute."""
+        try:
+            s = json.loads(self.file("state.json") or b"{}")
+            return bool(s.get("online")) and time.time() * 1000 - float(s.get("t") or 0) < 30000
+        except (ValueError, TypeError):
+            return False
 
     def models(self):
         """The game's own models (models.json, Models in the mod): written once per game, asked for when it is not
@@ -805,26 +894,26 @@ class Panel(BaseHTTPRequestHandler):
             since = int((urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "").get("since") or ["0"])[0])
         except ValueError:
             since = 0
-        with self.lock:
-            ask = time.time() - self.last_live[0] > 5
-            if ask:
-                self.last_live[0] = time.time()
-        if ask:
-            self.send_cmd({"cmd": "world3d", "live": True})
+        # back after the mod had stopped (nobody looked for half a minute): its new copy first, so that the page goes to it
+        # at once rather than after another round
+        self.keep_live(wait=True)
+        seqs = self.pending(since)
+        # a page far behind (back after a while, the mod kept up for another page): a new copy, which the page then
+        # builds, rather than minutes of changes twenty at a time
+        if self.far_behind(seqs):
+            self.new_copy()
+            seqs = self.pending(since)
         ent = self.file("world3d-ent.json") or b"{}"
         out = [len(ent).to_bytes(4, "big"), ent]
         d = os.path.join(self.exchange, "world3d-live")
-        try:
-            seqs = sorted(int(n[:-4]) for n in os.listdir(d) if n.endswith(".bin") and n[:-4].isdigit())
-        except OSError:
-            seqs = []
-        for q in [q for q in seqs if q > since][:20]:
+        for q in seqs[:20]:
             try:
                 b = open(os.path.join(d, str(q) + ".bin"), "rb").read()
             except OSError:
                 break
             out += [len(b).to_bytes(4, "big"), b]
-        return self.answer(200, b"".join(out), "application/octet-stream")
+        # how many there are in all, for the page's bar while it goes through them
+        return self.answer(200, b"".join(out), "application/octet-stream", headers=[("X-Pending", str(len(seqs)))])
 
     def icon_sizes(self):
         """Every icon with its width: 16 is a flat item (drawn pixel sharp), 64 a block rendered smooth. Read again when the

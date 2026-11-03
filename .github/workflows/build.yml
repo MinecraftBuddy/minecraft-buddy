@@ -94,16 +94,23 @@ jobs:
             org.opencontainers.image.version=${{ steps.image.outputs.version }}
       # Last, once the image is in the registry: the release of the version in gradle.properties, with the jars (made
       # when the version is new, its files replaced when it stayed the same). The panel takes a new release as the sign
-      # that an update is out, so it may only appear when the image with that version can be pulled.
+      # that an update is out, so it may only appear when the image with that version can be pulled. Its text is the
+      # version's section of CHANGELOG.md (the commit's first line when there is none), set again at every build. GitHub
+      # breaks a release's text at every newline, so a list item's wrapped lines are joined.
       - name: release
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           v=$(grep '^version=' gradle.properties | cut -d= -f2)
+          awk -v v="$v" '/^## /{f = ($2 == v); next} f' CHANGELOG.md \
+            | awk 'NR > 1 && /^ +[^ -]/ {sub(/^ +/, " "); line = line $0; next} NR > 1 {print line} {line = $0} END {if (NR) print line}' \
+            > build/notes.md
+          grep -q '[^[:space:]]' build/notes.md || git log -1 --format=%s > build/notes.md
           files=$(ls build/libs/minecraft-buddy-*+mc${{ matrix.mc }}.jar modules/*/build/libs/minecraft-buddy-*+mc${{ matrix.mc }}.jar)
           if gh release view "v$v" >/dev/null 2>&1; then
             gh release upload "v$v" $files --clobber
+            gh release edit "v$v" --notes-file build/notes.md
           else
-            gh release create "v$v" $files --title "$v" --notes "$(git log -1 --format=%s)" --target "$GITHUB_SHA"
+            gh release create "v$v" $files --title "$v" --notes-file build/notes.md --target "$GITHUB_SHA"
           fi
