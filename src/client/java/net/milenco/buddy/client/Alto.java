@@ -22,7 +22,7 @@ final class Alto {
 	private static long toldSince;
 	/** A task of AltoClef's that the buddy started for a step of its order (food) runs. */
 	private static boolean delegated;
-	private static boolean savedBoats, savedFreeLook = true, savedBucketFall = true, savedAvoid, savedBlast = true;
+	private static boolean savedBoats, savedFreeLook = true, savedBucketFall = true, savedAvoid, savedBlast = true, savedInv, savedInvStill;
 	private static java.util.List<net.minecraft.world.item.Item> savedImportant;
 
 	/** What an order keeps whatever the bag's room: the brew, the portal, the nether's gear, what it is all for. */
@@ -87,6 +87,15 @@ final class Alto {
 			// where iron is the slow part of the kit: making one ate the kit's time, which ran out with the boots' iron in the
 			// bag. Soprano's #gamer does the same; one standing in a village is still used
 			if (want) { savedBlast = s.altoUseBlastFurnace.value; s.altoUseBlastFurnace.value = false; } else s.altoUseBlastFurnace.value = savedBlast;
+			// blocks and tools from the whole bag, not only the hotbar: with allowInventory off (Baritone's default, and Soprano
+			// never sets it) a throwaway block counts only on the hotbar. with the hotbar's last deepslate placed and 32
+			// cobblestone in the bag, every path in the nether came out empty: thirteen game minutes back and forth on a ledge,
+			// the trip home for food among them, until a ghast's ball knocked the buddy into the lava sea. a swap into the
+			// hotbar only standing still (a click mid sprint is what anti-cheats look for)
+			if (want) {
+				savedInv = s.allowInventory.value; savedInvStill = s.inventoryMoveOnlyIfStationary.value;
+				s.allowInventory.value = true; s.inventoryMoveOnlyIfStationary.value = true;
+			} else { s.allowInventory.value = savedInv; s.inventoryMoveOnlyIfStationary.value = savedInvStill; }
 			// the order's own things never go as garbage: with the bag full, AltoClef makes room by throwing whatever no task
 			// uses right then, and the brew's nether wart went while crafting pickaxes at home, the redstone while crafting a boat
 			if (want) { savedImportant = s.altoImportantItems.value; s.altoImportantItems.value = withKeep(savedImportant); }
