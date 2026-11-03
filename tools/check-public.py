@@ -7,7 +7,7 @@
   check-public.py --rev REV       the files of a commit, as git has them
 
 Besides the checks below, every line of a denylist counts as a regular expression (case-insensitive) that may not occur:
-`.private/denylist.txt` when it exists, or the file BUDDY_DENYLIST names. Keep names of people, accounts, machines and
+`.private/denylist.txt` when it exists (in a worktree: that of the main checkout), or the file BUDDY_DENYLIST names. Keep names of people, accounts, machines and
 domains there, never in this file: the denylist itself is private. `.private/` is in .gitignore.
 
 A finding that is fine (an example address, a version that looks like an IP) goes into ALLOWED below, as the exact
@@ -47,8 +47,22 @@ IPV4 = re.compile(r"(?<![\w.])(\d{1,3}(?:\.\d{1,3}){3})(?![\w.])")
 HOME = re.compile(r"(?<![\w.~-])(/Users/|/home/|C:\\Users\\)([A-Za-z0-9_-][A-Za-z0-9._-]*)")
 
 
+def denylist_path():
+    """BUDDY_DENYLIST, or .private/denylist.txt of this checkout, or of the main checkout when this is a worktree."""
+    if os.environ.get("BUDDY_DENYLIST"):
+        return os.environ["BUDDY_DENYLIST"]
+    here = os.path.join(ROOT, ".private", "denylist.txt")
+    if os.path.exists(here):
+        return here
+    try:
+        common = git("rev-parse", "--path-format=absolute", "--git-common-dir").decode().strip()
+        return os.path.join(os.path.dirname(common), ".private", "denylist.txt")
+    except (OSError, subprocess.CalledProcessError):
+        return here
+
+
 def denylist():
-    path = os.environ.get("BUDDY_DENYLIST") or os.path.join(ROOT, ".private", "denylist.txt")
+    path = denylist_path()
     out = []
     try:
         with open(path, encoding="utf-8") as f:
