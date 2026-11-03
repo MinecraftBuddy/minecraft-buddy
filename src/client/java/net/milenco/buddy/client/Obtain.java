@@ -726,7 +726,11 @@ final class Obtain {
 			// food before the kit: with the kit first it never got round to food while pieces were left. but not before a spare
 			// shield made from the bag while the one in hand is at its last uses (Alto.spareShieldFirst), unless hungry now
 			boolean shieldFirst = deepOrder(p) && !hurtAndNoFood(p) && Alto.spareShieldFirst(p, now);
-			if (!shieldFirst && now - foodTriedAt > 180_000 && Alto.wantsFood(p) && (ObtainSafe.foes(p).isEmpty() || hurtAndNoFood(p))) {
+			// (and at night only when it must: under the nether's reserve, or hungry and hurt now. a food run in the dark dug
+			// from the surface to y -29 after a cow, into a cave of zombies, skeletons and an enderman, and died there,
+			// attempt 183, as 166 and 159 before it; the morning, or the animals on the way, bring the rest)
+			boolean foodNow = !dark(p) || Alto.foodScore(true) < Alto.NETHER_FOOD_RESERVE || hurtAndNoFood(p);
+			if (!shieldFirst && foodNow && now - foodTriedAt > 180_000 && Alto.wantsFood(p) && (ObtainSafe.foes(p).isEmpty() || hurtAndNoFood(p))) {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:food", 1, null, 0, List.of(), "food by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
@@ -794,6 +798,13 @@ final class Obtain {
 	 * The night on the surface without a bed and without iron armour, from before sunset; a thunderstorm is night as well.
 	 */
 	private static long holeStarted, holeOffUntil;
+
+	/** Night or a thunderstorm in the overworld: the hours the surface belongs to the monsters. */
+	private static boolean dark(LocalPlayer p) {
+		if (!p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return false;
+		long t = Math.floorMod(p.level().getOverworldClockTime(), 24000L);
+		return p.level().isThundering() || t >= 11520 && t < 23300;
+	}
 
 	private static boolean holeNight(LocalPlayer p) {
 		// (a bed Soprano has just put down counts too: it puts its bed down to sleep, the bag held none that moment, and the

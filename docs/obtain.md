@@ -207,7 +207,9 @@ hunted; their meat is picked up.
 - **Tools renewed in time**: a tool or armour piece in its last tenth counts as gone, so a new one is made while the old
   still works; its last uses are spent only when nothing else breaks the block.
 - **Food on the way**: an animal in sight is taken along by the same measure as an ore ("Taken along on the way"). A food
-  run takes the animals within reach past its need too.
+  run takes the animals within reach past its need too. At night or in a thunderstorm a food run starts only under 36
+  points or when hungry and hurt; otherwise it waits for the morning. Before the nether the food bar counts wherever the
+  portal goes up, under the ground too.
 - **In the nether**: little food to eat (under 36 points) means a trip home to the overworld for more, begun once nothing in sight is on
   the buddy and the fire is out (or the food is all but gone); away from the rim of a bridge or a ledge; never there
   without something golden on.
