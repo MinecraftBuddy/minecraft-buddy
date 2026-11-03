@@ -1,10 +1,11 @@
-# Minecraft Buddy: every buddy on this machine, the Caddy that gives each buddy HTTPS, and Watchtower for updates.
+# Minecraft Buddy: every buddy on this machine, the Caddy that gives each buddy HTTPS, and a Watchtower per buddy for
+# updates (a panel's Update replaces that buddy alone).
 #
 #   docker compose up -d            start, and again after every change of this file
 #   docker compose logs steve       steve's setup code, for the first visit to the panel
 #
-# A buddy is a block under services. Another one: copy the block steve and change its name in three places (the block,
-# its volume line and volumes: at the bottom) and its domain in the label caddy. Point the domain's DNS at this machine:
+# A buddy is two blocks under services: steve and steve-tower. Another one: copy both, replace every steve in them by
+# the new name, add the name under volumes: at the bottom, and change the domain in the label caddy. Point the domain's DNS at this machine:
 # Caddy gets a certificate from Let's Encrypt over port 80, so ports 80 and 443 have to be open. When another web server
 # (nginx, Apache) holds 80 and 443: the four labels at caddy, below, put every buddy on a port of your own instead.
 #
@@ -26,7 +27,6 @@ x-env: &env
   # machine reaches the panel from that gateway too
   BUDDY_PROXY_HOST: gateway
   BUDDY_PROXY_SECRET_FILE: /tower/proxy-secret.sha256
-  WATCHTOWER_URL: http://watchtower:8080
   WATCHTOWER_TOKEN_FILE: /tower/token
 
 x-labels: &labels
@@ -35,23 +35,57 @@ x-labels: &labels
   # the secret that tells the panel a request came through Caddy (in Caddy's own volume, made by tower-token)
   caddy.reverse_proxy.header_up: "X-Buddy-Proxy {file./data/proxy-secret}"
 
+# a buddy's own Watchtower: only on that buddy's Update (no polling of its own), only containers with the buddy label
+# and its scope, the old image removed once no running buddy uses it, and the same ninety seconds to stop as compose
+# gives the buddies. Its scope is in WATCHTOWER_SCOPE and in its own label, so that no other Watchtower stops it.
+x-tower: &tower
+  image: nickfedor/watchtower:1.23.1
+  restart: unless-stopped
+  command: --label-enable --http-api-update --cleanup --stop-timeout 90s
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - tower:/tower:ro
+    - ${HOME}/.docker:/docker:ro
+  depends_on:
+    tower-token:
+      condition: service_completed_successfully
+
+x-tower-env: &tower-env
+  WATCHTOWER_HTTP_API_TOKEN: /tower/token
+  # the machine's docker login, for a private image
+  DOCKER_CONFIG: /docker
+
 services:
   steve:
     <<: *buddy
-    environment: *env
+    environment:
+      <<: *env
+      WATCHTOWER_URL: http://steve-tower:8080
     volumes: [steve:/data, tower:/tower:ro]
     labels:
       <<: *labels
+      com.centurylinklabs.watchtower.scope: steve
       caddy: steve.example.net            # several names: steve.example.net, steve.example.org
+  steve-tower:
+    <<: *tower
+    environment: {<<: *tower-env, WATCHTOWER_SCOPE: steve}
+    labels: {com.centurylinklabs.watchtower.scope: steve}
 
   # A second buddy:
   # alex:
   #   <<: *buddy
-  #   environment: *env
+  #   environment:
+  #     <<: *env
+  #     WATCHTOWER_URL: http://alex-tower:8080
   #   volumes: [alex:/data, tower:/tower:ro]
   #   labels:
   #     <<: *labels
+  #     com.centurylinklabs.watchtower.scope: alex
   #     caddy: alex.example.net
+  # alex-tower:
+  #   <<: *tower
+  #   environment: {<<: *tower-env, WATCHTOWER_SCOPE: alex}
+  #   labels: {com.centurylinklabs.watchtower.scope: alex}
 
   # Without a domain: the machine's own address and a port you choose, with a certificate of Caddy's own (the browser
   # warns once). Give Caddy the address as its default name too (the label at caddy, below), because a browser sends no
@@ -60,7 +94,8 @@ services:
   #     caddy.tls: internal
 
   # A buddy that plays on a server on this machine (127.0.0.1), which a container's own network cannot reach: the buddy
-  # shares the machine's network, the panel listens on a separate port of 127.0.0.1, and Caddy forwards to that.
+  # shares the machine's network, the panel listens on a separate port of 127.0.0.1, and Caddy forwards to that. Its
+  # Watchtower has a port of 127.0.0.1 too, one of its own for each such buddy.
   # sam:
   #   <<: *buddy
   #   network_mode: host
@@ -73,8 +108,14 @@ services:
   #   volumes: [sam:/data, tower:/tower:ro]
   #   labels:
   #     <<: *labels
+  #     com.centurylinklabs.watchtower.scope: sam
   #     caddy: sam.example.net
   #     caddy.reverse_proxy: 127.0.0.1:18101
+  # sam-tower:
+  #   <<: *tower
+  #   environment: {<<: *tower-env, WATCHTOWER_SCOPE: sam}
+  #   labels: {com.centurylinklabs.watchtower.scope: sam}
+  #   ports: ["127.0.0.1:18080:8080"]
 
   caddy:
     image: lucaslorentz/caddy-docker-proxy:2.13.1
@@ -105,27 +146,7 @@ services:
       tower-token:
         condition: service_completed_successfully
 
-  watchtower:
-    image: nickfedor/watchtower:1.23.1
-    restart: unless-stopped
-    # only on a panel's button (no polling of its own), only the buddies (by label), the old image removed afterwards,
-    # and the same ninety seconds to stop as compose gives the buddies
-    command: --label-enable --http-api-update --cleanup --stop-timeout 90s
-    environment:
-      WATCHTOWER_HTTP_API_TOKEN: /tower/token
-      # the machine's docker login, for a private image
-      DOCKER_CONFIG: /docker
-    # for a buddy on the machine's network
-    ports: ["127.0.0.1:18080:8080"]
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - tower:/tower:ro
-      - ${HOME}/.docker:/docker:ro
-    depends_on:
-      tower-token:
-        condition: service_completed_successfully
-
-  # made once: the token between the panels and Watchtower, in the volume tower; and the secret Caddy sends the panels,
+  # made once: the token between the panels and their Watchtowers, in the volume tower; and the secret Caddy sends the panels,
   # in Caddy's volume alone, with its SHA-256 for the panels in tower (a buddy can read that, but not make the secret
   # from it)
   tower-token:

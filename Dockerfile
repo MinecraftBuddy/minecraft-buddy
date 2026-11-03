@@ -1,6 +1,6 @@
 # The buddy as one image: the panel, the Telegram bridge and the game, with the buddy's jars of the same
 # commit. .github/workflows/build.yml builds it for every push to master (ghcr.io/minecraftbuddy/minecraft-buddy);
-# docker/compose.yaml runs every buddy of a machine behind one Caddy, with Watchtower for the panel's update button, and
+# docker/compose.yaml runs every buddy of a machine behind one Caddy, with a Watchtower per buddy for its panel's update button, and
 # the image hands that file out itself:
 #   docker run --rm ghcr.io/minecraftbuddy/minecraft-buddy compose > compose.yaml
 #

@@ -1,7 +1,7 @@
 # Installing
 
 The buddy runs in Docker. One file, `compose.yaml`, holds every buddy on a machine, the Caddy that gives each buddy's
-domain HTTPS, and Watchtower for the update button in the panels. Nothing is installed on the machine itself.
+domain HTTPS, and a Watchtower per buddy for the update button in its panel. Nothing is installed on the machine itself.
 
 Each buddy needs a second Minecraft Java Edition account, which you log in once from the panel, and about 3 GB of
 memory on the machine.
@@ -37,16 +37,24 @@ the **owner password**. The panel then opens **Getting started**, four steps:
 
 ## Another buddy
 
-Every buddy is a block under `services`, with a volume of the same name. For a second one, copy the block of the first:
+Every buddy is two blocks under `services`: the buddy, and its own Watchtower for the panel's Update. A volume has the
+buddy's name. For a second one, copy both blocks of the first and replace the name everywhere in them:
 
 ```yaml
   alex:
     <<: *buddy
-    environment: *env
+    environment:
+      <<: *env
+      WATCHTOWER_URL: http://alex-tower:8080
     volumes: [alex:/data, tower:/tower:ro]
     labels:
       <<: *labels
+      com.centurylinklabs.watchtower.scope: alex
       caddy: alex.example.net
+  alex-tower:
+    <<: *tower
+    environment: {<<: *tower-env, WATCHTOWER_SCOPE: alex}
+    labels: {com.centurylinklabs.watchtower.scope: alex}
 ```
 
 and add the new volume at the bottom:
@@ -59,11 +67,12 @@ volumes:
   alex:
 ```
 
-So the name stands in three places: the block, its volume line, and `volumes:`. `docker compose up -d` then starts
+The name stands in both blocks and under `volumes:`. A copied block that keeps the old name in its scope gets updated
+with that buddy. `docker compose up -d` then starts
 the new buddy and leaves the others alone, and `docker compose logs alex` has the new setup code. Every buddy needs a
 separate Minecraft account and a separate Telegram bot: Telegram lets one program at a time read a bot's messages.
 
-To take a buddy away: `docker compose rm -sf alex`, delete the block, and `docker volume rm buddy_alex` when nothing kept
+To take a buddy away: `docker compose rm -sf alex alex-tower`, delete both blocks, and `docker volume rm buddy_alex` when nothing kept
 there is needed any more.
 
 ## Other set-ups
@@ -75,7 +84,7 @@ The first four are written out in `compose.yaml` as comments.
 | Several names for one buddy | `caddy: steve.example.net, steve.example.org` |
 | No domain: the machine's address and a port you choose | in the buddy's labels `caddy: https://203.0.113.5:20443` and `caddy.tls: internal`, and at `caddy` the label `caddy.default_sni: 203.0.113.5`; the certificate is Caddy's own, so the browser warns once |
 | Beside another web server that holds ports 80 and 443 (nginx, Apache) | four labels at `caddy`: [Beside another web server](#beside-another-web-server) |
-| A buddy that plays on a server on the same machine (`127.0.0.1`) | `network_mode: host`, the panel on a separate port of `127.0.0.1` (`BUDDY_LISTEN`, `BUDDY_PANEL_PORT`, `BUDDY_PROXY_HOST: localhost`), Watchtower at `http://127.0.0.1:18080`, and `caddy.reverse_proxy: 127.0.0.1:<that port>` |
+| A buddy that plays on a server on the same machine (`127.0.0.1`) | `network_mode: host`, the panel on a separate port of `127.0.0.1` (`BUDDY_LISTEN`, `BUDDY_PANEL_PORT`, `BUDDY_PROXY_HOST: localhost`), its Watchtower on a port of `127.0.0.1` too (`ports` at the Watchtower, `WATCHTOWER_URL` at the buddy, one port per such buddy), and `caddy.reverse_proxy: 127.0.0.1:<that port>` |
 | A machine where new versions of the buddy are tried | `BUDDY_JARS: folder` in the buddy's environment: the jars in the mods folder are used, not the image's |
 
 Let's Encrypt checks a domain over port 80, also when the panel is on another port, so keep port 80 reachable.
@@ -133,12 +142,18 @@ Every panel looks once an hour at the newest [release](https://github.com/Minecr
 GitHub, without a login. When the release is newer than the buddy's image, the version under the header's buttons gets
 an arrow, and Settings, Status says what is out, with a link to what changed.
 
-A click on the version with the arrow, or the update button in Settings, Status, asks first. Watchtower then pulls the
-new image and starts every buddy on the machine again, so every buddy is offline for a minute or two. The volumes and
+A click on the version with the arrow, or the update button in Settings, Status, asks first. The buddy's own
+Watchtower then pulls the new image and starts that buddy again: the buddy is offline for a minute or two. Other buddies
+on the machine keep running on their version until their own panel updates them. The volumes and
 everything in them stay, the Minecraft login too: when Minecraft refuses the old login after the update, the buddy
 fetches a new one, without a Microsoft link.
 
 `BUDDY_UPDATE_CHECK: "off"` in a buddy's environment stops the look at GitHub; the button still works.
+
+A `compose.yaml` from before 0.5.5 has one Watchtower for every buddy: an Update in one panel replaces them all. To give
+each buddy its own, take `x-tower`, `x-tower-env` and a buddy's two blocks from
+`docker run --rm ghcr.io/minecraftbuddy/minecraft-buddy compose`, write each buddy's own name in them, delete the block
+`watchtower`, and run `docker compose up -d --remove-orphans`. That starts every buddy again once.
 
 ## What runs
 
@@ -154,8 +169,9 @@ flowchart LR
   alex["alex's container"]
   game -- plays on --> server(["Minecraft server"])
   bridge <--> tg(["Telegram"])
-  watchtower["Watchtower"] -. new image .-> steve & alex
-  panel -. Update the image .-> watchtower
+  stower["steve-tower"] -. new image .-> steve
+  atower["alex-tower"] -. new image .-> alex
+  panel -. Update the image .-> stower
 ```
 
 - **The buddies**: the panel, the Telegram bridge and the game in one container each, on the network `buddies`.
@@ -166,8 +182,10 @@ flowchart LR
 - **The panels** have no port on the machine; only Caddy reaches them. A panel believes the visitor's address only from
   Caddy, and only with the secret Caddy adds to every request (`X-Buddy-Proxy`): every other program on the machine
   reaches a panel from the same address as Caddy, and could otherwise pose as a trusted address.
-- **Watchtower** fetches a new image when a panel asks, and replaces the buddies.
-- **tower-token** makes two secrets once: the token between the panels and Watchtower, in the volume `tower`, and the
+- **A Watchtower per buddy** (`steve-tower`) fetches a new image when that buddy's panel asks, and replaces that buddy
+  alone. Its scope is the buddy's name (`WATCHTOWER_SCOPE`, and the label `com.centurylinklabs.watchtower.scope` on both
+  blocks), so it sees no other buddy, and no other Watchtower stops it. The old image goes once no running buddy uses it.
+- **tower-token** makes two secrets once: the token between the panels and their Watchtowers, in the volume `tower`, and the
   secret Caddy sends the panels, in Caddy's own volume `caddy`, with its SHA-256 for the panels in `tower` (a buddy can
   read that, but cannot make the secret from it). When a buddy's log says that Caddy sends no secret, the machine's
   `compose.yaml` is older than the image's: copy `BUDDY_PROXY_SECRET_FILE`, the label `caddy.reverse_proxy.header_up`,

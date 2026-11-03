@@ -100,10 +100,10 @@ Open the buddy's domain, type the code, choose an owner password, and follow **G
 4. join: the buddy stays on. After a crash or a reboot the game starts again, and after a kick or a lost connection the
    buddy joins again after about half a minute.
 
-`compose.yaml` holds every buddy on the machine, one block each, with one Caddy for all and Watchtower for updates. A
-second buddy is a copy of the block with another name and domain. [Installing](docs/install.md) has the rest: a buddy
-without a domain, and a port of your own when nginx or Apache holds ports 80 and 443
-([Beside another web server](docs/install.md#beside-another-web-server)).
+`compose.yaml` holds every buddy on the machine, with one Caddy for all. A buddy is two blocks: the buddy, and its own
+Watchtower, so that an update in one panel replaces that buddy alone. A second buddy is a copy of both blocks with
+another name and domain. [Installing](docs/install.md) has the rest: a buddy without a domain, and a port of your own
+when nginx or Apache holds ports 80 and 443 ([Beside another web server](docs/install.md#beside-another-web-server)).
 
 ## Talking to the buddy
 
