@@ -162,6 +162,13 @@ is worth the detour: what it brings, in seconds saved, against what the detour c
 - **Not round in circles**: a detour gets 30 seconds and stays near where it began. A cluster it gave up on is left
   alone for five game minutes, and after each detour five seconds pass before the next.
 
+Drops on the floor are taken along the same way: anything the order or the kit still needs, lying in sight within
+the same reach, raw or made (a raw iron, coal, a flint, an iron ingot, a piece of armour). A made item is worth what
+went into it: an iron ingot its raw iron and an eighth of a coal for the smelting. The cost is the walk there and back,
+a second for the drops and three for picking the order up again. Drops lying together are one detour, and only those
+are picked up. Never a drop in water or by lava, never one Soprano's own task is already after, never junk the buddy
+threw away; a drop it could not get is left alone for five game minutes.
+
 Food is not part of it yet: food on the way stays as it is.
 
 ## Staying alive

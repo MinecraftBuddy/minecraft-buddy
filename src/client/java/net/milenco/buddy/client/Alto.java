@@ -118,7 +118,8 @@ final class Alto {
 	/**
 	 * Once a tick: while Soprano is up for an order and obtainTakeAlong is on, the wishes go to Soprano every five game
 	 * seconds and when the bag changes, the buddy's own reasons to leave detours alone with them (Obtain.takeAlongHold),
-	 * and each detour is an event when it starts and when it ends.
+	 * and each detour is an event when it starts and when it ends. Junk the buddy threw away is never taken along as a
+	 * drop (ObtainSafe.thrown), or it would go round, thrown and picked up again.
 	 */
 	private static void takeAlong() {
 		var mc = AfkHelperClient.mc();
@@ -138,6 +139,7 @@ final class Alto {
 				saidEnd = l == null ? -1 : l.id();
 			}
 			wishing = true;
+			adris.altoclef.takealong.TakeAlong.thrown(ObtainSafe::thrown);
 			wishedAt = t;
 			wishedBag = bag;
 			try {
@@ -152,14 +154,14 @@ final class Alto {
 		var cur = adris.altoclef.takealong.TakeAlong.current();
 		if (cur != null && cur.id() != saidStart) {
 			saidStart = cur.id();
-			Exchange.emit("obtain", "action", "take along", "state", "start", "item", cur.items(), "blocks", cur.blocks(),
-				"value", cur.value(), "cost", cur.cost());
+			Exchange.emit("obtain", "action", "take along", "state", "start", "of", cur.drops() ? "drops" : "blocks", "item", cur.items(),
+				"blocks", cur.blocks(), "value", cur.value(), "cost", cur.cost());
 		}
 		var last = adris.altoclef.takealong.TakeAlong.last();
 		if (last != null && last.id() != saidEnd) {
 			saidEnd = last.id();
-			Exchange.emit("obtain", "action", "take along", "state", last.state(), "why", last.why(), "item", last.items(),
-				"blocks", last.blocks(), "value", last.value(), "cost", last.cost(), "seconds", last.seconds(), "got", last.got());
+			Exchange.emit("obtain", "action", "take along", "state", last.state(), "why", last.why(), "of", last.drops() ? "drops" : "blocks",
+				"item", last.items(), "blocks", last.blocks(), "value", last.value(), "cost", last.cost(), "seconds", last.seconds(), "got", last.got());
 		}
 	}
 
