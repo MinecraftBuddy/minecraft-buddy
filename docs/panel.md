@@ -49,18 +49,20 @@ the bottom (Map, Inventory, Chat, Settings).
   on the spot, and by the wheel, two fingers, a pinch and the buttons; the round button puts them in the middle again,
   north up. A click on a block offers **Walk there** too, also underground, where the map looks through the rock above
   them; a click beside that menu shuts it.
-  **Take control** opens watching them through their eyes (`Play`), with the keys explained at the top (**Hide keys**
+  **Take control** opens watching around the buddy (**Around** and the buddy's name). **Play** shows the buddy's own view, with the keys explained at the top (**Hide keys**
   folds them away): you see them turn, hit, eat and break blocks (cracks, and the bits flying), and the chest or menu
   they open, as they do it, whether they work by themselves or someone else plays them. `F5`, `F1` and `F3` work while
-  watching too. **Around them** and **Fly** look about while they stand still. One person plays them at a time: while
+  watching too. **Around** and **Fly** look about while the buddy stands still. **Inventory** shows the buddy's inventory and armour small
+  in the top right corner; **Plan** shows an order's plan and timeline at the left (on until you click it off; the button is
+  there only during an order). One person plays them at a time: while
   another window plays them, a click on the view says "Someone else (at their address) is controlling them at the
   moment", their inventory shows over the view while that person has it open, and nothing you click there reaches the
   game (nor the clicks in the overview's inventory). Click the view to take over, `W A S D` walk, the mouse turns them, `Space` jumps, `Shift`
   sneaks, `R` or `W` twice quickly sprints, the left button hits or breaks, the right button uses (held: eating, a bow, a shield), `1` to
   `9` or the wheel pick a hotbar slot, `E` the inventory (shut it and what is on the cursor goes back; a click on the
   world beside it throws what is on the cursor), `T` or `/` the chat, `Tab` who is online, `F5` the view behind and in front of them, `F1` hides the HUD, `F3` what they look at, `Esc`
-  hands them back and you watch again; **← Overview** at the top left and **Done** at the top right end it. Their coordinates and the game's
-  day and time stand at the top left. **Game**, **Bright** and **Full** set how bright the 3D view is: the game's own
+  hands them back and you watch again; **← Overview** at the top left and **Done** at the top right end it. The coordinates and the game's
+  day and time stand at the top right, under the inventory while it shows there. **Game**, **Bright** and **Full** set how bright the 3D view is: the game's own
   brightness, its brightest, or as with Night Vision so that dark caves can be seen into (Full by default; the choice is
   kept in the browser and holds for the 3D map too). Blocks, light and night, mobs, players with their skins and armour, what each holds and a sign's text
   are drawn as the game draws them, beacon beams too, and what the buddy holds is in their hands, a blow swinging it and food brought to their
@@ -68,7 +70,7 @@ the bottom (Map, Inventory, Chat, Settings).
   container they had open its items too (`Items`, with names and enchantments), which a click copies for `/data merge block`
   or `/setblock` on a test server. The line above the hotbar stands in its colours, the scoreboard at the right as the game draws it (`F1` hides it too), and a new chat line shows over the view for ten seconds while
   the chat is shut, as in the game. The game's screens open over the view: a chest or any menu, a sign (`Enter` goes down a line, `Esc` or Done
-  writes it), a book, the bed, the death screen. The buddy's coordinates stand at the top left. The view's frames a second
+  writes it), a book, the bed, the death screen. The view's frames a second
   stand in its status line; the buddy's game draws
   forty frames a second while you play them (their own setting otherwise). On a touch screen: the buttons, and drag on the
   field to turn. While you play them no job moves them.

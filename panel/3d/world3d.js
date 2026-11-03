@@ -2516,7 +2516,7 @@ async function keepUp() {
 
 // ---------- the cameras ----------
 
-let positioned = false, mode = 'orbit';
+let positioned = false, mode = 'orbit', orbitAsked = false;
 // driving: 0 through his eyes, 1 behind him, 2 in front of him looking at him (F5, as in the game)
 let person = 0;
 const drivePos = new THREE.Vector3();
@@ -2540,7 +2540,8 @@ function setMode(m) {
 }
 
 function lookAround() {
-  if (!current) return;
+  // asked while the world loads: around the buddy once it is there, not the view the page started with
+  if (!current) { mode = 'orbit'; orbitAsked = true; return; }
   const m = current.world.meta;
   const tx = m.x - origin.x, ty = m.y + 1, tz = m.z - origin.z;
   orbit.target.set(tx, ty, tz);
@@ -3069,8 +3070,8 @@ export function start3d(cfg) {
     await store.open();
     await show(false);
     // what the page asked for while the world was loading wins over what it asked at the start
-    if (mode === 'drive' || (mode === 'orbit' && cfg.mode === 'drive')) drive();
-    else if (mode === 'map' || (mode === 'orbit' && cfg.mode === 'map')) mapView();
+    if (mode === 'drive' || (mode === 'orbit' && !orbitAsked && cfg.mode === 'drive')) drive();
+    else if (mode === 'map' || (mode === 'orbit' && !orbitAsked && cfg.mode === 'map')) mapView();
     else if (new URLSearchParams(location.search).get('view') === 'eyes') hisEyes();
     window.__ready = true;
     keepUp();

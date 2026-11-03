@@ -140,8 +140,8 @@ button.radio:focus-visible { outline-color: var(--muted); } /* orange is for the
 .obbar i { display: block; height: 100%; background: var(--accent); }
 .oblog { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
 .oblog .obnow { color: inherit; }
-/* watching an order: its plan, task by task, and a timeline of the order, at the right under the inventory */
-.obside { position: absolute; right: 12px; top: 56px; bottom: 12px; z-index: 3; width: min(320px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; line-height: 1.45; pointer-events: none; }
+/* watching an order (Plan on): its plan, task by task, and a timeline of the order, at the left, ending above the chat */
+.obside { position: absolute; left: 12px; top: 56px; bottom: 160px; z-index: 3; width: min(320px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; line-height: 1.45; pointer-events: none; }
 .obside > section { background: rgba(14,17,20,.82); border-radius: 8px; padding: 8px 10px; pointer-events: auto; min-height: 0; }
 .obside h3 { margin: 0 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 .obplan { flex: 0 0 auto; max-height: 50%; overflow: auto; }
@@ -471,7 +471,9 @@ kbd { font: 11px/1 var(--mono); border: 1px solid var(--line3); border-bottom-wi
 /* watching with Inventory on: the inventory small in the top right corner, the view free (playSync) */
 .playui.peek[data-what="inv"] { left: auto; right: 12px; top: 56px; transform: none; width: min(320px, calc(100vw - 24px)); }
 .playui.peek .side { display: none; }
-.drive:not(.watching) #invpeek { display: none; }
+.drive:not(.watching) #invpeek, .drive:not(.watching) #obpeek { display: none; }
+/* the keys' explanation, centred at the top, keeps clear of the plan at the left and the inventory at the right */
+@media (min-width: 901px) { .drive.play3d.obshown #pad .hint { max-width: min(46em, calc(100vw - 688px)); } }
 .playui[data-what="chat"], .playui[data-what="players"] { left: 12px; bottom: 70px; top: auto; transform: none; width: min(560px, calc(100vw - 24px)); }
 .gscreen { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 90; width: min(460px, calc(100vw - 24px)); max-height: calc(100vh - 40px); overflow: auto; }
 .gscreen h3 { margin: 0 0 10px; font-size: 16px; }
@@ -482,11 +484,12 @@ kbd { font: 11px/1 var(--mono); border: 1px solid var(--line3); border-bottom-wi
 .gscreen .page { white-space: pre-wrap; background: #f3ecd8; color: #2b2b2b; border-radius: 6px; padding: 14px; min-height: 200px; font-size: 14px; line-height: 1.45; }
 .gscreen.death { background: rgba(80,0,0,.88); text-align: center; }
 .w3debug { position: absolute; left: 12px; top: 56px; z-index: 3; background: rgba(14,17,20,.72); color: #e6e9ec; padding: 6px 10px; border-radius: 8px; font: 12px/1.5 ui-monospace, monospace; white-space: pre; pointer-events: none; }
-/* his coordinates at the top left, always (F3 has them with more) */
-.w3xyz { position: absolute; left: 12px; top: 56px; z-index: 3; background: rgba(14,17,20,.72); color: #e6e9ec; padding: 4px 10px; border-radius: 8px; font: 13px/1.4 ui-monospace, monospace; cursor: copy; }
+/* the coordinates and the clock at the top right, under the inventory while it is shown small there (--rtop, playSync);
+   F3 has them with more */
+.w3xyz { position: absolute; right: 12px; top: var(--rtop, 56px); z-index: 3; background: rgba(14,17,20,.72); color: #e6e9ec; padding: 4px 10px; border-radius: 8px; font: 13px/1.4 ui-monospace, monospace; cursor: copy; }
 /* not steering (no pointer lock), a click copies the coordinates or the data under the mouse */
 .w3hover { cursor: copy; }
-.w3clock { position: absolute; left: 12px; top: 88px; z-index: 3; background: rgba(14,17,20,.72); color: #e6e9ec; padding: 4px 10px; border-radius: 8px; font: 13px/1.4 ui-monospace, monospace; pointer-events: none; }
+.w3clock { position: absolute; right: 12px; top: calc(var(--rtop, 56px) + 32px); z-index: 3; background: rgba(14,17,20,.72); color: #e6e9ec; padding: 4px 10px; border-radius: 8px; font: 13px/1.4 ui-monospace, monospace; pointer-events: none; }
 .w3xyz:empty, .w3debug:not([hidden]) ~ .w3xyz, .w3clock:empty, .w3debug:not([hidden]) ~ .w3clock { display: none; }
 .drive.play3d.nohud .playchat, .drive.play3d.nohud .playhud, .drive.play3d.nohud .playside, .drive.play3d.nohud .w3hover, .drive.play3d.nohud .drivebar, .drive.play3d.nohud .cross, .drive.play3d.nohud .w3debug, .drive.play3d.nohud .w3xyz, .drive.play3d.nohud .w3clock { display: none !important; }
 .steerinfo { font-size: 13px; line-height: 1.7; color: var(--soft); min-width: 0; } .steerinfo b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -865,9 +868,9 @@ dialog#rawdlg td code { word-break: break-all; }
 <div class="drive play3d" id="driver" hidden>
   <div class="card" role="dialog" aria-label="Drive the buddy">
     <div class="row drivebar"><button class="btn small" id="backdrive" title="Hand them back and go to the overview">← Overview</button><h2>Control</h2><span class="w3status" id="w3status">Starting the 3D view…</span>
-      <span class="seg" role="group" aria-label="View" style="margin-left:auto"><button data-look="drive" title="Through their eyes: you watch them, and a click on the view plays them">Play</button><button data-look="orbit" title="Turn around them with the mouse, zoom with the wheel; they stand still">Around them</button><button data-look="fly" title="Click in the view, then W A S D, space and shift; they stand still">Fly</button></span>
+      <span class="seg" role="group" aria-label="View" style="margin-left:auto"><button data-look="drive" data-nm title="{N}'s own view: you watch, and a click on the view takes control">Play</button><button data-look="orbit" data-nm="html" title="Drag to turn around {n}, scroll to zoom. {N} stands still.">Around {n}</button><button data-look="fly" data-nm title="Click the view, then W A S D, Space and Shift. {N} stands still.">Fly</button></span>
       <span class="seg" role="group" aria-label="Brightness"><button data-light="game" title="As bright as the game by default: caves are dark">Game</button><button data-light="bright" title="The game's Brightness at its brightest">Bright</button><button data-light="full" title="As with Night Vision: you see into dark caves">Full</button></span>
-      <button class="btn small" id="invpeek" aria-pressed="false">Inventory</button><button class="btn small" id="closedrive">Done</button></div>
+      <button class="btn small" id="obpeek" aria-pressed="true" hidden>Plan</button><button class="btn small" id="invpeek" aria-pressed="false">Inventory</button><button class="btn small" id="closedrive">Done</button></div>
     <div id="pad" tabindex="0"><canvas id="w3view" aria-label="The world around them in 3D"></canvas><canvas id="padsky" aria-hidden="true"></canvas><div class="cross"></div><div class="hint" id="padhint">
       <div class="watchline"><b id="watchline">Watching</b><button type="button" class="btn small ghost" id="keystoggle">Hide keys</button></div>
       <div class="keyhelp"><span id="watchhow">Click the view to take control.</span> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk,
@@ -929,6 +932,23 @@ async function post(path, body, headers) {
   return j;
 }
 let toastTimer = 0;
+/* the buddy's name in a text, so that no text needs a pronoun for the buddy: {N} where a sentence starts, {n} elsewhere,
+   "The buddy" and "the buddy" until the state has the name. An element with data-nm holds such a text in its title,
+   aria-label and placeholder, and with data-nm="html" in its content too; nmFill() puts the name in whenever it changes. */
+function nm(t) { const n = S && S.name; return String(t).replace(/\{N\}/g, n || 'The buddy').replace(/\{n\}/g, n || 'the buddy'); }
+let nmWas;
+function nmFill() {
+  const n = (S && S.name) || '';
+  if (n === nmWas) return; nmWas = n;
+  for (const el of document.querySelectorAll('[data-nm]')) {
+    if (!el.nmText) el.nmText = {html: el.innerHTML, title: el.getAttribute('title'), aria: el.getAttribute('aria-label'), ph: el.getAttribute('placeholder')};
+    if (el.dataset.nm === 'html') el.innerHTML = nm(el.nmText.html);
+    if (el.nmText.title) el.setAttribute('title', nm(el.nmText.title));
+    if (el.nmText.aria) el.setAttribute('aria-label', nm(el.nmText.aria));
+    if (el.nmText.ph) el.setAttribute('placeholder', nm(el.nmText.ph));
+  }
+}
+nmFill();
 function note(t) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 3500); }
 async function cmd(c, done) { try { await post('/api/command', {command: c}); if (done) note(done); quick(); } catch (e) { note('Not sent: ' + e.message); } }
 const cap = s => String(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -1297,12 +1317,15 @@ function obSide() {
   const box = $('obside');
   if (!box || $('driver').hidden) return;
   const o = S && S.online ? S.obtain : null;
-  const show = !!o && (o.on || Date.now() - (o.at || 0) < 15 * 60_000);
+  // the Plan button only while there is an order to show, and the plan only with the button on
+  const has = !!o && (o.on || Date.now() - (o.at || 0) < 15 * 60_000), show = has && peekPlan;
+  $('obpeek').hidden = !has;
   box.hidden = !show;
+  $('driver').classList.toggle('obshown', show);
   if (!show) return;
-  // under the inventory when it is shown small in the corner
-  const pu = $('playui'), under = !pu.hidden && pu.classList.contains('peek');
-  box.style.top = (under ? pu.offsetTop + pu.offsetHeight + 8 : 56) + 'px';
+  // under F3's lines while they are open
+  const dbg = $('w3debug');
+  box.style.top = (dbg.hidden ? 56 : dbg.offsetTop + dbg.offsetHeight + 8) + 'px';
   const plan = obPlanHtml(o), pe = $('obplan');
   if (pe.dataset.h !== plan) { pe.dataset.h = plan; pe.innerHTML = plan; }
   pe.classList.toggle('held', !!(o.on && ((o.plan && o.plan.by) || (S.doing && !OB_OWN.includes(S.doing)))));
@@ -1935,6 +1958,7 @@ async function state() {
     // unless you just chose one yourself and the state does not know it yet
     if (steer.on && typeof s.selected === 'number' && s.selected !== steer.slot && Date.now() - (steer.slotAt || 0) > 1500) steer.slot = s.selected;
     $('name').textContent = s.name || 'Buddy';
+    nmFill();
     document.title = (s.name || 'Buddy') + ' · Buddy';
     if (ICONS._player && !$('face').firstChild) $('face').innerHTML = '<img src="' + icon('_player') + '" alt="">';
     if (s.me) face(s.me);
@@ -2607,8 +2631,8 @@ function giveBack() {
   document.querySelectorAll('.keys .down').forEach(b => b.classList.remove('down'));
   if (document.pointerLockElement) document.exitPointerLock();
 }
-/* Take control opens watching: through their eyes as they are played or work, with the keys explained; a click on the view
-   takes them: so the controls' explanation is seen first, and Take control works as a spectator mode too */
+/* Take control opens watching, around the buddy (Around): Play shows the buddy's own view with the keys explained, and a
+   click on that view takes control, so Take control works as a spectator mode too */
 $('drive').addEventListener('click', () => {
   $('driver').hidden = false; $('pad').focus(); drawPad(); start3dDrive(); playHud(); watchLine(); state();
 });
@@ -3592,10 +3616,10 @@ function ensure3d(mode) {
   return W3start;
 }
 async function start3dDrive() {
-  const w = await ensure3d('drive');
+  const w = await ensure3d('orbit');
   if (!w) return;
   w.moveTo($('pad'), $('driver').querySelector('.card'));
-  w.drive();
+  w.lookAround();
   lookButtons();
 }
 /* the map card: flat or in 3D (kept per browser) */
@@ -3635,7 +3659,7 @@ function placeCompass(yaw, pitch) {
 addEventListener('resize', mapButtons);
 /* the control window's views: through his eyes (you play him), around him, flying (he stands still then) */
 function lookButtons() {
-  const m = W3 ? W3.mode() : 'drive';
+  const m = W3 ? W3.mode() : 'orbit';
   $('pad').dataset.look = m;
   // flying: one short line, in a corner
   let fh = $('flyhint');
@@ -3735,6 +3759,9 @@ function playSync() {
   if (((S.menu && !closing) || theirs || peek) && playUi !== 'inv') showUi('inv', true);
   else if ((!S.menu || closing) && !theirs && !peek && playUi === 'inv' && playAuto) hideUi();
   $('playui').classList.toggle('peek', peek && playUi === 'inv');
+  // the coordinates and the clock under the inventory while it is shown small in the corner, else at the top right
+  const pu = $('playui'), rtop = (peek && !pu.hidden ? pu.offsetTop + pu.offsetHeight + 8 : 56) + 'px';
+  if ($('driver').style.getPropertyValue('--rtop') !== rtop) $('driver').style.setProperty('--rtop', rtop);
   playHud();
   playSide();
   watchLine();
@@ -3754,6 +3781,20 @@ $('invpeek').addEventListener('click', () => {
   peekButton(); playSync();
 });
 peekButton();
+/* Plan, while you watch an order: its plan and timeline at the left, on until it is clicked off (kept in the browser) */
+let peekPlan = true;
+try { peekPlan = localStorage.getItem('buddy-peek-plan') !== '0'; } catch { }
+function planButton() {
+  const b = $('obpeek');
+  b.classList.toggle('copper', peekPlan); b.setAttribute('aria-pressed', peekPlan ? 'true' : 'false');
+  b.title = (peekPlan ? 'Hide' : 'Show') + ' the order\'s plan and timeline';
+}
+$('obpeek').addEventListener('click', () => {
+  peekPlan = !peekPlan;
+  try { localStorage.setItem('buddy-peek-plan', peekPlan ? '1' : '0'); } catch { }
+  planButton(); obSide();
+});
+planButton();
 /* the line at the top while you watch: what they do, or who plays them; the keys under it, folded away when asked */
 let keysShort = false;
 try { keysShort = localStorage.getItem('buddy-keys-short') === '1'; } catch { }
@@ -3800,7 +3841,7 @@ document.addEventListener('keydown', ev => {
   if (!steer.on && W3 && W3.mode() === 'drive' && !playUi) {
     if (ev.code === 'F5') { stop(); W3.person(((W3.person() || 0) + 1) % 3); }
     else if (ev.code === 'F1') { stop(); $('driver').classList.toggle('nohud'); }
-    else if (ev.code === 'F3') { stop(); $('w3debug').hidden = !$('w3debug').hidden; }
+    else if (ev.code === 'F3') { stop(); $('w3debug').hidden = !$('w3debug').hidden; obSide(); }
   }
   if (!steer.on) return;
   if (ev.code === 'KeyE') { stop(); if (playUi === 'inv') { if (S && S.menu) closeMenu(); backToGame(); } else showUi('inv'); return; }
@@ -3810,7 +3851,7 @@ document.addEventListener('keydown', ev => {
   if (ev.code === 'Tab') { stop(); if (!ev.repeat) showUi('players'); return; }
   if (ev.code === 'F5') { stop(); if (W3) W3.person(((W3.person() || 0) + 1) % 3); return; }
   if (ev.code === 'F1') { stop(); $('driver').classList.toggle('nohud'); return; }
-  if (ev.code === 'F3') { stop(); $('w3debug').hidden = !$('w3debug').hidden; return; }
+  if (ev.code === 'F3') { stop(); $('w3debug').hidden = !$('w3debug').hidden; obSide(); return; }
   if (ev.code === 'KeyQ' && S) { stop(); inv({mode: 'throw', slot: S.selected, button: ev.ctrlKey || ev.metaKey ? 1 : 0}); return; }
   if (ev.code === 'KeyF' && S) { stop(); inv({mode: 'swap', slot: S.selected, button: 40}); return; }
 }, true);
