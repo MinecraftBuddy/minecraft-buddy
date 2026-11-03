@@ -85,10 +85,10 @@ day and time.
 Everything shows as it happens: turning, hitting, eating, breaking blocks, a chest or menu being opened. A click on the
 view takes control.
 
-A bar shows how far the view is with loading, here and on the 3D map. The first time in a browser takes longest: the
-game's textures come from Mojang then. Back on the page after more than 20 seconds (another tab or app in front, the
-computer asleep), the old view turns grey under the bar until it shows what is there now; the rest of the page is
-fetched again at once.
+A bar shows how far loading has got, here and on the 3D map. The first time in a browser takes longest, because the
+game's textures come from Mojang. Coming back to the page after more than 20 seconds (another tab or app in front, the
+computer asleep), the old view is greyed out under the bar until it has caught up; the rest of the page reloads
+straight away.
 
 While you watch:
 

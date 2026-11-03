@@ -995,7 +995,7 @@ async function show(fresh, quiet) {
     // a copy of fewer chunks around the buddy than the view wants (from before the view went further): a new one
     else if (world && !fresh && (world.meta.radius || 0) < RADIUS) { what = `Asking ${who()} for a wider copy…`; say('world', what); world = (await loadWorld(true, bytes)) || world; }
     if (!world) {
-      why = `${who(true)} has not sent a copy of the world. Is ${who()} online? The view tries again by itself.`;
+      why = `${who(true)} has not sent a copy of the world. Is ${who()} online? The view keeps trying on its own.`;
       status(why);
       return;
     }
@@ -2556,7 +2556,7 @@ async function keepUp() {
     // minutes, its half-built world on screen when the tab came back; it is asked for when the tab is shown again
     if (document.hidden) { live.ok = false; unstream(); await new Promise(r => document.addEventListener('visibilitychange', r, { once: true })); continue; }
     stream();
-    if (current && !live.busy && !LOAD.on && Date.now() - looked > AWAY_MS) { LOAD.again = true; LOAD.back = true; loading('world', `Asking ${who()} what is there now…`); }
+    if (current && !live.busy && !LOAD.on && Date.now() - looked > AWAY_MS) { LOAD.again = true; LOAD.back = true; loading('world', `Catching up with ${who()}…`); }
     looked = Date.now();
     let more = false;
     try {
@@ -2594,7 +2594,7 @@ async function keepUp() {
           if (more && LOAD.on) {
             behind = Math.max(behind, pending);
             const done = Math.max(0, behind - pending + files);
-            loading('changes', `Going through what changed: <b>${done}</b> of ${behind}`, done, behind);
+            loading('changes', `Applying changes: <b>${done}</b> of ${behind}`, done, behind);
           }
         }
       }
