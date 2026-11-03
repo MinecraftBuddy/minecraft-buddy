@@ -130,7 +130,7 @@ Every panel looks once an hour at the newest [release](https://github.com/Minecr
 GitHub (without a login, from the machine's address). When it is newer than the buddy's image, the panel shows
 **Update to <version>** at the top, and Settings, Game says what is out, with a link to what changed. The button there
 asks Watchtower for the new image: it pulls it and starts every buddy of the machine anew, which takes them offline for
-a minute or two. Their volume and everything in it stay. `BUDDY_UPDATE_CHECK: "off"` in a buddy's environment stops the
+a minute or two. Their volume and everything in it stay, the Minecraft account's login too: when Minecraft's services refuse its cached token after the container was made anew, the buddy fetches a new one by itself, without a Microsoft link. `BUDDY_UPDATE_CHECK: "off"` in a buddy's environment stops the
 look at GitHub; the button still works.
 
 ## What runs

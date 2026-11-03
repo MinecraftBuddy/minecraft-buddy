@@ -19,6 +19,7 @@ with Caddy and Watchtower: docker run --rm ghcr.io/minecraftbuddy/minecraft-budd
 """
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -75,12 +76,53 @@ class Child:
             self.p.terminate()
 
 
+def login_refused(path):
+    """What the end of the game's log says of HeadlessMC's login at Minecraft's services: "401", "429" or ""."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 4000))
+            tail = f.read().decode("utf-8", "replace")
+    except OSError:
+        return ""
+    if "/launcher/login" not in tail:
+        return ""
+    if "401" in tail or "UNAUTHORIZED" in tail:
+        return "401"
+    return "429" if "429" in tail else ""
+
+
+def expire_game_tokens(cfg):
+    """After the container is made anew (an update of the image), Minecraft's services refuse HeadlessMC's cached login
+    with 401 at every start, while the Microsoft and Xbox tokens it was made from are still good. Marking the last two
+    as expired makes HeadlessMC fetch them anew from those, without a new Microsoft login. True when it changed one."""
+    path = os.path.join(game.game_dir(cfg), "data", "headlessmc", ".auth", "default", ".accounts.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return False
+    changed = False
+    for account in (data.get("accounts") or {}).values():
+        for key in ("javaXstsToken", "minecraftToken"):
+            token = account.get(key) if isinstance(account, dict) else None
+            if isinstance(token, dict) and token.get("expireTimeMs") != 0:
+                token["expireTimeMs"] = 0
+                changed = True
+    if changed:
+        shutil.copy2(path, path + ".before-refresh")
+        os.chmod(path + ".before-refresh", 0o600)
+        game.write_private(path, json.dumps(data))
+    return changed
+
+
 class Game:
     """The game while it is wanted, in a process group of its own, as the user unit was."""
 
     def __init__(self):
         self.p, self.log, self.state, self.why = None, None, "inactive", ""
         self.since, self.started, self.restarts, self.next = "", 0, 0, 0.0
+        self.tokens_at = 0.0
         self.seen_restart = game.want().get("restart", 0)
 
     def write(self):
@@ -133,6 +175,20 @@ class Game:
             self.log.close()
         self.p, self.log = None, None
 
+    def login_wait(self):
+        """Seconds until the next start. A refused login (401) gets its cached tokens renewed once an hour at most; a
+        start that is told to slow down (429) waits five minutes, where every twenty seconds would keep it refused."""
+        refused = login_refused(GAME_LOG)
+        if refused == "401" and time.time() - self.tokens_at > 3600:
+            self.tokens_at = time.time()
+            if expire_game_tokens(game.settings()):
+                say("Minecraft's services refused the cached login (401): its last two tokens are marked expired, so the "
+                    "next start fetches them anew")
+        elif refused == "429":
+            say("Minecraft's services ask to slow down (429): the next start in five minutes")
+            return 300
+        return 20
+
     def tick(self):
         w = game.want()
         if self.p and self.p.poll() is not None:
@@ -140,7 +196,7 @@ class Game:
             self.done()
             say("the game ended by itself (%s)" % code)
             if w.get("run") and not STOPPING[0]:
-                self.state, self.why, self.next = "activating", "auto-restart", time.time() + 20
+                self.state, self.why, self.next = "activating", "auto-restart", time.time() + self.login_wait()
                 self.restarts += 1
             else:
                 self.state, self.why = "inactive" if code == 0 else "failed", ""
