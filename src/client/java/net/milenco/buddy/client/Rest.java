@@ -24,6 +24,8 @@ final class Rest {
 
 	private static int value = -1;
 	private static long readAt, askedAt, joinedAt, sleptAt;
+	/** The game's own clock at the last answer: the count goes on in game ticks, which is what the server counts. */
+	private static long readTick;
 	private static boolean pending, told;
 	/** {"cmd":"rest","test":N}: as if the server had said N, for the test server. */
 	private static int test = -1;
@@ -37,7 +39,7 @@ final class Rest {
 		if (p.connection != connection) { connection = p.connection; joinedAt = now; askedAt = 0; pending = test >= 0; value = -1; }
 		if (p.isSleeping() || !p.isAlive()) {
 			if (p.isSleeping() && sleptAt == 0) sleptAt = now;
-			if (value != 0) { value = 0; readAt = now; told = false; }
+			if (value != 0) { value = 0; readAt = now; readTick = p.level().getGameTime(); told = false; }
 			return;
 		}
 		sleptAt = 0;
@@ -47,6 +49,7 @@ final class Rest {
 			test = -1;
 			value = v;
 			readAt = now;
+			readTick = p.level().getGameTime();
 			Exchange.emit("base", "action", "phantom count", "ticks", v);
 		}
 		if (!pending && now - joinedAt >= FIRST_ASK && (askedAt == 0 || now - askedAt >= ASK_EVERY)) {
@@ -57,10 +60,16 @@ final class Rest {
 		if (due() && !told) { told = true; Exchange.emit("base", "action", "must sleep", "ticks", estimate()); }
 	}
 
-	/** Ticks since he last lay in a bed, counted on from the server's last answer; -1 before the first. */
+	/**
+	 * Ticks since the last bed, counted on from the server's last answer in the game's own ticks; -1 before the first. (On
+	 * the wall clock a server that runs faster than twenty ticks a second, or one that lags, put the count wrong between
+	 * two answers: five times too low at a hundred.)
+	 */
 	static int estimate() {
 		if (value < 0) return -1;
-		return (int) Math.min(Integer.MAX_VALUE, value + (System.currentTimeMillis() - readAt) / 50);
+		var level = AfkHelperClient.mc().level;
+		long since = level != null ? Math.max(0, level.getGameTime() - readTick) : (System.currentTimeMillis() - readAt) / 50;
+		return (int) Math.min(Integer.MAX_VALUE, value + since);
 	}
 
 	/** Two game days without a bed: time to lie down, at night, wherever the base's bed is. */

@@ -38,14 +38,23 @@ final class ObtainSafe {
 		return t >= 11500 || t < 1000;
 	}
 
-	/** Armour of iron all over is 15: below it a night outside is not taken. */
+	/**
+	 * Armour of iron all over is 15: below it a night outside is not taken. Nor in iron with phantoms coming: past three
+	 * days without a bed they come down at night on whoever stands under the open sky, and a night out in iron among them and
+	 * the ground's monsters went from full health to dead. A roof keeps them off.
+	 */
 	static boolean needsShelter(LocalPlayer p) {
 		String dim = p.level().dimension().identifier().getPath();
 		// deep under the ground the night changes nothing: monsters stand up in the dark there at any hour, and a player
 		// mines on through the night (at y 33 it walled itself in for a night for nothing). A step that wants the surface
 		// waits down there for the morning (Obtain)
-		return dim.equals("overworld") && night(p.level()) && p.getArmorValue() < 15 && !deepUnder(p);
+		return dim.equals("overworld") && night(p.level()) && (p.getArmorValue() < 15 || phantomsDue()) && !deepUnder(p);
 	}
+
+	/** The server's phantoms come for a player whose time since rest is past three game days (PhantomSpawner). */
+	static final int PHANTOM_TICKS = 72_000;
+
+	static boolean phantomsDue() { return Rest.estimate() >= PHANTOM_TICKS; }
 
 	/** In the overworld with no sky overhead and eight blocks or more of ground above. */
 	static boolean deepUnder(LocalPlayer p) {
