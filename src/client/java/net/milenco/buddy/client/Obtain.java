@@ -664,6 +664,16 @@ final class Obtain {
 			boatLook = now + 5000;
 			// in the nether with little to eat, or without gold: home first (Alto.wantsHome), whatever is about, a blaze fight is
 			// what eats it. one that did not get home is not asked again for three minutes, and the food search there is what is left
+			// the spare golden helmet on before anything else: the piglins turn on the buddy the moment nothing golden is worn
+			if (now - goldTriedAt > 20_000 && Alto.wantsSpareGold(p)) {
+				goldTriedAt = now;
+				if (exec != null) exec.stop();
+				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:gold", 1, null, 0, List.of(), "the spare golden helmet");
+				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
+				exec = Alto.spareGold();
+				Exchange.emit("obtain", "action", "step", "step", "the spare golden helmet on, the worn one broke", "way", "soprano:gold");
+				return true;
+			}
 			if (now - homeTriedAt > 180_000 && Alto.wantsHome(p)) {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:home", 1, null, 0, List.of(), "home for food by Soprano");
@@ -776,7 +786,7 @@ final class Obtain {
 	}
 
 	private static int sopranoEnds;
-	private static long boatLook, boatTriedAt = -600_000, foodTriedAt = -180_000, homeTriedAt = -180_000;
+	private static long boatLook, boatTriedAt = -600_000, foodTriedAt = -180_000, homeTriedAt = -180_000, goldTriedAt = -60_000;
 	// a home run for food that got home: the food run comes next, whatever wantsFood says by the portal
 	private static boolean foodAfterHome;
 	private static Boolean deep;

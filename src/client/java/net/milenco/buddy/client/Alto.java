@@ -270,7 +270,17 @@ final class Alto {
 	 */
 	static boolean wantsHome(net.minecraft.client.player.LocalPlayer p) {
 		return on() && p.level().dimension().equals(net.minecraft.world.level.Level.NETHER)
-			&& (foodScore(false) < NETHER_FOOD_RESERVE || wantsFood(p) || !goldOn(p));
+			&& (foodScore(false) < NETHER_FOOD_RESERVE || wantsFood(p) || !goldOn(p) && ObtainSteps.count(p, "golden_helmet") == 0);
+	}
+
+	/** In the nether with nothing golden worn and the spare helmet in the bag: that one on, at once (wantsHome otherwise). */
+	static boolean wantsSpareGold(net.minecraft.client.player.LocalPlayer p) {
+		return on() && p.level().dimension().equals(net.minecraft.world.level.Level.NETHER) && !goldOn(p)
+			&& ObtainSteps.count(p, "golden_helmet") > 0;
+	}
+
+	static Run spareGold() {
+		return new Run("equip golden_helmet", 60_000L, () -> new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget("golden_helmet", 1)));
 	}
 
 	/** An item by AltoClef's catalogue, the way its #get takes: done when the bag holds {@code count}. */
@@ -405,6 +415,8 @@ final class Alto {
 				// in a golden helmet, a wither skeleton is fewer blows with a diamond sword, a blaze over a fortress' floor wants a
 				// bow (ObtainKit's own reasons). its food is wantsFood's
 				case "gold helmet" -> armour.add("golden_helmet");
+				// (Soprano counts the bag and not what is worn, so one in the bag is the spare)
+				case "spare gold helmet" -> { rest.add(new adris.altoclef.util.ItemTarget("golden_helmet", 1)); names.add("a spare golden helmet"); }
 				case "more blocks" -> blocks = Math.max(blocks, 48);
 				case "flint and steel" -> { rest.add(new adris.altoclef.util.ItemTarget("flint_and_steel", 1)); names.add("flint and steel"); }
 				// (the diamond sword only with its two diamonds in the bag, and no bow or arrows: Soprano's blaze task fights them

@@ -84,6 +84,9 @@ final class ObtainKit {
 			// a golden helmet: it protects as much as an iron one, so the armour stays 15 (golden boots made it 14, and under 15
 			// a blaze is a shooter to dig in from, never one to fight)
 			k.add(new Need("gold helmet", List.of("golden_helmet"), 1));
+			// and a spare in the bag: a golden helmet has 77 points of durability, and a nether order's fights wore one through
+			// twice, with every piglin on the buddy from then on; the spare goes on where the worn one breaks (Obtain)
+			k.add(new Need("spare gold helmet", List.of("golden_helmet"), 2));
 			k.add(new Need("more blocks", List.of("cobblestone", "cobbled_deepslate"), 48));
 			k.add(new Need("flint and steel", List.of("flint_and_steel"), 1));
 			// a wither skeleton hits for eight through iron: a diamond sword ends it in fewer blows
