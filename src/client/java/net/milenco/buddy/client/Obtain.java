@@ -662,14 +662,15 @@ final class Obtain {
 		boolean between = exec == null;
 		if (between || exec instanceof Alto.Run && now >= boatLook) {
 			boatLook = now + 5000;
-			// in the nether with little to eat: home first (Alto.wantsHome), whatever is about, a blaze fight is what eats it.
-			// one that did not get home is not asked again for three minutes, and the food search there is what is left
+			// in the nether with little to eat, or without gold: home first (Alto.wantsHome), whatever is about, a blaze fight is
+			// what eats it. one that did not get home is not asked again for three minutes, and the food search there is what is left
 			if (now - homeTriedAt > 180_000 && Alto.wantsHome(p)) {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:home", 1, null, 0, List.of(), "home for food by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
 				exec = Alto.homeForFood();
-				Exchange.emit("obtain", "action", "step", "step", "home for food, " + Alto.foodScore(false) + " points in the bag", "way", "soprano:home");
+				String why = Alto.goldOn(p) ? "home for food, " + Alto.foodScore(false) + " points in the bag" : "home for gold, nothing golden worn";
+				Exchange.emit("obtain", "action", "step", "step", why, "way", "soprano:home");
 				return true;
 			}
 			// and home, the food run at once, before the order takes it straight back through the portal: the sky rule may not

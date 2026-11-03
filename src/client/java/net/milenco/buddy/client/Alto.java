@@ -263,10 +263,14 @@ final class Alto {
 	/** In the nether, eatable food under this sends it home for more: two or three minutes of a blaze fight's healing. */
 	static final int NETHER_FOOD_RESERVE = 36;
 
-	/** In the nether with little to eat: go home for food (homeForFood) rather than look for it there. */
+	/**
+	 * In the nether with little to eat, or with nothing golden worn any more: go home (homeForFood) rather than stay. A
+	 * golden helmet has 77 points of durability, and a nether order's fights wore one through: from then every piglin
+	 * was on it, with a hoglin, and a crossbow bolt knocked it off a ledge into the lava sea. Home, the kit puts a new one on.
+	 */
 	static boolean wantsHome(net.minecraft.client.player.LocalPlayer p) {
 		return on() && p.level().dimension().equals(net.minecraft.world.level.Level.NETHER)
-			&& (foodScore(false) < NETHER_FOOD_RESERVE || wantsFood(p));
+			&& (foodScore(false) < NETHER_FOOD_RESERVE || wantsFood(p) || !goldOn(p));
 	}
 
 	/** An item by AltoClef's catalogue, the way its #get takes: done when the bag holds {@code count}. */
