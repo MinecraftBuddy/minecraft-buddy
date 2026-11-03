@@ -115,7 +115,8 @@ gate lacks is fetched by safer steps first, all of it planned together.
 - **The deep** (diamonds): armour as the iron comes (a shield from the first ingot, then the chestplate, the leggings,
   the helmet and the boots, each as soon as there is iron for it; copper in an empty slot meanwhile), a good sword, a
   water bucket, torches, blocks, food, three stone pickaxes with a table and sticks so that the rock wears out the cheap
-  tools, and a bed when there is a sheep near or wool in the bag.
+  tools, and a bed when there is a sheep near or wool in the bag. The pieces of wood (the stone pickaxes, a table and
+  planks) only near the surface of the overworld, where the trees are; in the nether the iron pickaxe does.
 - **The nether**: full armour with a golden helmet worn (the piglins leave the wearer be) and a spare one in the bag, a
   diamond sword when the diamonds are in the bag, 48 blocks, flint and steel, and food to 160 points. Torches and the
   water bucket are the overworld's. A potion of fire resistance in the bag is drunk when fire is about, and it stops all

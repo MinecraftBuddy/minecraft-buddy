@@ -209,11 +209,20 @@ final class Alto {
 	 * The kit fetches a table and planks before any iron: with a piece of armour still missing, near the surface, and no
 	 * table or under eight planks in the bag (as kit() asks for them).
 	 */
+	/**
+	 * Near the surface of the overworld, where the trees are: the pieces made of wood (stone pickaxes, a table and planks)
+	 * are asked only there. In the nether there is no wood at all: an order for quartz with an iron pickaxe in hand
+	 * wandered 96 seconds for a stick before 14.5 seconds of quartz, the same kit again the next run.
+	 */
+	static boolean woodLand(net.minecraft.client.player.LocalPlayer p) {
+		return p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD) && !ObtainSafe.deepUnder(p);
+	}
+
 	private static boolean tableAndPlanks(net.minecraft.client.player.LocalPlayer p, java.util.List<ObtainKit.Need> missing) {
 		boolean armour = false;
 		for (ObtainKit.Need n : missing)
 			if (java.util.Set.of("helmet", "chestplate", "leggings", "boots", "shield").contains(n.name())) armour = true;
-		return armour && !ObtainSafe.deepUnder(p) && (ObtainSteps.count(p, "crafting_table") < 1 || planks(p) < 8);
+		return armour && woodLand(p) && (ObtainSteps.count(p, "crafting_table") < 1 || planks(p) < 8);
 	}
 
 	/** The bag in one number: a change of any stack changes it. */
@@ -681,7 +690,7 @@ final class Alto {
 		// (and only near the surface, with twenty planks, five tables' worth, to take down: asked again deep under the ground
 		// it climbed from y 18 to the trees at y 120 for a table's planks, twice in one order, and its kit took 146 game
 		// minutes. down there Soprano makes do with what it carries or walks back to its own table)
-		if (!armour.isEmpty() && !ObtainSafe.deepUnder(p) && (ObtainSteps.count(p, "crafting_table") < 1 || planks(p) < 8) && !skip.test("kit a table and planks"))
+		if (!armour.isEmpty() && woodLand(p) && (ObtainSteps.count(p, "crafting_table") < 1 || planks(p) < 8) && !skip.test("kit a table and planks"))
 			return new Run("kit a table and planks", 10 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
 				new adris.altoclef.util.ItemTarget("crafting_table", 1), new adris.altoclef.util.ItemTarget("planks", 20))));
 		// a bed before the first iron, near the surface: a night in a bed is seconds where one passes for one sleeper, and
@@ -709,7 +718,7 @@ final class Alto {
 		// (twelve sticks, handles for six more: the branch mines for copper and iron went through five stone pickaxes in
 		// twenty game minutes, with eight stacks of cobble in the bag, and with the sticks and the table spent it had to
 		// climb from y 37 to the trees for planks)
-		if (!ObtainSafe.deepUnder(p) && !skip.test("kit stone pickaxes")) {
+		if (woodLand(p) && !skip.test("kit stone pickaxes")) {
 			int cheap = cheapPicks(p);
 			if (cheap < 3 || ObtainSteps.count(p, "crafting_table") < 1 || ObtainSteps.count(p, "stick") < 4) {
 				int stone = ObtainSteps.count(p, "stone_pickaxe") + Math.max(0, 3 - cheap);
