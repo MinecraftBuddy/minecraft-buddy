@@ -230,6 +230,30 @@ final class ObtainPlan {
 		return new Plan(List.copyOf(pl.steps), ok ? null : pl.missing == null ? "no way to any of " + items : pl.missing);
 	}
 
+	/**
+	 * What one of each of these items costs to come back for later, with none of its blocks or mobs in sight: the cheapest
+	 * way from scratch, the place's guess for finding it and the tool's share included. The value of taking one along on
+	 * the way (ObtainWish). NEVER for an item with no way.
+	 */
+	static Map<String, Double> unseenCosts(List<String> items, Have have) {
+		Have blind = new Have() {
+			public int inv(String item) { return have.inv(item); }
+			public int worn(String item) { return have.worn(item); }
+			public int base(String item) { return have.base(item); }
+			public boolean station(String block) { return have.station(block); }
+			public Nature.Dim dim() { return have.dim(); }
+			public boolean blocked(String way) { return have.blocked(way); }
+			public boolean silk() { return have.silk(); }
+			public boolean portal(Nature.Dim to) { return have.portal(to); }
+			public boolean known(String place) { return have.known(place); }
+		};
+		Map<String, Double> out = new java.util.LinkedHashMap<>();
+		// a planner each: a cost worked out inside another item's question can be kept too high (a cycle cut short), and
+		// the next item would read it from the shared ledger (raw iron came out at a billion after a pickaxe)
+		for (String item : items) out.put(item, new Planner(blind).cost(VanillaData.plain(item)));
+		return out;
+	}
+
 	/** What an order of this item can be: it has a recipe, a drop, or a way of ours. */
 	/**
 	 * Every item of the game that can be planned from an empty bag in the overworld, sorted: the panel's list of what can

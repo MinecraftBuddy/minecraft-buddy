@@ -137,6 +137,33 @@ stands; under the ground the buddy climbs to the surface first. With the bag ful
 throwing what no task uses; the brew's things, the portal's, the golden helmet, the shield, the water bucket, blaze
 rods, ender pearls and golden apples are never among them during an order.
 
+## Taken along on the way
+
+With Soprano, a cluster of blocks the order or the kit still lacks, seen close to the way, is mined on the way when it
+is worth the detour: what it brings, in seconds saved, against what the detour costs, both measured alike.
+
+- **What counts**: iron, coal, gold, copper, diamond and redstone ore, gravel for flint, and logs while standing under
+  the open sky; only in the overworld. Counted as Soprano would mine them for the order and the kit's missing pieces.
+- **What one is worth**: the seconds coming back for it later would cost, with none in sight (raw iron about 30, coal
+  20, raw gold 80, a diamond 230, a flint from gravel 160).
+- **How urgent**: in full what the gate ahead lacks (armour, the shield, the swords, the golden helmet and the diamond
+  sword for the nether) and the buddy's own step; at 0.6 the rest of the order and the kit's stocks (torches, the water
+  bucket, flint and steel). Past the need, a reserve of half as much again counts too, from 0.5 down to nothing: with
+  ten iron needed the eleventh counts half, the sixteenth nothing. Nothing needed, nothing in reserve.
+- **What it costs**: the walk there and back at four blocks a second, breaking the blocks with the best tool in the bag,
+  a second for the drops and three for picking the order up again.
+- **Taken** when it is worth at least twice what it costs; of several, the one that gains most. The nearest block is
+  never further than 32 blocks of walking (a block up or down counts four).
+- **Only blocks in sight**, within 16 blocks of the eyes, so an ore behind a wall is never walked to. Never a block with
+  lava beside it, never gravel under a column of more than two over the head, never without the pick an ore takes,
+  never with three free slots or fewer unless the drop stacks.
+- **Never** with monsters about, under six hearts, in water, lava or fire, at night under the open sky, while a portal
+  goes up, on the boat, the trip home or a food run. A fight or a meal ends a detour at once.
+- **Not round in circles**: a detour gets 30 seconds and stays near where it began. A cluster it gave up on is left
+  alone for five game minutes, and after each detour five seconds pass before the next.
+
+Food is not part of it yet: food on the way stays as it is.
+
 ## Staying alive
 
 - **Never without the survival layer**: after an order out in the wild the buddy stays in Follow's chain and fights
@@ -180,6 +207,7 @@ rods, ender pearls and golden apples are never among them during an order.
 |---|---|---|
 | `obtainSopranoFirst` | on | an item Soprano's catalogue knows is got by Soprano whole; the buddy's own steps only where it has none |
 | `obtainAltoSurvival` | on | Soprano's chains fight, eat and get out of lava and water during an order |
+| `obtainTakeAlong` | on | Soprano mines what the order and the kit lack on the way, when it is in sight and worth the detour |
 | `obtainBaritone` | on | the buddy's own steps walk and mine with Baritone when it is in the mods folder |
 | `practiceFastTicks` | off | for a practice server run at a raised `/tick rate`: the client ticks as fast as the server |
 
