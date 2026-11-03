@@ -348,7 +348,7 @@ final class Alto {
 	static Run whole(String item, int count) {
 		return new Run("get " + count + " " + item, 6 * 3600_000L, () -> {
 			var get = adris.altoclef.TaskCatalogue.getItemTask(item, count);
-			return get == null ? null : new adris.altoclef.tasks.misc.SleepThroughNightsTask(get);
+			return get == null ? null : new adris.altoclef.tasks.misc.SleepThroughNightsTask(get, ObtainSafe::sopranoSleeps);
 		});
 	}
 
@@ -635,7 +635,7 @@ final class Alto {
 	 * spears and skeletons, and was shot dead.
 	 */
 	private static adris.altoclef.tasksystem.Task night(adris.altoclef.tasksystem.Task t) {
-		return new adris.altoclef.tasks.misc.SleepThroughNightsTask(t);
+		return new adris.altoclef.tasks.misc.SleepThroughNightsTask(t, ObtainSafe::sopranoSleeps);
 	}
 
 	private static long hungrySince = -1;

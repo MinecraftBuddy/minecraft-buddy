@@ -56,6 +56,17 @@ final class ObtainSafe {
 
 	static boolean phantomsDue() { return Rest.estimate() >= PHANTOM_TICKS; }
 
+	/**
+	 * Whether Soprano's night round an order (SleepThroughNightsTask: the evening's bed, the trip to it, the sleep) is slept:
+	 * only outside in the overworld. Deep under the ground the night changes nothing and phantoms come only to a player under
+	 * the open sky, so a pillar up to a bed there every night was time for nothing. Back outside at night, the bed goes down
+	 * at once, which also sets the phantoms' count back.
+	 */
+	static boolean sopranoSleeps() {
+		LocalPlayer p = AfkHelperClient.mc().player;
+		return p == null || !deepUnder(p);
+	}
+
 	/** In the overworld with no sky overhead and eight blocks or more of ground above. */
 	static boolean deepUnder(LocalPlayer p) {
 		Level level = p.level();

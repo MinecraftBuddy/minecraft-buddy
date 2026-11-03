@@ -132,6 +132,8 @@ in the bag, before the food run when the iron and the wood for it are in the bag
   night). Three blocks down under the open sky and shut, or underground the open sides shut right there; out in the
   morning once nothing waits at the hole's mouth. Deep under the ground the night changes nothing and the work goes on.
   A bed in the bag skips the night where the server lets one sleeper do that.
+- **Sleep only outside**: Soprano's bed at dusk goes down only outside in the overworld. Deep under the ground the buddy
+  does not sleep (phantoms come only under the open sky); back outside at night, the bed goes down at once.
 - **Hurt**: under half health with no fight on and food to heal by, a hole until healed; with nothing to eat, food first.
 - **Fight or flight by numbers**: the time the best weapon in the bag takes to kill what comes against the time they
   take to bring the buddy to two hearts, armour counted. A fight that would be lost is run from in the open, never down
