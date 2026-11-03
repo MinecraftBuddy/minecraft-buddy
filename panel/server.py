@@ -585,9 +585,9 @@ class Panel(BaseHTTPRequestHandler):
                     time.sleep(0.2)
         else:
             self.keep_live(wait=True)
-            # the mod kept up for a long while (another page looked): the copy is from when that began, and its changes
-            # since then took longer to go through than a new copy takes to build
-            if self.far_behind(self.pending(0)):
+            # a page that opens or comes back (back=1), while the mod kept up for a long while for another page: the copy
+            # is from when that began, and its changes since then take longer to go through than a new copy to build
+            if (q.get("back") or ["0"])[0] == "1" and self.far_behind(self.pending(0)):
                 self.new_copy()
         data = self.file("world3d.bin")
         if data is None:
@@ -864,17 +864,19 @@ class Panel(BaseHTTPRequestHandler):
     def world3d_live(self):
         """What changed since the page's last seq: the newest positions (world3d-ent.json), then the files of
         world3d-live/ after it, each with its length before it (four bytes). It keeps the mod writing them."""
+        q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
         try:
-            since = int((urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "").get("since") or ["0"])[0])
+            since = int((q.get("since") or ["0"])[0])
         except ValueError:
             since = 0
         # back after the mod had stopped (nobody looked for half a minute): its new copy first, so that the page goes to it
         # at once rather than after another round
         self.keep_live(wait=True)
         seqs = self.pending(since)
-        # a page far behind (back after a while, the mod kept up for another page): a new copy, which the page then
-        # builds, rather than minutes of changes twenty at a time
-        if self.far_behind(seqs):
+        # a page far behind after a while away (back=1; the mod kept up for another page): a new copy, which the page
+        # then builds, rather than minutes of changes twenty at a time. Not while it watches: a page a moment behind a
+        # fast buddy (every tick a change while Take control is open) got a new copy, and built it, every few seconds
+        if (q.get("back") or ["0"])[0] == "1" and self.far_behind(seqs):
             self.new_copy()
             seqs = self.pending(since)
         ent = self.file("world3d-ent.json") or b"{}"

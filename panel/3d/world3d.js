@@ -254,7 +254,8 @@ const who = cap => BUDDY ? escHtml(BUDDY) : cap ? 'The buddy' : 'the buddy';
 // Mojang then, from the browser's store after that); the bar never goes back. Over a view that already shows a world
 // (back after the tab was hidden) that world is dimmed under it ("again"), so that it is not taken for what is there now.
 const STEPS = { world: [0.02, 0.3], files: [0.3, 0.38], states: [0.38, 0.48], models: [0.48, 0.56], textures: [0.56, 0.66], build: [0.66, 1], changes: [0.05, 1] };
-const LOAD = { on: false, again: false, frac: 0 };
+// back: the page opens or comes back after a while; the panel may then make a new copy rather than send the changes
+const LOAD = { on: false, again: false, frac: 0, back: true };
 function loadParts() {
   const box = el('load');
   return box && { box, title: box.querySelector('[data-part="title"]'), bar: box.querySelector('[data-part="bar"]'), step: box.querySelector('[data-part="step"]') };
@@ -275,7 +276,7 @@ function loading(step, html, done, total) {
 }
 /** The bar done: gone, or with why (html) when there is no world to show. */
 function loaded(why) {
-  LOAD.on = false; LOAD.again = false;
+  LOAD.on = false; LOAD.again = false; LOAD.back = false;
   const p = loadParts();
   if (!p) return;
   p.box.hidden = !why || !!current;
@@ -286,7 +287,7 @@ function loaded(why) {
 }
 
 async function loadWorld(fresh, onBytes) {
-  const r = await fetch('/api/world3d' + (fresh ? `?fresh=1&r=${RADIUS}` : ''), { cache: 'no-store' });
+  const r = await fetch('/api/world3d' + (fresh ? `?fresh=1&r=${RADIUS}` : LOAD.back ? '?back=1' : ''), { cache: 'no-store' });
   if (r.status === 404) return null;
   if (!r.ok) throw new Error('world3d: ' + r.status);
   // counted as it comes, for the bar (a proxy that compresses on the way leaves out the length: then it does not move)
@@ -975,20 +976,24 @@ function rebuild(key) {
 }
 
 /** The copy of the world on the panel, drawn whole. */
-async function show(fresh) {
+async function show(fresh, quiet) {
   const t0 = performance.now();
   live.busy = true;
-  // a world on screen already: dimmed under the bar until the new one stands
-  if (current) LOAD.again = true;
+  // The bar on a first copy, on one asked for (Refresh, back after a while) and on a world that changes (another
+  // dimension, a new game), the old one dimmed under it. A new copy of the world on screen while watching (the mod
+  // starts one when its changes run long) is built in place without it: only the status line says so.
+  let bar = !quiet || !current;
+  if (current && bar) LOAD.again = true;
+  const say = (step, html, d, t) => bar ? loading(step, html, d, t) : status(html);
   let why = null;
   try {
     let what = fresh ? `Asking ${who()} for a new copy of the world…` : `Loading the world around ${who()}…`;
-    const bytes = (d, t) => loading('world', what, d, t);
-    loading('world', what);
+    const bytes = (d, t) => say('world', what, d, t);
+    say('world', what);
     let world = await loadWorld(fresh, bytes);
-    if (!world && !fresh) { what = `No copy yet: asking ${who()} for one…`; loading('world', what); world = await loadWorld(true, bytes); }
+    if (!world && !fresh) { what = `No copy yet: asking ${who()} for one…`; say('world', what); world = await loadWorld(true, bytes); }
     // a copy of fewer chunks around the buddy than the view wants (from before the view went further): a new one
-    else if (world && !fresh && (world.meta.radius || 0) < RADIUS) { what = `Asking ${who()} for a wider copy…`; loading('world', what); world = (await loadWorld(true, bytes)) || world; }
+    else if (world && !fresh && (world.meta.radius || 0) < RADIUS) { what = `Asking ${who()} for a wider copy…`; say('world', what); world = (await loadWorld(true, bytes)) || world; }
     if (!world) {
       why = `${who(true)} has not sent a copy of the world. Is ${who()} online? The view tries again by itself.`;
       status(why);
@@ -996,10 +1001,11 @@ async function show(fresh) {
     }
     if (world.meta.name) BUDDY = world.meta.name;
     const { meta } = world;
-    const step = (html, d, t, s) => loading(s || 'files', html, d, t);
+    const step = (html, d, t, s) => say(s || 'files', html, d, t);
     // the numbers of block states hold for the buddy's game session: a copy that does not start with what the page knows
     // comes from a new session, and the page starts over
     const same = prep && prep.version === meta.version && prep.states.every((x, i) => meta.states[i] === x) && prep.biomeIds.every((x, i) => meta.biomes[i] === x);
+    if (!same && !bar) { bar = true; LOAD.again = true; }
     if (!same) {
       if (prep) { prep.texture.dispose(); prep.mats.forEach(m => m.dispose()); }
       step(`Reading the game's files (Minecraft <b>${meta.version}</b>)…`, 0, 0, 'files');
@@ -1010,12 +1016,18 @@ async function show(fresh) {
     loadModels();
     await prep.addBiomes(meta.biomes.slice(prep.biomeIds.length));
     const moved = !current || current.world.meta.dim !== meta.dim;
+    if (moved && !bar) { bar = true; LOAD.again = true; }
+    // the same world in the same game: each chunk swaps its meshes as it is built, the figures stay, and what the new
+    // copy no longer holds goes after; else the old world goes first
+    const keep = same && !moved;
     // where the buddy was drawn until now: a new copy comes after the buddy went further (a walk, a teleport), most of all after the page
     // was in a hidden tab, where it asked for no copy; the view goes along to where the copy has the buddy
     const was = moved ? null : { x: current.world.meta.x, y: current.world.meta.y, z: current.world.meta.z };
     if (moved) origin = { x: Math.floor(meta.x), z: Math.floor(meta.z) };
-    clearFigures();
-    for (const key of [...meshes.keys()]) { for (const m of meshes.get(key)) { worldGroup.remove(m); if (!m.userData.shared) m.geometry.dispose(); } meshes.delete(key); }
+    if (!keep) {
+      clearFigures();
+      for (const key of [...meshes.keys()]) { for (const m of meshes.get(key)) { worldGroup.remove(m); if (!m.userData.shared) m.geometry.dispose(); } meshes.delete(key); }
+    }
     current = { world };
     scene.fog = new THREE.Fog(sky, meta.radius * 16 * 0.75, meta.radius * 16 * 1.25);
     if (!positioned || moved) { if (mode === 'drive') drive(); else if (mode === 'map') mapView(); else lookAround(); positioned = true; }
@@ -1027,8 +1039,9 @@ async function show(fresh) {
     let quads = 0;
     for (let n = 0; n < list.length; n++) {
       quads += rebuild(list[n].cx + ',' + list[n].cz);
-      if (n % 4 === 3) { loading('build', `Building chunks: <b>${n + 1}</b> of ${list.length}`, n + 1, list.length); await sleep(0); }
+      if (n % 4 === 3) { say('build', `Building chunks: <b>${n + 1}</b> of ${list.length}`, n + 1, list.length); await sleep(0); }
     }
+    if (keep) for (const key of [...meshes.keys()]) if (!world.chunks.has(key)) rebuild(key);
     entities(meta);
     live.seq = meta.seq || 0;
     live.base = meta.base || 0;
@@ -2535,7 +2548,7 @@ const AWAY_MS = 20000;
 
 async function keepUp() {
   let looked = Date.now(), tried = 0, behind = 0;
-  const again = async fresh => { await show(fresh); looked = Date.now(); };
+  const again = async fresh => { await show(fresh, !LOAD.on); looked = Date.now(); };
   for (;;) {
     // the panel's view while its window is shut asks for nothing: the mod stops writing half a minute later
     if (CFG.active && !CFG.active()) { live.ok = false; unstream(); await sleep(1000); continue; }
@@ -2543,14 +2556,14 @@ async function keepUp() {
     // minutes, its half-built world on screen when the tab came back; it is asked for when the tab is shown again
     if (document.hidden) { live.ok = false; unstream(); await new Promise(r => document.addEventListener('visibilitychange', r, { once: true })); continue; }
     stream();
-    if (current && !live.busy && !LOAD.on && Date.now() - looked > AWAY_MS) { LOAD.again = true; loading('world', `Asking ${who()} what is there now…`); }
+    if (current && !live.busy && !LOAD.on && Date.now() - looked > AWAY_MS) { LOAD.again = true; LOAD.back = true; loading('world', `Asking ${who()} what is there now…`); }
     looked = Date.now();
     let more = false;
     try {
       // no world yet (the buddy was not on a server, or the copy did not come): asked for again now and then
       if (!current && !live.busy && Date.now() - tried > 15000) { tried = Date.now(); await again(false); continue; }
       if (current && !live.busy) {
-        const r = await fetch(`/api/world3d/live?since=${live.seq}`, { cache: 'no-store' });
+        const r = await fetch(`/api/world3d/live?since=${live.seq}${LOAD.back ? '&back=1' : ''}`, { cache: 'no-store' });
         live.ok = r.ok;
         // how many changes the panel has after this page's, for the bar while it goes through them
         const pending = Number(r.headers.get('X-Pending')) || 0;
