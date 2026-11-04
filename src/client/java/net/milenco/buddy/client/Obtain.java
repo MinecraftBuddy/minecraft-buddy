@@ -703,7 +703,10 @@ final class Obtain {
 			// 35 points in a crowd of blazes, the home run took the fight off them (whose own retreat breaks their sight), the
 			// mob defense then ran 24 blocks in the open, burning, past two skeletons, and it burned to death at 10 hp. out of
 			// their sight, which is where the fight's retreat ends, the run begins
-			if (now - homeTriedAt > 180_000 && Alto.wantsHome(p) && (!Alto.goldOn(p) || homeIsSafe(p))) {
+			// (and not for food with the order one short: six rods of seven, home through the portal for food, and a skeleton
+			// shot it on the food run in the overworld, attempt 200. the last one first, unless the bag is all but empty)
+			boolean lastOne = count >= 4 && count - ObtainSteps.count(p, item) <= 1 && Alto.goldOn(p) && Alto.foodScore(false) >= 12;
+			if (!lastOne && now - homeTriedAt > 180_000 && Alto.wantsHome(p) && (!Alto.goldOn(p) || homeIsSafe(p))) {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:home", 1, null, 0, List.of(), "home for food by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
