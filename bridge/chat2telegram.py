@@ -285,7 +285,7 @@ DOC = {
     "get": ("!get name", "One setting and what it does", ""),
     "show": ("!show [kind on|off]", "What shows up in this chat: players' chat, private messages, joins and leaves, other server messages, the buddy's own news",
              "!show lists the five, on or off. !show joins off (or chat, pm, server, buddy, all) switches one. Which kind a "
-             "line is comes from the server profile's texts chat, join, leave, pm and pmOut; joins and leaves themselves come "
+             "line is comes from the server profile's texts chat, relay, join, leave, pm and pmOut; joins and leaves themselves come "
              "from the player list. The panel has the same switches (Settings, Telegram)."),
     "set": ("!set name value", "Change a setting: !set buildMaxPerSec 3, !set raidDrink off",
             "For on/off, number and text settings; the change counts within a second. Lists (trusted players, food) cannot "
@@ -1712,6 +1712,13 @@ def buddy_line(ev):
         if not show({"pm": "pm", "chat": "chat"}.get(kind, "server")):
             return None
         who, said = ev.get("player"), ev.get("said")
+        if who and ev.get("relay"):
+            # a line from a chat outside the game (the profile's text relay): as the server shows it, so that its
+            # mark ([IRC], [Discord]) stays, with the name in bold
+            i = text.find(str(who))
+            if i >= 0:
+                return escape(text[:i]) + f"<b>{escape(str(who))}</b>" + escape(text[i + len(str(who)):])
+            return escape(text)
         if who and said is not None and kind == "chat":
             return f"<b>{escape(str(who))}</b> » {escape(str(said))}"
         return escape(text)
@@ -1737,7 +1744,8 @@ def buddy_line(ev):
 
 
 # what comes into the chat, each on or off: "show" in the settings, set in the panel (Settings, Telegram) or with !show here
-SHOW = (("chat", "players' chat", "the lines the game marks as a player's, or that match the server profile's text chat"),
+SHOW = (("chat", "players' chat", "the lines the game marks as a player's, or that match the server profile's text chat, "
+                                  "and chat from outside the game (IRC, Discord) that matches its text relay"),
         ("pm", "private messages", "to and from the buddy: the server profile's texts pm and pmOut"),
         ("joins", "joins and leaves", "players coming online and going offline, from the player list; the server's own join "
                                       "and leave lines stay out when they match the profile's texts join and leave"),
@@ -1789,7 +1797,7 @@ def show_command(rest):
         return "❌ Like this: <b>!show</b>, <b>!show joins off</b> or <b>!show all on</b> (" + ", ".join(names) + ")"
     out = ["<b>What shows up here</b> (<b>!show name on</b> or <b>off</b>)"]
     out += [f"{'✅' if show(k) else '⬜'} <b>{k}</b>: {escape(named(label))}, {escape(named(why))}" for k, label, why in SHOW]
-    out.append("\nWhich kind a line is comes from the server profile's texts chat, join, leave, pm and pmOut (panel: Settings, "
+    out.append("\nWhich kind a line is comes from the server profile's texts chat, relay, join, leave, pm and pmOut (panel: Settings, "
                "Server profiles). A line that matches none of them is a server message.")
     return "\n".join(out)
 

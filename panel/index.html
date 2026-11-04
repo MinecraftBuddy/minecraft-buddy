@@ -2663,6 +2663,7 @@ const PCMDS = {tpa: 'ask to teleport to the player {n} follows', tpahere: 'ask a
   homes: 'list the homes (menu or chat)', msg: 'a private message', eventLeave: 'leave a minigame'};
 const PTEXTS = {tpa: 'a player asks to teleport to {n}', tpahere: 'a player asks {n} to come over (accepted only from the player {n} follows)',
   chat: 'a player\'s public chat line ({player} and the text): what Telegram shows as players\' chat',
+  relay: 'a chat line from outside the game the server passes on, such as IRC or Discord ({player} and the text): Telegram shows it with players\' chat',
   join: 'the server\'s own line when a player comes online: kept out of Telegram, which takes joins from the player list',
   leave: 'the server\'s own line when a player goes offline: kept out of Telegram, as join',
   pm: 'a private message to {n} ({player} and the text)', pmOut: '{n}\'s own private message, as the server echoes it', accepted: '{n}\'s teleport request was accepted',
@@ -2676,7 +2677,7 @@ const PEXAMPLE = {name: 'example', address: 'play.example.net', withCommand: '',
   commands: {tpa: '/tpa {player}', tpahere: '/tpahere {player}', tpaccept: '/tpaccept {player}', tpdeny: '/tpdeny {player}', afk: '/afk',
     sethome: '/sethome', home: '/home', homes: '/homes', msg: '/msg {player} {text}', eventLeave: '/event leave'},
   texts: {tpa: '^{player} has requested to teleport to you\\.', tpahere: '^{player} has requested that you teleport to them\\.',
-    chat: '^<{player}> (.*)$', join: '^{player} joined the game$', leave: '^{player} left the game$',
+    chat: '^<{player}> (.*)$', relay: '^\\[IRC\\] <{player}> (.*)$', join: '^{player} joined the game$', leave: '^{player} left the game$',
     pm: '^\\[{player} -> me\\] (.*)$', pmOut: '^\\[me -> {player}\\] (.*)$', accepted: '^{player} accepted your teleport request\\.',
     declined: '^{player} denied your teleport request\\.', expired: 'teleport request (has )?expired',
     teleportComing: '^Teleportation will commence in', teleported: '^Teleporting\\.\\.\\.', cancelledMoved: '^Pending teleportation request cancelled',
@@ -2911,7 +2912,7 @@ async function telegram(form) {
   tgShow(T); tgStatus(T); tgSeen(T);
 }
 /* what comes into the chat, each on or off at once, without a restart of the bridge; !show in the chat sets the same */
-const TGSHOW = [['chat', "Players' chat", 'The lines of players: what the game signs as a player\'s, or what the server profile\'s text <b>chat</b> matches.'],
+const TGSHOW = [['chat', "Players' chat", 'The lines of players: what the game signs as a player\'s, or what the server profile\'s text <b>chat</b> matches. Also chat from outside the game, such as IRC or Discord, that its text <b>relay</b> matches.'],
   ['pm', 'Private messages', 'To and from {n}: the profile\'s texts <b>pm</b> and <b>pmOut</b>.'],
   ['joins', 'Joins and leaves', 'Players coming online and going off, from the player list. The server\'s own lines for it stay out when the profile\'s texts <b>join</b> and <b>leave</b> match them; otherwise they come in as a server message too.'],
   ['server', 'Other server messages', 'Everything else the server says: deaths, broadcasts, plugin lines. A line that matches none of the texts above counts as one.'],
@@ -2919,7 +2920,7 @@ const TGSHOW = [['chat', "Players' chat", 'The lines of players: what the game s
 function tgShow(v) {
   const sh = v.show || {};
   $('tgshow').innerHTML = '<h3 class="tgsub">What comes into the chat</h3><p class="note">Each switch applies at once. In the chat <b>!show</b> lists them and <b>!show joins off</b> switches one. ' +
-    'How a line is told apart is in the <a href="#s-prof">server profile</a>: its texts chat, join, leave, pm and pmOut (How it works there explains them, and the Example has the vanilla forms).</p>' +
+    'How a line is told apart is in the <a href="#s-prof">server profile</a>: its texts chat, relay, join, leave, pm and pmOut (How it works there explains them, and the Example has the vanilla forms).</p>' +
     TGSHOW.map(([k, t, d]) => '<button type="button" class="sw wide" role="switch" aria-checked="' + (sh[k] !== false) + '" data-tgshow="' + k + '"><span class="tx"><b>' + nm(t) + '</b><span>' + nm(d) + '</span></span><span class="track"></span></button>').join('');
 }
 /* the main switch: off, the bridge says nothing and Telegram goes from every part of the page (body.tgoff) */

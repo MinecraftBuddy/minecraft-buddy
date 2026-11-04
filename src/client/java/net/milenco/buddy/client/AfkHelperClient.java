@@ -363,12 +363,13 @@ public class AfkHelperClient implements ClientModInitializer {
 	private void onIncoming(String text, String kind) { onIncoming(text, kind, null); }
 
 	/**
-	 * A chat line's kind ("pm", "chat", "join", "leave" or "server"), the player it names and what was said: by the active
-	 * profile's texts pm and pmOut, join and leave, and chat (a player's public line); a line the game itself signed as a
-	 * player's is chat, and without a chat text the vanilla forms "<Name> text" and "Name: text" count too.
+	 * A chat line's kind ("pm", "chat", "relay", "join", "leave" or "server"), the player it names and what was said: by the
+	 * active profile's texts pm and pmOut, join and leave, relay (a line the server passes on from a chat outside the game,
+	 * such as IRC or Discord) and chat (a player's public line); a line the game itself signed as a player's is chat, and
+	 * without a chat text the vanilla forms "<Name> text" and "Name: text" count too.
 	 */
 	static Object[] lineKind(String clean, String kind) {
-		for (String[] t : new String[][] { { "pm", "pm" }, { "pmOut", "pm" }, { "join", "join" }, { "leave", "leave" }, { "chat", "chat" } }) {
+		for (String[] t : new String[][] { { "pm", "pm" }, { "pmOut", "pm" }, { "join", "join" }, { "leave", "leave" }, { "relay", "relay" }, { "chat", "chat" } }) {
 			Matcher m = Profiles.match(t[0], clean, null);
 			if (m.lookingAt()) return new Object[] { t[1], m.groupCount() >= 1 ? m.group(1) : null, m.groupCount() >= 2 ? m.group(2) : null };
 		}
@@ -386,7 +387,10 @@ public class AfkHelperClient implements ClientModInitializer {
 		// player's chat line, a join, a leave, or anything else
 		// the server says; with the player and the words said where the profile's text gives them
 		Object[] what = lineKind(clean, kind);
-		List<Object> ev = new ArrayList<>(List.of("kind", kind, "is", what[0], "text", clean));
+		// a relayed line is players' chat for Telegram's switches; "relay" says it came from outside the game
+		boolean relay = "relay".equals(what[0]);
+		List<Object> ev = new ArrayList<>(List.of("kind", kind, "is", relay ? "chat" : what[0], "text", clean));
+		if (relay) { ev.add("relay"); ev.add(true); }
 		if (what[1] != null) { ev.add("player"); ev.add(what[1]); }
 		if (what[2] != null) { ev.add("said"); ev.add(what[2]); }
 		if (runs != null) { ev.add("runs"); ev.add(runs); }

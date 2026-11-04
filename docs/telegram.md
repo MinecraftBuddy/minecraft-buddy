@@ -44,9 +44,10 @@ Five kinds, each on or off, in Settings, Telegram or with `!show` in the chat (`
 | `buddy` | the buddy's own news: joining or leaving the server, what is lacking |
 
 The [server profile](profiles.md) tells the kinds apart, so set its texts for the server: `chat` (how a player's line
-looks), `join` and `leave` (the server's own lines for it, which then stay out of the chat: joins come from the player
-list), and `pm` and `pmOut`. A line the game itself marks as a player's is chat even without a `chat` text; any other
-line that matches none of them is a server message. Many servers send players' lines as server messages, and then only
+looks), `relay` (chat from outside the game the server passes on, such as IRC or Discord: it comes in with players'
+chat, as the server shows it), `join` and `leave` (the server's own lines for it, which then stay out of the chat: joins
+come from the player list), and `pm` and `pmOut`. A line the game itself marks as a player's is chat even without a
+`chat` text; any other line that matches none of them is a server message. Many servers send players' lines as server messages, and then only
 the `chat` text tells them apart. On a server whose lines look like `[Admin] Name » text`, for instance, `chat` is
 `^(?:\[[^\]]*\] )*{player} » (.*)$`, and with join lines like `[+] Name`, `join` is `^\[\+\] {player}$` and `leave`
 `^\[-\] {player}$`.

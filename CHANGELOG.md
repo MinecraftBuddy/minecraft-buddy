@@ -3,6 +3,12 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.18
+
+- **Chat from outside the game in Telegram.** A server profile can now say how lines the server passes on from IRC or
+  Discord look (Lines the server sends: `relay`). Those lines then come into Telegram with players' chat, as the server
+  shows them, also when other server messages are off.
+
 ## 0.5.17
 
 - In Take control, new chat lines now sit at the bottom left, level with the block name at the bottom right.
