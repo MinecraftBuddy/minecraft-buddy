@@ -44,6 +44,8 @@ final class Water {
 	static final float SAVE_LEFT = 6f;
 	/** After a refused pour: so long no bucket (ms). */
 	private static final long REFUSED_MS = 30_000;
+	/** This much obsidian round the buddy makes a frame (a portal's has ten, a lone cast from lava one or two). */
+	static final int FRAME_OBSIDIAN = 4;
 
 	private static BlockPos poured;         // where the water went, until it is scooped up again
 	private static String why;              // "brand" or "val"
@@ -98,10 +100,25 @@ final class Water {
 	}
 
 	private static void douseTick(Minecraft mc, LocalPlayer p) {
-		if (!burning(p) || AfkHelperClient.isEating() || !canDouse(p)) return;
+		if (!burning(p) || AfkHelperClient.isEating() || !canDouse(p) || byFrame(p)) return;
 		BlockPos cell = douseCell(p);
 		// straight down: the ray from the eye meets the block stood on, and the water goes into the buddy's own cell
 		if (pour(mc, p, p.getYRot(), 90f, cell, "fire")) hpAtPour = p.getHealth();
+	}
+
+	/**
+	 * Next to an obsidian frame: a nether portal being built, and the fire is most likely the lighting that made no portal.
+	 * Water poured there floods the frame, and the build then spent two game hours clearing water (attempt 218, 4 Nov
+	 * 2026). Soprano punches that fire out; the burn that is left is short.
+	 */
+	static boolean byFrame(LocalPlayer p) {
+		Level level = p.level();
+		BlockPos feet = p.blockPosition();
+		int obsidian = 0;
+		for (BlockPos cell : BlockPos.betweenClosed(feet.offset(-2, -1, -2), feet.offset(2, 3, 2))) {
+			if (level.getBlockState(cell).is(net.minecraft.world.level.block.Blocks.OBSIDIAN) && ++obsidian >= FRAME_OBSIDIAN) return true;
+		}
+		return false;
 	}
 
 	/**

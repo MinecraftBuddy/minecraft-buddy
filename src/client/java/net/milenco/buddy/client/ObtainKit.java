@@ -20,11 +20,12 @@ final class ObtainKit {
 
 	/**
 	 * The fire resistance brew for the nether: the kit's water bottles and redstone, which Soprano's blaze hunt brews of in
-	 * the fortress (it brews only with water bottles in the bag). Off: more food is the nether's way for now, the trips home
-	 * for it were the cost, and the bottles' sand, the redstone and the wart hunt took time of every order. Kept for an
-	 * order for potions.
+	 * the fortress (it brews only with water bottles in the bag). Off from 0.5.12 (more food was the nether's way then, and
+	 * the bottles' sand, the redstone and the wart hunt took time of every order); on again since fire and lava stayed the
+	 * nether's first killers with the food in the bag: in 189 to 218 blazes, fire and the lava sea took nine of the
+	 * fortress deaths.
 	 */
-	static final boolean BREW = false;
+	static final boolean BREW = true;
 
 	static final List<String> FOOD = List.of("cooked_beef", "cooked_porkchop", "cooked_mutton", "cooked_chicken", "cooked_salmon", "cooked_cod",
 		"bread", "baked_potato", "golden_carrot", "cooked_rabbit");
@@ -105,7 +106,7 @@ final class ObtainKit {
 			// three water bottles and a redstone dust: Soprano brews fire resistance of them in the fortress (a stand of a rod and
 			// three stone, a rod's powder for its fuel, a nether wart and a magma cream found there), and the nether has no water
 			// to fill a bottle at. fire was over half the damage taken in the nether, the blazes' fireballs and lava included,
-			// and fire resistance takes all of it (the dust makes three minutes eight). off for now (BREW)
+			// and fire resistance takes all of it (the dust makes three minutes eight). BREW turns it off
 			if (BREW) {
 				k.add(new Need("water bottles", List.of("potion"), 3));
 				k.add(new Need("redstone", List.of("redstone"), 1));
