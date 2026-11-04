@@ -474,6 +474,25 @@ final class Alto {
 	 */
 	static final int NETHER_FOOD = 160;
 
+	/**
+	 * A nether portal being built: a portal build anywhere in Soprano's task stack, or a frame begun nearby. doing() sees
+	 * only the outer task and the deepest, and the deepest is a click or a block placed, so portalUnderWay() missed it: the
+	 * boat rule broke a frame off twice for a boat (attempt 224, 4 Nov 2026).
+	 */
+	static boolean buildingPortal() {
+		if (!up) return false;
+		var mod = adris.altoclef.AltoClef.getInstance();
+		if (mod == null || mod.getTaskRunner() == null || mod.getPlayer() == null) return false;
+		if (adris.altoclef.tasks.construction.compound.ConstructNetherPortalObsidianTask.obsidianInLastFrame(mod) > 0) return true;
+		var chain = mod.getTaskRunner().getCurrentTaskChain();
+		if (chain == null) return false;
+		for (var t : chain.getTasks()) {
+			if (t instanceof adris.altoclef.tasks.construction.compound.ConstructNetherPortalObsidianTask
+				|| t instanceof adris.altoclef.tasks.construction.compound.ConstructNetherPortalBucketTask) return true;
+		}
+		return false;
+	}
+
 	/** Soprano's task under way is a nether portal's (a frame cast or built, or the walk into one). */
 	static boolean portalUnderWay() {
 		String d = doing();
@@ -518,6 +537,8 @@ final class Alto {
 	 */
 	static boolean wantsBoat(net.minecraft.client.player.LocalPlayer p) {
 		if (!on() || p.getVehicle() != null || !p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return false;
+		// the portal is the way out of here: no water lies ahead of it
+		if (buildingPortal()) return false;
 		// on the surface only: under the ground a path through a cave's water asked for a boat at y -28, and the walk up for
 		// wood brought it among the night's zombies and a skeleton, dead
 		if (!p.level().canSeeSky(p.blockPosition().above()) || p.getY() < p.level().getSeaLevel() - 4) return false;
