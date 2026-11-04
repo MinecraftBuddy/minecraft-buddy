@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 548" width="1000" height="548" role="img" aria-labelledby="t d">
+  <title id="t">Under the hood</title>
+  <desc id="d">You reach the buddy from a browser, through Caddy, or from Telegram. On a machine with Docker each buddy has a
+    container with the web panel, the Telegram bridge and the game with the mod, which share the exchange folder, and a
+    Watchtower of its own for updates. The game plays on any Minecraft server, where you play too.</desc>
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#ffffff" stroke-opacity="0.035"/>
+    </pattern>
+    <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#8b98a5"/>
+    </marker>
+    <marker id="headg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#6cc04a"/>
+    </marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #e6edf3; }
+      .zone { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; fill: #7d8a99; }
+      .h { font-size: 14px; font-weight: 650; }
+      .s { font-size: 11.5px; fill: #9aa7b4; }
+      .lbl { font-size: 11px; fill: #9aa7b4; paint-order: stroke; stroke: #0e141b; stroke-width: 6px; stroke-linejoin: round; }
+      .card { fill: #18212c; stroke: #2c3846; stroke-width: 1.2; }
+      .proc { fill: #1f2a37; stroke: #3a4858; stroke-width: 1.2; }
+      .wire { fill: none; stroke: #8b98a5; stroke-width: 1.6; }
+      .share { fill: none; stroke: #b08850; stroke-width: 1.6; stroke-linecap: round; }
+      .dash { fill: none; stroke: #6f7c8a; stroke-width: 1.4; stroke-dasharray: 5 5; }
+    </style>
+  </defs>
+
+  <!-- background -->
+  <rect width="1000" height="548" rx="16" fill="#0e141b"/>
+  <rect width="1000" height="548" rx="16" fill="url(#grid)"/>
+
+  <!-- zones -->
+  <text class="zone" x="28" y="34">YOU</text>
+  <text class="zone" x="204" y="34">A MACHINE WITH DOCKER</text>
+  <text class="zone" x="796" y="34">ONLINE</text>
+  <rect x="204" y="48" width="568" height="476" rx="14" fill="none" stroke="#3a4655" stroke-width="1.4" stroke-dasharray="7 6"/>
+
+  <!-- you: the browser -->
+  <rect class="card" x="28" y="138" width="152" height="88" rx="10"/>
+  <g transform="translate(42 158)">
+    <rect width="26" height="20" rx="3" fill="none" stroke="#9aa7b4" stroke-width="1.6"/>
+    <path d="M0 6H26" stroke="#9aa7b4" stroke-width="1.6"/>
+    <circle cx="4" cy="3" r="1" fill="#9aa7b4"/><circle cx="8" cy="3" r="1" fill="#9aa7b4"/>
+  </g>
+  <text class="h" x="78" y="173">Browser</text>
+  <text class="s" x="42" y="198">the panel: map, chat,</text>
+  <text class="s" x="42" y="213">3D view, settings</text>
+
+  <!-- you: Telegram -->
+  <rect class="card" x="28" y="314" width="152" height="88" rx="10"/>
+  <circle cx="55" cy="341" r="13" fill="#2aabee"/>
+  <path d="M48 341L62 335L59 348L55 344L53 348L53 343z" fill="#ffffff"/>
+  <text class="h" x="78" y="346">Telegram</text>
+  <text class="s" x="42" y="374">the game chat,</text>
+  <text class="s" x="42" y="389">and ! commands</text>
+
+  <!-- Caddy -->
+  <rect class="card" x="228" y="132" width="108" height="100" rx="10"/>
+  <g transform="translate(274 144)" fill="none" stroke="#6cc04a" stroke-width="1.8">
+    <path d="M2 9V6a6 6 0 0 1 12 0v3"/>
+    <rect x="0" y="9" width="16" height="11" rx="2" fill="#6cc04a" stroke="none"/>
+  </g>
+  <text class="h" x="282" y="185" text-anchor="middle">Caddy</text>
+  <text class="s" x="282" y="204" text-anchor="middle">HTTPS for</text>
+  <text class="s" x="282" y="219" text-anchor="middle">every buddy</text>
+
+  <!-- the buddies' containers: steve in front, more behind -->
+  <rect x="384" y="84" width="376" height="300" rx="12" fill="#121a23" stroke="#26313d" stroke-width="1.2"/>
+  <rect x="374" y="94" width="376" height="300" rx="12" fill="#131c26" stroke="#2a3542" stroke-width="1.2"/>
+  <rect x="364" y="104" width="376" height="300" rx="12" fill="#151f2a" stroke="#6cc04a" stroke-opacity="0.55" stroke-width="1.4"/>
+  <g transform="translate(382 117)">
+    <rect x="3" y="0" width="12" height="12" rx="2" fill="#d9a77c"/>
+    <rect x="3" y="0" width="12" height="3" rx="1" fill="#4b3621"/>
+    <rect x="0" y="13" width="18" height="10" rx="2" fill="#6cc04a"/>
+  </g>
+  <text class="h" x="410" y="134">steve</text>
+  <text class="s" x="452" y="134">the buddy's container</text>
+  <text class="s" x="724" y="134" text-anchor="end">one per buddy</text>
+  <path d="M364 148H740" stroke="#2c3846" stroke-width="1.2"/>
+
+  <!-- inside: panel, bridge, game around the exchange folder -->
+  <rect class="proc" x="384" y="160" width="132" height="44" rx="8"/>
+  <text class="h" x="450" y="187" text-anchor="middle">Web panel</text>
+  <rect class="proc" x="384" y="336" width="132" height="44" rx="8"/>
+  <text class="h" x="450" y="363" text-anchor="middle">Telegram bridge</text>
+  <rect class="proc" x="632" y="222" width="96" height="96" rx="8" stroke="#6cc04a" stroke-opacity="0.8"/>
+  <text class="h" x="680" y="254" text-anchor="middle">Minecraft</text>
+  <text class="s" x="680" y="273" text-anchor="middle">HeadlessMC,</text>
+  <text class="s" x="680" y="289" text-anchor="middle">no window</text>
+  <text x="680" y="306" text-anchor="middle" style="font-size:12px;font-weight:650;fill:#6cc04a">+ the mod</text>
+
+  <path class="share" d="M450 204V254Q450 262 458 262H544"/>
+  <path class="share" d="M450 336V286Q450 278 458 278H544"/>
+  <path class="share" d="M600 270H630"/>
+
+  <!-- the exchange folder, drawn as a chest -->
+  <g transform="translate(546 246)">
+    <rect x="0" y="12" width="52" height="34" rx="3" fill="#8f5d2a"/>
+    <rect x="0" y="0" width="52" height="16" rx="3" fill="#a96f34"/>
+    <path d="M0 16H52" stroke="#5e3b17" stroke-width="2.5"/>
+    <path d="M2 44H50" stroke="#5e3b17" stroke-width="2"/>
+    <rect x="20" y="10" width="12" height="13" rx="2" fill="#e3c46b"/>
+    <rect x="24.5" y="15" width="3" height="5" fill="#5e3b17"/>
+  </g>
+  <text x="572" y="312" text-anchor="middle" style="font-size:12px;fill:#e0c48f">exchange folder</text>
+
+  <!-- links from outside into the machine -->
+  <path class="wire" d="M180 182H226" marker-end="url(#head)"/>
+  <path class="wire" d="M336 182H382" marker-end="url(#head)"/>
+  <path class="wire" d="M182 358H382" marker-start="url(#head)" marker-end="url(#head)"/>
+  <text class="lbl" x="281" y="354" text-anchor="middle">bot</text>
+
+  <!-- the server -->
+  <rect class="card" x="796" y="104" width="176" height="300" rx="12"/>
+  <text class="h" x="884" y="134" text-anchor="middle">Minecraft server</text>
+  <text class="s" x="884" y="152" text-anchor="middle">any server, a profile each</text>
+  <g>
+    <polygon points="884,174 915,192 884,210 853,192" fill="#6cc04a"/>
+    <polygon points="853,192 884,210 884,246 853,228" fill="#8a5a2b"/>
+    <polygon points="884,210 915,192 915,228 884,246" fill="#6b4420"/>
+    <polygon points="853,192 884,210 884,217 853,199" fill="#58a83a"/>
+    <polygon points="884,210 915,192 915,199 884,217" fill="#4b8f2f"/>
+    <polygon points="857,199 861,201 861,205 857,203" fill="#58a83a"/>
+    <polygon points="872,206 876,208 876,212 872,210" fill="#58a83a"/>
+    <polygon points="893,210 897,208 897,212 893,214" fill="#4b8f2f"/>
+    <polygon points="907,202 911,200 911,203 907,205" fill="#4b8f2f"/>
+  </g>
+  <!-- you and the buddy, side by side -->
+  <g transform="translate(852 290)">
+    <rect x="-7" y="0" width="14" height="14" rx="2" fill="#d9a77c"/>
+    <rect x="-7" y="0" width="14" height="4" rx="1" fill="#3b2a1a"/>
+    <rect x="-8" y="15" width="16" height="20" rx="2" fill="#3d8bd4"/>
+    <rect x="-12" y="15" width="4" height="17" rx="1.5" fill="#326fa9"/>
+    <rect x="8" y="15" width="4" height="17" rx="1.5" fill="#326fa9"/>
+    <rect x="-8" y="35" width="7" height="19" fill="#2d3a6b"/>
+    <rect x="1" y="35" width="7" height="19" fill="#2d3a6b"/>
+  </g>
+  <g transform="translate(916 290)">
+    <rect x="-7" y="0" width="14" height="14" rx="2" fill="#d9a77c"/>
+    <rect x="-7" y="0" width="14" height="4" rx="1" fill="#4b3621"/>
+    <rect x="-8" y="15" width="16" height="20" rx="2" fill="#6cc04a"/>
+    <rect x="-12" y="15" width="4" height="17" rx="1.5" fill="#539a36"/>
+    <rect x="8" y="15" width="4" height="17" rx="1.5" fill="#539a36"/>
+    <rect x="-8" y="35" width="7" height="19" fill="#35503a"/>
+    <rect x="1" y="35" width="7" height="19" fill="#35503a"/>
+  </g>
+  <path d="M820 344H948" stroke="#3a4858" stroke-width="2"/>
+  <text class="s" x="852" y="364" text-anchor="middle">you</text>
+  <text x="916" y="364" text-anchor="middle" style="font-size:11.5px;fill:#6cc04a">steve</text>
+  <text class="s" x="884" y="388" text-anchor="middle">playing together</text>
+
+  <path d="M728 270H794" stroke="#6cc04a" stroke-width="1.8" fill="none" marker-end="url(#headg)"/>
+  <text class="lbl" x="760" y="262" text-anchor="middle">plays on</text>
+
+  <!-- updates -->
+  <rect class="card" x="364" y="440" width="220" height="56" rx="10"/>
+  <g transform="translate(380 451)" fill="#8b98a5">
+    <path d="M0 0H5V4H8V0H12V4H15V0H20V9H17V34H3V9H0Z"/>
+    <rect x="8" y="14" width="4" height="7" rx="2" fill="#18212c"/>
+  </g>
+  <text class="h" x="412" y="465">steve-tower</text>
+  <text class="s" x="502" y="465">Watchtower</text>
+  <text class="s" x="412" y="483">on Update in the panel</text>
+
+  <rect class="card" x="796" y="440" width="176" height="56" rx="10"/>
+  <g transform="translate(812 454)" fill="none" stroke="#9aa7b4" stroke-width="1.6" stroke-linejoin="round">
+    <path d="M14 0L28 7V22L14 29L0 22V7Z"/>
+    <path d="M0 7L14 14L28 7M14 14V29"/>
+  </g>
+  <text class="h" x="852" y="465">GitHub</text>
+  <text class="s" x="852" y="483">releases and the image</text>
+
+  <path class="dash" d="M462 438V408" marker-end="url(#head)"/>
+  <text class="lbl" x="472" y="427">starts the new image</text>
+  <path class="dash" d="M586 468H794" marker-start="url(#head)"/>
+  <text class="lbl" x="690" y="462" text-anchor="middle">fetches the new image</text>
+</svg>

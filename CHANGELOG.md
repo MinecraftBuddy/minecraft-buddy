@@ -3,6 +3,10 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.17
+
+- In Take control, new chat lines now sit at the bottom left, level with the block name at the bottom right.
+
 ## 0.5.16
 
 - **No more interruptions while watching.** In Take control the 3D view no longer greys out and rebuilds every few

@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 548" width="1000" height="548" role="img" aria-labelledby="t d">
+  <title id="t">What runs</title>
+  <desc id="d">On a machine with Docker, one Caddy takes the browser's HTTPS for every buddy and reads their sites from the
+    Docker socket. Each buddy, steve and alex, has a container with the web panel, the Telegram bridge and the game, on
+    the network buddies, and a Watchtower of its own that fetches the new image from GitHub when that buddy's panel asks.
+    tower-token makes the token for the Watchtowers and the secret Caddy sends the panels, once.</desc>
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#ffffff" stroke-opacity="0.035"/>
+    </pattern>
+    <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#8b98a5"/>
+    </marker>
+    <marker id="headg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#6cc04a"/>
+    </marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #e6edf3; }
+      .zone { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; fill: #7d8a99; }
+      .h { font-size: 14px; font-weight: 650; }
+      .c { font-size: 12px; font-weight: 600; }
+      .s { font-size: 11.5px; fill: #9aa7b4; }
+      .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10.5px; fill: #9aa7b4; }
+      .lbl { font-size: 11px; fill: #9aa7b4; paint-order: stroke; stroke: #0e141b; stroke-width: 6px; stroke-linejoin: round; }
+      .card { fill: #18212c; stroke: #2c3846; stroke-width: 1.2; }
+      .box { fill: #151f2a; stroke: #6cc04a; stroke-opacity: 0.55; stroke-width: 1.4; }
+      .chip { fill: #1f2a37; stroke: #3a4858; stroke-width: 1; }
+      .wire { fill: none; stroke: #8b98a5; stroke-width: 1.6; }
+      .dash { fill: none; stroke: #6f7c8a; stroke-width: 1.4; stroke-dasharray: 5 5; }
+    </style>
+    <!-- a buddy's container, drawn at its top left corner -->
+    <g id="chips">
+      <path d="M0 28H212" stroke="#2c3846" stroke-width="1.2"/>
+      <rect class="chip" x="12" y="38" width="188" height="24" rx="6"/>
+      <rect class="chip" x="12" y="68" width="188" height="24" rx="6"/>
+      <rect class="chip" x="12" y="98" width="188" height="24" rx="6" stroke="#6cc04a" stroke-opacity="0.7"/>
+      <text class="c" x="24" y="54">Web panel</text>
+      <text class="c" x="24" y="84">Telegram bridge</text>
+      <text class="c" x="24" y="114">Minecraft <tspan style="fill:#6cc04a">+ the mod</tspan></text>
+    </g>
+    <!-- a Watchtower, drawn at its top left corner -->
+    <g id="tower">
+      <rect class="card" x="0" y="0" width="112" height="104" rx="10"/>
+      <g transform="translate(46 14)" fill="#8b98a5">
+        <path d="M0 0H5V4H8V0H12V4H15V0H20V9H17V34H3V9H0Z"/>
+        <rect x="8" y="14" width="4" height="7" rx="2" fill="#18212c"/>
+      </g>
+    </g>
+  </defs>
+
+  <!-- background -->
+  <rect width="1000" height="548" rx="16" fill="#0e141b"/>
+  <rect width="1000" height="548" rx="16" fill="url(#grid)"/>
+
+  <!-- zones -->
+  <text class="zone" x="24" y="34">YOU</text>
+  <text class="zone" x="196" y="34">A MACHINE WITH DOCKER</text>
+  <text class="zone" x="812" y="34">ONLINE</text>
+  <rect x="196" y="52" width="592" height="472" rx="14" fill="none" stroke="#3a4655" stroke-width="1.4" stroke-dasharray="7 6"/>
+
+  <!-- the browser -->
+  <rect class="card" x="24" y="186" width="152" height="80" rx="10"/>
+  <g transform="translate(38 200)">
+    <rect width="26" height="20" rx="3" fill="none" stroke="#9aa7b4" stroke-width="1.6"/>
+    <path d="M0 6H26" stroke="#9aa7b4" stroke-width="1.6"/>
+    <circle cx="4" cy="3" r="1" fill="#9aa7b4"/><circle cx="8" cy="3" r="1" fill="#9aa7b4"/>
+  </g>
+  <text class="h" x="74" y="215">Browser</text>
+  <text class="m" x="38" y="240">steve.example.net</text>
+  <text class="m" x="38" y="255">alex.example.net</text>
+
+  <!-- the Docker socket and Caddy -->
+  <rect class="card" x="216" y="84" width="120" height="52" rx="10"/>
+  <text class="c" x="276" y="106" text-anchor="middle">Docker socket</text>
+  <text class="s" x="276" y="123" text-anchor="middle">read-only</text>
+
+  <rect class="card" x="216" y="176" width="120" height="100" rx="10"/>
+  <g transform="translate(268 188)" fill="none" stroke="#6cc04a" stroke-width="1.8">
+    <path d="M2 9V6a6 6 0 0 1 12 0v3"/>
+    <rect x="0" y="9" width="16" height="11" rx="2" fill="#6cc04a" stroke="none"/>
+  </g>
+  <text class="h" x="276" y="229" text-anchor="middle">Caddy</text>
+  <text class="s" x="276" y="248" text-anchor="middle">ports 80 and 443,</text>
+  <text class="s" x="276" y="263" text-anchor="middle">one for all</text>
+
+  <path class="dash" d="M276 138V174" marker-end="url(#head)"/>
+  <text class="lbl" x="284" y="160">labels</text>
+  <path class="wire" d="M176 226H214" marker-end="url(#head)"/>
+
+  <!-- the network buddies, with a container and a Watchtower per buddy -->
+  <rect x="360" y="72" width="408" height="330" rx="12" fill="#ffffff" fill-opacity="0.012" stroke="#3a4655" stroke-width="1.2" stroke-dasharray="2 4"/>
+  <text class="m" x="756" y="90" text-anchor="end">network buddies</text>
+
+  <rect class="box" x="380" y="100" width="212" height="134" rx="10"/>
+  <g transform="translate(396 108)">
+    <rect x="2" y="0" width="10" height="10" rx="2" fill="#d9a77c"/>
+    <rect x="2" y="0" width="10" height="3" rx="1" fill="#4b3621"/>
+    <rect x="0" y="11" width="14" height="8" rx="2" fill="#6cc04a"/>
+  </g>
+  <text class="h" x="418" y="120">steve</text>
+  <use href="#chips" x="380" y="100"/>
+
+  <rect class="box" x="380" y="252" width="212" height="134" rx="10"/>
+  <g transform="translate(396 260)">
+    <rect x="2" y="0" width="10" height="10" rx="2" fill="#d9a77c"/>
+    <rect x="2" y="0" width="10" height="3" rx="1" fill="#c8642a"/>
+    <rect x="0" y="11" width="14" height="8" rx="2" fill="#6cc04a"/>
+  </g>
+  <text class="h" x="418" y="272">alex</text>
+  <use href="#chips" x="380" y="252"/>
+
+  <use href="#tower" x="644" y="116"/>
+  <text class="c" x="700" y="190" text-anchor="middle">steve-tower</text>
+  <text class="s" x="700" y="206" text-anchor="middle">Watchtower</text>
+  <use href="#tower" x="644" y="268"/>
+  <text class="c" x="700" y="342" text-anchor="middle">alex-tower</text>
+  <text class="s" x="700" y="358" text-anchor="middle">Watchtower</text>
+
+  <!-- Caddy to each panel -->
+  <path class="wire" d="M336 226H350V158Q350 150 358 150H390" marker-end="url(#head)"/>
+  <path class="wire" d="M350 226V294Q350 302 358 302H390" marker-end="url(#head)"/>
+
+  <!-- a panel asks its own Watchtower, which starts the new image -->
+  <path class="dash" d="M582 150H642" marker-end="url(#head)"/>
+  <text class="lbl" x="617" y="144" text-anchor="middle">Update</text>
+  <path class="dash" d="M644 200H594" marker-end="url(#head)"/>
+  <path class="dash" d="M582 302H642" marker-end="url(#head)"/>
+  <text class="lbl" x="617" y="296" text-anchor="middle">Update</text>
+  <path class="dash" d="M644 352H594" marker-end="url(#head)"/>
+
+  <!-- tower-token -->
+  <rect class="card" x="380" y="440" width="212" height="56" rx="10"/>
+  <g transform="translate(396 456)" fill="none" stroke="#e3c46b" stroke-width="2" stroke-linecap="round">
+    <circle cx="6" cy="12" r="5"/>
+    <path d="M11 12H26M21 12V17M25 12V16"/>
+  </g>
+  <text class="h" x="432" y="463">tower-token</text>
+  <text class="s" x="432" y="481">makes the secrets, once</text>
+  <path class="dash" d="M560 438V404" marker-end="url(#head)"/>
+  <text class="lbl" x="568" y="424">token</text>
+  <path class="dash" d="M378 468H284Q276 468 276 460V278" marker-end="url(#head)"/>
+  <text class="lbl" x="328" y="462" text-anchor="middle">proxy secret</text>
+
+  <!-- online: the image, and where the buddies play -->
+  <rect class="card" x="812" y="116" width="160" height="224" rx="10"/>
+  <g transform="translate(874 190)" fill="none" stroke="#9aa7b4" stroke-width="1.6" stroke-linejoin="round">
+    <path d="M18 0L36 9V29L18 38L0 29V9Z"/>
+    <path d="M0 9L18 18L36 9M18 18V38"/>
+  </g>
+  <text class="h" x="892" y="254" text-anchor="middle">GitHub</text>
+  <text class="s" x="892" y="272" text-anchor="middle">the new image</text>
+  <path class="dash" d="M810 168H758" marker-end="url(#head)"/>
+  <path class="dash" d="M810 320H758" marker-end="url(#head)"/>
+
+  <rect class="card" x="812" y="356" width="160" height="64" rx="10"/>
+  <g transform="translate(826 371)">
+    <polygon points="12,0 24,7 12,14 0,7" fill="#6cc04a"/>
+    <polygon points="0,7 12,14 12,28 0,21" fill="#8a5a2b"/>
+    <polygon points="12,14 24,7 24,21 12,28" fill="#6b4420"/>
+  </g>
+  <text class="h" x="860" y="383">Minecraft server</text>
+  <text class="s" x="860" y="401">and Telegram</text>
+  <path d="M768 388H810" stroke="#6cc04a" stroke-width="1.8" fill="none" marker-end="url(#headg)"/>
+</svg>

@@ -461,6 +461,12 @@ kbd { font: 11px/1 var(--mono); border: 1px solid var(--line3); border-bottom-wi
 .playhud .grid9 { background: rgba(0,0,0,.45); padding: 3px; border-radius: 4px; }
 /* a new chat line over the view for ten seconds while the chat is shut, as the game shows it */
 .playchat { position: absolute; left: 12px; bottom: 150px; z-index: 3; width: min(560px, calc(100vw - 24px)); pointer-events: none; display: flex; flex-direction: column; }
+/* on a wide screen the chat's foot is level with the label at the bottom right (.w3hover), as narrow as that label so both
+   stay clear of the hotbar; above the fly hint while that shows (on touch the steering block holds the corner) */
+@media (min-width: 1101px) and (pointer: fine) {
+  .playchat { bottom: 12px; width: min(560px, calc(50vw - 270px)); }
+  .drive.play3d:has(.flyhint) .playchat { bottom: 56px; }
+}
 .playchat .l { display: block; background: rgba(0,0,0,.5); color: #fff; font: 14px/1.5 var(--pixel); padding: 0 6px; text-shadow: 1px 1px 0 #3f3f3f; overflow-wrap: anywhere; transition: opacity 1s; }
 .playchat .l.out { opacity: 0; }
 .playchat time { display: none; }
