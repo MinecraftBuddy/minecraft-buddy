@@ -915,7 +915,6 @@ final class Alto {
 			if (mod.getMLGBucketChain().isFallingOhNo(mod)) b.append("falling ");
 			if (mod.getMobDefenseChain().creeperBoxedIn()) b.append("creeper ");
 			if (mod.getMobDefenseChain().projectileDodging(mod)) b.append("arrows ");
-			if (mod.getMobDefenseChain().isPuttingOutFire()) b.append("fire ");
 			if (!mod.getMobDefenseChain().getCombatStance(mod).mayEat()) b.append("stance ").append(mod.getMobDefenseChain().getCombatStance(mod)).append(' ');
 			if (mod.getFoodChain().needsToEat()) b.append("wants to eat ");
 		} catch (RuntimeException e) {
