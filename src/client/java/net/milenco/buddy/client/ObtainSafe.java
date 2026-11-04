@@ -123,6 +123,16 @@ final class ObtainSafe {
 	}
 
 	/**
+	 * A live blaze within 24 blocks: a blaze fight is on. Blazes are the rods task's own and not in {@link #foes} (a client is
+	 * not told that a blaze is aggressive), so with six of them shooting the order saw nobody and made a spare shield in
+	 * the middle of them: it stood in the corridor looking for a table and burned to death (the blazeroom drill, 4 Nov 2026).
+	 */
+	static boolean blazesAbout(LocalPlayer p) {
+		return !p.level().getEntitiesOfClass(net.minecraft.world.entity.monster.Blaze.class, p.getBoundingBox().inflate(24),
+				net.minecraft.world.entity.monster.Blaze::isAlive).isEmpty();
+	}
+
+	/**
 	 * The hardcore rule against a fight that is lost (AltoClef fights a zombie barehanded: on easy that is fine, on hard
 	 * one zombie takes 4.5 a blow): how long its best weapon takes to kill them against how long they take to bring it to
 	 * two hearts, its armour counted and their blows halved for the knockback. Outmatched is under twice as quick.

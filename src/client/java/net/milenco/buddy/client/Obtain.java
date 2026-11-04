@@ -754,7 +754,8 @@ final class Obtain {
 			// food on the way is Soprano's take-along now (Alto.takeAlongFood): an animal in sight is weighed like an ore
 			// the kit for the deep first, for an order whose way goes down there (Alto.kit); a piece that did not come is not
 			// asked again for ten minutes, so a piece it cannot get holds nothing up for good
-			if (deepOrder(p) && (between || ObtainSafe.foes(p).isEmpty())) {
+			// (and never in a blaze fight: the blazes are no foes to that list, ObtainSafe.blazesAbout)
+			if (deepOrder(p) && (between || ObtainSafe.foes(p).isEmpty()) && !ObtainSafe.blazesAbout(p)) {
 				Alto.Run k = Alto.kit(p, now);
 				// with the whole order under way only armour and the shield break into it: a stock (blocks, torches, a table) waits
 				// for the order's own end. its portal's mold took the cobblestone under the kit's 48, the kit stopped the portal
