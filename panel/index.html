@@ -150,6 +150,7 @@ button.radio:focus-visible { outline-color: var(--muted); } /* orange is for the
 .obplan { flex: 0 1 auto; overflow: auto; }
 .obdrill { flex: 0 0 auto; max-height: 50%; overflow: auto; }
 .obdrill .drabout { color: var(--soft); margin: 0 0 6px; }
+.obdrill ul.drabout { padding-left: 1.2em; }
 .obdrill .drruns { display: grid; grid-template-columns: 1.6em 1fr auto; column-gap: 8px; color: var(--soft); margin-bottom: 6px; }
 .obdrill .drruns > * { min-width: 0; }
 .obdrill .drruns b { font-weight: 400; color: var(--faint); font-variant-numeric: tabular-nums; }
@@ -1425,16 +1426,22 @@ function drRuns(b, now) {
   if (now) rows.push('<b>' + esc(now) + '</b><span class="now">Under way</span><time></time>');
   return rows.length ? '<div class="drruns">' + rows.join('') + '</div>' : '';
 }
+// What a block tests: one line, or a list when the note has several (one point a line)
+function drAbout(s) {
+  const pts = String(s).split('\n').map(x => x.trim()).filter(Boolean);
+  return pts.length > 1 ? '<ul class="drabout">' + pts.map(x => '<li>' + esc(first(x)) + '</li>').join('') + '</ul>'
+    : '<div class="drabout">' + esc(first(pts[0] || '')) + '</div>';
+}
 const drPassed = b => { const r = b.runs || []; return r.filter(x => x.end === 'pass').length + ' of ' + r.length + ' passed'; };
 function drHtml(d) {
   const [cur, ...prev] = d.blocks;
   let h = '<h3>Drill</h3><div class="obhead"><b>' + esc(cur.name) + '</b><span>' +
     esc(d.on ? 'Run ' + d.run + ' of ' + d.runs : 'Ended ' + clockS(d.ended).slice(0, 5)) + '</span></div>';
-  h += '<div class="drabout">' + esc(cur.about ? first(cur.about) : 'No note on what this block tests.') + '</div>';
+  h += drAbout(cur.about || 'No note on what this block tests.');
   h += drRuns(cur, d.on ? d.run : 0);
   for (const b of prev.slice(0, 2))
     h += '<div class="drprev"><div class="obhead"><b>Before: ' + esc(b.name) + '</b><span>' + esc(drPassed(b)) + '</span></div>' +
-      (b.about ? '<div class="drabout">' + esc(first(b.about)) + '</div>' : '') + drRuns(b, 0) + '</div>';
+      (b.about ? drAbout(b.about) : '') + drRuns(b, 0) + '</div>';
   if (d.queued) h += '<div class="drq">' + esc(d.queued + (d.queued === 1 ? ' block waits' : ' blocks wait') + ' in the queue') + '</div>';
   return h;
 }
