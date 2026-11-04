@@ -203,7 +203,7 @@ hunted; their meat is picked up.
 - **Edges**: no bridge over more than three blocks of nothing, and at a brink a crouched walk, so there is no walking
   off; getting loose never jumps beside a drop.
 - **Water and lava**: in water underground, a walk to a dry cell; at night out of the water at once; a boat for more
-  than 32 blocks of water ahead. A roof with water or lava over or beside it stays shut, and a block with lava beside it
+  than 32 blocks of water ahead, but not while a nether portal is being built. A roof with water or lava over or beside it stays shut, and a block with lava beside it
   is never broken.
 - **Up by a stair of the buddy's own**: a step only the surface has, taken deep under the ground, starts with a stair
   dug up to the sky, not a walk through the caves.
