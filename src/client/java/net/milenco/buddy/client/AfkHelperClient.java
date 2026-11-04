@@ -357,21 +357,52 @@ public class AfkHelperClient implements ClientModInitializer {
 		List<Map<String, Object>> runs = null;
 		try { runs = Details.chatRuns(msg); } catch (RuntimeException e) { /* the plain line still goes out */ }
 		// the plain line without the § codes a plugin may put inside its text: the game draws them as colours, not letters
-		onIncoming(net.minecraft.ChatFormatting.stripFormatting(msg.getString()), kind, runs);
+		onIncoming(net.minecraft.ChatFormatting.stripFormatting(msg.getString()), kind, runs, "game".equals(kind) ? gameLine(msg, 0) : null);
 	}
 
-	private void onIncoming(String text, String kind) { onIncoming(text, kind, null); }
+	private void onIncoming(String text, String kind) { onIncoming(text, kind, null, null); }
 
 	/**
-	 * A chat line's kind ("pm", "chat", "relay", "join", "leave" or "server"), the player it names and what was said: by the
-	 * active profile's texts pm and pmOut, join and leave, relay (a line the server passes on from a chat outside the game,
-	 * such as IRC or Discord) and chat (a player's public line); a line the game itself signed as a player's is chat, and
-	 * without a chat text the vanilla forms "<Name> text" and "Name: text" count too.
+	 * The game's own death message or advancement, known by its key: { "death" or "advancement", the player }. A translated
+	 * line whose key starts with death.attack or death.fell is a death, one with chat.type.advancement an advancement, also
+	 * behind a prefix the server puts in front. The key is the same on every server and in every language; a plugin that
+	 * writes its own lines needs the profile's texts death and advancement. The name is the player's own (the insertion of
+	 * a display name, which may carry a team's prefix), "" where there is none; null for any other line. Only the line and
+	 * its siblings count, never what a translated line quotes, such as the words of a chat line.
+	 */
+	static String[] gameLine(Component c, int depth) {
+		if (c == null || depth > 4) return null;
+		if (c.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents t) {
+			String key = t.getKey(), is = key.startsWith("death.attack.") || key.startsWith("death.fell.") ? "death"
+				: key.startsWith("chat.type.advancement.") ? "advancement" : null;
+			if (is != null) {
+				Object[] a = t.getArgs();
+				String who = "";
+				if (a.length > 0 && a[0] instanceof Component named) {
+					String own = named.getStyle().getInsertion();
+					who = own != null && !own.isBlank() ? own : named.getString();
+				} else if (a.length > 0) who = String.valueOf(a[0]);
+				return new String[] { is, who };
+			}
+		}
+		for (Component s : c.getSiblings()) { String[] d = gameLine(s, depth + 1); if (d != null) return d; }
+		return null;
+	}
+
+	/**
+	 * A chat line's kind ("pm", "chat", "relay", "join", "leave", "death", "advancement" or "server"), the player it names
+	 * and what was said: by the active profile's texts pm and pmOut, join and leave, relay (a line the server passes on from
+	 * a chat outside the game, such as IRC or Discord), chat (a player's public line), and death and advancement (the lines
+	 * a plugin writes; the game's own are known by their key, see gameLine); a line the game itself signed as a player's is
+	 * chat, and without a chat text the vanilla forms "<Name> text" and "Name: text" count too.
 	 */
 	static Object[] lineKind(String clean, String kind) {
-		for (String[] t : new String[][] { { "pm", "pm" }, { "pmOut", "pm" }, { "join", "join" }, { "leave", "leave" }, { "relay", "relay" }, { "chat", "chat" } }) {
+		for (String[] t : new String[][] { { "pm", "pm" }, { "pmOut", "pm" }, { "join", "join" }, { "leave", "leave" }, { "relay", "relay" }, { "chat", "chat" },
+				{ "death", "death" }, { "advancement", "advancement" } }) {
+			boolean news = t[1].equals("death") || t[1].equals("advancement");
+			if (news && kind.equals("chat")) break;   // a line the game signed as a player's is never a death or an advancement
 			Matcher m = Profiles.match(t[0], clean, null);
-			if (m.lookingAt()) return new Object[] { t[1], m.groupCount() >= 1 ? m.group(1) : null, m.groupCount() >= 2 ? m.group(2) : null };
+			if (m.lookingAt()) return new Object[] { t[1], m.groupCount() >= 1 ? m.group(1) : null, m.groupCount() >= 2 && !news ? m.group(2) : null };
 		}
 		if (kind.equals("chat") || !Profiles.knowsText("chat")) {
 			Matcher said = P_SAID.matcher(clean);
@@ -381,12 +412,12 @@ public class AfkHelperClient implements ClientModInitializer {
 		return new Object[] { "server", null, null };
 	}
 
-	private void onIncoming(String text, String kind, List<Map<String, Object>> runs) {
+	private void onIncoming(String text, String kind, List<Map<String, Object>> runs, String[] keyed) {
 		String clean = text.replace('\n', ' ').trim();
 		// what kind of line it is, so that the Telegram chat can be set to show some kinds only: a private message, a
-		// player's chat line, a join, a leave, or anything else
+		// player's chat line, a join, a leave, a death, an advancement, or anything else
 		// the server says; with the player and the words said where the profile's text gives them
-		Object[] what = lineKind(clean, kind);
+		Object[] what = keyed != null ? new Object[] { keyed[0], keyed[1].isEmpty() ? null : keyed[1], null } : lineKind(clean, kind);
 		// a relayed line is players' chat for Telegram's switches; "relay" says it came from outside the game
 		boolean relay = "relay".equals(what[0]);
 		List<Object> ev = new ArrayList<>(List.of("kind", kind, "is", relay ? "chat" : what[0], "text", clean));
@@ -394,6 +425,12 @@ public class AfkHelperClient implements ClientModInitializer {
 		if (what[1] != null) { ev.add("player"); ev.add(what[1]); }
 		if (what[2] != null) { ev.add("said"); ev.add(what[2]); }
 		if (runs != null) { ev.add("runs"); ev.add(runs); }
+		// the buddy's own death: where it happened, for the things that fell there (the body stays there until the respawn)
+		LocalPlayer self = mc().player;
+		if ("death".equals(what[0]) && self != null && what[1] instanceof String who && who.equalsIgnoreCase(self.getGameProfile().name())) {
+			net.minecraft.core.BlockPos at = self.blockPosition();
+			Collections.addAll(ev, "x", at.getX(), "y", at.getY(), "z", at.getZ(), "dim", self.level().dimension().identifier().toString());
+		}
 		Exchange.emit("chat", ev.toArray());
 		if ("game".equals(kind)) Modules.heard(clean);
 		AfkConfig c = AfkConfig.get();

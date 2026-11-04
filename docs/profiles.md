@@ -89,6 +89,8 @@ does only what needs no command or server line.
 | `chat` | a player's public chat line (`{player}` and the text): what Telegram shows as players' chat |
 | `relay` | a chat line from outside the game that the server passes on, such as IRC or Discord (the name and the text): Telegram shows it with players' chat, as the server shows it. `{player}` takes only a Minecraft name; `([^>]+)` takes any IRC nick, as in `^\[IRC\] <([^>]+)> (.*)$` |
 | `join`, `leave` | the server's own line when a player comes online or goes offline: kept out of Telegram, which takes joins and leaves from the player list |
+| `death` | a death line a plugin writes in place of the game's (`{player}` the one who died), as in `^☠ {player} (.*)$`: Telegram shows it with deaths. The game's own death messages need no text |
+| `advancement` | an advancement line a plugin writes in place of the game's (`{player}` the one who made it): Telegram shows it with advancements. The game's own need no text |
 | `pm`, `pmOut` | a private message to the buddy (`{player}` and the text); the buddy's own as the server shows it. Both count only from the start of a line, so a player cannot type one in public chat |
 | `accepted`, `declined`, `expired` | the buddy's teleport request was accepted, refused, or ran out |
 | `teleportComing`, `teleported` | a teleport is about to happen; the teleport took place |

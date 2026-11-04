@@ -3,6 +3,14 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.19
+
+- When the buddy dies, Take control shows the coordinates where the buddy's things are.
+- **Deaths and advancements in Telegram**, each with a switch of their own. The game's own lines are known on any server;
+  where a plugin writes its own, the server profile's new texts death and advancement match them.
+- When the buddy dies, Telegram says where.
+- After a kick or a lost connection, Telegram says so with the server's reason, and when the buddy joins again.
+
 ## 0.5.18
 
 - **Chat from outside the game in Telegram.** A server profile can now say how lines the server passes on from IRC or

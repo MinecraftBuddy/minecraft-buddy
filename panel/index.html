@@ -2666,6 +2666,8 @@ const PTEXTS = {tpa: 'a player asks to teleport to {n}', tpahere: 'a player asks
   relay: 'a chat line from outside the game the server passes on, such as IRC or Discord ({player} and the text): Telegram shows it with players\' chat',
   join: 'the server\'s own line when a player comes online: kept out of Telegram, which takes joins from the player list',
   leave: 'the server\'s own line when a player goes offline: kept out of Telegram, as join',
+  death: 'a death line a plugin writes ({player} the one who died): Telegram shows it with deaths. The game\'s own death messages need no text',
+  advancement: 'an advancement line a plugin writes ({player} the one who made it): Telegram shows it with advancements. The game\'s own need no text',
   pm: 'a private message to {n} ({player} and the text)', pmOut: '{n}\'s own private message, as the server echoes it', accepted: '{n}\'s teleport request was accepted',
   declined: '{n}\'s request was refused', expired: '{n}\'s request expired', teleportComing: 'a teleport is about to happen (a countdown)', teleported: '{n} was teleported',
   afkAlready: '{n} is AFK already', fightOn: '{n} is in combat (combat-tag plugin)', fightOff: '{n} is out of combat', cancelledMoved: 'a teleport was cancelled because {n} moved',
@@ -2915,12 +2917,14 @@ async function telegram(form) {
 const TGSHOW = [['chat', "Players' chat", 'The lines of players: what the game signs as a player\'s, or what the server profile\'s text <b>chat</b> matches. Also chat from outside the game, such as IRC or Discord, that its text <b>relay</b> matches.'],
   ['pm', 'Private messages', 'To and from {n}: the profile\'s texts <b>pm</b> and <b>pmOut</b>.'],
   ['joins', 'Joins and leaves', 'Players coming online and going off, from the player list. The server\'s own lines for it stay out when the profile\'s texts <b>join</b> and <b>leave</b> match them; otherwise they come in as a server message too.'],
-  ['server', 'Other server messages', 'Everything else the server says: deaths, broadcasts, plugin lines. A line that matches none of the texts above counts as one.'],
-  ['buddy', "{N}'s own news", 'Joining or leaving the server, and what {n} is missing.']];
+  ['deaths', 'Deaths', 'Players dying, and for {n}\'s own death where it happened. The game\'s own death messages are known on any server, in any language. Where a plugin writes its own, the profile\'s text <b>death</b> matches them.'],
+  ['advancements', 'Advancements', 'Players making an advancement. The game\'s own lines are known on any server; where a plugin writes its own, the profile\'s text <b>advancement</b> matches them.'],
+  ['server', 'Other server messages', 'Everything else the server says: broadcasts, plugin lines. A line that matches none of the texts above counts as one.'],
+  ['buddy', "{N}'s own news", 'Joining or leaving the server, a kick or a lost connection with the server\'s reason, and what {n} is missing.']];
 function tgShow(v) {
   const sh = v.show || {};
   $('tgshow').innerHTML = '<h3 class="tgsub">What comes into the chat</h3><p class="note">Each switch applies at once. In the chat <b>!show</b> lists them and <b>!show joins off</b> switches one. ' +
-    'How a line is told apart is in the <a href="#s-prof">server profile</a>: its texts chat, relay, join, leave, pm and pmOut (How it works there explains them, and the Example has the vanilla forms).</p>' +
+    'How a line is told apart is in the <a href="#s-prof">server profile</a>: its texts chat, relay, join, leave, death, advancement, pm and pmOut (How it works there explains them, and the Example has the vanilla forms).</p>' +
     TGSHOW.map(([k, t, d]) => '<button type="button" class="sw wide" role="switch" aria-checked="' + (sh[k] !== false) + '" data-tgshow="' + k + '"><span class="tx"><b>' + nm(t) + '</b><span>' + nm(d) + '</span></span><span class="track"></span></button>').join('');
 }
 /* the main switch: off, the bridge says nothing and Telegram goes from every part of the page (body.tgoff) */
@@ -3648,7 +3652,7 @@ function gscreen() {
   if (steer.on && document.pointerLockElement && sc.kind !== 'bed') { playUi = 'screen'; document.exitPointerLock(); }
   const done = '<button type="button" class="btn go" data-g="done">Done</button>';
   let h = '';
-  if (sc.kind === 'death') h = '<h3>You died!</h3><p class="note">' + esc(nm('{N}\'s things lie where {n} died.')) + '</p><div class="row" style="justify-content:center"><button type="button" class="btn go" data-g="respawn">Respawn</button></div>';
+  if (sc.kind === 'death') h = '<h3>You died!</h3><p class="note">' + esc(nm('{N}\'s things are at X: ' + S.x + ', Y: ' + S.y + ', Z: ' + S.z + '.')) + '</p><div class="row" style="justify-content:center"><button type="button" class="btn go" data-g="respawn">Respawn</button></div>';
   else if (sc.kind === 'bed') h = '<h3>Sleeping</h3><div class="row"><button type="button" class="btn" data-g="wake">Leave Bed</button></div>';
   else if (sc.kind === 'sign') h = '<h3>Edit ' + (sc.hanging ? 'hanging sign' : 'sign') + ' message</h3><p class="note">' + (sc.front ? 'Front' : 'Back') + ' at ' + sc.x + ' ' + sc.y + ' ' + sc.z + '</p>' +
     [0, 1, 2, 3].map(i => '<input class="signl" maxlength="80" data-line="' + i + '" value="' + esc((sc.lines || [])[i] || '') + '">').join('') + '<div class="row" style="margin-top:10px">' + done + '</div>';
