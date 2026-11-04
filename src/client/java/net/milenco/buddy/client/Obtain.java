@@ -711,8 +711,11 @@ final class Obtain {
 			// their sight, which is where the fight's retreat ends, the run begins
 			// (and not for food with the order one short: six rods of seven, home through the portal for food, and a skeleton
 			// shot it on the food run in the overworld, attempt 200. the last one first, unless the bag is all but empty)
-			boolean lastOne = count >= 4 && count - ObtainSteps.count(p, item) <= 1 && Alto.goldOn(p) && Alto.foodScore(false) >= 12;
-			if (!lastOne && now - homeTriedAt > 180_000 && Alto.wantsHome(p) && (!Alto.goldOn(p) || homeIsSafe(p))) {
+			// (and for gold the same: the golden helmet worn through at nine rods of ten, the trip home for gold left the blaze
+			// fight's corner under fire and the buddy burned on the way with all ten in the bag, the blazeroom drill, 4 Nov 2026;
+			// the last one first with or without gold)
+			boolean lastOne = count >= 4 && count - ObtainSteps.count(p, item) <= 1 && Alto.foodScore(false) >= 12;
+			if (!lastOne && now - homeTriedAt > 180_000 && Alto.wantsHome(p) && homeIsSafe(p)) {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:home", 1, null, 0, List.of(), "home for food by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
@@ -841,7 +844,8 @@ final class Obtain {
 
 	/** Whether the home run for food may begin here: nothing in sight is on the buddy and nothing burns, or the bag is all but empty. */
 	private static boolean homeIsSafe(LocalPlayer p) {
-		return ObtainSafe.foes(p).isEmpty() && !p.isOnFire() || Alto.foodScore() < 12;
+		// (blazes are not in foes: a blaze fight about is no time to leave either, see ObtainSafe.blazesAbout)
+		return ObtainSafe.foes(p).isEmpty() && !ObtainSafe.blazesAbout(p) && !p.isOnFire() || Alto.foodScore() < 12;
 	}
 
 	private static int sopranoEnds;
