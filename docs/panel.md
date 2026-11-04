@@ -101,8 +101,10 @@ While you watch:
   and `Shift`, at 20 blocks a second (60 with `Ctrl`). The buddy stands still in both.
 - **Inventory** shows the buddy's inventory and armour small in the top right corner until you click it again. While
   you play the button is gone, and `E` opens the inventory.
-- **Plan** shows an order's plan and timeline at the left until you click it off. The button is there only during an
-  order.
+- **Plan** shows an order's timeline at the top left and its plan at the right, under the inventory, the coordinates
+  and the clock, until you click it off. The button is there only during an order.
+- **Drills** shows a practice rig's drill block above the timeline: which run is under way, how the runs ended and what
+  the block tests. The button is there only while a rig runs drills ([development](development.md#drills-on-a-practice-rig)).
 - `F5`, `F1` and `F3` work as in the game.
 
 While you play:

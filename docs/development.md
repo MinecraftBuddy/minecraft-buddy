@@ -36,6 +36,25 @@ python3 tools/buddylog.py scan --day yesterday              # what went wrong: d
 
 `--dir` names the exchange folder when it is not the default.
 
+## Drills on a practice rig
+
+A practice rig (a test server and a trainee buddy that run one scenario over and over) can show its drill block in the
+panel. The rig writes `drills.json` into the buddy's exchange folder, beside `state.json`; the panel reads it through
+`/api/drills`. While you watch in Take control, the Drills button shows it above the timeline. The button is there while
+a block runs and for fifteen minutes after; a file not written for five minutes counts as none.
+
+```json
+{"at": 1793810230520, "on": true, "run": 3, "runs": 8, "ended": null, "queued": 1,
+ "blocks": [{"name": "blazes-corner", "about": "what this block tests against the one before", "item": "rod",
+             "runs": [{"n": 1, "end": "pass", "cause": "", "min": 10.9, "have": 10}]}]}
+```
+
+- `at`, `ended`: when the file was written and when the last block ended, in milliseconds.
+- `run` of `runs`: the run under way while `on`; `queued`: blocks still waiting.
+- `blocks`: the block under way (or the last one) first, then the ones before it.
+- A run's `end` is `pass`, `died` (with `cause`), `time`, `stall` or `setup`; `min` is game minutes; `have` counts the
+  block's `item`.
+
 ## Releases
 
 A push to `master` builds and tests the mod, puts the jars on the GitHub release of the version in `gradle.properties`

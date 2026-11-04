@@ -140,11 +140,27 @@ button.radio:focus-visible { outline-color: var(--muted); } /* orange is for the
 .obbar i { display: block; height: 100%; background: var(--accent); }
 .oblog { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
 .oblog .obnow { color: inherit; }
-/* watching an order (Plan on): its plan, task by task, and a timeline of the order, at the left, ending above the chat */
-.obside { position: absolute; left: 12px; top: 56px; bottom: 160px; z-index: 3; width: min(320px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; line-height: 1.45; pointer-events: none; }
-.obside > section { background: rgba(14,17,20,.82); border-radius: 8px; padding: 8px 10px; pointer-events: auto; min-height: 0; }
-.obside h3 { margin: 0 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
-.obplan { flex: 0 0 auto; max-height: 50%; overflow: auto; }
+/* watching an order (Plan on): a timeline of the order at the top left, ending above the chat, with a drill block (Drills
+   on) above it; the order's plan, task by task, at the right, under the inventory, the coordinates and the clock (--ptop) */
+.obside, .obright { position: absolute; top: 56px; bottom: 160px; z-index: 3; width: min(320px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; line-height: 1.45; pointer-events: none; }
+.obside { left: 12px; }
+.obright { right: 12px; top: var(--ptop, 56px); }
+.obside > section, .obright > section { background: rgba(14,17,20,.82); border-radius: 8px; padding: 8px 10px; pointer-events: auto; min-height: 0; }
+.obside h3, .obright h3 { margin: 0 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.obplan { flex: 0 1 auto; overflow: auto; }
+.obdrill { flex: 0 0 auto; max-height: 50%; overflow: auto; }
+.obdrill .drabout { color: var(--soft); margin: 0 0 6px; }
+.obdrill .drruns { display: grid; grid-template-columns: 1.6em 1fr auto; column-gap: 8px; color: var(--soft); margin-bottom: 6px; }
+.obdrill .drruns > * { min-width: 0; }
+.obdrill .drruns b { font-weight: 400; color: var(--faint); font-variant-numeric: tabular-nums; }
+.obdrill .drruns time { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.obdrill .drruns .ok { color: var(--text); }
+.obdrill .drruns .warn { color: var(--accent-text); }
+.obdrill .drruns .bad { color: var(--bad-text); }
+.obdrill .drruns .now { color: var(--muted); font-style: italic; }
+.obdrill .drprev { border-top: 1px solid var(--line2); padding-top: 6px; }
+.obdrill .drprev .obhead b { font-weight: 500; color: var(--soft); }
+.obdrill .drq { color: var(--muted); }
 .obhead { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .obhead span { color: var(--muted); white-space: nowrap; }
 .obtree { list-style: none; margin: 0; padding: 0; color: var(--soft); }
@@ -162,7 +178,7 @@ button.radio:focus-visible { outline-color: var(--muted); } /* orange is for the
 .obtime .plan { color: var(--text); }
 .obtime .warn { color: var(--accent-text); }
 .obtime .bad { color: var(--bad-text); }
-.drive:not(.watching) .obside, .drive.play3d.nohud .obside { display: none !important; }
+.drive:not(.watching) .obside, .drive:not(.watching) .obright, .drive.play3d.nohud .obside, .drive.play3d.nohud .obright { display: none !important; }
 .sw { display: flex; align-items: center; gap: 10px; min-height: 34px; width: 100%; text-align: left; border: 0; background: none; padding: 2px 0; color: inherit; }
 .sw .tx { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .sw .tx b { font-weight: 500; font-size: 13.5px; }
@@ -492,7 +508,7 @@ kbd { font: 11px/1 var(--mono); border: 1px solid var(--line3); border-bottom-wi
 /* watching with Inventory on: the inventory small in the top right corner, the view free (playSync) */
 .playui.peek[data-what="inv"] { left: auto; right: 12px; top: 56px; transform: none; width: min(320px, calc(100vw - 24px)); }
 .playui.peek .side { display: none; }
-.drive:not(.watching) #invpeek, .drive:not(.watching) #obpeek { display: none; }
+.drive:not(.watching) #invpeek, .drive:not(.watching) #obpeek, .drive:not(.watching) #drpeek { display: none; }
 /* the keys' explanation, centred at the top, keeps clear of the plan at the left and the inventory at the right */
 @media (min-width: 901px) { .drive.play3d.obshown #pad .hint { max-width: min(46em, calc(100vw - 688px)); } }
 .playui[data-what="chat"], .playui[data-what="players"] { left: 12px; bottom: 70px; top: auto; transform: none; width: min(560px, calc(100vw - 24px)); }
@@ -891,7 +907,7 @@ dialog#rawdlg td code { word-break: break-all; }
     <div class="row drivebar"><button class="btn small" id="backdrive" data-nm title="Hand {n} back and go to the overview">← Overview</button><h2>Control</h2><span class="w3status" id="w3status">Starting the 3D view…</span>
       <span class="seg" role="group" aria-label="View" style="margin-left:auto"><button data-look="drive" data-nm title="{N}'s own view: you watch, and a click on the view takes control">Play</button><button data-look="orbit" data-nm="html" title="Drag to turn around {n}, scroll to zoom. {N} stands still.">Around {n}</button><button data-look="fly" data-nm title="Click the view, then W A S D, Space and Shift. {N} stands still.">Fly</button></span>
       <span class="seg" role="group" aria-label="Brightness"><button data-light="game" title="As bright as the game by default: caves are dark">Game</button><button data-light="bright" title="The game's Brightness at its brightest">Bright</button><button data-light="full" title="As with Night Vision: you see into dark caves">Full</button></span>
-      <button class="btn small" id="obpeek" aria-pressed="true" hidden>Plan</button><button class="btn small" id="invpeek" aria-pressed="false">Inventory</button><button class="btn small" id="closedrive">Done</button></div>
+      <button class="btn small" id="drpeek" aria-pressed="false" hidden>Drills</button><button class="btn small" id="obpeek" aria-pressed="true" hidden>Plan</button><button class="btn small" id="invpeek" aria-pressed="false">Inventory</button><button class="btn small" id="closedrive">Done</button></div>
     <div id="pad" tabindex="0"><canvas id="w3view" data-nm aria-label="The world around {n} in 3D"></canvas><canvas id="padsky" aria-hidden="true"></canvas><div class="cross"></div><div class="hint" id="padhint">
       <div class="watchline"><b id="watchline">Watching</b><button type="button" class="btn small ghost" id="keystoggle">Hide keys</button></div>
       <div class="keyhelp"><span id="watchhow">Click the view to take control.</span> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk,
@@ -905,8 +921,9 @@ dialog#rawdlg td code { word-break: break-all; }
     <div class="playside" id="pside" hidden></div>
     <div class="playchat" id="pchat"></div>
     <div class="playui" id="playui" hidden></div>
-    <div class="obside" id="obside" hidden><section class="obplan" id="obplan" aria-label="The order's plan"></section>
-      <section class="obtime" aria-label="What happened during the order"><h3>Timeline</h3><div id="obtime"></div></section></div>
+    <div class="obside" id="obside" hidden><section class="obdrill" id="obdrill" aria-label="The drill block under way" hidden></section>
+      <section class="obtime" id="obtimebox" aria-label="What happened during the order" hidden><h3>Timeline</h3><div id="obtime"></div></section></div>
+    <div class="obright" id="obright" hidden><section class="obplan" id="obplan" aria-label="The order's plan"></section></div>
     <div class="w3debug" id="w3debug" hidden></div>
     <div class="w3xyz" id="w3xyz"></div>
     <div class="w3clock" id="w3clock"></div>
@@ -1342,18 +1359,36 @@ function obTimeHtml(o) {
     esc(r.what ? r.what + (r.n > 1 ? ' ×' + r.n : '') + ': ' + hearts(r.from) + ' → ' + hearts(r.to) + ' hearts' : r.text + (r.n > 1 ? ' ×' + r.n : '')) + '</span></div>').join('');
 }
 function obSide() {
-  const box = $('obside');
+  const box = $('obside'), right = $('obright');
   if (!box || $('driver').hidden) return;
   const o = S && S.online ? S.obtain : null;
-  // the Plan button only while there is an order to show, and the plan only with the button on
+  // the Plan button only while there is an order to show, the Drills button only while the rig has a drill block to show
   const has = !!o && (o.on || Date.now() - (o.at || 0) < 15 * 60_000), show = has && peekPlan;
+  const dr = drNow(), drShow = !!dr && peekDrill;
   $('obpeek').hidden = !has;
-  box.hidden = !show;
-  $('driver').classList.toggle('obshown', show);
-  if (!show) return;
-  // under F3's lines while they are open
+  $('drpeek').hidden = !dr;
+  box.hidden = !show && !drShow;
+  right.hidden = !show;
+  $('obtimebox').hidden = !show;
+  $('obdrill').hidden = !drShow;
+  $('driver').classList.toggle('obshown', show || drShow);
+  if (drShow) {
+    const h = drHtml(dr), de = $('obdrill');
+    if (de.dataset.h !== h) { de.dataset.h = h; de.innerHTML = h; }
+  }
+  if (box.hidden && right.hidden) return;
+  // the left column under F3's lines while they are open
   const dbg = $('w3debug');
   box.style.top = (dbg.hidden ? 56 : dbg.offsetTop + dbg.offsetHeight + 8) + 'px';
+  if (!show) return;
+  // the plan under what is at the top right: the inventory shown small, the coordinates, the clock
+  let ptop = 56;
+  for (const id of ['playui', 'w3xyz', 'w3clock']) {
+    const el = $(id);
+    if (el && !el.hidden && el.offsetHeight && getComputedStyle(el).display !== 'none' && (id !== 'playui' || el.classList.contains('peek')))
+      ptop = Math.max(ptop, el.offsetTop + el.offsetHeight + 8);
+  }
+  if (right.style.getPropertyValue('--ptop') !== ptop + 'px') right.style.setProperty('--ptop', ptop + 'px');
   const plan = obPlanHtml(o), pe = $('obplan');
   if (pe.dataset.h !== plan) { pe.dataset.h = plan; pe.innerHTML = plan; }
   pe.classList.toggle('held', !!(o.on && ((o.plan && o.plan.by) || (S.doing && !OB_OWN.includes(S.doing)))));
@@ -1361,6 +1396,47 @@ function obSide() {
   if (obBackTo > since) obBackfill(since);
   const key = since + '|' + OBE.length + '|' + obBacking;
   if (obDirty || key !== obTimeKey) { obDirty = false; obTimeKey = key; $('obtime').innerHTML = obTimeHtml(o); }
+}
+/* a practice rig's drill block (drills.json, docs/development.md): which run of the block is under way, how the block's runs
+   and the block before it ended, and what the block tests against the one before; read every five seconds while you watch */
+let DR = null, drOff = false;
+async function drills() {
+  if (drOff || $('driver').hidden) return;
+  try {
+    const r = await fetch('/api/drills');
+    if (!r.ok) { drOff = r.status === 404; return; }
+    const j = await r.json();
+    DR = j && !j.none ? j : null;
+  } catch (e) { return; }
+  obSide();
+}
+setInterval(drills, 5000);
+// the block to show: one under way, or one that ended in the last fifteen minutes; nothing once the rig stopped writing
+const drNow = () => DR && Date.now() - (DR.at || 0) < 5 * 60_000 && (DR.on || Date.now() - (DR.ended || 0) < 15 * 60_000) && DR.blocks && DR.blocks.length ? DR : null;
+const DR_END = {pass: 'Passed', died: 'Died', time: 'Out of time', stall: 'Stalled', setup: 'Not set up'};
+function drRuns(b, now) {
+  const rows = (b.runs || []).map(r => {
+    const cls = r.end === 'pass' ? 'ok' : r.end === 'died' || r.end === 'setup' ? 'bad' : 'warn';
+    const what = (DR_END[r.end] || first(String(r.end || ''))) + (r.end === 'died' && r.cause ? ': ' + String(r.cause).replace(/[-_]/g, ' ') : '');
+    const got = b.item && r.have != null ? r.have + ' ' + b.item + (r.have === 1 ? '' : 's') : '';
+    const tail = [r.min != null ? Number(r.min).toFixed(1) + ' min' : '', got].filter(Boolean).join(' · ');
+    return '<b>' + esc(r.n) + '</b><span class="' + cls + '">' + esc(what) + '</span><time>' + esc(tail) + '</time>';
+  });
+  if (now) rows.push('<b>' + esc(now) + '</b><span class="now">Under way</span><time></time>');
+  return rows.length ? '<div class="drruns">' + rows.join('') + '</div>' : '';
+}
+const drPassed = b => { const r = b.runs || []; return r.filter(x => x.end === 'pass').length + ' of ' + r.length + ' passed'; };
+function drHtml(d) {
+  const [cur, ...prev] = d.blocks;
+  let h = '<h3>Drill</h3><div class="obhead"><b>' + esc(cur.name) + '</b><span>' +
+    esc(d.on ? 'Run ' + d.run + ' of ' + d.runs : 'Ended ' + clockS(d.ended).slice(0, 5)) + '</span></div>';
+  h += '<div class="drabout">' + esc(cur.about ? first(cur.about) : 'No note on what this block tests.') + '</div>';
+  h += drRuns(cur, d.on ? d.run : 0);
+  for (const b of prev.slice(0, 2))
+    h += '<div class="drprev"><div class="obhead"><b>Before: ' + esc(b.name) + '</b><span>' + esc(drPassed(b)) + '</span></div>' +
+      (b.about ? '<div class="drabout">' + esc(first(b.about)) + '</div>' : '') + drRuns(b, 0) + '</div>';
+  if (d.queued) h += '<div class="drq">' + esc(d.queued + (d.queued === 1 ? ' block waits' : ' blocks wait') + ' in the queue') + '</div>';
+  return h;
 }
 function obtainProgress(s) {
   const el = $('ob-prog'); if (!el) return;
@@ -2665,7 +2741,7 @@ function giveBack() {
 /* Take control opens watching, around the buddy (Around): Play shows the buddy's own view with the keys explained, and a
    click on that view takes control, so Take control works as a spectator mode too */
 $('drive').addEventListener('click', () => {
-  $('driver').hidden = false; $('pad').focus(); drawPad(); start3dDrive(); playHud(); watchLine(); state();
+  $('driver').hidden = false; $('pad').focus(); drawPad(); start3dDrive(); playHud(); watchLine(); state(); drills();
 });
 /* a turn from the mouse or a finger: the pitch stops at straight up and straight down, as in the game (the mod clamps the
    sum to 90 either way; a pitch past it here only had to be undone before the view moved again) */
@@ -3846,7 +3922,7 @@ try { peekPlan = localStorage.getItem('buddy-peek-plan') !== '0'; } catch { }
 function planButton() {
   const b = $('obpeek');
   b.classList.toggle('copper', peekPlan); b.setAttribute('aria-pressed', peekPlan ? 'true' : 'false');
-  b.title = (peekPlan ? 'Hide' : 'Show') + ' the order\'s plan and timeline';
+  b.title = (peekPlan ? 'Hide' : 'Show') + ' the order\'s timeline at the left and its plan at the right';
 }
 $('obpeek').addEventListener('click', () => {
   peekPlan = !peekPlan;
@@ -3854,6 +3930,20 @@ $('obpeek').addEventListener('click', () => {
   planButton(); obSide();
 });
 planButton();
+/* Drills, while a practice rig runs drill blocks: the block above the timeline, off until it is clicked on (kept in the browser) */
+let peekDrill = false;
+try { peekDrill = localStorage.getItem('buddy-peek-drill') === '1'; } catch { }
+function drillButton() {
+  const b = $('drpeek');
+  b.classList.toggle('copper', peekDrill); b.setAttribute('aria-pressed', peekDrill ? 'true' : 'false');
+  b.title = (peekDrill ? 'Hide' : 'Show') + ' the drill block: its run, how its runs ended and what it tests';
+}
+$('drpeek').addEventListener('click', () => {
+  peekDrill = !peekDrill;
+  try { localStorage.setItem('buddy-peek-drill', peekDrill ? '1' : '0'); } catch { }
+  drillButton(); drills(); obSide();
+});
+drillButton();
 /* the line at the top while you watch: what the buddy does, or who plays the buddy; the keys under it, folded away when asked */
 let keysShort = false;
 try { keysShort = localStorage.getItem('buddy-keys-short') === '1'; } catch { }

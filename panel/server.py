@@ -496,6 +496,11 @@ class Panel(BaseHTTPRequestHandler):
         if path == "/api/obtain-items":
             # what can be ordered, as the mod worked it out from the game's own data (obtain-items.json)
             return self.answer(200, self.file("obtain-items.json") or {"items": []})
+        if path == "/api/drills":
+            # a practice rig's drill block under way and its last runs (drills.json, written by the rig beside the
+            # exchange's files; docs/development.md): the panel shows it while you watch, a buddy without one never has it
+            data = (self.file("drills.json") or b"").strip()
+            return self.answer(200, data if data.startswith(b"{") else {"none": True})
         if path == "/api/state":
             self.keep_state()
             q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
