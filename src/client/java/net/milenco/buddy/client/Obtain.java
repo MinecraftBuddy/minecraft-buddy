@@ -685,7 +685,13 @@ final class Obtain {
 		// between two pieces of the kit went straight for diamonds it saw at y -8, by a cave spiders' spawner, without its
 		// armour, and it died running from them through lava
 		boolean between = exec == null;
-		if (between || exec instanceof Alto.Run && now >= boatLook) {
+		// a frame half built is finished before the food run: a spider held the run back until the frame stood half up, and
+		// then it took the buddy off it (attempt 225). the moment the frame is whole the checks run at once, so the food
+		// comes before the walk in and not after it
+		boolean midFrame = Alto.frameUnderWay();
+		boolean frameWhole = wasMidFrame && !midFrame;
+		wasMidFrame = midFrame;
+		if (between || exec instanceof Alto.Run && (now >= boatLook || frameWhole)) {
 			boatLook = now + 5000;
 			// in the nether with little to eat, or without gold: home first (Alto.wantsHome): a blaze fight is
 			// what eats it. one that did not get home is not asked again for three minutes, and the food search there is what is left
@@ -733,7 +739,8 @@ final class Obtain {
 			// from the surface to y -29 after a cow, into a cave of zombies, skeletons and an enderman, and died there,
 			// attempt 183, as 166 and 159 before it; the morning, or the animals on the way, bring the rest)
 			boolean foodNow = !dark(p) || Alto.foodScore(true) < Alto.NETHER_FOOD_RESERVE || hurtAndNoFood(p);
-			if (!shieldFirst && foodNow && now - foodTriedAt > 180_000 && Alto.wantsFood(p) && (ObtainSafe.foes(p).isEmpty() || hurtAndNoFood(p))) {
+			if (!shieldFirst && foodNow && (!midFrame || hurtAndNoFood(p)) && now - foodTriedAt > 180_000 && Alto.wantsFood(p)
+					&& (ObtainSafe.foes(p).isEmpty() || hurtAndNoFood(p))) {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:food", 1, null, 0, List.of(), "food by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
@@ -837,6 +844,7 @@ final class Obtain {
 	}
 
 	private static int sopranoEnds;
+	private static boolean wasMidFrame;
 	private static long boatLook, boatTriedAt = -600_000, foodTriedAt = -180_000, homeTriedAt = -180_000, goldTriedAt = -60_000;
 	// a home run for food that got home: the food run comes next, whatever wantsFood says by the portal
 	private static boolean foodAfterHome;

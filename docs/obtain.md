@@ -135,7 +135,8 @@ in the bag, before the food run when the iron and the wood for it are in the bag
 the nether is built from the bag's obsidian when it holds ten and flint and steel, where the buddy stands; otherwise it
 is cast with a bucket of lava and one of water. A frame begun and left (a food run broke in) is finished where it
 stands; under the ground the buddy climbs to the surface first, under a sea the frame goes into the rock. The frame is
-lit once its inside has stayed clear for half a second. A fire beside an obsidian frame is punched out, never put out
+lit once its inside has stayed clear for half a second. A frame begun is finished before a food run or a night's sleep;
+the food comes after, before the buddy steps in. A fire beside an obsidian frame is punched out, never put out
 with water, which would flood the frame. With the bag full, Soprano makes room by
 throwing what no task uses; the brew's things, the portal's, the golden helmet, the shield, the water bucket, blaze
 rods, ender pearls and golden apples are never among them during an order.

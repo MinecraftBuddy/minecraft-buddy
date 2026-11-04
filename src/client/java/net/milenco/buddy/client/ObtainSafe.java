@@ -64,7 +64,9 @@ final class ObtainSafe {
 	 */
 	static boolean sopranoSleeps() {
 		LocalPlayer p = AfkHelperClient.mc().player;
-		return p == null || !deepUnder(p);
+		// (and not while a nether portal is built: it is the way out of the night, and the night's trip broke the climb to the
+		// surface and the search for a spot, attempt 224)
+		return p == null || !deepUnder(p) && !Alto.buildingPortal();
 	}
 
 	/** In the overworld with no sky overhead and eight blocks or more of ground above. */

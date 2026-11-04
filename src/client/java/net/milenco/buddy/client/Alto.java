@@ -475,7 +475,8 @@ final class Alto {
 	static final int NETHER_FOOD = 160;
 
 	/**
-	 * A nether portal being built: a portal build anywhere in Soprano's task stack, or a frame begun nearby. doing() sees
+	 * A nether portal being built: a portal build anywhere in Soprano's task stack, or a frame half built nearby (a whole
+	 * one by the way home is a portal, not a build). doing() sees
 	 * only the outer task and the deepest, and the deepest is a click or a block placed, so portalUnderWay() missed it: the
 	 * boat rule broke a frame off twice for a boat (attempt 224, 4 Nov 2026).
 	 */
@@ -483,7 +484,7 @@ final class Alto {
 		if (!up) return false;
 		var mod = adris.altoclef.AltoClef.getInstance();
 		if (mod == null || mod.getTaskRunner() == null || mod.getPlayer() == null) return false;
-		if (adris.altoclef.tasks.construction.compound.ConstructNetherPortalObsidianTask.obsidianInLastFrame(mod) > 0) return true;
+		if (frameUnderWay()) return true;
 		var chain = mod.getTaskRunner().getCurrentTaskChain();
 		if (chain == null) return false;
 		for (var t : chain.getTasks()) {
@@ -491,6 +492,15 @@ final class Alto {
 				|| t instanceof adris.altoclef.tasks.construction.compound.ConstructNetherPortalBucketTask) return true;
 		}
 		return false;
+	}
+
+	/** A frame of obsidian begun nearby and not whole yet: one to nine of its ten blocks stand. */
+	static boolean frameUnderWay() {
+		if (!up) return false;
+		var mod = adris.altoclef.AltoClef.getInstance();
+		if (mod == null || mod.getPlayer() == null) return false;
+		int n = adris.altoclef.tasks.construction.compound.ConstructNetherPortalObsidianTask.obsidianInLastFrame(mod);
+		return n > 0 && n < 10;
 	}
 
 	/** Soprano's task under way is a nether portal's (a frame cast or built, or the walk into one). */
