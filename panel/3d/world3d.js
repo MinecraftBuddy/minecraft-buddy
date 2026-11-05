@@ -10,7 +10,7 @@
 // models (a box of their size), uvlock, biome blending, light. Nothing here sends anything to the buddy.
 
 import * as THREE from 'three';
-import { OrbitControls } from '/3d/OrbitControls.js';
+import { OrbitControls } from './OrbitControls.js';
 
 // colours as the game has them: no conversion between colour spaces anywhere (the textures, the sky, the figures)
 THREE.ColorManagement.enabled = false;
@@ -244,7 +244,7 @@ function sameLight(a, b) {
 
 /** The buddy's name, from the copy or from the panel's state, so that the view names whoever runs it. */
 let BUDDY = null;
-fetch('/api/state', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(s => { if (s && s.name && !BUDDY) BUDDY = s.name; }).catch(() => { });
+fetch('api/state', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(s => { if (s && s.name && !BUDDY) BUDDY = s.name; }).catch(() => { });
 const who = cap => BUDDY ? escHtml(BUDDY) : cap ? 'The buddy' : 'the buddy';
 
 // ---------- the bar over the view while a copy of the world is read and built ----------
@@ -287,7 +287,7 @@ function loaded(why) {
 }
 
 async function loadWorld(fresh, onBytes) {
-  const r = await fetch('/api/world3d' + (fresh ? `?fresh=1&r=${RADIUS}` : LOAD.back ? '?back=1' : ''), { cache: 'no-store' });
+  const r = await fetch('api/world3d' + (fresh ? `?fresh=1&r=${RADIUS}` : LOAD.back ? '?back=1' : ''), { cache: 'no-store' });
   if (r.status === 404) return null;
   if (!r.ok) throw new Error('world3d: ' + r.status);
   // counted as it comes, for the bar (a proxy that compresses on the way leaves out the length: then it does not move)
@@ -1403,7 +1403,7 @@ async function loadModels() {
       let bytes = (await store.getMany([k])).get(k);
       let data = bytes ? JSON.parse(new TextDecoder().decode(bytes)) : null;
       if (!data || data.version !== prep.version) {
-        const r = await fetch('/api/models', { cache: 'no-store' });
+        const r = await fetch('api/models', { cache: 'no-store' });
         if (!r.ok) return null;
         bytes = new Uint8Array(await r.arrayBuffer());
         data = JSON.parse(new TextDecoder().decode(bytes));
@@ -1445,7 +1445,7 @@ function modelMaterial(path, dye) {
   const file = 'assets/minecraft/' + path;
   // a player's skin comes through the panel (Mojang's texture server sends no CORS), the rest from the jar
   const bytes = path.startsWith('skin:')
-    ? fetch('/api/skin?h=' + path.slice(5)).then(r => r.ok ? r.arrayBuffer() : null).then(a => a && new Uint8Array(a))
+    ? fetch('api/skin?h=' + path.slice(5)).then(r => r.ok ? r.arrayBuffer() : null).then(a => a && new Uint8Array(a))
     : prep.jar.read([file]).then(f => f.get(file));
   bytes.then(async b => {
     if (!b) return;
@@ -1669,7 +1669,7 @@ const ITEM_TEX = new Map();
 function itemTex(id) {
   let tx = ITEM_TEX.get(id);
   if (!tx) {
-    tx = new THREE.TextureLoader().load('/icon/' + id + '.png');
+    tx = new THREE.TextureLoader().load('icon/' + id + '.png');
     tx.magFilter = THREE.NearestFilter; tx.minFilter = THREE.NearestFilter; tx.colorSpace = THREE.NoColorSpace;
     ITEM_TEX.set(id, tx);
   }
@@ -2521,7 +2521,7 @@ async function apply(d) {
 const STREAM = { es: null, ok: false, wake: null };
 function stream() {
   if (STREAM.es || typeof EventSource === 'undefined') return;
-  const es = STREAM.es = new EventSource('/api/world3d/stream');
+  const es = STREAM.es = new EventSource('api/world3d/stream');
   es.onmessage = ev => {
     if (CFG.active && !CFG.active()) return;
     try {
@@ -2563,7 +2563,7 @@ async function keepUp() {
       // no world yet (the buddy was not on a server, or the copy did not come): asked for again now and then
       if (!current && !live.busy && Date.now() - tried > 15000) { tried = Date.now(); await again(false); continue; }
       if (current && !live.busy) {
-        const r = await fetch(`/api/world3d/live?since=${live.seq}${LOAD.back ? '&back=1' : ''}`, { cache: 'no-store' });
+        const r = await fetch(`api/world3d/live?since=${live.seq}${LOAD.back ? '&back=1' : ''}`, { cache: 'no-store' });
         live.ok = r.ok;
         // how many changes the panel has after this page's, for the bar while it goes through them
         const pending = Number(r.headers.get('X-Pending')) || 0;
@@ -2848,7 +2848,7 @@ function contentsOf(h) {
   if (!CONTAINER.test(h.info.name) || h.info.name === 'ender_chest') return null;   // an ender chest's items are the buddy's own, kept nowhere
   if (Date.now() - CONT.at > 5000 && !CONT.asking) {
     CONT.asking = true;
-    fetch('/api/containers').then(r => r.json()).then(j => { CONT = { at: Date.now(), map: j.containers || {}, asking: false }; showPick(); })
+    fetch('api/containers').then(r => r.json()).then(j => { CONT = { at: Date.now(), map: j.containers || {}, asking: false }; showPick(); })
       .catch(() => { CONT.asking = false; CONT.at = Date.now(); });
   }
   return CONT.map[current.world.meta.dim + '|' + h.x + ',' + h.y + ',' + h.z] || false;
