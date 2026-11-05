@@ -18,7 +18,8 @@ buddy is doing **now**. Its buttons:
 Under the buttons stands the buddy's version, with an arrow when a newer release is out. A click on it then updates
 (see [Installing](install.md#updates)).
 
-On a phone the parts come one at a time, chosen in a bar at the bottom (Map, Inventory, Chat, Settings).
+On a phone the parts come one at a time, chosen in a bar at the bottom (Map, Inventory, Chat, Settings). On a computer
+the chat stays in view while the rest of the page scrolls.
 
 ### Priorities
 
@@ -145,7 +146,8 @@ clicked in for a minute.
 - **Chat**: the server's chat with names in colour, a line to type as the buddy (a line or a `/command`), and quick
   buttons (follow, stay, follow again, go home, stop following, ping). While you type a `/command`, the game's
   suggestions, and the server's, stand above the box: `Tab` takes the next, `Shift`+`Tab` the one before, a click that
-  one. Nothing is sent before `Enter`.
+  one. Nothing is sent before `Enter`. A message to the bot in Telegram from someone not in Trusted players shows here
+  in red, with that person's Telegram user id.
 - **Activity**: everything the buddy reports.
 - **Problems**: what went wrong, the same trouble in one row with how often, when last and where.
 - **Players**: who is online and since when, kept across the buddy's reconnects ("at least since" for players who were
@@ -174,7 +176,7 @@ Scroll up for older lines.
 - **The owner password** opens everything, from anywhere, for thirty days. Choose it at the first visit, with the setup
   code from the container's log (`docker compose logs <name>`); change it in Settings, Access, where Log out is too. Log
   out ends the session on the panel as well, so a copied cookie opens nothing afterwards; a new password ends every
-  session.
+  session. Browsers and password managers fill in only this password, never another field of the panel.
 - **Trusted addresses** (Settings, Access): one address or network a line, `#` for a note. They may steer the buddy
   without a password. When you are not logged in, the panel refuses a list without your own address.
 - **Anyone else** gets the login page and nothing more.

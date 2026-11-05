@@ -1866,6 +1866,24 @@ def seen(m):
     bridge_status(seen=copy)
 
 
+UNHEARD = []          # messages in the window that got no answer, their senders not admins: the last ten, newest first
+
+
+def unheard(m):
+    """A message in the window from someone who is not an admin: no answer, so that a stranger learns nothing of the bot,
+    but noted in bridge-status.json, from where the panel puts it in its chat. A Telegram user id gone wrong in Trusted
+    players looks like a bot that stopped listening otherwise."""
+    who = m.get("from") or {}
+    e = {"at": int(time.time()), "user_id": str(who.get("id", "")), "username": who.get("username") or "",
+         "user": " ".join(x for x in (who.get("first_name"), who.get("last_name")) if x)}
+    print("telegram: no answer to", e["user"] or e["user_id"], "(not in Trusted players)", flush=True)
+    with SEEN_LOCK:
+        UNHEARD.insert(0, e)
+        del UNHEARD[10:]
+        copy = list(UNHEARD)
+    bridge_status(unheard=copy)
+
+
 def no_chat_hint(m):
     """A private message while the bot has no chat yet: says once to its sender where to choose this chat."""
     who = str((m.get("from") or {}).get("id") or "")
@@ -1921,7 +1939,11 @@ def listener(token):
                     continue
                 mc = name_of(m.get("from") or {}, chat.get("type") == "private")
                 if mc is None:
-                    continue                    # not an admin: ignored without a word
+                    # not an admin: no answer in Telegram, but the panel's chat says so. In a group only a ! line was
+                    # meant for the bot; the members' talk among themselves is not noted.
+                    if chat.get("type") == "private" or (m.get("text") or "").lstrip().startswith("!"):
+                        unheard(m)
+                    continue
                 text = (m.get("text") or "").strip()
                 try:
                     if m.get("document"):

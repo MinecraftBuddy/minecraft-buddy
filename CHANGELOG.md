@@ -3,6 +3,15 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.20
+
+- Browsers and password managers now fill in only the panel's password, no other field.
+- When someone who is not in Trusted players writes to the bot in Telegram, the panel's chat says so, with that
+  person's Telegram user id. If the bot does not answer you, check your own id there: a password manager may have
+  put a login name in it.
+- On a computer the chat stays in view while you scroll the page, so typing in it no longer makes the page jump,
+  also with a tall menu open.
+
 ## 0.5.19
 
 - When the buddy dies, Take control shows the coordinates where the buddy's things are.

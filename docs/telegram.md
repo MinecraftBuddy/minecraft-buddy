@@ -12,7 +12,8 @@ One Telegram chat is the buddy's. The buddy's game chat shows up there, and in t
   `!follow`, `!guard`, `!assist`, `!chests`, `!fields`, `!forget`, `!profile`, `!goto`, `!dump`, `!status`,
   `!cmd /command` and `!say text`.
 
-Only the admins are heard: the Telegram user ids in Trusted players (Settings, Access).
+Only the admins are heard: the Telegram user ids in Trusted players (Settings, Access). A message from anyone else gets
+no answer, but the panel's chat says so, with that person's Telegram user id; in a group only a line with `!` counts.
 
 ## Setting it up
 
