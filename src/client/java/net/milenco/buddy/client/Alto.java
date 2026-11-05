@@ -49,6 +49,16 @@ final class Alto {
 		return present;
 	}
 
+	/**
+	 * AltoClef's one instance once it is up (its task runner and user chain made), else null. Soprano makes it on its
+	 * first tick with a world, which can come after the first tick of an order: a client that starts with an order under
+	 * way has one before AltoClef is there. And it is gone for the session when its start or its ticks keep failing.
+	 */
+	private static adris.altoclef.AltoClef instance() {
+		var mod = adris.altoclef.AltoClef.getInstance();
+		return mod == null || mod.getTaskRunner() == null || mod.getUserTaskChain() == null ? null : mod;
+	}
+
 	/** AltoClef keeps the buddy alive for the order under way. */
 	static boolean on() {
 		boolean on = present() && AfkConfig.get().obtainAltoSurvival && Obtain.on();
@@ -243,7 +253,7 @@ final class Alto {
 	 */
 	static String doing() {
 		if (!up) return null;
-		var mod = adris.altoclef.AltoClef.getInstance();
+		var mod = instance();
 		if (mod == null || mod.getTaskRunner() == null) return null;
 		var chain = mod.getTaskRunner().getCurrentTaskChain();
 		if (chain == null) return null;
@@ -276,7 +286,7 @@ final class Alto {
 	 */
 	static java.util.Map<String, Object> plan() {
 		if (!up) return null;
-		var mod = adris.altoclef.AltoClef.getInstance();
+		var mod = instance();
 		if (mod == null || mod.getTaskRunner() == null) return null;
 		java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
 		var user = mod.getUserTaskChain();
@@ -318,7 +328,7 @@ final class Alto {
 		long now = System.currentTimeMillis();
 		if (now < doingLook) return;
 		doingLook = now + 1000;
-		var mod = adris.altoclef.AltoClef.getInstance();
+		var mod = instance();
 		if (mod == null || mod.getTaskRunner() == null || mod.getTaskRunner().getCurrentTaskChain() == null) return;
 		var tasks = mod.getTaskRunner().getCurrentTaskChain().getTasks();
 		if (tasks.isEmpty()) return;
@@ -359,7 +369,7 @@ final class Alto {
 	/** One of AltoClef's chains holds the wheel now: the buddy lets go. */
 	static boolean inControl() {
 		if (!up) return false;
-		var mod = adris.altoclef.AltoClef.getInstance();
+		var mod = instance();
 		if (mod == null) return false;
 		var runner = mod.getTaskRunner();
 		var chain = runner == null || !runner.isActive() ? null : runner.getCurrentTaskChain();
@@ -383,7 +393,7 @@ final class Alto {
 	/** AltoClef is at work on something: a task of the user's chain, or one of its own chains holding the wheel. */
 	static boolean working() {
 		if (!up) return false;
-		var mod = adris.altoclef.AltoClef.getInstance();
+		var mod = instance();
 		if (mod == null) return false;
 		if (mod.getUserTaskChain().isActive()) return true;
 		var runner = mod.getTaskRunner();
@@ -396,7 +406,7 @@ final class Alto {
 	 */
 	static boolean delegating() {
 		if (!up || !delegated) return false;
-		var mod = adris.altoclef.AltoClef.getInstance();
+		var mod = instance();
 		if (mod != null && mod.getUserTaskChain().isActive()) return true;
 		delegated = false;
 		return false;
@@ -405,7 +415,7 @@ final class Alto {
 	private static void cancel() {
 		if (!delegated) return;
 		delegated = false;
-		var mod = adris.altoclef.AltoClef.getInstance();
+		var mod = instance();
 		if (mod != null && mod.getUserTaskChain().isActive()) mod.cancelUserTask();
 	}
 
@@ -482,7 +492,7 @@ final class Alto {
 	 */
 	static boolean buildingPortal() {
 		if (!up) return false;
-		var mod = adris.altoclef.AltoClef.getInstance();
+		var mod = instance();
 		if (mod == null || mod.getTaskRunner() == null || mod.getPlayer() == null) return false;
 		if (frameUnderWay()) return true;
 		var chain = mod.getTaskRunner().getCurrentTaskChain();
@@ -497,7 +507,7 @@ final class Alto {
 	/** A frame of obsidian begun nearby and not whole yet: one to nine of its ten blocks stand. */
 	static boolean frameUnderWay() {
 		if (!up) return false;
-		var mod = adris.altoclef.AltoClef.getInstance();
+		var mod = instance();
 		if (mod == null || mod.getPlayer() == null) return false;
 		int n = adris.altoclef.tasks.construction.compound.ConstructNetherPortalObsidianTask.obsidianInLastFrame(mod);
 		return n > 0 && n < 10;
@@ -907,7 +917,7 @@ final class Alto {
 
 	/** What keeps Soprano's food chain from eating now, for the order's status; empty when nothing does. */
 	static String eatBlock() {
-		var mod = adris.altoclef.AltoClef.getInstance();
+		var mod = instance();
 		if (mod == null || mod.getPlayer() == null) return "";
 		StringBuilder b = new StringBuilder();
 		try {
@@ -981,7 +991,7 @@ final class Alto {
 	/** Soprano's order is at its way into the nether: a frame from the bag, a cast, or the walk into a portal. */
 	static boolean atNetherPortal() {
 		if (!up) return false;
-		var mod = adris.altoclef.AltoClef.getInstance();
+		var mod = instance();
 		if (mod == null || mod.getUserTaskChain() == null) return false;
 		var t = mod.getUserTaskChain().getCurrentTask();
 		return t != null && t.thisOrChildSatisfies(x -> x instanceof adris.altoclef.tasks.movement.DefaultGoToDimensionTask
@@ -994,6 +1004,9 @@ final class Alto {
 		private final long limit;
 		private final java.util.function.Supplier<Object> make;
 		private long startedAt = -1;
+		/** Since when the step waits for AltoClef to come up; -1 while it does not. */
+		private long waitFrom = -1;
+		private static final long WAIT_UP = 120_000;
 
 		Run(String what, long limit, java.util.function.Supplier<Object> make) { this.what = what; this.limit = limit; this.make = make; }
 
@@ -1008,12 +1021,22 @@ final class Alto {
 		@Override
 		ObtainSteps.Result tick(net.minecraft.client.Minecraft mc, net.minecraft.client.player.LocalPlayer p, long now) {
 			if (startedAt < 0) {
+				// AltoClef up first (instance()): till then the step stands, with one event to say it waits. Two game minutes
+				// without it is AltoClef off for the session, and the step fails with that
+				var mod = instance();
+				if (mod == null) {
+					if (waitFrom < 0) Exchange.emit("alto", "action", "waits", "task", what, "why", "AltoClef is not up yet");
+					if (waitFrom < 0 || now < waitFrom) waitFrom = now;
+					if (now - waitFrom > WAIT_UP) return fail("AltoClef did not come up in two minutes");
+					Follow.stand();
+					return ObtainSteps.Result.WAIT;
+				}
 				startedAt = now;
 				Bari.yieldTo();
 				HeldKeys.releaseAll();
 				Object t = make.get();
 				if (t == null) return fail("AltoClef has no task for " + what);
-				adris.altoclef.AltoClef.getInstance().runUserTask((adris.altoclef.tasksystem.Task) t);
+				mod.runUserTask((adris.altoclef.tasksystem.Task) t);
 				delegated = true;
 				Exchange.emit("alto", "action", "task", "task", what);
 				return ObtainSteps.Result.RUN;
