@@ -295,7 +295,11 @@ async function loadWorld(fresh, onBytes) {
   let got = 0;
   const counted = !onBytes || !total ? r.body : r.body.pipeThrough(new TransformStream({ transform(c, ctl) { got += c.byteLength; onBytes(got, total); ctl.enqueue(c); } }));
   const s = counted.pipeThrough(new DecompressionStream('gzip'));
-  const buf = new Uint8Array(await new Response(s).arrayBuffer());
+  return parseWorld(new Uint8Array(await new Response(s).arrayBuffer()));
+}
+
+/** A copy of the world ("MQ3D", World3d.java) from its bytes once gunzipped: the panel's world3d.bin, or a recording's C. */
+export function parseWorld(buf) {
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
   if (new TextDecoder().decode(buf.subarray(0, 4)) !== 'MQ3D') throw new Error('world3d: not a copy of the world');
   let p = 4;
@@ -975,8 +979,9 @@ function rebuild(key) {
   return quads;
 }
 
-/** The copy of the world on the panel, drawn whole. */
-async function show(fresh, quiet) {
+/** The copy of the world on the panel, drawn whole; or, from a recording (start3d's source), the copy given: {copy, the
+ *  bytes of an MQ3D once gunzipped; changes, the MQ3L bytes after it, put into it before anything is built}. */
+async function show(fresh, quiet, given) {
   const t0 = performance.now();
   live.busy = true;
   // The bar on a first copy, on one asked for (Refresh, back after a while) and on a world that changes (another
@@ -990,8 +995,9 @@ async function show(fresh, quiet) {
     let what = fresh ? `Asking ${who()} for a new copy of the world…` : `Loading the world around ${who()}…`;
     const bytes = (d, t) => say('world', what, d, t);
     say('world', what);
-    let world = await loadWorld(fresh, bytes);
-    if (!world && !fresh) { what = `No copy yet: asking ${who()} for one…`; say('world', what); world = await loadWorld(true, bytes); }
+    let world = given ? parseWorld(given.copy) : await loadWorld(fresh, bytes);
+    if (given) { /* a recording's copy is what it is */ }
+    else if (!world && !fresh) { what = `No copy yet: asking ${who()} for one…`; say('world', what); world = await loadWorld(true, bytes); }
     // a copy of fewer chunks around the buddy than the view wants (from before the view went further): a new one
     else if (world && !fresh && (world.meta.radius || 0) < RADIUS) { what = `Asking ${who()} for a wider copy…`; say('world', what); world = (await loadWorld(true, bytes)) || world; }
     if (!world) {
@@ -1003,8 +1009,12 @@ async function show(fresh, quiet) {
     const { meta } = world;
     const step = (html, d, t, s) => say(s || 'files', html, d, t);
     // the numbers of block states hold for the buddy's game session: a copy that does not start with what the page knows
-    // comes from a new session, and the page starts over
-    const same = prep && prep.version === meta.version && prep.states.every((x, i) => meta.states[i] === x) && prep.biomeIds.every((x, i) => meta.biomes[i] === x);
+    // comes from a new session, and the page starts over. A recording can go back to an earlier copy of the same session,
+    // which knows fewer: the one list beginning the other is enough there
+    const begins = (a, b) => { for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return false; return true; };
+    const same = prep && prep.version === meta.version && (given
+      ? begins(prep.states, meta.states) && begins(prep.biomeIds, meta.biomes)
+      : prep.states.every((x, i) => meta.states[i] === x) && prep.biomeIds.every((x, i) => meta.biomes[i] === x));
     if (!same && !bar) { bar = true; LOAD.again = true; }
     if (!same) {
       if (prep) { prep.texture.dispose(); prep.mats.forEach(m => m.dispose()); }
@@ -1015,6 +1025,8 @@ async function show(fresh, quiet) {
     await prep.addStates(meta.states.slice(prep.states.length), step);
     loadModels();
     await prep.addBiomes(meta.biomes.slice(prep.biomeIds.length));
+    // a recording's changes since its copy go into the copy first: the world is built once, as it was at that moment
+    if (given && given.changes) given.ok = await mergeChanges(world, given.changes, (html, d, t) => say('changes', html, d, t));
     const moved = !current || current.world.meta.dim !== meta.dim;
     if (moved && !bar) { bar = true; LOAD.again = true; }
     // the same world in the same game: each chunk swaps its meshes as it is built, the figures stay, and what the new
@@ -1042,7 +1054,8 @@ async function show(fresh, quiet) {
       if (n % 4 === 3) { say('build', `Building chunks: <b>${n + 1}</b> of ${list.length}`, n + 1, list.length); await sleep(0); }
     }
     if (keep) for (const key of [...meshes.keys()]) if (!world.chunks.has(key)) rebuild(key);
-    entities(meta);
+    // (a recording's seek hands the moment's frame over next: the copy's own figures are from when it was made)
+    if (!(given && given.seek)) entities(meta);
     live.seq = meta.seq || 0;
     live.base = meta.base || 0;
     summary = `<b>${list.length}</b> chunks, ${quads.toLocaleString('en')} faces, built in ${((performance.now() - t0) / 1000).toFixed(1)} s`;
@@ -1059,6 +1072,8 @@ async function show(fresh, quiet) {
 
 function showStatus() {
   if (!current) return;
+  // a recording: what is drawn, without live or the age of the last change (the page shows the moment)
+  if (CFG.source) { status(`${summary} · ${current.world.meta.dim.replace('minecraft:', '')}${FPS.value ? ` · ${FPS.value} fps` : ''}`); return; }
   const age = Math.max(0, Math.round((Date.now() - lastChange) / 1000));
   const when = age < 90 ? age + ' s' : age < 5400 ? Math.round(age / 60) + ' min' : Math.round(age / 3600) + ' h';
   const dot = live.ok ? '<span style="color:#3fb950">● live</span>' : '<span style="color:var(--soft)">○ not live</span>';
@@ -1083,7 +1098,7 @@ function entities(m) {
   if (typeof m.vx === 'number') MOTION.v = { x: m.vx, y: Math.abs(m.vy) > 0.1 ? m.vy : 0, z: m.vz, at: performance.now() };
   track(m);
   // the buddy's clock, for the daylight; the dimension's own light (the nether has no sky but some light everywhere)
-  if (typeof m.time === 'number') LIGHT.clock = { time: m.time, at: Date.now() };
+  if (typeof m.time === 'number') LIGHT.clock = { time: m.time, at: clockMs() };
   if (m.skylight !== undefined) { LIGHT.sky = m.skylight; LIGHT.ambient.value = m.ambient > 0 ? 0.25 : 0; }
   const seen = new Set();
   const put = (key, e, make) => {
@@ -1391,6 +1406,7 @@ function beamTick() {
 // The mod exports every model the game draws in code (Models: the parts' faces as four corners of x, y, z and u, v, as
 // the game holds them), once per game; the page draws them with the textures of Mojang's jar. Kept per version.
 const MODELS = { data: null, loading: null, version: null, tex: new Map(), geo: new Map() };
+const DEFAULT_SKIN = 'assets/minecraft/textures/entity/player/wide/steve.png';
 const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
 
 async function loadModels() {
@@ -1444,9 +1460,12 @@ function modelMaterial(path, dye) {
   MODELS.tex.set(path, t);
   const file = 'assets/minecraft/' + path;
   // a player's skin comes through the panel (Mojang's texture server sends no CORS), the rest from the jar
+  const jarFile = f => prep.jar.read([f]).then(m => m.get(f));
+  const skin = h => fetch('api/skin?h=' + h).then(r => r.ok ? r.arrayBuffer() : null).then(a => a && new Uint8Array(a));
+  // a recording's page may not reach the skin: the game's default skin then, not a player without a body
   const bytes = path.startsWith('skin:')
-    ? fetch('api/skin?h=' + path.slice(5)).then(r => r.ok ? r.arrayBuffer() : null).then(a => a && new Uint8Array(a))
-    : prep.jar.read([file]).then(f => f.get(file));
+    ? CFG.source ? skin(path.slice(5)).catch(() => null).then(b => b || jarFile(DEFAULT_SKIN)) : skin(path.slice(5))
+    : jarFile(file);
   bytes.then(async b => {
     if (!b) return;
     const tx = new THREE.Texture(await decodeImage(b));
@@ -2304,6 +2323,7 @@ const SYNC = { off: null, delay: 90 };
 function track(m) {
   const t = typeof m.tk === 'number' ? m.tk * 50 : typeof m.at === 'number' ? m.at : null;
   if (t === null) return;
+  if (CFG.source) { trackRecorded(m, t); return; }
   const now = performance.now(), off = now - t;
   const last = TRACK[TRACK.length - 1];
   // the buddy's game started anew, or a jump (a teleport, another dimension): no gliding over it, and the clocks counted anew
@@ -2323,10 +2343,24 @@ function track(m) {
   TRACK.push({ t, x: m.x, y: m.y, z: m.z, yaw: m.yaw || 0, pitch: m.pitch || 0 });
   if (TRACK.length > 80) TRACK.shift();
 }
+/** A recording's frames on the track: its clock is the source's, with no offset to learn. A frame back in time or far
+ *  ahead (a seek) starts the track anew, as a teleport does. */
+function trackRecorded(m, t) {
+  const last = TRACK[TRACK.length - 1];
+  if (last && (t < last.t || t - last.t > 1500 || Math.hypot(m.x - last.x, m.z - last.z) > 12)) TRACK.length = 0;
+  else if (last && t === last.t) return;
+  TRACK.push({ t, x: m.x, y: m.y, z: m.z, yaw: m.yaw || 0, pitch: m.pitch || 0 });
+  if (TRACK.length > 80) TRACK.shift();
+}
+/** How far behind the source's clock a recording's buddy is drawn: one frame (two ticks), so that the moment lies
+ *  between two frames the page has handed over, as a live view draws between two messages. */
+const SOURCE_LAG = 100;
+/** The clock of the time of day: the wall's, or a recording's (in its own ms, the game's ticks × 50). */
+const clockMs = () => CFG.source ? CFG.source.now() : Date.now();
 /** The two places of TRACK around the moment to draw, and how far between them (k), or null without two. */
 function trackAt() {
-  if (TRACK.length < 2 || SYNC.off === null) return null;
-  const rt = performance.now() - SYNC.off - SYNC.delay;
+  if (TRACK.length < 2 || (!CFG.source && SYNC.off === null)) return null;
+  const rt = CFG.source ? CFG.source.now() - SOURCE_LAG : performance.now() - SYNC.off - SYNC.delay;
   const last = TRACK[TRACK.length - 1];
   if (rt >= last.t) return { a: last, b: last, k: 0, past: rt - last.t };
   for (let i = TRACK.length - 2; i >= 0; i--) {
@@ -2363,7 +2397,8 @@ function hisPlace(m) {
     return [a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, a.z + (b.z - a.z) * k];
   }
   const v = MOTION.v;
-  if (!v) return [m.x, m.y, m.z];
+  // (a recording's clock may stand still: no carrying on by the wall's)
+  if (!v || CFG.source) return [m.x, m.y, m.z];
   const ticks = Math.min(0.3, (performance.now() - v.at) / 1000) * 20;
   return [m.x + v.x * ticks, m.y + v.y * ticks, m.z + v.z * ticks];
 }
@@ -2378,7 +2413,9 @@ function hisLook(m) {
 }
 
 function glide(dt) {
-  const k = Math.min(1, dt * 8);
+  // a recording played faster: the others keep up as much faster, and walk as fast; paused, they stand still
+  const pace = CFG.source ? CFG.source.speed() : 1;
+  const k = Math.min(1, dt * 8 * Math.max(1, pace));
   for (const f of figures.values()) {
     let [fx, fy, fz] = [f.x, f.y, f.z];
     if (f.me && current) [fx, fy, fz] = hisPlace(current.world.meta);
@@ -2391,7 +2428,7 @@ function glide(dt) {
     let d = want - f.g.rotation.y;
     d = Math.atan2(Math.sin(d), Math.cos(d));
     f.g.rotation.y += d * k;
-    animate(f, dt);
+    animate(f, dt * pace);
   }
   if ((mode === 'eyes' || mode === 'drive') && current) {
     const m = current.world.meta;
@@ -2418,7 +2455,8 @@ function dispose(g) {
 
 // ---------- keeping up ----------
 
-function parseChanges(buf) {
+/** A file of changes ("MQ3L") from its bytes once gunzipped: one of the panel's world3d-live, or a recording's L. */
+export function parseChanges(buf) {
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
   if (new TextDecoder().decode(buf.subarray(0, 4)) !== 'MQ3L') throw new Error('world3d: not a change');
   let p = 4;
@@ -2460,6 +2498,25 @@ async function apply(d) {
   // has it
   if (m.reset && m.minY === undefined && m.dim !== w.meta.dim) return 'fresh';
   if (m.states_from > prep.states.length || m.biomes_from > prep.biomeIds.length) return false;
+  const { touched, edits, later } = await merge(w, d);
+  // the buddy's own changes first, then the nearest
+  const mx = Math.floor((live.ent && live.ent.x || w.meta.x || 0) / 16), mz = Math.floor((live.ent && live.ent.z || w.meta.z || 0) / 16);
+  const far = k => { const [x, z] = k.split(',').map(Number); return Math.max(Math.abs(x - mx), Math.abs(z - mz)); };
+  const order = [...touched].sort((a, b) => (edits.has(b) - edits.has(a)) || far(a) - far(b));
+  let n = 0;
+  for (const key of order) { rebuild(key); if (++n % 6 === 0) await sleep(0); }
+  for (const k of later) if (!touched.has(k) && w.chunks.has(k)) LATER.add(k);
+  if (m.reset) { origin = { x: Math.floor(w.meta.x), z: Math.floor(w.meta.z) }; clearFigures(); for (const key of [...meshes.keys()]) rebuild(key); if (mode === 'drive') drive(); else if (mode === 'map') mapView(); else lookAround(); }
+  live.seq = m.seq;
+  lastChange = Date.now();
+  window.__changes = (window.__changes || 0) + 1;
+  return true;
+}
+
+/** A file of changes put into a world's chunks (w: the one on screen, or a recording's copy not built yet): which chunks
+ *  it touched, which of those had blocks edited, and whose neighbours to build again later. */
+async function merge(w, d) {
+  const m = d.meta;
   await prep.addStates(m.states.slice(prep.states.length - m.states_from));
   await prep.addBiomes(m.biomes.slice(prep.biomeIds.length - m.biomes_from));
   const touched = new Set();
@@ -2502,18 +2559,50 @@ async function apply(d) {
     if (!fresh) edits.add(key);
     SIDES.forEach(([dx, dz], k) => { const nk = (c.cx + dx) + ',' + (c.cz + dz); if (fresh || relit) later.add(nk); if (!fresh && edge.has(k)) { touched.add(nk); edits.add(nk); } });
   }
-  // the buddy's own changes first, then the nearest
-  const mx = Math.floor((live.ent && live.ent.x || w.meta.x || 0) / 16), mz = Math.floor((live.ent && live.ent.z || w.meta.z || 0) / 16);
-  const far = k => { const [x, z] = k.split(',').map(Number); return Math.max(Math.abs(x - mx), Math.abs(z - mz)); };
-  const order = [...touched].sort((a, b) => (edits.has(b) - edits.has(a)) || far(a) - far(b));
-  let n = 0;
-  for (const key of order) { rebuild(key); if (++n % 6 === 0) await sleep(0); }
-  for (const k of later) if (!touched.has(k) && w.chunks.has(k)) LATER.add(k);
-  if (m.reset) { origin = { x: Math.floor(w.meta.x), z: Math.floor(w.meta.z) }; clearFigures(); for (const key of [...meshes.keys()]) rebuild(key); if (mode === 'drive') drive(); else if (mode === 'map') mapView(); else lookAround(); }
-  live.seq = m.seq;
-  lastChange = Date.now();
-  window.__changes = (window.__changes || 0) + 1;
+  return { touched, edits, later };
+}
+
+// ---------- a recording instead of the panel (start3d's source) ----------
+
+/** A recording's changes after its copy, put into the copy's world before it is built (seeking); say tells how far it
+ *  is. False at the first change that does not follow the one before (a gap: the world stops there). */
+async function mergeChanges(world, changes, say) {
+  let seq = world.meta.seq || 0, n = 0;
+  for await (const bytes of changes) {
+    const d = parseChanges(bytes), m = d.meta;
+    if (m.base !== world.meta.base) return false;
+    if (m.seq <= seq) continue;
+    if (m.prev !== seq || m.states_from > prep.states.length || m.biomes_from > prep.biomeIds.length) return false;
+    await merge(world, d);
+    seq = world.meta.seq = m.seq;
+    if (++n % 25 === 0) { say(`Applying changes: <b>${n}</b>`); await sleep(0); }
+  }
   return true;
+}
+
+/** The world anew from a recording's copy (an MQ3D's bytes, gunzipped) and the changes after it up to the moment (MQ3L
+ *  bytes, an iterable or async iterable), built once. seek: the figures and the buddy's track start over; quiet: built in
+ *  place without the bar (a new copy while it plays). True when every change followed. */
+async function sourceLoad(copy, changes, opts = {}) {
+  if (opts.seek) { clearFigures(); TRACK.length = 0; MOTION.v = null; }
+  const given = { copy, changes, ok: true, seek: !!opts.seek };
+  await show(false, !!opts.quiet, given);
+  return given.ok !== false && !!current;
+}
+
+/** One change after what is drawn (an MQ3L's bytes, gunzipped): true, or false when it does not follow (load anew). */
+async function sourceChange(bytes) {
+  if (!current || live.busy) return false;
+  const d = parseChanges(bytes);
+  if (d.meta.base !== live.base) return false;
+  if (d.meta.seq <= live.seq) return true;
+  return d.meta.prev === live.seq && (await apply(d)) === true;
+}
+
+/** A positions frame (world3d-ent.json's JSON) at the source's moment. */
+function sourceFrame(ent) {
+  live.ent = ent;
+  if (current && !live.busy && (ent.base === undefined || ent.base === live.base)) entities(ent);
 }
 
 // the buddy's place and what is around the buddy come on one open connection (server-sent events) as soon as the mod writes them;
@@ -2935,7 +3024,7 @@ function frame(t) {
   if (t - FPS.since >= 1000) { FPS.value = Math.round(FPS.n * 1000 / (t - FPS.since)); FPS.n = 0; FPS.since = t; }
   // the time of day goes on between two messages, twenty ticks a second
   if (LIGHT.clock) {
-    const d = LIGHT.sky === false ? 0 : daylight(LIGHT.clock.time + (Date.now() - LIGHT.clock.at) / 50);
+    const d = LIGHT.sky === false ? 0 : daylight(LIGHT.clock.time + (clockMs() - LIGHT.clock.at) / 50);
     LIGHT.day.value = 0.15 + 0.85 * d;
     sky.copy(LIGHT.sky === false ? NO_SKY : NIGHT_SKY).lerp(DAY_SKY, LIGHT.sky === false ? 0 : d);
     if (scene.fog) scene.fog.color.copy(sky);
@@ -3055,6 +3144,18 @@ function fail(e) {
  * page's elements, each optional); controls (false when the page steers itself, as the panel does); look (a function
  * that gives {yaw, pitch} in the game's degrees while the panel drives the buddy); paused (a function: true while nothing
  * needs drawing). Returns what the page can ask of it.
+ *
+ * source: a recorded run instead of the panel (RunRecorder in the mod). The view then asks the panel for no world, no
+ * changes and no positions; the source hands them over, and api/state, api/models, api/skin, api/containers, icon/ are
+ * still read beside the page. Live it changes nothing. Its parts:
+ *   now()      the moment to draw, in the track's units: the game's ticks × 50 (ms of game time)
+ *   speed()    how fast it plays: 1 as the game ran, 10 ten times as fast, 0 paused (how fast the others glide and walk)
+ *   run(view)  called once, when the view is up, to drive it with
+ *     view.load(copy, changes, {seek, quiet})  the world anew from a copy (the bytes of a C, an MQ3D once gunzipped)
+ *                       and the changes after it up to the moment (L bytes, an iterable or async iterable), built once;
+ *                       resolves true when every change followed
+ *     view.change(bytes)  the next change (an L): true, or false when it does not follow what is drawn (load anew)
+ *     view.frame(json)    a positions frame (K, or K with its D's applied), the moment's figures
  */
 export function start3d(cfg) {
   CFG = cfg;
@@ -3163,6 +3264,11 @@ export function start3d(cfg) {
   requestAnimationFrame(frame);
   (async () => {
     await store.open();
+    if (cfg.source) {
+      window.__ready = true;
+      await cfg.source.run({ load: sourceLoad, change: sourceChange, frame: sourceFrame });
+      return;
+    }
     // without a world (the buddy not on a server, a copy that did not come) the view goes on: keepUp asks again
     try { await show(false); } catch (e) { fail(e); }
     // what the page asked for while the world was loading wins over what it asked at the start
@@ -3173,7 +3279,7 @@ export function start3d(cfg) {
     keepUp();
   })().catch(e => { fail(e); window.__ready = true; });
   return {
-    drive, lookAround, hisEyes, fly: startFly, map: mapView, mapZoom, refresh: () => show(true).catch(fail),
+    drive, lookAround, hisEyes, fly: startFly, map: mapView, mapZoom, refresh: () => cfg.source ? Promise.resolve() : show(true).catch(fail),
     mapFollow: () => mapCam.follow, mapZoomLevel: () => MAP_DIST / mapCam.dist,
     mapTurned: () => Math.abs(mapCam.yaw) > 1e-6 || Math.abs(mapCam.pitch - MAP_PITCH) > 1e-6,
     mapTurn: () => ({ yaw: mapCam.yaw, pitch: mapCam.pitch }),
