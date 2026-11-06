@@ -36,6 +36,17 @@ public final class BrewRules {
 
     public enum Ingredient { WART, CREAM, REDSTONE }
 
+    // what the bottles will be once the ingredient in the stand has brewed: a wart over water makes awkward, a cream over
+    // awkward fire resistance, a redstone over that the long one. the stand is read only with its screen open, and it brews
+    // on with the screen shut: read as the bottles before the ingredient, a wart brewing over water sent the buddy off for a
+    // second wart the moment the screen shut, in the middle of every brew (piece2ap-2 runs 6 and 7, 6 Nov 2026)
+    public static Stage after(Stage stage, Ingredient brewing) {
+        if (brewing == Ingredient.WART && stage == Stage.WATER) return Stage.AWKWARD;
+        if (brewing == Ingredient.CREAM && stage == Stage.AWKWARD) return Stage.FIRE;
+        if (brewing == Ingredient.REDSTONE && stage == Stage.FIRE) return Stage.LONG_FIRE;
+        return stage;
+    }
+
     // the next ingredient for the bottles in the stand, null when they are done (long, or short with no redstone to hand)
     public static Ingredient next(int water, int awkward, int fire, boolean redstone) {
         if (water > 0) return Ingredient.WART;

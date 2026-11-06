@@ -244,7 +244,11 @@ public class BrewFireResistanceTask extends ResourceTask {
                 _stand = at;
                 _standDim = WorldHelper.getCurrentDimension();
             }
-            _standStage = BrewRules.stage(water, awkward, fire, longFire);
+            // (the bottles as they will be once the ingredient in its slot has brewed: BrewRules.after)
+            BrewRules.Ingredient inSlot = ingredient.is(Items.NETHER_WART) ? BrewRules.Ingredient.WART
+                    : ingredient.is(Items.MAGMA_CREAM) ? BrewRules.Ingredient.CREAM
+                    : ingredient.is(Items.REDSTONE) ? BrewRules.Ingredient.REDSTONE : null;
+            _standStage = BrewRules.after(BrewRules.stage(water, awkward, fire, longFire), inSlot);
             _standFuel = fuel + (fuelStack.is(Items.BLAZE_POWDER) ? BrewRules.BREWS_PER_POWDER * fuelStack.getCount() : 0);
 
             // the fuel: one powder is twenty brews

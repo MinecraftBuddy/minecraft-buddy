@@ -27,6 +27,17 @@ public class BrewRulesTest {
     }
 
     @Test
+    public void anIngredientBrewingCountsAsBrewed() {
+        // a wart brewing over water: the next errand is the cream, never a second wart
+        assertEquals(BrewRules.Stage.AWKWARD, BrewRules.after(BrewRules.Stage.WATER, BrewRules.Ingredient.WART));
+        assertEquals(false, BrewRules.needsCream(BrewRules.after(BrewRules.Stage.AWKWARD, BrewRules.Ingredient.CREAM)));
+        assertEquals(BrewRules.Stage.LONG_FIRE, BrewRules.after(BrewRules.Stage.FIRE, BrewRules.Ingredient.REDSTONE));
+        // nothing in the slot, or one that fits none of the bottles, leaves the stage
+        assertEquals(BrewRules.Stage.WATER, BrewRules.after(BrewRules.Stage.WATER, null));
+        assertEquals(BrewRules.Stage.WATER, BrewRules.after(BrewRules.Stage.WATER, BrewRules.Ingredient.CREAM));
+    }
+
+    @Test
     public void fuelOnlyForAStepStillToBrew() {
         // a new stand has none
         assertEquals(true, BrewRules.needsFuel(-1, BrewRules.Stage.WATER, false));
