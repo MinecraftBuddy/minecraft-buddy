@@ -292,10 +292,36 @@ final class SnapshotChecks {
                         new Vec3(mx, b[1] + h / 2, mz), new Vec3(mx, b[1] + h * 0.85, mz), new Vec3(mx, b[1] + 0.3, mz)};
                 boolean seen = false;
                 for (Vec3 pt : points) seen |= SnapshotWorld.clear(c.world.fullOnly, eye, pt);
+                // (and a grid on each face of the box toward the eye: a swing's ray that passed a wall's corner by 0.02 block
+                // missed all four points above and was flagged though the hit was clear, snap-20261106-174048-567-low)
+                if (!seen) seen = faceGridSeen(c.world, eye, b);
                 if (!seen) c.flag(name(), "hit " + p.targetType + " #" + p.target, "whole blocks between the eye and every point of its body");
             }
         }
     };
+
+    // a grid of FACE_GRID x FACE_GRID points on each face of the box that faces the eye, a hair inside it: one in sight is enough
+    static final int FACE_GRID = 7;
+
+    static boolean faceGridSeen(SnapshotWorld w, Vec3 eye, double[] b) {
+        double in = 0.01;
+        for (int axis = 0; axis < 3; axis++) {
+            double lo = b[axis], hi = b[axis + 3], e = axis == 0 ? eye.x : axis == 1 ? eye.y : eye.z;
+            if (e >= lo && e <= hi) continue;
+            double face = e < lo ? lo + in : hi - in;
+            int u = (axis + 1) % 3, v = (axis + 2) % 3;
+            for (int i = 0; i < FACE_GRID; i++) {
+                for (int j = 0; j < FACE_GRID; j++) {
+                    double[] pt = new double[3];
+                    pt[axis] = face;
+                    pt[u] = b[u] + in + (b[u + 3] - b[u] - 2 * in) * i / (FACE_GRID - 1);
+                    pt[v] = b[v] + in + (b[v + 3] - b[v] - 2 * in) * j / (FACE_GRID - 1);
+                    if (SnapshotWorld.clear(w.fullOnly, eye, new Vec3(pt[0], pt[1], pt[2]))) return true;
+                }
+            }
+        }
+        return false;
+    }
 
     static double clamp(double v, double lo, double hi) {
         return Math.max(lo, Math.min(hi, v));
