@@ -115,7 +115,9 @@ public final class CombatCommit {
     // a magma cube or slime this close is that fight whether it has hit us yet or not: a split fresh from the cube just killed
     // has not, and a bite's knockback puts the one that did past FAST_FIGHT_RANGE. cubes keep up with any run: the cream hunt
     // ran from two medium cubes at 8 hp, three blocks in six seconds with three bites taken, where each was one swing of the
-    // sword (m4cream3-3 run 4, 6 Nov 2026). by lava the walk's cube rules stand (rimEngage, the lava wait)
+    // sword (m4cream3-3 run 4, 6 Nov 2026). by lava the walk's cube rules stand (rimEngage, the lava wait), and with another
+    // melee mob within LOW_HP_RANGE it is the normal run, as for the lone wither skeleton: fresh splits kept the corner while
+    // two wither skeletons took the buddy from 16 to 3 (m4cube-1 run 3)
     public static final double CUBE_FIGHT_RANGE = 6;
     // that corner lets go once the fast mob has been off us this long. one tick is not enough: its own hit knocks it past the range
     // above, and at low hp that would be us turning our back on the first bite
@@ -1604,9 +1606,13 @@ public final class CombatCommit {
         if (!t.armed()) return null;
         double range = recover.on() ? RecoverHold.RERUN_RANGE : FAST_FIGHT_RANGE;
         Foe best = null;
+        boolean otherMelee = false;
+        for (Foe foe : t.foes()) {
+            if (foe.melee() && foe.splitType() == null && foe.kind() != Kind.UNTOUCHABLE && foe.distance() <= LOW_HP_RANGE) otherMelee = true;
+        }
         for (Foe foe : t.foes()) {
             boolean close = foe.hitUs() && foe.distance() <= range;
-            boolean cube = foe.splitType() != null && !t.way().lavaClose() && foe.distance() <= CUBE_FIGHT_RANGE;
+            boolean cube = foe.splitType() != null && !t.way().lavaClose() && !otherMelee && foe.distance() <= CUBE_FIGHT_RANGE;
             if (!foe.fast() || !foe.melee() || !(close || cube) || foe.kind() == Kind.UNTOUCHABLE) continue;
             if (foe.mustRun(t.guardHealth()) || gaveUpOn(foe, t.now()) || stillIgnored(foe, t.now())) continue;
             if (best == null || foe.distance() < best.distance()) best = foe;

@@ -94,6 +94,13 @@ public class CombatCommitFastCornerTest {
     }
 
     @Test
+    public void aCubeThatHasNotHitUsWithASwordsmanByIsTheRun() {
+        CombatCommit c = new CombatCommit();
+        Foe skeleton = new Foe(3, 3, false, false, 3).withWither(true);
+        assertEquals(Event.RUN_START, c.step(tick(NOW, 7, null, freshCube(1, 5), skeleton)));
+    }
+
+    @Test
     public void aCubeBeyondItsRangeIsTheRun() {
         CombatCommit c = new CombatCommit();
         assertEquals(Event.RUN_START, c.step(tick(NOW, 7, null, freshCube(1, CombatCommit.CUBE_FIGHT_RANGE + 1))));
