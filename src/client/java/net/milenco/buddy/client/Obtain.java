@@ -1185,6 +1185,15 @@ final class Obtain {
 
 	static boolean badStation(BlockPos at) { Long u = badStations.get(at); return u != null && u > System.currentTimeMillis(); }
 
+	/** A furnace with something in it that is not this order's: on a server another player's work, passed by as well. */
+	static void stationInUse(BlockPos at) {
+		badStations.put(at.immutable(), System.currentTimeMillis() + 600_000);
+		Exchange.emit("obtain", "action", "station in use", "x", at.getX(), "y", at.getY(), "z", at.getZ());
+	}
+
+	/** A furnace of this order: one it placed, or the one a broken-off smelt filled. */
+	static boolean ownStation(BlockPos at) { return at != null && (placed.containsKey(at) || at.equals(furnaceFull)); }
+
 	private static long retryAt, nextThrow, lastMovedAt, upFailedAt, dryFailedAt, scanWaitFrom, kitRetryAt;
 	private static int kitUnmet;
 
