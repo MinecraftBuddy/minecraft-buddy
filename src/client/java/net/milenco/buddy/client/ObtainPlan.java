@@ -219,8 +219,10 @@ final class ObtainPlan {
 		special("milk_bucket", "milk a cow", 40, "bucket", 1);
 		special("powder_snow_bucket", "fill powder snow", 300, "bucket", 1);
 		// AltoClef's obsidian: water poured over a lava pool turns its sources into obsidian, mined with a diamond pickaxe
-		// (9.4 s a block). Dearer per block than the few that lie about, cheaper than a search for them
-		special("obsidian", "cast obsidian", 45, "+water_bucket", 1, "+diamond_pickaxe", 1);
+		// (9.4 s a block). Dearer per block than the few that lie about, cheaper than a search for them. The lava comes in a
+		// bucket of its own, filled for each block (ObtainSteps.Cast): without an empty one beside the water's it failed
+		// "no bucket"
+		special("obsidian", "cast obsidian", 45, "+water_bucket", 1, "+bucket", 1, "+diamond_pickaxe", 1);
 		// a log in the world clicked with an axe, then chopped: every stripped log and stem (AltoClef strips the same way).
 		// Dear on purpose: a stripped log fits wherever a log does (#logs), and planks must never be planned by way of an
 		// axe made of planks

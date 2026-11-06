@@ -104,7 +104,9 @@ class ObtainPlanTest {
 							add(s.item(), s.count());
 						}
 						case "cast obsidian" -> {
-							assertTrue(inv("water_bucket") >= 1 && inv("diamond_pickaxe") >= 1, "cast without its tools: " + inv);
+							// the lava is fetched in a bucket of its own for each block, the empty one coming back after the pour
+							assertTrue(inv("water_bucket") >= 1 && inv("diamond_pickaxe") >= 1 && inv("bucket") + inv("lava_bucket") >= 1,
+								"cast without its tools: " + inv);
 							add("obsidian", s.count());
 						}
 						case "back to the overworld" -> dim = Nature.Dim.OVERWORLD;
@@ -222,6 +224,14 @@ class ObtainPlanTest {
 		List<String> log = run(w, "obsidian", 14);
 		assertTrue(log.stream().anyMatch(l -> l.startsWith("cast obsidian")), String.join("\n", log));
 		assertEquals(1, w.inv("water_bucket"));
+		// and the empty bucket for the lava, kept
+		assertEquals(1, w.inv("bucket"));
+		World ready = new World();
+		ready.add("water_bucket", 1);
+		ready.add("bucket", 1);
+		ready.add("diamond_pickaxe", 1);
+		List<String> at = run(ready, "obsidian", 4);
+		assertTrue(at.get(0).startsWith("cast obsidian"), String.join("\n", at));
 		World bare = new World();
 		List<String> from = run(bare, "obsidian", 10);
 		System.out.println("obsidian from nothing: " + from.size() + " steps\n  " + String.join("\n  ", from));
