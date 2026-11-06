@@ -436,8 +436,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // (the buddy's fork: a fire not put out after FIRE_TICKS spent on it is left for good. one out of reach was picked
             // again every tick, "No path found" over and over, and the camp's wait never came: three minutes at the spawner with
             // no rod, piece2side-2 run 2. ticks spent on it, not since it was first picked: a fight in between does not count)
-            if (nearestFire.isPresent() && _fireLeft.contains(nearestFire.get())) nearestFire = Optional.empty();
-            if (nearestFire.isPresent()) {
+            // (behind Tuning fire_limit, off by default, steering 78, with roof_centre under the same suspicion)
+            boolean fireLimit = adris.altoclef.util.helpers.Tuning.get("fire_limit", 0) > 0;
+            if (fireLimit && nearestFire.isPresent() && _fireLeft.contains(nearestFire.get())) nearestFire = Optional.empty();
+            if (fireLimit && nearestFire.isPresent()) {
                 if (!nearestFire.get().equals(_fireAt)) {
                     _fireAt = nearestFire.get();
                     _fireTicks = 0;

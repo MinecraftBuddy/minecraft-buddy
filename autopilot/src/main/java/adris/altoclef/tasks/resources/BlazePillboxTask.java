@@ -332,7 +332,9 @@ final class BlazePillboxTask extends Task {
         // there ends at the column's edge, inColumn takes up to 0.8 off the middle, and 0.02 short of F the face of B's roof
         // that F's roof goes on looks away from the eye: every click missed, three tries of 1200 ticks, and the brew box
         // waited a minute with only that block to place, piece2in-1 run 10)
-        if (roofRow && !stand.equals(cell) && centreIn(mod, stand, HIDE_SLACK)) {
+        // (behind Tuning roof_centre, off by default, steering 78: in the blocks after it came in, deaths before the first rod
+        // went from about one run in eight to nearly one in two, the step and its crouch in the front cell a suspect)
+        if (roofRow && !stand.equals(cell) && adris.altoclef.util.helpers.Tuning.get("roof_centre", 0) > 0 && centreIn(mod, stand, HIDE_SLACK)) {
             setDebugState("To the middle of the pillbox's front cell, block " + (next + 1) + " of " + plan.blocks().size());
             return null;
         }
