@@ -106,23 +106,24 @@ public final class BlazeCover {
         return n;
     }
 
-    // a cell to heal in: floor under it, room for the body, no lava within a block, no edge or drop by it, and not by a wither
-    // skeleton ({x, z} each)
+    // a cell to heal in: floor under it, room for the body, not by a wither skeleton ({x, z} each), and no knock from any side
+    // that ends in lava or in a fall that hurts (SafeStand), nor a fall of three right beside it (LavaShore.dropBeside).
+    // with SafeStand off (its switch) the old rule: no lava within a block, no edge or drop by it
     static boolean fit(Cells cells, int x, int y, int z, List<double[]> withers) {
         if (cells.at(x, y - 1, z) != Cell.SOLID || cells.at(x, y, z) != Cell.OPEN || cells.at(x, y + 1, z) != Cell.OPEN) {
             return false;
         }
         double cx = x + 0.5;
         double cz = z + 0.5;
-        if (LavaShore.lavaNear(cells, cx, y, cz, 1) || LavaShore.edgeNear(cells, cx, y, cz) || LavaShore.dropBeside(cells, x, y, z)) {
-            return false;
-        }
         for (double[] w : withers) {
             if (Math.hypot(w[0] - cx, w[1] - cz) < WITHER_CLEAR) {
                 return false;
             }
         }
-        return true;
+        if (!SafeStand.on()) {
+            return !LavaShore.lavaNear(cells, cx, y, cz, 1) && !LavaShore.edgeNear(cells, cx, y, cz) && !LavaShore.dropBeside(cells, x, y, z);
+        }
+        return !LavaShore.dropBeside(cells, x, y, z) && !SafeStand.unsafe(cells, x, y, z);
     }
 
     // a walk to cover this many steps long at the most: a long one goes through the blazes' fire

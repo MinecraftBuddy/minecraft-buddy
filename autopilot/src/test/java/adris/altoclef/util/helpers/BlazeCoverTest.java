@@ -166,4 +166,34 @@ public class BlazeCoverTest {
         assertTrue("got " + got.size(), got.size() == 4);
         for (int d = 1; d <= 4; d++) assertArrayEquals(new int[]{d, 64, 0, d}, got.get(d - 1));
     }
+
+    // the same cases with SafeStand's switch on (tuning safe_stand): its knock reach instead of the old edge and lava tests
+    @Test
+    public void noCoverBesideLavaWithSafeStand() {
+        SafeStand.forced = true;
+        try {
+            // lava at feet height at (-5, 64, 0): a knock carries the box into it from about 2.8 off (the reach and half the box),
+            // so along x = -4 the first cell clear of it is four along
+            Set<Long> lava = Set.of(BlazeCover.key(-5, 0, 0));
+            int[] c = BlazeCover.pick(room(lava, Set.of()), 0, 64, 0, List.of(), new HashSet<>(), (x, y, z) -> x <= -4);
+            assertOneOf(c, new int[]{-4, 64, -4}, new int[]{-4, 64, 4});
+        } finally {
+            SafeStand.forced = null;
+        }
+    }
+
+    @Test
+    public void noCoverOnAnEdgeWithSafeStand() {
+        SafeStand.forced = true;
+        try {
+            // the floor ends at x = -6 (the void past it): a knock carries the box over it from two cells in, so the first cover is
+            // three in
+            Cells edge = (x, y, z) -> x < -6 ? Cell.OPEN : room(Set.of(), Set.of()).at(x, y, z);
+            assertNull(BlazeCover.pick(edge, 0, 64, 0, List.of(), new HashSet<>(), (x, y, z) -> x <= -6));
+            assertNull(BlazeCover.pick(edge, 0, 64, 0, List.of(), new HashSet<>(), (x, y, z) -> x <= -5));
+            assertArrayEquals(new int[]{-4, 64, 0}, BlazeCover.pick(edge, 0, 64, 0, List.of(), new HashSet<>(), (x, y, z) -> x <= -4));
+        } finally {
+            SafeStand.forced = null;
+        }
+    }
 }

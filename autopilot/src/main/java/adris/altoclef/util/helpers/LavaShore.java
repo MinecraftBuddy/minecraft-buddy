@@ -224,21 +224,28 @@ public final class LavaShore {
         return idleTicks >= STEP_STALL_TICKS;
     }
 
-    // is a cell fit to stand on while a foe is on us: floor under it, room for the body, no lava next to it, and nothing
-    // bad behind it relative to the foe, and no drop within EDGE_RADIUS either (so a stair step ledge does not trade one edge for the next)
+    // is a cell fit to stand on while a foe is on us: floor under it, room for the body, and no knock from any side that ends
+    // in lava or in a fall that hurts (SafeStand's worst case: a split or a second foe hits from wherever it likes, so the
+    // foe's own line is no narrower test, and the foe's place is left to stepFit). and no fall of three right beside it
+    // (dropBeside), which SafeStand lets go. with SafeStand off (its switch) the old rule: no lava next to it, nothing bad
+    // behind it relative to the foe, and no drop within EDGE_RADIUS
     static boolean standable(Cells cells, int x, int y, int z, double fx, double fz) {
         if (cells.at(x, y - 1, z) != Cell.SOLID || cells.at(x, y, z) != Cell.OPEN || cells.at(x, y + 1, z) != Cell.OPEN) {
             return false;
         }
-        double cx = x + 0.5;
-        double cz = z + 0.5;
-        return !lavaNear(cells, cx, y, cz, 1) && !spotUnsafe(cells, cx, y, cz) && !backUnsafe(cells, cx, y, cz, fx, fz)
-                && !edgeNear(cells, cx, y, cz) && !dropBeside(cells, x, y, z);
+        if (!SafeStand.on()) {
+            double cx = x + 0.5;
+            double cz = z + 0.5;
+            return !lavaNear(cells, cx, y, cz, 1) && !spotUnsafe(cells, cx, y, cz) && !backUnsafe(cells, cx, y, cz, fx, fz)
+                    && !edgeNear(cells, cx, y, cz) && !dropBeside(cells, x, y, z);
+        }
+        return !dropBeside(cells, x, y, z) && !SafeStand.unsafe(cells, x, y, z);
     }
 
-    // a knock does not only go along the line from the foe: a hit from the side can throw us off a drop beside the cell, and
-    // the line check never looked sideways. every neighbour has to be a wall (nothing gets thrown into one) or
-    // have a landing (solid or water) within 3 cells down. an unloaded cell reads solid, same as everywhere else
+    // a neighbour with no landing (solid or water) within 3 cells down, unless it is a wall (nothing gets thrown into one).
+    // stricter than SafeStand right beside the cell: a fall of three counts here, as a hit on the ground also lifts the body
+    // (0.4 up, about a block) and a knock off the very next edge comes down from that height. an unloaded cell reads solid,
+    // same as everywhere else
     static boolean dropBeside(Cells cells, int x, int y, int z) {
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
@@ -455,8 +462,7 @@ public final class LavaShore {
     }
 
     // safeStep with no foe: a standing-still spot that is on a rim by the same edge test. null when we are fine or nothing
-    // next door is better. every neighbour is judged with itself as the "foe", which switches the knock line off, so only
-    // the edge and lava rules are left
+    // next door is better. every neighbour is judged with itself as the "foe" (standable does not ask the foe's place)
     public static int[] edgeStep(Cells cells, double ux, double uy, double uz) {
         if (!edgeNear(cells, ux, uy, uz)) {
             return null;

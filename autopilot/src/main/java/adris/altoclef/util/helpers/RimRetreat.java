@@ -11,8 +11,8 @@ import net.minecraft.core.BlockPos;
 // the nether's usual death is a knock off a rim into the lava sea, most of all at the end of a bridge of our own with no way
 // on: no path for three game minutes, the wander walked out to the stub's end again and again, and a ghast's fireball put
 // the buddy thirty-four blocks down into the lava (the buddy's fork, attempt 174; 119, 135 and 147 the same). this keeps
-// the last firm ground (no drop within a knock's reach, CliffAvoidance.dropNear) and walks back to it from a rim with no
-// path. the nether only: that is where the drops end in lava
+// the last firm ground (no knock from any side ends in lava or a fall that hurts, SafeStand) and walks back to it from a rim
+// with no path. the nether only: that is where the drops end in lava
 public final class RimRetreat {
     // a second on the rim with no path before backing off: a path being worked out is no reason to leave
     static final int RIM_TICKS = 20;
@@ -46,7 +46,8 @@ public final class RimRetreat {
         _lastLook = now;
         if (!mod.getPlayer().onGround() || mod.getPlayer().isInLava()) return;
         BlockPos feet = mod.getPlayer().blockPosition();
-        if (!CliffAvoidance.dropNear(cells(mod), feet.getX(), feet.getY(), feet.getZ())) _firm = feet;
+        if (!(SafeStand.on() ? SafeStand.unsafe(cells(mod), feet.getX(), feet.getY(), feet.getZ())
+                : CliffAvoidance.dropNear(cells(mod), feet.getX(), feet.getY(), feet.getZ()))) _firm = feet;
     }
 
     // a look every LOOK_EVERY ticks, the first at once, and again at once when the clock went back (a new world). the first
@@ -73,7 +74,8 @@ public final class RimRetreat {
             return null;
         }
         BlockPos feet = player.blockPosition();
-        if (!CliffAvoidance.dropNear(cells(mod), feet.getX(), feet.getY(), feet.getZ())) {
+        if (!(SafeStand.on() ? SafeStand.unsafe(cells(mod), feet.getX(), feet.getY(), feet.getZ())
+                : CliffAvoidance.dropNear(cells(mod), feet.getX(), feet.getY(), feet.getZ()))) {
             _rimSince = -1;
             return null;
         }

@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.Test;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -640,5 +641,43 @@ public class LavaShoreTest {
         int[] spot = LavaShore.campSpot(new World(), 0, 0, 0, 30, 0);
         assertNotNull(spot);
         assertTrue(spot[0] > 0);
+    }
+
+    // the same cases with SafeStand's switch on (tuning safe_stand): its knock reach instead of the old edge and lava tests
+    @Test
+    public void aDropToTheSideIsAnEdgeEvenOffTheKnockLineWithSafeStand() {
+        SafeStand.forced = true;
+        try {
+            World w = new World().pit(0, 1).pit(-1, 1).pit(1, 1);
+            assertFalse(LavaShore.backUnsafe(w, 0.5, 0, 0.5, 1.5, 0.5));
+            assertTrue(LavaShore.edgeNear(w, 0.5, 0, 0.5));
+            assertTrue(LavaShore.rimUnsafe(w, 0.5, 0, 0.5, 1.5, 0.5));
+            // every neighbour is within a knock (2.5) of that row of pits: no step is any better
+            assertNull(LavaShore.safeStep(w, 0.5, 0, 0.5, 1.5, 0.5));
+            // one pit behind us to the side: the neighbour across from it, ahead toward the foe, is out of its reach
+            World one = new World().pit(-1, 1);
+            assertFalse(LavaShore.backUnsafe(one, 0.5, 0, 0.5, 1.5, 0.5));
+            assertTrue(LavaShore.rimUnsafe(one, 0.5, 0, 0.5, 1.5, 0.5));
+            assertArrayEquals(new int[]{1, -1}, LavaShore.safeStep(one, 0.5, 0, 0.5, 1.5, 0.5));
+        } finally {
+            SafeStand.forced = null;
+        }
+    }
+
+    @Test
+    public void edgeStepWalksAwayFromARimWithSafeStand() {
+        SafeStand.forced = true;
+        try {
+            // the step has to be a standable neighbour that is itself clear of the edge. a pit along our east side leaves none
+            // (every neighbour is within a knock of it); a pit at the north east corner leaves the one diagonally away from it
+            World w = new World().pit(1, 0).pit(1, -1).pit(1, 1).pit(2, 0).pit(2, -1).pit(2, 1);
+            assertTrue(LavaShore.edgeNear(w, 0.5, 0, 0.5));
+            assertNull(LavaShore.edgeStep(w, 0.5, 0, 0.5));
+            World corner = new World().pit(1, 1);
+            assertTrue(LavaShore.edgeNear(corner, 0.5, 0, 0.5));
+            assertArrayEquals(new int[]{-1, -1}, LavaShore.edgeStep(corner, 0.5, 0, 0.5));
+        } finally {
+            SafeStand.forced = null;
+        }
     }
 }
