@@ -51,14 +51,6 @@ public final class Game {
 		gameMode.handleContainerInput(menuId, slot, 0, ContainerInput.PICKUP, player);
 	}
 
-	/**
-	 * Tell the server the player looks this way now: a throw flies the way the server thinks it looks, not the way the
-	 * screen does.
-	 */
-	public static void lookOnServer(net.minecraft.client.player.LocalPlayer p, float yRot, float xRot) {
-		p.connection.send(new net.minecraft.network.protocol.game.ServerboundMovePlayerPacket.Rot(yRot, xRot, p.onGround(), p.horizontalCollision));
-	}
-
 	/** Throw the whole stack out of this slot (button 1 = the whole stack, not one item). */
 	public static void drop(MultiPlayerGameMode gameMode, int menuId, int slot, Player player) {
 		gameMode.handleContainerInput(menuId, slot, 1, ContainerInput.THROW, player);

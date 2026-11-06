@@ -77,4 +77,30 @@ class RecipesTest {
 		assertTrue(VanillaData.tag("item", "planks").contains("oak_planks"));
 		assertTrue(VanillaData.tag("item", "logs").contains("oak_log"));
 	}
+
+	/** The cells of a shaped craft, each with its ingredient. */
+	private static List<Recipes.Ing> cells(String item) {
+		Recipes.Recipe r = Recipes.making(item).stream().filter(x -> x.kind() == Recipes.Kind.CRAFT).findFirst().orElseThrow();
+		List<Recipes.Ing> out = new java.util.ArrayList<>();
+		for (Recipes.Ing i : r.grid()) if (i != null) out.add(i);
+		return out;
+	}
+
+	/** A grid filled from mixed kinds of one tag, as the planner counts them: each cell one kind, none used beyond what is there. */
+	@Test
+	void craftCellsFromMixedKinds() {
+		List<Recipes.Ing> furnace = cells("furnace");
+		assertEquals(8, furnace.size());
+		String[] kinds = new String[furnace.size()];
+		assertEquals(1, ObtainSteps.Craft.cellKinds(furnace, java.util.Map.of("cobblestone", 5, "cobbled_deepslate", 5), 1, kinds));
+		assertTrue(java.util.Arrays.stream(kinds).filter("cobblestone"::equals).count() <= 5, java.util.Arrays.toString(kinds));
+		assertTrue(java.util.Arrays.stream(kinds).filter("cobbled_deepslate"::equals).count() <= 5, java.util.Arrays.toString(kinds));
+		assertEquals(0, ObtainSteps.Craft.cellKinds(furnace, java.util.Map.of("cobblestone", 4, "cobbled_deepslate", 3), 1, kinds));
+		List<Recipes.Ing> table = cells("crafting_table");
+		String[] t = new String[table.size()];
+		assertEquals(1, ObtainSteps.Craft.cellKinds(table, java.util.Map.of("oak_planks", 2, "birch_planks", 2), 4, t));
+		// two tables: two cells of two oak and two of two birch
+		assertEquals(2, ObtainSteps.Craft.cellKinds(table, java.util.Map.of("oak_planks", 4, "birch_planks", 4), 4, t));
+		assertEquals(2, java.util.Arrays.stream(t).filter("oak_planks"::equals).count());
+	}
 }

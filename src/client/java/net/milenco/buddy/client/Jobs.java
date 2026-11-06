@@ -132,10 +132,23 @@ final class Jobs {
 		for (Job j : ALL) j.startTick.accept(mc);
 	}
 
+	/**
+	 * The autopilot's gate, every tick before anything returns early (no world, the mod off, the panel's hands): AltoClef
+	 * and Baritone act for the buddy only with the mod on, on a server it may play on, and while the panel neither steers
+	 * nor holds the inventory. Shut, AltoClef's runner goes down (its own chains and the order's task with it) and the
+	 * buddy's Baritone walk stops; open again, the order carries on where it is. An order on is AltoClef's own condition.
+	 */
+	static void autopilot(boolean open) {
+		Alto.gate(open);
+		if (!open && AfkHelperClient.mc().player != null) Bari.stop();
+	}
+
 	/** The tick: every job moves in its turn, also when another one already moved the player. */
 	static boolean tick(Minecraft mc, LocalPlayer p, AfkConfig c) {
+		boolean steers = Steer.tick(mc, p);
+		autopilot(!steers && !Control.panel() && AfkHelperClient.active());
 		// the web panel's hands on the keys: no job moves the buddy meanwhile, and they carry on when it lets go
-		if (Steer.tick(mc, p)) { Arbiter.at("panel steers", true); Arbiter.endTick(); return true; }
+		if (steers) { Arbiter.at("panel steers", true); Arbiter.endTick(); return true; }
 		// the panel holds the buddy's inventory (an item moved on the page): the jobs wait, with their keys let go once
 		if (Control.panel()) {
 			if (!panelHeld) { panelHeld = true; HeldKeys.releaseAll(); }

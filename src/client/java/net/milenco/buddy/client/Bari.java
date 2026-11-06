@@ -10,8 +10,9 @@ import net.minecraft.world.phys.Vec3;
  * walks as before. The rest of the buddy (following, the base, AFK) never goes through here.
  *
  * <p>Only this class names Baritone's classes, and only after {@link #present()} said it is loaded, so the mod runs
- * without it. A walk asked for is held while it is asked for every tick; a tick without the ask (a fight, a shelter,
- * eating) and Baritone is stopped, so the two never press the keys at once.
+ * without it; and it hands their objects on only as their own type or as Object, as Alto does (AutopilotLinkTest). A
+ * walk asked for is held while it is asked for every tick; a tick without the ask (a fight, a shelter, eating) and
+ * Baritone is stopped, so the two never press the keys at once.
  */
 final class Bari {
 	private Bari() {}
@@ -21,7 +22,8 @@ final class Bari {
 	private static BlockPos goal;
 	private static int goalRange;
 	private static long askedTick = -10, tick;
-	private static baritone.api.pathing.goals.Goal ours;
+	/** The goal of the buddy's own walk (a Goal: a GoalNear put into a field of that type made the verifier load both). */
+	private static Object ours;
 
 	/** Baritone is loaded. */
 	static boolean present() {
@@ -76,7 +78,7 @@ final class Bari {
 		goal = at;
 		goalRange = range;
 		ours = new baritone.api.pathing.goals.GoalNear(at, range);
-		baritone().getCustomGoalProcess().setGoalAndPath(ours);
+		baritone().getCustomGoalProcess().setGoalAndPath((baritone.api.pathing.goals.Goal) ours);
 	}
 
 	private static String mining;
@@ -109,6 +111,15 @@ final class Bari {
 		if (!present() || goal == null && mining == null) return false;
 		var pb = baritone().getPathingBehavior();
 		return pb.isPathing() || pb.getInProgress().isPresent() || baritone().getCustomGoalProcess().isActive() || baritone().getMineProcess().isActive();
+	}
+
+	/**
+	 * Standing still for a click in the inventory, asked at the start of every tick it is wanted: Baritone holds its walk
+	 * for it the way it does for its own inventory moves (inventoryMoveOnlyIfStationary), and says yes once the buddy has
+	 * stood still for two ticks.
+	 */
+	static boolean stillForClick() {
+		return ((baritone.Baritone) baritone()).getInventoryPauserProcess().stationaryForInventoryMove();
 	}
 
 	/** Once a tick, after the jobs: a walk no longer asked for is stopped. */

@@ -11,7 +11,9 @@ package net.milenco.buddy.client;
  * of its own; it is switched on for an order and off again after it. When one of its chains holds the wheel (its pick
  * of the chains asks above nothing), the buddy lets go of every key and of Baritone and waits; a chain that only acts
  * without the wheel (the force field) lets the order go on. Only this class names AltoClef's classes, and only after
- * {@link #present()}.
+ * {@link #present()}. And it hands their objects on only as their own type or as Object, never as a supertype: the
+ * verifier loads both types to check that, when the class is linked, and without the jar the mod then failed on its
+ * first tick (AutopilotLinkTest).
  */
 final class Alto {
 	private Alto() {}
@@ -59,11 +61,52 @@ final class Alto {
 		return mod == null || mod.getTaskRunner() == null || mod.getUserTaskChain() == null ? null : mod;
 	}
 
-	/** AltoClef keeps the buddy alive for the order under way. */
+	/** AltoClef keeps the buddy alive for the order under way, while the gate (Jobs.autopilot) is open. */
 	static boolean on() {
-		boolean on = present() && AfkConfig.get().obtainAltoSurvival && Obtain.on();
+		boolean on = present() && AfkConfig.get().obtainAltoSurvival && Obtain.on() && gateOpen && !gone();
 		ObtainKit.sopranoBrews = on;
 		return on;
+	}
+
+	/** AltoClef's instance was there this session; and whether it is gone for the session. */
+	private static boolean seenUp, gone;
+
+	/**
+	 * AltoClef off for the session: its instance was up and is not any more (its bridge gives up after repeated errors and
+	 * discards it), or it never came up for a task (Run). Then the buddy's own defences and planner take over again: with
+	 * on() still true they stood down for good, and every Run waited for an AltoClef that never came.
+	 */
+	private static boolean gone() {
+		if (gone) return true;
+		if (instance() != null) { seenUp = true; return false; }
+		if (seenUp && adris.altoclef.AltoClef.getInstance() == null) giveUp("AltoClef was switched off for the session");
+		return gone;
+	}
+
+	private static void giveUp(String why) {
+		if (gone) return;
+		gone = true;
+		Exchange.emit("alto", "action", "gone", "why", why);
+	}
+
+	/** The gate of Jobs.autopilot: the mod on, a server it may play on, the panel's hands off. */
+	private static boolean gateOpen = true;
+	/** How often the gate shut: a task of AltoClef's begun before the last shut was cancelled with it (Run begins it again). */
+	private static int shuts;
+
+	/**
+	 * Every tick before anything returns early (Jobs.autopilot). Shut: AltoClef's runner goes down at once, its own chains
+	 * and the order's task with it, and Baritone's path with them. Open: the next tick brings it up again for the order.
+	 */
+	static void gate(boolean open) {
+		if (open == gateOpen) return;
+		gateOpen = open;
+		if (open) return;
+		shuts++;
+		if (!present() || !up) return;
+		tick();
+		if (net.minecraft.client.Minecraft.getInstance().player != null)
+			baritone.api.BaritoneAPI.getProvider().getPrimaryBaritone().getPathingBehavior().cancelEverything();
 	}
 
 	/** Once a tick, before the chain: AltoClef's task runner up for an order and down after it. */
@@ -575,11 +618,12 @@ final class Alto {
 		var path = baritone.api.BaritoneAPI.getProvider().getPrimaryBaritone().getPathingBehavior().getPath();
 		if (path.isEmpty()) return false;
 		var level = p.level();
-		var nodes = path.get().positions();
+		// as plain BlockPos: Baritone's own kind of it, handed to the game, makes the verifier load Baritone with this class
+		java.util.List<?> nodes = path.get().positions();
 		int wet = 0;
-		for (var n : nodes) if (level.getFluidState(n).is(net.minecraft.tags.FluidTags.WATER)) wet++;
+		for (Object n : nodes) if (level.getFluidState((net.minecraft.core.BlockPos) n).is(net.minecraft.tags.FluidTags.WATER)) wet++;
 		if (wet > 32) return true;
-		var end = nodes.get(nodes.size() - 1);
+		var end = (net.minecraft.core.BlockPos) nodes.get(nodes.size() - 1);
 		double dx = end.getX() + 0.5 - p.getX(), dz = end.getZ() + 0.5 - p.getZ(), len = Math.hypot(dx, dz);
 		if (len < 4) return false;
 		dx /= len; dz /= len;
@@ -602,7 +646,7 @@ final class Alto {
 	static Run whole(String item, int count) {
 		return new Run("get " + count + " " + item, 6 * 3600_000L, () -> {
 			var get = adris.altoclef.TaskCatalogue.getItemTask(item, count);
-			return get == null ? null : new adris.altoclef.tasks.misc.SleepThroughNightsTask(get, ObtainSafe::sopranoSleeps);
+			return get == null ? null : night(get);
 		});
 	}
 
@@ -897,8 +941,8 @@ final class Alto {
 	 * night asleep. Food and the kit had none, so at night it hunted on the surface in its clothes among zombies with
 	 * spears and skeletons, and was shot dead.
 	 */
-	private static adris.altoclef.tasksystem.Task night(adris.altoclef.tasksystem.Task t) {
-		return new adris.altoclef.tasks.misc.SleepThroughNightsTask(t, ObtainSafe::sopranoSleeps);
+	private static Object night(Object t) {
+		return new adris.altoclef.tasks.misc.SleepThroughNightsTask((adris.altoclef.tasksystem.Task) t, ObtainSafe::sopranoSleeps);
 	}
 
 	private static long hungrySince = -1;
@@ -1006,6 +1050,8 @@ final class Alto {
 		private long startedAt = -1;
 		/** Since when the step waits for AltoClef to come up; -1 while it does not. */
 		private long waitFrom = -1;
+		/** The gate's shuts when the task began: one since then cancelled it. */
+		private int shutsAtStart;
 		private static final long WAIT_UP = 120_000;
 
 		Run(String what, long limit, java.util.function.Supplier<Object> make) { this.what = what; this.limit = limit; this.make = make; }
@@ -1020,6 +1066,13 @@ final class Alto {
 
 		@Override
 		ObtainSteps.Result tick(net.minecraft.client.Minecraft mc, net.minecraft.client.player.LocalPlayer p, long now) {
+			// the gate shut since the task began (the mod off, another server, the panel's hands): it was cancelled then, and
+			// begins again now, not taken for done
+			if (startedAt >= 0 && shutsAtStart != shuts) {
+				startedAt = -1;
+				waitFrom = -1;
+				Exchange.emit("alto", "action", "task again", "task", what, "why", "the autopilot was held");
+			}
 			if (startedAt < 0) {
 				// AltoClef up first (instance()): till then the step stands, with one event to say it waits. Two game minutes
 				// without it is AltoClef off for the session, and the step fails with that
@@ -1027,11 +1080,12 @@ final class Alto {
 				if (mod == null) {
 					if (waitFrom < 0) Exchange.emit("alto", "action", "waits", "task", what, "why", "AltoClef is not up yet");
 					if (waitFrom < 0 || now < waitFrom) waitFrom = now;
-					if (now - waitFrom > WAIT_UP) return fail("AltoClef did not come up in two minutes");
+					if (now - waitFrom > WAIT_UP) { giveUp("AltoClef did not come up in two minutes"); return fail("AltoClef did not come up in two minutes"); }
 					Follow.stand();
 					return ObtainSteps.Result.WAIT;
 				}
 				startedAt = now;
+				shutsAtStart = shuts;
 				Bari.yieldTo();
 				HeldKeys.releaseAll();
 				Object t = make.get();

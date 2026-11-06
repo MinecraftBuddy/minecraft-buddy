@@ -65,6 +65,10 @@ While a task of the autopilot's runs, the buddy's own layer stands down: fight, 
 night's hole, out of the water, digging out, throwing junk away, the brink. Without the autopilot the buddy's own planner,
 steps and walker do it all.
 
+The autopilot acts only while the mod is on, on a server the mod may play on, and while the panel neither steers the
+buddy nor holds its inventory. Otherwise it stops at once, fights and meals included, and Baritone's walk with it; the
+order carries on when that is over.
+
 The buddy's own parts, all in `net.milenco.buddy.client`:
 
 - **Knowledge** (`VanillaData`, `Recipes`, `Drops`, `Nature`): the recipes (crafting, smelting, the stonecutter,
@@ -78,7 +82,8 @@ The buddy's own parts, all in `net.milenco.buddy.client`:
   the rest. A way that fails is left alone for a while and the planner takes another.
 - **The steps** (`ObtainSteps`), each with a start, a tick and an outcome (done, or failed with a reason): take from a
   chest, craft in the 2x2 grid or at a table (placed when there is none near, picked up afterwards), smelt (a furnace
-  placed or found, fuel, waiting, taking out), break blocks of a kind (seen, or searched for), kill mobs, pick up drops,
+  placed or found, fuel of one kind, never blaze rods or a bucket, waiting, taking out, given up once the furnace makes
+  no more), break blocks of a kind (seen, or searched for), kill mobs, pick up drops,
   fill a bucket, cast obsidian in a mould, build and light a nether portal, find the stronghold by eyes of ender.
 - **Searching** (`BlockScan`, `Stronghold`): the blocks the client has in its loaded chunks, an ore only where it
   touches air or a fluid; mining at the depth an ore is common, by a staircase, never straight down; outward to new

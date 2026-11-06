@@ -139,6 +139,8 @@ final class Obtain {
 	static void newConnection() {
 		writeList();
 		portalRoom = null;
+		// the danger marks are places of the world just left
+		ObtainSafe.forget();
 		if (on()) { if (exec != null) exec.stop(); exec = null; step = null; return; }
 		try {
 			if (!java.nio.file.Files.exists(file())) return;
@@ -265,12 +267,35 @@ final class Obtain {
 		step = null;
 		exec = null;
 		watching = false;
+		// and the waits and marks of the order before: kept, a food run, a trip home or a boat tried late in that order held
+		// this one's back for minutes, a station out of reach stayed so for ten, and danger marks outlived the order, the
+		// connection and the world. On a practice rig one run then depended on the run before it
+		foodTriedAt = homeTriedAt = -180_000;
+		goldTriedAt = -60_000;
+		boatTriedAt = -600_000;
+		boatLook = holeOffUntil = holeStarted = upFailedAt = dryFailedAt = armourLook = 0;
+		wasMidFrame = false;
+		armourFor = null;
+		badStations.clear();
+		fleeFrom = standUntil = beatenAt = 0;
+		junkHeld.clear();
+		thrownId = null;
+		junkAsk = -1;
+		ObtainSafe.forget();
 		Jobs.switchedOn(Jobs.Job.OBTAIN, "obtain");
 		save();
 		Exchange.emit("obtain", "action", "start", "item", it, "count", n, "by", who, "had", startHad);
 	}
 
-	static void stop(String why) {
+	static void stop(String why) { stop(why, false); }
+
+	/** Given up by the buddy itself, not stopped: ended as given up, and shut in until the morning if it is night. */
+	private static void giveUp(String why) {
+		stop(why, true);
+		if (last != null) last.put("end", "gave up");
+	}
+
+	private static void stop(String why, boolean gaveUp) {
 		if (!on()) return;
 		ended("stopped", why);
 		if (exec != null) exec.stop();
@@ -278,7 +303,7 @@ final class Obtain {
 			"s", (System.currentTimeMillis() - since) / 1000);
 		// given up (not stopped by whoever ordered it) in the night: shut in until the morning
 		LocalPlayer me = AfkHelperClient.mc() == null ? null : AfkHelperClient.mc().player;
-		resting = why != null && why.startsWith("no ") && me != null && ObtainSafe.needsShelter(me);
+		resting = gaveUp && me != null && ObtainSafe.needsShelter(me);
 		rest = null;
 		item = null;
 		step = null;
@@ -292,7 +317,76 @@ final class Obtain {
 	// ---------- the tick ----------
 
 	static void startTick(Minecraft mc) {
+		throwJunk(mc);
 		if (exec != null) exec.startTick(mc);
+	}
+
+	// ---------- junk out of a nearly full bag ----------
+
+	/** The slot of junk asked to go at the end of the last tick, -1 for none; since when it waits to go. */
+	private static int junkAsk = -1;
+	private static long junkAskTick, junkWaitFrom;
+	private static int stillTicks;
+	/** The junk thrown last, how much of it, and the bag's count of it since: a jump back up is the stack picked up again. */
+	private static String thrownId;
+	private static int thrownN, thrownPrev;
+	private static long thrownTick;
+	/** Kinds of junk that came back after a throw, with the game tick until which they are not thrown again. */
+	private static final Map<String, Long> junkHeld = new HashMap<>();
+
+	/**
+	 * The junk asked for at the end of the last tick, thrown at the start of this one where the buddy looks: no turn first,
+	 * for a look sent to the server by hand, round and back in an instant, is what anti-cheats look for, and so is a click
+	 * mid sprint: only standing still on the ground. Baritone holds its walk for the throw as for its own inventory moves;
+	 * a throw that gets no standing still within two seconds waits a while.
+	 */
+	private static void throwJunk(Minecraft mc) {
+		LocalPlayer p = mc.player;
+		if (junkAsk < 0 || p == null || mc.gameMode == null) return;
+		long tk = p.level().getGameTime();
+		if (tk - junkAskTick > 1 || item == null || p.containerMenu != p.inventoryMenu) { junkAsk = -1; stillTicks = 0; return; }
+		if (tk - junkWaitFrom > 40) {
+			junkAsk = -1;
+			stillTicks = 0;
+			nextThrow = System.currentTimeMillis() + 15_000;
+			return;
+		}
+		stillTicks = p.onGround() && p.getDeltaMovement().horizontalDistanceSqr() < 1e-6 ? stillTicks + 1 : 0;
+		boolean still = Bari.present() ? Bari.stillForClick() : stillTicks > 1;
+		if (!still || p.isSprinting() || !p.onGround()) return;
+		int j = junkAsk;
+		junkAsk = -1;
+		stillTicks = 0;
+		ItemStack st = p.getInventory().getItem(j);
+		if (st.isEmpty()) return;
+		String junk = AfkHelperClient.itemId(st);
+		int n = st.getCount();
+		nextThrow = System.currentTimeMillis() + 400;
+		Game.drop(mc.gameMode, p.inventoryMenu.containerId, j < 9 ? 36 + j : j, p);
+		ObtainSafe.threw(junk, p.position());
+		thrownId = junk;
+		thrownN = n;
+		thrownPrev = ObtainSteps.count(p, junk);
+		thrownTick = tk;
+		Exchange.emit("obtain", "action", "throws away", "item", junk);
+	}
+
+	/**
+	 * Thrown ahead, junk can lie where the buddy steps next and be picked up again once the game lets it (two seconds):
+	 * in a staircase it went round, thrown and picked up, for minutes. A stack back in the bag within ten seconds of its
+	 * throw keeps that kind in the bag for a game minute.
+	 */
+	private static void watchJunk(LocalPlayer p, long tk) {
+		if (thrownId == null) return;
+		int c = ObtainSteps.count(p, thrownId);
+		if (c - thrownPrev >= Math.max(1, (thrownN + 1) / 2)) {
+			junkHeld.put(thrownId, tk + 1200);
+			Exchange.emit("obtain", "action", "junk came back", "item", thrownId, "count", c - thrownPrev);
+			thrownId = null;
+			return;
+		}
+		thrownPrev = c;
+		if (tk - thrownTick > 200) thrownId = null;
 	}
 
 	static boolean inMenu(LocalPlayer p) { return exec != null && exec.inMenu(p); }
@@ -329,20 +423,16 @@ final class Obtain {
 		// practice server's five times the speed included, where the wall clock made them five times as slow in the game
 		// nearly full: what is worth nothing out first, between two of its clicks; for Soprano's order too (a staircase's
 		// cobblestone filled 29 slots, there was no room for iron or wood, and the kit went round for three hours). Over 96
-		// blocks of stone and the like go, the rest stays for steps, pillars and the night's hole
+		// blocks of stone and the like go, the rest stays for steps, pillars and the night's hole. Asked here, thrown at the
+		// start of the next tick (throwJunk)
+		long tk = p.level().getGameTime();
+		watchJunk(p, tk);
 		if (Work.freeSlots(p) <= 3 && p.containerMenu == p.inventoryMenu && now >= nextThrow) {
-			int j = ObtainSafe.junkSlot(p);
+			int j = ObtainSafe.junkSlot(p, id -> junkHeld.getOrDefault(id, Long.MIN_VALUE) > tk);
 			if (j >= 0) {
-				nextThrow = now + 400;
-				String junk = AfkHelperClient.itemId(p.getInventory().getItem(j));
-				// behind it and a little up, where it came from: thrown ahead into a staircase it lay on its next step, was picked
-				// up two seconds later and thrown again, for minutes
-				float yaw = p.getYRot(), pitch = p.getXRot();
-				Game.lookOnServer(p, yaw + 180f, -30f);
-				Game.drop(mc.gameMode, p.inventoryMenu.containerId, j < 9 ? 36 + j : j, p);
-				Game.lookOnServer(p, yaw, pitch);
-				ObtainSafe.threw(junk, p.position());
-				Exchange.emit("obtain", "action", "throws away", "item", junk);
+				if (junkAsk < 0) junkWaitFrom = tk;
+				junkAsk = j;
+				junkAskTick = tk;
 			}
 		}
 		if (Alto.knows(item)) return whole(mc, p, p.level().getGameTime() * 50);
@@ -442,8 +532,7 @@ final class Obtain {
 					return false;
 				}
 				Exchange.emit("obtain", "action", "gives up", "item", item, "why", plan.missing());
-				stop("no way: " + plan.missing());
-				last.put("end", "gave up");
+				giveUp("no way: " + plan.missing());
 				return false;
 			}
 			ObtainPlan.Step s = plan.next();
@@ -521,8 +610,7 @@ final class Obtain {
 						if (now < kitRetryAt) { Follow.stand(); return false; }
 						if (++kitUnmet > 3) {
 							Exchange.emit("obtain", "action", "gives up", "item", item, "why", "the kit for the " + d.name().toLowerCase() + ": " + need.name());
-							stop("no safe way: the kit for the " + d.name().toLowerCase() + " lacks " + need.name());
-							last.put("end", "gave up");
+							giveUp("no safe way: the kit for the " + d.name().toLowerCase() + " lacks " + need.name());
 							return false;
 						}
 						Exchange.emit("obtain", "action", "kit again", "need", need.name(), "for", d.name().toLowerCase(), "try", kitUnmet, "blocked", new ArrayList<>(blocked.keySet()));
@@ -800,8 +888,7 @@ final class Obtain {
 		if (ObtainSteps.count(p, item) >= count) { done(p); return false; }
 		if (++sopranoEnds >= 3) {
 			Exchange.emit("obtain", "action", "gives up", "item", item, "why", "Soprano's task ended three times without it" + (why == null ? "" : ": " + why));
-			stop("Soprano did not get " + item + (why == null ? "" : ": " + why));
-			last.put("end", "gave up");
+			giveUp("Soprano did not get " + item + (why == null ? "" : ": " + why));
 			return false;
 		}
 		Exchange.emit("obtain", "action", "soprano again", "item", item, "why", why == null ? "its task ended" : why, "try", sopranoEnds);

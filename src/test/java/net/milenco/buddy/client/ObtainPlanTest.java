@@ -73,7 +73,7 @@ class ObtainPlanTest {
 					if (r.kind() == Recipes.Kind.SMELT) {
 						double left = s.times();
 						for (Map.Entry<String, Integer> e : new ArrayList<>(inv.entrySet())) {
-							double v = ObtainPlan.fuelValue(e.getKey());
+							double v = ObtainPlan.burns(e.getKey()) ? ObtainPlan.fuelValue(e.getKey()) : 0;
 							if (v <= 0 || left <= 0 || e.getValue() <= 0) continue;
 							int use = (int) Math.min(e.getValue(), Math.ceil(left / v));
 							inv.put(e.getKey(), e.getValue() - use);
@@ -104,7 +104,9 @@ class ObtainPlanTest {
 							add(s.item(), s.count());
 						}
 						case "cast obsidian" -> {
-							assertTrue(inv("water_bucket") >= 1 && inv("diamond_pickaxe") >= 1, "cast without its tools: " + inv);
+							// the lava is fetched in a bucket of its own for each block, the empty one coming back after the pour
+							assertTrue(inv("water_bucket") >= 1 && inv("diamond_pickaxe") >= 1 && inv("bucket") + inv("lava_bucket") >= 1,
+								"cast without its tools: " + inv);
 							add("obsidian", s.count());
 						}
 						case "back to the overworld" -> dim = Nature.Dim.OVERWORLD;
@@ -222,6 +224,14 @@ class ObtainPlanTest {
 		List<String> log = run(w, "obsidian", 14);
 		assertTrue(log.stream().anyMatch(l -> l.startsWith("cast obsidian")), String.join("\n", log));
 		assertEquals(1, w.inv("water_bucket"));
+		// and the empty bucket for the lava, kept
+		assertEquals(1, w.inv("bucket"));
+		World ready = new World();
+		ready.add("water_bucket", 1);
+		ready.add("bucket", 1);
+		ready.add("diamond_pickaxe", 1);
+		List<String> at = run(ready, "obsidian", 4);
+		assertTrue(at.get(0).startsWith("cast obsidian"), String.join("\n", at));
 		World bare = new World();
 		List<String> from = run(bare, "obsidian", 10);
 		System.out.println("obsidian from nothing: " + from.size() + " steps\n  " + String.join("\n  ", from));
@@ -368,5 +378,39 @@ class ObtainPlanTest {
 		ObtainPlan.Plan p = ObtainPlan.planAny(ObtainKit.FOOD, 8, w);
 		assertTrue(p.ok(), p.missing());
 		assertTrue(p.steps().stream().noneMatch(st -> st.act() == ObtainPlan.Act.KILL), p.steps().toString());
+	}
+
+	/** Charcoal with logs as its fuel: the logs beyond the four that go in burn; a stack of planks goes first. */
+	@Test
+	void fuelForCharcoalIsLogs() {
+		java.util.function.Predicate<String> log = id -> id.endsWith("_log");
+		String[] ids = { "oak_log", null, "cobblestone" };
+		int[] fuel = ObtainPlan.fuelPlan(ids, new int[] { 7, 0, 30 }, new int[] { 4, 0, 0 }, log, 4);
+		assertEquals(3, fuel[0]);
+		assertEquals(0, fuel[2]);
+		// all seven go in: nothing of them is left to burn
+		assertEquals(0, ObtainPlan.fuelPlan(ids, new int[] { 7, 0, 30 }, new int[] { 7, 0, 0 }, log, 7)[0]);
+		String[] withPlanks = { "oak_log", "oak_planks" };
+		int[] f2 = ObtainPlan.fuelPlan(withPlanks, new int[] { 7, 8 }, new int[] { 4, 0 }, log, 4);
+		assertEquals(0, f2[0]);
+		assertEquals(3, f2[1]);
+	}
+
+	/** Never blaze rods or a lava bucket as fuel; coal of course, and with nothing else nothing burns. */
+	@Test
+	void fuelNeverRodsOrBuckets() {
+		java.util.function.Predicate<String> ore = id -> id.equals("raw_iron");
+		String[] ids = { "blaze_rod", "lava_bucket", "coal" };
+		int[] fuel = ObtainPlan.fuelPlan(ids, new int[] { 5, 1, 1 }, new int[3], ore, 8);
+		assertEquals(0, fuel[0]);
+		assertEquals(0, fuel[1]);
+		assertEquals(1, fuel[2]);
+		int[] none = ObtainPlan.fuelPlan(new String[] { "blaze_rod", "lava_bucket" }, new int[] { 5, 1 }, new int[2], ore, 8);
+		assertEquals(0, none[0] + none[1]);
+		// short of fuel: the kind that gets furthest, all of one kind
+		int[] most = ObtainPlan.fuelPlan(new String[] { "stick", "coal", "stick" }, new int[] { 4, 1, 4 }, new int[3], ore, 20);
+		assertEquals(0, most[0]);
+		assertEquals(1, most[1]);
+		assertEquals(0, most[2]);
 	}
 }
