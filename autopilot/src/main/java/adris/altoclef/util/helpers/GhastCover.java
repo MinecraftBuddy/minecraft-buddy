@@ -11,7 +11,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.monster.Ghast;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -60,6 +59,7 @@ public final class GhastCover {
         _what = "A ghast sees us with no way on: into cover at " + cover.toShortString();
         Debug.logInternal("ghast cover: " + cover.toShortString() + " from the ghast at " + ghast.blockPosition().toShortString());
         _go = new GetToBlockTask(cover);
+        adris.altoclef.util.snapshot.Snapshots.chose("ghast.cover", cover);
         _goSince = now;
         return _go;
     }
@@ -91,19 +91,26 @@ public final class GhastCover {
         BlockPos at = player.blockPosition();
         CliffAvoidance.Cells cells = CliffAvoidance.of(new BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
         Vec3 eye = ghast.getEyePosition();
-        BlockPos best = null;
+        int[] c = pick(cells, SafeStand.cells(level), at.getX(), at.getY(), at.getZ(),
+                (x, y, z) -> !seesCell(level, eye, new BlockPos(x, y, z), player));
+        return c == null ? null : new BlockPos(c[0], c[1], c[2]);
+    }
+
+    // cover's choice without a world (the snapshots' harness feeds it): walk is the world as Baritone reads it, for the drops;
+    // body by collision, for where a body stands; hidden whether the ghast sees no body standing in a cell. {x, y, z} or null
+    public static int[] pick(CliffAvoidance.Cells walk, CliffAvoidance.Cells body, int ax, int ay, int az, BlazeCover.Hidden hidden) {
+        int[] best = null;
         double bestD = Double.MAX_VALUE;
-        BlockPos.MutableBlockPos c = new BlockPos.MutableBlockPos();
         for (int dx = -RADIUS; dx <= RADIUS; dx++) {
             for (int dz = -RADIUS; dz <= RADIUS; dz++) {
                 double flat = dx * dx + dz * dz;
                 if (flat > RADIUS * RADIUS || flat >= bestD) continue;
                 for (int dy = -2; dy <= 2; dy++) {
-                    c.set(at.getX() + dx, at.getY() + dy, at.getZ() + dz);
-                    if (!standable(level, c)) continue;
-                    if (nearDrop(cells, c.getX(), c.getY(), c.getZ())) continue;
-                    if (seesCell(level, eye, c, player)) continue;
-                    best = c.immutable();
+                    int x = ax + dx, y = ay + dy, z = az + dz;
+                    if (!standable(body, x, y, z)) continue;
+                    if (nearDrop(walk, x, y, z)) continue;
+                    if (!hidden.at(x, y, z)) continue;
+                    best = new int[]{x, y, z};
                     bestD = flat;
                 }
             }
@@ -124,13 +131,11 @@ public final class GhastCover {
         return false;
     }
 
-    private static boolean standable(Level level, BlockPos feet) {
-        BlockState f = level.getBlockState(feet);
-        BlockState h = level.getBlockState(feet.above());
-        BlockState floor = level.getBlockState(feet.below());
-        return f.getCollisionShape(level, feet).isEmpty() && h.getCollisionShape(level, feet.above()).isEmpty()
-                && f.getFluidState().isEmpty() && h.getFluidState().isEmpty()
-                && !floor.getCollisionShape(level, feet.below()).isEmpty() && floor.getFluidState().isEmpty();
+    // feet and head free of blocks and fluid, a floor of a block under them (SafeStand.cells' reading: by collision, the fluids
+    // apart)
+    static boolean standable(CliffAvoidance.Cells body, int x, int y, int z) {
+        return body.at(x, y, z) == CliffAvoidance.Cell.OPEN && body.at(x, y + 1, z) == CliffAvoidance.Cell.OPEN
+                && body.at(x, y - 1, z) == CliffAvoidance.Cell.SOLID;
     }
 
     // a line from the eye to the head of one standing in the cell

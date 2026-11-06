@@ -808,6 +808,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (corner != null) {
             _campSpot = new BlockPos(corner[0][0], corner[0][1], corner[0][2]);
             BlockPos peek = new BlockPos(corner[1][0], corner[1][1], corner[1][2]);
+            adris.altoclef.util.snapshot.Snapshots.chose("blaze.corner", corner[0]).with("peek", corner[1]).spawner(sx, sy, sz);
             _fight.corner(_campSpot);
             _lure = BlazeLureTask.of(cells, _campSpot, peek);
             Debug.logInternal("blaze camp: a corner at " + _campSpot.toShortString() + " (closed in "
@@ -824,6 +825,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 _fight.pillboxPlanned(true);
                 _fight.pillboxLookout(_pillbox.lookout());
                 _campSpot = _pillbox.cell();
+                adris.altoclef.util.snapshot.Snapshots.chose("pillbox", plan.cell()).with("lookout", plan.lookout()).with("front", plan.front()).blocks(plan.blocks())
+                        .spawner(sx, sy, sz);
                 Debug.logInternal("blaze camp: no corner, a " + (plan.front() != null ? "bent " : "") + "pillbox at " + _campSpot.toShortString() + " (" + plan.blocks().size()
                         + " blocks), looking out from " + _pillbox.lookout().toShortString() + " (spawner " + _foundBlazeSpawner.toShortString() + ")");
                 return;
@@ -837,6 +840,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             how = "five to ten out";
         }
         _campSpot = spot == null ? null : new BlockPos(spot[0], spot[1], spot[2]);
+        adris.altoclef.util.snapshot.Snapshots.chose("blaze.camp", spot).spawner(sx, sy, sz);
         // which it was: the room's shape decides it and nothing said so (attempt 177 stood beside the spawner)
         Debug.logInternal("blaze camp: " + (_campSpot == null ? "no spot with a line, standing by the spawner"
                 : _campSpot.toShortString() + ", " + how) + " (spawner " + _foundBlazeSpawner.toShortString() + "; the last ring had "

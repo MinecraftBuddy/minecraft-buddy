@@ -485,6 +485,7 @@ final class BrewBoxTask extends Task {
 
     private void startTry(BrewBox.Box plan) {
         box = plan;
+        adris.altoclef.util.snapshot.Snapshots.chose("brewbox", plan.back()).with("front", plan.front()).blocks(plan.blocks());
         for (int[] b : plan.blocks()) placed.add(BlazeCover.key(b[0], b[1], b[2]));
         builder = new BlazePillboxTask(plan.build(), false);
         tries++;

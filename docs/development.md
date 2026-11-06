@@ -24,6 +24,25 @@ That jar goes into the mods folder beside the mod's; without it an order uses th
 cd autopilot && ./gradlew test    # about 2,000 tests, a few minutes
 ```
 
+### Snapshot regression tests
+
+The autopilot can keep the 30 seconds before a death in the nether, so that every build is tried on the situations that
+killed the buddy. With `snapshots=1` in the autopilot's `tuning.properties` (see `Tuning.java`), while an order runs in
+the nether, it writes one gzip JSON file per death, and one a few seconds after the hp drops below 6, into the game
+folder's `logs/snapshots/` (the system property `buddy.snapshots` names another folder). The folder keeps the newest 200.
+A file has a frame every half second and one at every decision: the buddy, what lives near, a box of blocks round the
+buddy, what the autopilot decided and the cells it chose (`SnapshotWriter` describes the format). Off, nothing is kept.
+
+`SnapshotReplayTest` rebuilds every frame as cells, runs the planners of the current build on it and checks the
+invariants in `SnapshotChecks`, one line per violation, in `autopilot/build/snapshots-report.txt` as well:
+
+```bash
+cd autopilot && SNAPSHOTS=<folder> ./gradlew test --tests '*SnapshotReplayTest' --rerun
+```
+
+The folder is searched all the way down. Without `SNAPSHOTS` the test is skipped. `SNAPSHOT_BASELINE=<file>` with
+`SNAPSHOT_BASELINE_WRITE=1` accepts the violations found now; later runs with the same baseline fail only on new ones.
+
 ## Trying a jar before it is released
 
 Put `BUDDY_JARS: folder` in a buddy's environment in `compose.yaml`: the game then uses the jars in that buddy's mods
