@@ -139,6 +139,8 @@ final class Obtain {
 	static void newConnection() {
 		writeList();
 		portalRoom = null;
+		// the danger marks are places of the world just left
+		ObtainSafe.forget();
 		if (on()) { if (exec != null) exec.stop(); exec = null; step = null; return; }
 		try {
 			if (!java.nio.file.Files.exists(file())) return;
@@ -265,6 +267,21 @@ final class Obtain {
 		step = null;
 		exec = null;
 		watching = false;
+		// and the waits and marks of the order before: kept, a food run, a trip home or a boat tried late in that order held
+		// this one's back for minutes, a station out of reach stayed so for ten, and danger marks outlived the order, the
+		// connection and the world. On a practice rig one run then depended on the run before it
+		foodTriedAt = homeTriedAt = -180_000;
+		goldTriedAt = -60_000;
+		boatTriedAt = -600_000;
+		boatLook = holeOffUntil = holeStarted = upFailedAt = dryFailedAt = armourLook = 0;
+		wasMidFrame = false;
+		armourFor = null;
+		badStations.clear();
+		fleeFrom = standUntil = beatenAt = 0;
+		junkHeld.clear();
+		thrownId = null;
+		junkAsk = -1;
+		ObtainSafe.forget();
 		Jobs.switchedOn(Jobs.Job.OBTAIN, "obtain");
 		save();
 		Exchange.emit("obtain", "action", "start", "item", it, "count", n, "by", who, "had", startHad);
