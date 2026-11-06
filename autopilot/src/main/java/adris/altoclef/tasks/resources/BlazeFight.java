@@ -515,6 +515,7 @@ final class BlazeFight {
         // a new run looks for its own cover
         if (mode != Mode.RUN) {
             cover = null;
+            standPick.reset();
             coverBanned.clear();
             coverRetryAt = Long.MIN_VALUE;
             cornerWay.reset();
@@ -540,15 +541,20 @@ final class BlazeFight {
             // (a shot that landed lately keeps the thrower in that crowd, see runCrowd, and a blaze with a line on us from far out
             // is in it too, see underFireCrowd. out of their sight is where a run gets to stop)
             case RUN -> {
+                boolean nearCorner = held != null && player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= adris.altoclef.util.helpers.Tuning.get("corner_run", CORNER_RUN);
+                // (a pillbox going up: anywhere in the box is in, its roof row is placed from the front cell, and the rods
+                // task goes on building through the heal wait)
+                if (nearCorner && building && pillboxPlanned && adris.altoclef.util.helpers.Tuning.get("pillbox_heal_build", 1) > 0
+                        && player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= PILLBOX_LEASH) {
+                    cover = null;
+                    yield null;
+                }
+                // (the buddy's fork, stand_model on: the corner, a cover or the plain run is the model's pick, the corner one cell
+                // among the rest and every mob about weighed, so no coverFits; with no cell from it the rules below)
+                BlockPos stand = adris.altoclef.util.helpers.StandPick.on() ? standCell(mod, nearCorner ? held : null) : null;
+                boolean intoCorner = stand != null ? stand.equals(held) : nearCorner;
                 // (with a corner near, the run is into it: standing in it is the heal wait, null)
-                if (held != null && player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= adris.altoclef.util.helpers.Tuning.get("corner_run", CORNER_RUN)) {
-                    // (a pillbox going up: anywhere in the box is in, its roof row is placed from the front cell, and the rods
-                    // task goes on building through the heal wait)
-                    if (building && pillboxPlanned && adris.altoclef.util.helpers.Tuning.get("pillbox_heal_build", 1) > 0
-                            && player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= PILLBOX_LEASH) {
-                        cover = null;
-                        yield null;
-                    }
+                if (intoCorner) {
                     if (BlazeLureTask.in(player.position(), held)) {
                         cover = null;
                         cornerWay.reset();
@@ -569,8 +575,14 @@ final class BlazeFight {
                         }
                         yield way;
                     }
+                    stand = null;
                 }
                 cornerRunTo = null;
+                if (stand != null) {
+                    // (the model's cell: the walk there, standing in it the heal wait)
+                    cover = null;
+                    yield standPick.walk(mod);
+                }
                 List<Entity> crowd = underFireCrowd(mod);
                 if (crowd.isEmpty()) {
                     cover = null;
@@ -587,6 +599,20 @@ final class BlazeFight {
                 yield new RunAwayFromHostilesTask(RUN_DISTANCE, true, () -> underFireCrowd(mod));
             }
         };
+    }
+
+    // ---- the model of where to stand (StandModel, tuning stand_model): the run's cell from one cost over every mob about
+
+    // how far round us the run's cell is looked for (BlazeCover's walk was 12 steps; the model takes 0.5 ms at 8)
+    static final int STAND_RADIUS = 8;
+    // what hitting back counts in a run: the run is for healing, but a blaze in reach from a hidden cell is a rod
+    static final double STAND_HIT_BACK = 0.5;
+    private final adris.altoclef.util.helpers.StandPick standPick = new adris.altoclef.util.helpers.StandPick("rods run");
+
+    private BlockPos standCell(AltoClef mod, BlockPos corner) {
+        adris.altoclef.util.helpers.StandModel.Query q = adris.altoclef.util.helpers.StandModel.Query.of().radius(STAND_RADIUS)
+                .hitBack(STAND_HIT_BACK).maxRate(adris.altoclef.util.helpers.StandModel.RUN_RATE);
+        return standPick.cell(mod, q, corner == null ? List.of() : List.of(corner), target);
     }
 
     // ---- cover from the blazes (the buddy's fork, 4 Nov 2026)

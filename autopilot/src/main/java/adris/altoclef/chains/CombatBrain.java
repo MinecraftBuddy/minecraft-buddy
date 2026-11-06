@@ -136,6 +136,8 @@ final class CombatBrain {
     private final adris.altoclef.util.helpers.BoxWay _shelterWay = new adris.altoclef.util.helpers.BoxWay();
     private net.minecraft.core.BlockPos _shelterRunTo;
     private final adris.altoclef.util.helpers.FireOnTheWay _shelterFire = new adris.altoclef.util.helpers.FireOnTheWay();
+    // the run's cell from the model of where to stand (tuning stand_model), the nether only
+    private final adris.altoclef.util.helpers.StandPick _stand = new adris.altoclef.util.helpers.StandPick("combat run");
     private final IdleTask _splitHold = new IdleTask();
     private int _fightId = -1;
     private String _fightName = FightNames.UNKNOWN;
@@ -347,8 +349,14 @@ final class CombatBrain {
                 // (the buddy's fork: in a blaze fight with a corner near, the run is into the corner and a stand there, see
                 // BlazeShelter)
                 net.minecraft.core.BlockPos shelter = adris.altoclef.util.helpers.BlazeShelter.fresh(mod.getWorld().getGameTime());
-                if (shelter != null && mod.getPlayer().position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(shelter))
-                        <= adris.altoclef.util.helpers.BlazeShelter.RANGE) {
+                boolean nearShelter = shelter != null && mod.getPlayer().position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(shelter))
+                        <= adris.altoclef.util.helpers.BlazeShelter.RANGE;
+                // (the buddy's fork, stand_model on, in the nether: the run's goal is the model's cell, the corner one cell among
+                // the rest; with no cell from it the corner and the committed run as before)
+                boolean model = adris.altoclef.util.helpers.StandPick.on() && WorldHelper.getCurrentDimension() == Dimension.NETHER;
+                net.minecraft.core.BlockPos stand = model ? _stand.cell(mod, adris.altoclef.util.helpers.StandModel.Query.of().hitBack(0)
+                        .maxRate(adris.altoclef.util.helpers.StandModel.RUN_RATE), nearShelter ? List.of(shelter) : List.of(), null) : null;
+                if (stand != null ? stand.equals(shelter) : nearShelter) {
                     if (adris.altoclef.util.helpers.BlazeShelter.in(mod.getPlayer().position(), shelter)) {
                         _shelterWay.reset();
                         return _healUp;
@@ -364,8 +372,14 @@ final class CombatBrain {
                         }
                         return way;
                     }
+                    stand = null;
                 }
                 _shelterRunTo = null;
+                if (stand != null) {
+                    // (the model's cell: the walk there, standing in it the heal wait)
+                    adris.altoclef.tasksystem.Task walk = _stand.walk(mod);
+                    return walk != null ? walk : _healUp;
+                }
                 // (a run that goes on from the last one has the old origin and a longer way: the old task's goal is met already)
                 if (_run == null || _run.stopped() || !_run.sameRun(_commit.originX(), _commit.originZ(), _commit.runDistance())) {
                     _run = new CommittedRunTask(_commit.originX(), _commit.originZ(), _commit.runDistance(), this::crowd);
@@ -567,7 +581,10 @@ final class CombatBrain {
             // switches us off every tick it stands down)
             dropHold();
         }
-        if (_commit.mode() != Mode.RUN) _run = null;
+        if (_commit.mode() != Mode.RUN) {
+            _run = null;
+            _stand.reset();
+        }
         if (_commit.mode() != Mode.FIGHT) _fight = null;
         if (!_commit.perching()) _perch = null;
 

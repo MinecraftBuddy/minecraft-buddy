@@ -7,6 +7,8 @@ import adris.altoclef.tasks.movement.IdleTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.util.helpers.GhastCover;
+import adris.altoclef.util.helpers.StandModel;
+import adris.altoclef.util.helpers.StandPick;
 import adris.altoclef.util.helpers.WorldHelper;
 import baritone.api.utils.Dimension;
 import baritone.pathing.movement.CliffAvoidance;
@@ -55,6 +57,9 @@ public class GhastShelterChain extends SingleTaskChain {
     // once that had its time
     private boolean _fightCorner;
     private final adris.altoclef.util.helpers.BoxWay _way = new adris.altoclef.util.helpers.BoxWay();
+    // the cover from the model of where to stand (tuning stand_model), as far round as GhastCover looks
+    static final int STAND_RADIUS = 8;
+    private final StandPick _stand = new StandPick("ghast shelter");
 
     public GhastShelterChain(TaskRunner runner) {
         super(runner);
@@ -90,7 +95,7 @@ public class GhastShelterChain extends SingleTaskChain {
             if (there && ghast != null) {
                 // (still in a ghast's sight there: from where it is now that cell is no cover, so the next one. the idle there held
                 // the buddy in its sight up to STAY_TICKS)
-                BlockPos other = GhastCover.cover(mod, ghast);
+                BlockPos other = coverFrom(mod, ghast, null);
                 if (other != null && !other.equals(_cover)) {
                     Debug.logInternal("ghast shelter: seen in cover at " + _cover.toShortString() + " by the ghast at " + ghast.blockPosition().toShortString()
                             + ", on to cover at " + other.toShortString());
@@ -127,7 +132,7 @@ public class GhastShelterChain extends SingleTaskChain {
                     return PRIORITY;
                 }
                 Ghast g = ghast != null ? ghast : nearestGhast(mod, NEAR);
-                BlockPos other = g == null ? null : GhastCover.cover(mod, g);
+                BlockPos other = g == null ? null : coverFrom(mod, g, null);
                 if (other == null) {
                     reset();
                     return Float.NEGATIVE_INFINITY;
@@ -165,9 +170,18 @@ public class GhastShelterChain extends SingleTaskChain {
         // the ghast alone stood by the spawner in the blazes' fire, blazeroom drill, corner15 run 3 and corner19 run 2, 4 Nov 2026.
         // only a corner the ghast has no line to: one it sees is no cover from it)
         BlockPos fight = adris.altoclef.util.helpers.BlazeShelter.fresh(now);
-        boolean fightCorner = fight != null && player.position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(fight))
-                <= adris.altoclef.util.helpers.BlazeShelter.RANGE && !GhastCover.seesCell(level, near.getEyePosition(), fight, player);
-        BlockPos cover = fightCorner ? fight : GhastCover.cover(mod, near);
+        boolean fightNear = fight != null && player.position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(fight))
+                <= adris.altoclef.util.helpers.BlazeShelter.RANGE;
+        boolean fightCorner;
+        BlockPos cover;
+        if (StandPick.on()) {
+            // (stand_model on: the corner is one cell among the rest, the model weighs the ghast's line to it with every other mob)
+            cover = coverFrom(mod, near, fightNear ? fight : null);
+            fightCorner = cover != null && cover.equals(fight);
+        } else {
+            fightCorner = fightNear && !GhastCover.seesCell(level, near.getEyePosition(), fight, player);
+            cover = fightCorner ? fight : GhastCover.cover(mod, near);
+        }
         if (cover == null) return Float.NEGATIVE_INFINITY;
         _before = before;
         _since = now;
@@ -176,6 +190,18 @@ public class GhastShelterChain extends SingleTaskChain {
                 + near.blockPosition().toShortString() + ", into cover at " + cover.toShortString());
         setTask(_go);
         return PRIORITY;
+    }
+
+    // the cover from a ghast: with stand_model on the model's cell (StandModel: every mob about weighed, the ghast's push off a
+    // rim among them, the blaze fight's corner as one more cell), else, or with none from it, GhastCover's nearest cell out of
+    // the ghast's line
+    private BlockPos coverFrom(AltoClef mod, Ghast ghast, BlockPos corner) {
+        if (StandPick.on()) {
+            BlockPos c = _stand.cell(mod, StandModel.Query.of().radius(STAND_RADIUS).hitBack(0).maxRate(StandModel.RUN_RATE),
+                    corner == null ? List.of() : List.of(corner), null);
+            if (c != null) return c;
+        }
+        return GhastCover.cover(mod, ghast);
     }
 
     // the walk to a cover cell, its own clock (WALK_TICKS); the stay's clock (STAY_TICKS) goes on
@@ -257,6 +283,7 @@ public class GhastShelterChain extends SingleTaskChain {
     }
 
     private void reset() {
+        _stand.reset();
         _cover = null;
         _go = null;
         _since = Long.MIN_VALUE;
