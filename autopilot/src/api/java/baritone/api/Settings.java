@@ -2151,13 +2151,14 @@ public final class Settings {
     public final Setting<Boolean> guiMenuMusic = new Setting<>(true);
 
     /**
-     * Ask GitHub once per session, when the title screen first opens, whether a newer Soprano release exists for the
-     * Minecraft version and release channel you are on, so the title screen can offer to update. Nothing is
-     * downloaded unless you click update.
+     * Ask GitHub once per session, when the title screen first opens, whether a newer release of the project this
+     * pathfinder was forked from exists for the Minecraft version and release channel you are on, so the title screen
+     * can offer to update. Nothing is downloaded unless you click update.
      * <p>
-     * Turning this off stops the check, but an update that was already downloaded still gets finished.
+     * Off by default: this copy is built and updated with the mod it ships in, and a jar from the old project would
+     * replace it. Off, nothing goes out to the network and an update downloaded earlier is not finished either.
      */
-    public final Setting<Boolean> checkForUpdates = new Setting<>(true);
+    public final Setting<Boolean> checkForUpdates = new Setting<>(false);
 
     // everything below belongs to the built in AltoClef, see adris.altoclef. all of it is prefixed alto so that
     // #set alto<tab> finds it (same trick as the elytra settings). it only does anything while AltoClef has a task

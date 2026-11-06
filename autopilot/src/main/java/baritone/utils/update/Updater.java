@@ -127,7 +127,16 @@ public final class Updater {
 
     // false when nothing started (wrong state, can't install), so the caller doesn't act like it did
     public boolean download() {
+        boolean enabledNow = checkForUpdates();
         synchronized (this) {
+            // (the buddy's fork: a check turned off since it found the release downloads nothing, the card goes back to DISABLED)
+            if (!enabledNow) {
+                if (state == UpdateState.AVAILABLE || state == UpdateState.FAILED) {
+                    state = UpdateState.DISABLED;
+                    publish();
+                }
+                return false;
+            }
             boolean available = state == UpdateState.AVAILABLE || state == UpdateState.FAILED;
             if (!available || !installable()) {
                 return false;
@@ -229,7 +238,9 @@ public final class Updater {
             self = found;
             publish();
         }
-        if (found.jar() != null && running != null && pretend == null && reconcile(found)) {
+        // (the buddy's fork: with the check off, a jar staged by an earlier download is not swapped in either. checkForUpdates
+        // is off by default, and nothing from the old project's releases may replace this build)
+        if (network && found.jar() != null && running != null && pretend == null && reconcile(found)) {
             return;
         }
         if (!network || running == null) {
@@ -439,7 +450,8 @@ public final class Updater {
         try {
             return BaritoneAPI.getSettings().checkForUpdates.value;
         } catch (RuntimeException e) {
-            return true;
+            // (the buddy's fork: settings that can't be read are no yes to a check)
+            return false;
         }
     }
 
