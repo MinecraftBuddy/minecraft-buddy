@@ -247,8 +247,8 @@ final class BlazeFight {
     // every blaze was let go the moment the buddy stood in the look out, "we are 1.7 from the corner", bent-d run 1)
     static final double PILLBOX_LEASH = 2.5;
     // (Tuning pillbox_reach: at 3.5 the box survived twelve game minutes but the blazes hung at four to eight, out of reach,
-    // realfort-a-bent-i runs 1 and 2, stalls)
-    static final double PILLBOX_REACH = 3.5;
+    // realfort-a-bent-i runs 1 and 2, stalls. the default is what the rod drills' yardstick plays)
+    static final double PILLBOX_REACH = 4.5;
 
     private double leash() {
         double l = adris.altoclef.util.helpers.Tuning.get("buddy_leash", BUDDY_LEASH);

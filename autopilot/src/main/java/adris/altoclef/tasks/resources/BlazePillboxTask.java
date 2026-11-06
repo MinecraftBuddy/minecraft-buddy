@@ -15,10 +15,11 @@ import net.minecraft.world.level.block.Blocks;
 // each one only while no blaze that sees the cell is near its shot (the volley clock: a charged blaze shoots the moment it
 // sees us, so a block waits while one has been charged LOADED ticks or more; the old wall went up under fire and was never
 // finished, 0 of 10). a block not in after PLACE_TICKS is left out, the whole after GIVE_UP_TICKS: then the camp is the
-// open one as before. done when every block of the plan is solid
+// open one as before. done when every block of the plan is solid. LOADED and PLACE_TICKS by Tuning (pillbox_loaded,
+// pillbox_place_ticks), their defaults what the rod drills' yardstick plays: 1,000,000 (the clock holds no block back) and 300
 final class BlazePillboxTask extends Task {
-    static final double LOADED = 40;
-    static final long PLACE_TICKS = 100;
+    static final double LOADED = 1_000_000;
+    static final long PLACE_TICKS = 300;
     static final long GIVE_UP_TICKS = 2400;
     private static final Block[] BLOCKS = {Blocks.COBBLESTONE, Blocks.NETHERRACK, Blocks.COBBLED_DEEPSLATE, Blocks.BLACKSTONE,
             Blocks.STONE, Blocks.DIRT, Blocks.NETHER_BRICKS, Blocks.BASALT};

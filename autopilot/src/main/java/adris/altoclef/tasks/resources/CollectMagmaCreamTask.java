@@ -51,7 +51,7 @@ public class CollectMagmaCreamTask extends ResourceTask {
                 // the lava. none about: the basalt deltas, where cubes live, rather than blaze powder, which went through the rods
                 // task's brew back to the cream, round and round (steering 58, piece 1, 6 Nov 2026))
                 var us = mod.getPlayer();
-                double range = adris.altoclef.util.helpers.Tuning.get("cream_range", 48);
+                double range = adris.altoclef.util.helpers.Tuning.get("cream_range", CollectBlazeRodsTask.CREAM_RANGE);
                 java.util.function.Predicate<net.minecraft.world.entity.Entity> fit = e -> e instanceof MagmaCube c && c.isAlive() && c.getSize() > 1
                         && c.distanceTo(us) <= range && CollectBlazeRodsTask.creamCubeWhyNot(mod, c) == null;
                 if (mod.getEntityTracker().getClosestEntity(us.position(), fit, MagmaCube.class).isPresent()) {

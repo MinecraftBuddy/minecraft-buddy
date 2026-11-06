@@ -65,9 +65,10 @@ final class BlazeLureTask extends Task {
     // before its first ball, and a blaze that has us for target but no line keeps its charge until it sees us, or drops us
     // after 60 ticks unseen): no look out while a blaze that sees the look's cell has been charged LOOK_LOADED ticks or more
     // (it shoots the moment it sees us), and back in from a look once one that sees us has been charged PEEK_LOADED (its ball
-    // is due at 60). both by Tuning: look_loaded, peek_loaded
-    static final double LOOK_LOADED = 40;
-    static final double PEEK_LOADED = 50;
+    // is due at 60). both by Tuning: look_loaded, peek_loaded. the defaults are what the rod drills' yardstick plays: 1,000,000,
+    // the clock holds no look back and ends none (at 40 and 50 a buddy without a tuning file played what nobody had measured)
+    static final double LOOK_LOADED = 1_000_000;
+    static final double PEEK_LOADED = 1_000_000;
     private long loadedLoggedAt = Long.MIN_VALUE / 2;
 
 
