@@ -572,6 +572,17 @@ final class BrewBoxTask extends Task {
     }
 
     // the feet in one of the two cells
+    // the brew begun outside the pillbox it is to be walled in: the walk in comes before the fight (his remark c960c099:
+    // "terug de schuilplek in", Makena fought in the opening to 0.1 hp while the box waited for the fight to let go)
+    static final double GO_IN_RANGE = 10;
+
+    boolean goingIn(AltoClef mod) {
+        if (stage != Stage.BUILD || pillboxBack == null || pillboxDoor == null || mod.getPlayer() == null) return false;
+        BlockPos me = mod.getPlayer().blockPosition();
+        if (inPillbox(me)) return false;
+        return Math.sqrt(me.distSqr(pillboxDoor)) <= GO_IN_RANGE;
+    }
+
     // over B, F or the look out of the pillbox this box is made of, from under the floor to the roof
     private boolean inPillbox(BlockPos at) {
         if (pillboxBack == null) return false;

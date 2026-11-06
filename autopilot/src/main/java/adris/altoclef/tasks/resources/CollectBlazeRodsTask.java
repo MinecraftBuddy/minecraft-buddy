@@ -254,6 +254,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Task boxed = brewStep(mod);
             if (boxed != null) return boxed;
         }
+        // (the buddy's fork: the brew begun outside its pillbox: in first, before the fight, BrewBoxTask.goingIn)
+        if (_brewBox != null && _brewBox.goingIn(mod)) {
+            Task in = brewStep(mod);
+            if (in != null) {
+                setDebugState("Into the pillbox for the brew");
+                return in;
+            }
+        }
         // blazes first: kill the one we picked, run when it goes badly. null is "nobody to fight"
         boolean building = _pillbox != null && !_pillbox.isFinished(mod);
         // (the cell is the fight's corner from its first block on, the wall nearest the spawner: a run then goes into it, not out
