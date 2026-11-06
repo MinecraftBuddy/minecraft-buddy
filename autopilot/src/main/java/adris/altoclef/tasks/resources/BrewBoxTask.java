@@ -133,7 +133,7 @@ final class BrewBoxTask extends Task {
     // and the stand fill them) and nothing to keep clear (they are the cells kept clear). null when they do not shut
     private BrewBox.Box pillboxPlan(CliffAvoidance.Cells world, CliffAvoidance.Cells stand) {
         if (pillboxBack == null) return null;
-        return BrewBox.planAt(world, stand, pillboxBack[0], pillboxBack[1], pillboxBack[2], pillboxDir, Double.NaN, Double.NaN, null);
+        return BrewBox.planAt(world, stand, pillboxBack[0], pillboxBack[1], pillboxBack[2], pillboxDir, Double.NaN, Double.NaN, null, false);
     }
 
     // the box is going up: the fight fights only what bites meanwhile, and lets its blocks be placed (BlazeFight.building and
@@ -151,6 +151,12 @@ final class BrewBoxTask extends Task {
     // after the brew, or with the brew given up inside: the door is being broken, or walked out of
     boolean opening() {
         return stage == Stage.OPEN || stage == Stage.LEAVE;
+    }
+
+    // the door being broken with the buddy still inside: the fight waits for it (CollectBlazeRodsTask). from OPEN on holds() is
+    // off, and a blaze in reach cut the break off till OPEN_TICKS ran out with the door standing, piece2in-1 run 8
+    boolean breakingOut(AltoClef mod) {
+        return stage == Stage.OPEN && box != null && mod.getPlayer() != null && inside(mod.getPlayer().position());
     }
 
     // still to do: not given up, not opened
@@ -234,7 +240,7 @@ final class BrewBoxTask extends Task {
                 BrewBox.Box plan;
                 if (pillboxBack != null) {
                     plan = pillboxPlan(worldCells(level), stand);
-                    if (plan == null) return fail("the pillbox does not shut");
+                    if (plan == null) return fail("the pillbox does not shut: " + BrewBox.why);
                 } else {
                     plan = BrewBox.plan(worldCells(level), stand, new int[]{at.getX(), at.getY(), at.getZ()}, eyes(level), sx(), sz(), avoid());
                 }
@@ -572,8 +578,8 @@ final class BrewBoxTask extends Task {
     }
 
     // the feet in one of the two cells
-    // the brew begun outside the pillbox it is to be walled in: the walk in comes before the fight (his remark c960c099:
-    // "terug de schuilplek in", Makena fought in the opening to 0.1 hp while the box waited for the fight to let go)
+    // the brew begun outside the pillbox it is to be walled in: the walk in comes before the fight (piece2side-1 run 3: the
+    // buddy fought in the opening to 0.1 hp while the box waited for the fight to let go)
     static final double GO_IN_RANGE = 10;
 
     boolean goingIn(AltoClef mod) {

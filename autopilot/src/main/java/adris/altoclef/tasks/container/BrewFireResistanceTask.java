@@ -301,6 +301,11 @@ public class BrewFireResistanceTask extends ResourceTask {
                     case REDSTONE -> Items.REDSTONE;
                 };
                 if (mod.getItemStorage().hasItem(next)) {
+                    // (the stand's stage as it will be with this in its slot: the screen shut a tick after the wart went in, by
+                    // a bite, and the stage read before the click still wanted a wart. the brew walked for the fortress's wart
+                    // from inside its shut box, no path, seven minutes, piece2in-1 run 8. a click that failed is read again
+                    // from the slots at the next visit)
+                    _standStage = BrewRules.after(BrewRules.stage(water, awkward, fire, longFire), step);
                     setDebugState("Adding " + next.getDescriptionId());
                     return move(new MoveItemToSlotFromInventoryTask(new ItemTarget(next, 1), BrewingStandSlot.INGREDIENT), false);
                 }

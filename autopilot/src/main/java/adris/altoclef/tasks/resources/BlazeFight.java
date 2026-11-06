@@ -279,6 +279,14 @@ final class BlazeFight {
         return fireproofCamp(player) ? adris.altoclef.util.helpers.Tuning.get("fireproof_hold", 0) : 0;
     }
 
+    // (the buddy's fork, Tuning fireproof_reach, blocks: under fire resistance with fireproof_camp only a blaze whose feet are at
+    // most that far above the buddy's: the nearest blaze over a ledge or the spawner's roof was chased, "no path", banned two
+    // minutes, as a fireball under the potion never lifts the ban, and the next one the same: 55 bans on 24 blazes and not one
+    // swing in eight minutes, piece2in-1 run 3. with it on, a rod is fetched with no blaze within bite's reach. 0: off)
+    static double fireproofReach(net.minecraft.world.entity.LivingEntity player) {
+        return fireproofCamp(player) ? adris.altoclef.util.helpers.Tuning.get("fireproof_reach", 0) : 0;
+    }
+
     static boolean fireproofCamp(net.minecraft.world.entity.LivingEntity player) {
         return player != null && adris.altoclef.util.helpers.Tuning.get("fireproof_camp", 0) > 0
                 && adris.altoclef.util.helpers.FireRes.has(player);
@@ -899,6 +907,7 @@ final class BlazeFight {
                         // come to the camp. the fireballs do little then, and the chase to blaze after blaze ended "no path"
                         // and a ban each, 54 in five minutes with blazes in sight and no rod, steering 67)
                         && (fireproofHold(player) <= 0 || distance <= fireproofHold(player))
+                        && (fireproofReach(player) <= 0 || blaze.getY() - player.getY() <= fireproofReach(player))
                         && (!cornerHold || blaze == target || distance <= BITE_RANGE || (blaze.getEyePosition().distanceTo(cornerEye) <= CORNER_REACH
                         && (!BlazeCover.hidden(mod.getWorld(), List.of(blaze.getEyePosition()), seeCell.getX(), seeCell.getY(), seeCell.getZ(), player)
                         || BlazeCover.bodySeen(mod.getWorld(), player.getEyePosition(), blaze, player))));

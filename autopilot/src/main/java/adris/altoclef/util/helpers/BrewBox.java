@@ -106,19 +106,35 @@ public final class BrewBox {
     }
 
     public static Box planAt(Cells cells, Cells stand, int x, int y, int z, int[] a, double sx, double sz, Set<Long> avoid) {
+        return planAt(cells, stand, x, y, z, a, sx, sz, avoid, true);
+    }
+
+    // why the last planAt gave null, for the log (BlazePillbox.no's way)
+    public static volatile String why = "";
+
+    private static Box no(String reason) {
+        why = reason;
+        return null;
+    }
+
+    // dropAtF false: F's drop is not looked at, for the cells of a pillbox that stands, planned with the drop by B alone
+    // (BlazePillbox.planAt). a one-cell box's F is its look out, over the spawn area's ground: "the pillbox does not shut"
+    // at every brew on one fortress, the run with no potion, piece2in-1 run 7
+    public static Box planAt(Cells cells, Cells stand, int x, int y, int z, int[] a, double sx, double sz, Set<Long> avoid, boolean dropAtF) {
         int fx = x + a[0], fz = z + a[1];
         // (across a: the sides of the two cells)
         int[] p = {a[1], a[0]};
-        if (!BlazeCover.walkable(stand, x, y, z) || !BlazeCover.walkable(stand, fx, y, fz)) return null;
+        if (!BlazeCover.walkable(stand, x, y, z) || !BlazeCover.walkable(stand, fx, y, fz)) return no("no floor or room for B or F");
         // (and room in the world's own reading: a cell Baritone keeps off is no cell for the box either)
         for (int k = 0; k <= 1; k++) {
-            if (cells.at(x, y + k, z) != Cell.OPEN || cells.at(fx, y + k, fz) != Cell.OPEN) return null;
+            if (cells.at(x, y + k, z) != Cell.OPEN || cells.at(fx, y + k, fz) != Cell.OPEN) return no("B or F not open");
         }
         if (!Double.isNaN(sx) && (Math.hypot(x + 0.5 - sx - 0.5, z + 0.5 - sz - 0.5) < SPAWNER_CLEAR
-                || Math.hypot(fx + 0.5 - sx - 0.5, fz + 0.5 - sz - 0.5) < SPAWNER_CLEAR)) return null;
+                || Math.hypot(fx + 0.5 - sx - 0.5, fz + 0.5 - sz - 0.5) < SPAWNER_CLEAR)) return no("in the spawn area");
         // (no drop by either cell: by a rim the builder stood on the rim's fence to set the wall above it, as the pillbox's)
-        if (BlazePillbox.dropNear(stand, x, y, z, BlazePillbox.DROP_CLEAR) || BlazePillbox.dropNear(stand, fx, y, fz, BlazePillbox.DROP_CLEAR)) return null;
-        if (lavaBy(cells, x, y, z, fx, fz)) return null;
+        if (BlazePillbox.dropNear(stand, x, y, z, BlazePillbox.DROP_CLEAR)) return no("a drop by B");
+        if (dropAtF && BlazePillbox.dropNear(stand, fx, y, fz, BlazePillbox.DROP_CLEAR)) return no("a drop by F");
+        if (lavaBy(cells, x, y, z, fx, fz)) return no("lava by it");
         int[][] walls = {{x - a[0], z - a[1], -a[0], -a[1]}, {x + p[0], z + p[1], p[0], p[1]}, {x - p[0], z - p[1], -p[0], -p[1]},
                 {fx + a[0], fz + a[1], a[0], a[1]}, {fx + p[0], fz + p[1], p[0], p[1]}, {fx - p[0], fz - p[1], -p[0], -p[1]}};
         List<int[]> low = new ArrayList<>(), high = new ArrayList<>(), shell = new ArrayList<>(), wallList = new ArrayList<>();
@@ -131,14 +147,14 @@ public final class BrewBox {
             Cell c0 = cells.at(w[0], y, w[1]);
             if (c0 == Cell.OPEN) {
                 // (a low wall is clicked on the floor under it)
-                if (cells.at(w[0], y - 1, w[1]) != Cell.SOLID) return null;
+                if (cells.at(w[0], y - 1, w[1]) != Cell.SOLID) return no("a low wall with nothing under it");
                 low.add(new int[]{w[0], y, w[1]});
             } else if (c0 != Cell.SOLID) {
-                return null;
+                return no("a wall cell of fluid");
             }
             Cell c1 = cells.at(w[0], y + 1, w[1]);
             if (c1 == Cell.OPEN) high.add(new int[]{w[0], y + 1, w[1]});
-            else if (c1 != Cell.SOLID) return null;
+            else if (c1 != Cell.SOLID) return no("a high wall cell of fluid");
         }
         shell.add(new int[]{x, y + 2, z});
         shell.add(new int[]{fx, y + 2, fz});
@@ -158,22 +174,22 @@ public final class BrewBox {
             boolean face = cells.at(x - a[0], y + 2, z - a[1]) == Cell.SOLID || cells.at(x + p[0], y + 2, z + p[1]) == Cell.SOLID
                     || cells.at(x - p[0], y + 2, z - p[1]) == Cell.SOLID;
             if (!face) {
-                if (cells.at(x - a[0], y + 2, z - a[1]) != Cell.OPEN) return null;
+                if (cells.at(x - a[0], y + 2, z - a[1]) != Cell.OPEN) return no("no face for B's roof");
                 blocks.add(new int[]{x - a[0], y + 2, z - a[1]});
             }
             blocks.add(new int[]{x, y + 2, z});
         } else if (rb != Cell.SOLID) {
-            return null;
+            return no("B's roof cell of fluid");
         }
         Cell rf = cells.at(fx, y + 2, fz);
         if (rf == Cell.OPEN) blocks.add(new int[]{fx, y + 2, fz});
-        else if (rf != Cell.SOLID) return null;
-        if (blocks.size() > MOST) return null;
+        else if (rf != Cell.SOLID) return no("F's roof cell of fluid");
+        if (blocks.size() > MOST) return no("more than " + MOST + " blocks");
         if (avoid != null && !avoid.isEmpty()) {
-            for (int[] b : shell) if (avoid.contains(BlazeCover.key(b[0], b[1], b[2]))) return null;
-            for (int[] b : blocks) if (avoid.contains(BlazeCover.key(b[0], b[1], b[2]))) return null;
+            for (int[] b : shell) if (avoid.contains(BlazeCover.key(b[0], b[1], b[2]))) return no("a cell to keep clear in it");
+            for (int[] b : blocks) if (avoid.contains(BlazeCover.key(b[0], b[1], b[2]))) return no("a cell to keep clear in it");
             for (int k = 0; k <= 1; k++) {
-                if (avoid.contains(BlazeCover.key(x, y + k, z)) || avoid.contains(BlazeCover.key(fx, y + k, fz))) return null;
+                if (avoid.contains(BlazeCover.key(x, y + k, z)) || avoid.contains(BlazeCover.key(fx, y + k, fz))) return no("a cell to keep clear in it");
             }
         }
         return new Box(new int[]{x, y, z}, new int[]{fx, y, fz}, new int[]{a[0], a[1]}, blocks, shell, wallList);

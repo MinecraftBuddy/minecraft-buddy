@@ -315,6 +315,14 @@ final class BlazePillboxTask extends Task {
             setDebugState("To the middle of the pillbox's cell, block " + (next + 1) + " of " + plan.blocks().size());
             return null;
         }
+        // (a roof row block placed from a cell other than the box's own, a bent box's F: to that cell's middle first. the walk
+        // there ends at the column's edge, inColumn takes up to 0.8 off the middle, and 0.02 short of F the face of B's roof
+        // that F's roof goes on looks away from the eye: every click missed, three tries of 1200 ticks, and the brew box
+        // waited a minute with only that block to place, piece2in-1 run 10)
+        if (roofRow && !stand.equals(cell) && centreIn(mod, stand, HIDE_SLACK)) {
+            setDebugState("To the middle of the pillbox's front cell, block " + (next + 1) + " of " + plan.blocks().size());
+            return null;
+        }
         setDebugState("Building the pillbox, block " + (next + 1) + " of " + plan.blocks().size());
         // (a roof row block on a wall's top face wants a jump: standing, the eye is at 1.62, under that face, which no click can
         // see; at a jump's top it can, as a player builds a roof. the click stays put and the aim is set on the ground, so the

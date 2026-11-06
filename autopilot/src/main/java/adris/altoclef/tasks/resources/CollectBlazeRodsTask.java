@@ -254,6 +254,13 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Task boxed = brewStep(mod);
             if (boxed != null) return boxed;
         }
+        // (the buddy's fork: a shut brew box being opened, with the buddy inside, before the fight. the fight cut the door's break
+        // off, the box was done with its door standing, and the buddy stayed shut in its own box, the fight's corner, whose
+        // blocks no walk may break: twelve game minutes to the stall, piece2in-1 run 8)
+        if (_brewBox != null && _brewBox.breakingOut(mod)) {
+            Task out = brewStep(mod);
+            if (out != null) return out;
+        }
         // (the buddy's fork: the brew begun outside its pillbox: in first, before the fight, BrewBoxTask.goingIn)
         if (_brewBox != null && _brewBox.goingIn(mod)) {
             Task in = brewStep(mod);
@@ -404,6 +411,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // run 1; one in the box is still put out)
             if (nearestFire.isPresent() && _pillbox != null && _pillboxCornered
                     && !nearestFire.get().closerToCenterThan(Vec3.atCenterOf(_pillbox.cell()), PILLBOX_RADIUS)) nearestFire = Optional.empty();
+            // (the buddy's fork: a fire not put out after FIRE_TICKS spent on it is left for good. one out of reach was picked
+            // again every tick, "No path found" over and over, and the camp's wait never came: three minutes at the spawner with
+            // no rod, piece2side-2 run 2. ticks spent on it, not since it was first picked: a fight in between does not count)
+            if (nearestFire.isPresent() && _fireLeft.contains(nearestFire.get())) nearestFire = Optional.empty();
+            if (nearestFire.isPresent()) {
+                if (!nearestFire.get().equals(_fireAt)) {
+                    _fireAt = nearestFire.get();
+                    _fireTicks = 0;
+                }
+                if (++_fireTicks > FIRE_TICKS) {
+                    _fireLeft.add(_fireAt);
+                    Debug.logInternal("blaze camp: the fire at " + _fireAt.toShortString() + " not put out in " + FIRE_TICKS / 20 + " s, left");
+                    _fireAt = null;
+                    nearestFire = Optional.empty();
+                }
+            }
             if (nearestFire.isPresent()) {
                 setDebugState("Clearing fire around spawner to prevent loss of blaze rods.");
                 return new PutOutFireTask(nearestFire.get());
@@ -955,6 +978,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
         boolean noClimb = adris.altoclef.util.helpers.Tuning.get("rod_fetch", 0) <= 0;
         if (me != null && mod.getEntityTracker().getClosestItemDrop(me.position(), Items.BLAZE_ROD)
                 .filter(d -> d.distanceTo(me) <= ROD_STEP && (noClimb || d.getY() <= me.getY() + ROD_CLIMB)).isPresent()) return false;
+        // (the buddy's fork, Tuning fireproof_reach: under its own potion the pickup waits only for a blaze within bite's reach. the
+        // balls do nothing then, and rods lay out while a blaze hovered within five, piece2side-2 run 1)
+        if (me != null && BlazeFight.fireproofReach(me) > 0 && _fight.mode() != BlazeFightRules.Mode.RUN) {
+            return _fight.nearestBlaze() <= BlazeFight.BITE_RANGE;
+        }
         // (and while the corner holds: the lure fetches the rods near it on a leash; the pickup's walk has none)
         return BlazeFightRules.holdPickup(_fight.mode() == BlazeFightRules.Mode.RUN, _fight.nearestBlaze()) || _fight.cornerHold();
     }
@@ -994,6 +1022,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // the walk round to a standing pillbox's open side, at most this long in one go (ticks), and the box it gave up on
     static final long DOOR_WALK_TICKS = 400;
     private long _doorWalkSince = -1;
+
+    // the fire by the spawner that is being put out, the ticks spent on it, and the fires left as out of reach
+    static final int FIRE_TICKS = 200;
+    private BlockPos _fireAt;
+    private int _fireTicks;
+    private final java.util.Set<BlockPos> _fireLeft = new java.util.HashSet<>();
     private BlazePillboxTask _doorGaveUp;
 
     // the last standing pillbox's open side (its door, else its look out), the fire-proof camp once its potion is drunk
