@@ -16,7 +16,7 @@ import net.minecraft.world.phys.Vec3;
 import org.junit.Test;
 
 // the brew box (BrewBox): two cells side by side, walls two high round both, a roof over both, nothing open; the site near the
-// buddy, out of the spawner's sight where it can be, clear of lava; the door one of the buddy's walls
+// buddy, out of the spawner's sight where it can be, clear of lava; the door a wall with a walk out beyond it
 public class BrewBoxTest {
 
     // a flat floor at y 63, open above, walled far out
@@ -178,18 +178,19 @@ public class BrewBoxTest {
         assertFalse(BrewBox.holds(true, true, false, false, BrewBox.LOW_HP - 0.5f));
     }
 
-    // the door: one of B's walls, two high, with a cell to stand in beyond it, the one nearest the spawner
+    // the door: one of B's walls, two high, with a walk out beyond it, the one nearest the spawner; every wall of B listed after
     @Test
     public void theDoorIsBsWallTowardTheSpawner() {
         BrewBox.Box box = BrewBox.plan(FLOOR, new int[]{10, 64, 0}, List.of(), 0, 0, NONE);
         assertNotNull(box);
         Cells after = BlazePillbox.after(FLOOR, box.blocks());
-        Set<Long> placed = new HashSet<>();
-        for (int[] b : box.blocks()) placed.add(BlazeCover.key(b[0], b[1], b[2]));
-        List<int[]> door = BrewBox.door(after, box, placed, 0, 0);
-        System.out.println("door: " + describe(box) + " door " + Arrays.toString(door.get(0)));
-        assertEquals(2, door.size());
-        int[] low = door.get(0), high = door.get(1);
+        List<BrewBox.Door> doors = BrewBox.doors(after, after, box, placedOf(box), false, 0, 0);
+        System.out.println("door: " + describe(box) + " door " + Arrays.toString(doors.get(0).cells().get(0)));
+        assertEquals(3, doors.size());
+        BrewBox.Door door = doors.get(0);
+        assertTrue(door.out());
+        assertEquals(2, door.cells().size());
+        int[] low = door.cells().get(0), high = door.cells().get(1);
         int[] b = box.back(), f = box.front();
         assertEquals(b[1], low[1]);
         assertEquals(b[1] + 1, high[1]);
@@ -203,6 +204,83 @@ public class BrewBoxTest {
         }
         int dx = low[0] - b[0], dz = low[2] - b[2];
         assertEquals(best, Math.hypot(low[0] + dx, low[2] + dz), 1e-9);
+        assertTrue(same(door.beyond(), low[0] + dx, b[1], low[2] + dz));
+    }
+
+    // B at (10, 64, 0), F at (11, 64, 0) on the open floor: B's back wall at x 9 faces the spawner at the origin
+    private static BrewBox.Box eastBox() {
+        BrewBox.Box box = BrewBox.planAt(FLOOR, 10, 64, 0, new int[]{1, 0}, Double.NaN, Double.NaN, NONE);
+        assertNotNull(box);
+        return box;
+    }
+
+    private static Set<Long> placedOf(BrewBox.Box box) {
+        Set<Long> placed = new HashSet<>();
+        for (int[] b : box.blocks()) placed.add(BlazeCover.key(b[0], b[1], b[2]));
+        return placed;
+    }
+
+    private static boolean door(BrewBox.Door d, int x, int z) {
+        return d.cells().get(0)[0] == x && d.cells().get(0)[2] == z;
+    }
+
+    // a drop beyond the wall toward the spawner: that wall is no door (the walk out would go over the edge), a side wall is
+    @Test
+    public void aWallWithADropIsNotTheDoor() {
+        BrewBox.Box box = eastBox();
+        Cells pit = (x, y, z) -> x >= 5 && x <= 8 && Math.abs(z) <= 3 && y >= 55 && y <= 63 ? Cell.OPEN : FLOOR.at(x, y, z);
+        Cells after = BlazePillbox.after(pit, box.blocks());
+        List<BrewBox.Door> doors = BrewBox.doors(after, after, box, placedOf(box), false, 0, 0);
+        assertTrue(doors.get(0).out());
+        assertFalse(door(doors.get(0), 9, 0));
+        assertTrue(door(doors.get(0), 10, 1) || door(doors.get(0), 10, -1));
+        // (the wall over the drop last, with no walk out)
+        BrewBox.Door last = doors.get(doors.size() - 1);
+        assertTrue(door(last, 9, 0));
+        assertFalse(last.out());
+        assertNull(last.beyond());
+    }
+
+    // a fortress wall beyond the wall toward the spawner, or a nook one cell deep: neither is the door
+    @Test
+    public void aWallOrANookBeyondIsNotTheDoor() {
+        BrewBox.Box box = eastBox();
+        Cells wall = (x, y, z) -> x <= 8 && y >= 64 && y <= 67 ? Cell.SOLID : FLOOR.at(x, y, z);
+        Cells after = BlazePillbox.after(wall, box.blocks());
+        List<BrewBox.Door> doors = BrewBox.doors(after, after, box, placedOf(box), false, 0, 0);
+        assertTrue(doors.get(0).out());
+        assertFalse(door(doors.get(0), 9, 0));
+        // (the nook: the cell beyond is floor to stand on, but walled round, so it leads nowhere)
+        Cells nook = (x, y, z) -> (x == 7 && z == 0 || x == 8 && Math.abs(z) == 1) && y >= 64 && y <= 67 ? Cell.SOLID : FLOOR.at(x, y, z);
+        Cells nookAfter = BlazePillbox.after(nook, box.blocks());
+        List<BrewBox.Door> nookDoors = BrewBox.doors(nookAfter, nookAfter, box, placedOf(box), false, 0, 0);
+        assertFalse(door(nookDoors.get(0), 9, 0));
+        BrewBox.Door back = nookDoors.stream().filter(d -> door(d, 9, 0)).findFirst().orElseThrow();
+        assertNotNull(back.beyond());
+        assertFalse(back.out());
+    }
+
+    // B walled in all round but F's front open to a hall: with a stand in F no wall of B has a way out (the first is still a
+    // door to try), with F empty its front wall is the door
+    @Test
+    public void withFEmptyItsWallsCount() {
+        BrewBox.Box box = eastBox();
+        Cells closed = (x, y, z) -> {
+            if (y <= 63) return Cell.SOLID;
+            if (y >= 67 || x >= 13) return Cell.OPEN;
+            if (z == 0 && (x == 10 || x == 11)) return Cell.OPEN;
+            return Cell.SOLID;
+        };
+        Cells after = BlazePillbox.after(closed, box.blocks());
+        List<BrewBox.Door> withStand = BrewBox.doors(after, after, box, placedOf(box), false, 0, 0);
+        assertEquals(3, withStand.size());
+        for (BrewBox.Door d : withStand) assertFalse(d.out());
+        List<BrewBox.Door> empty = BrewBox.doors(after, after, box, placedOf(box), true, 0, 0);
+        assertEquals(6, empty.size());
+        assertTrue(empty.get(0).out());
+        assertTrue(door(empty.get(0), 12, 0));
+        assertTrue(same(empty.get(0).beyond(), 13, 64, 0));
+        for (int i = 1; i < empty.size(); i++) assertFalse(empty.get(i).out());
     }
 
     @Test

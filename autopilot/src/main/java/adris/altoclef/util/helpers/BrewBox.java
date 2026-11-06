@@ -201,24 +201,72 @@ public final class BrewBox {
         return whole && inside && !hostileInside && !fireInside && health >= LOW_HP;
     }
 
-    // the wall to break to get out: one of B's three (F holds the stand, the way out through it is shut), its two cells, low
-    // first. a wall whose cells were both placed by the box first (a fortress wall stays whole), then one with a cell to stand in
-    // beyond it, then the one nearest the spawner (the order goes on there; with none, the first). placed holds BlazeCover.key
-    public static List<int[]> door(Cells cells, Box box, Set<Long> placed, double sx, double sz) {
+    // a door's walk out is this many steps of floor beyond it, at least (a nook or a ledge one cell deep is no way out)
+    static final int DOOR_STEPS = 3;
+
+    // a wall to break to get out: its two cells (low first), the cell beyond it a walk out ends in (null when the cells read none:
+    // a drop, a wall, lava) and whether that cell leads on to DOOR_STEPS steps of floor
+    public record Door(List<int[]> cells, int[] beyond, boolean out) {
+    }
+
+    // the walls to break to get out, best first, every one a candidate: B's three, and F's three too when F holds no stand (one
+    // there shuts the way through F). first a wall with a walk out beyond it (the door that led nowhere left the buddy in the
+    // box twelve game minutes, Baritone finding no path every 2 s), then one whose cells were both placed by the box (a fortress
+    // wall stays whole), then the one nearest the spawner (the order goes on there; with none, B's first). cells as the shell is
+    // judged, stand as the walk reads the world (the planner's walkable and steps); placed holds BlazeCover.key
+    public static List<Door> doors(Cells cells, Cells stand, Box box, Set<Long> placed, boolean frontFree, double sx, double sz) {
         int y = box.y();
-        int[] best = null;
-        double bestScore = Double.MAX_VALUE;
-        for (int i = 0; i < 3; i++) {
+        int n = frontFree ? 6 : 3;
+        List<Door> out = new ArrayList<>();
+        List<double[]> order = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
             int[] w = box.walls().get(i);
             int ours = (placed.contains(BlazeCover.key(w[0], y, w[1])) ? 1 : 0) + (placed.contains(BlazeCover.key(w[0], y + 1, w[1])) ? 1 : 0);
             int ox = w[0] + w[2], oz = w[1] + w[3];
-            boolean out = cells.at(ox, y - 1, oz) == Cell.SOLID && cells.at(ox, y, oz) == Cell.OPEN && cells.at(ox, y + 1, oz) == Cell.OPEN;
-            double score = (2 - ours) * 100 + (out ? 0 : 50) + (Double.isNaN(sx) ? i : Math.hypot(ox + 0.5 - sx - 0.5, oz + 0.5 - sz - 0.5));
-            if (score < bestScore) {
-                bestScore = score;
-                best = w;
+            int[] beyond = beyond(cells, stand, box, w);
+            boolean way = beyond != null && leadsOn(stand, box, beyond);
+            double toward = Double.isNaN(sx) ? i : Math.hypot(ox + 0.5 - sx - 0.5, oz + 0.5 - sz - 0.5);
+            out.add(new Door(List.of(new int[]{w[0], y, w[1]}, new int[]{w[0], y + 1, w[1]}), beyond, way));
+            order.add(new double[]{way ? 0 : 1, 2 - ours, toward, i});
+        }
+        java.util.Comparator<double[]> best = java.util.Comparator.<double[]>comparingDouble(o -> o[0]).thenComparingDouble(o -> o[1])
+                .thenComparingDouble(o -> o[2]).thenComparingDouble(o -> o[3]);
+        order.sort(best);
+        List<Door> sorted = new ArrayList<>();
+        for (double[] o : order) sorted.add(out.get((int) o[3]));
+        return sorted;
+    }
+
+    // the cell a walk through the wall w ends in: beyond it on the floor's level or one down, with the wall's own floor under the
+    // door (its passage is walked, not jumped); null with none
+    static int[] beyond(Cells cells, Cells stand, Box box, int[] w) {
+        int y = box.y();
+        if (cells.at(w[0], y - 1, w[1]) != Cell.SOLID) return null;
+        int ox = w[0] + w[2], oz = w[1] + w[3];
+        if (BlazeCover.walkable(stand, ox, y, oz)) return new int[]{ox, y, oz};
+        if (stand.at(ox, y + 1, oz) == Cell.OPEN && BlazeCover.walkable(stand, ox, y - 1, oz)) return new int[]{ox, y - 1, oz};
+        return null;
+    }
+
+    // from the cell beyond a door, a walk of DOOR_STEPS steps or more away from the box (BlazeCover.steps, as the planner walks),
+    // never back into the box's two cells or through a wall's column
+    static boolean leadsOn(Cells stand, Box box, int[] from) {
+        Set<Long> keep = new HashSet<>();
+        for (int[] c : new int[][]{box.back(), box.front()}) keep.add(BlazeCover.key(c[0], 0, c[2]));
+        for (int[] w : box.walls()) keep.add(BlazeCover.key(w[0], 0, w[1]));
+        java.util.ArrayDeque<int[]> queue = new java.util.ArrayDeque<>();
+        Set<Long> seen = new HashSet<>();
+        queue.add(new int[]{from[0], from[1], from[2], 0});
+        seen.add(BlazeCover.key(from[0], from[1], from[2]));
+        while (!queue.isEmpty()) {
+            int[] c = queue.poll();
+            if (c[3] >= DOOR_STEPS) return true;
+            for (int[] s : BlazeCover.steps(stand, c[0], c[1], c[2], box.y())) {
+                if (keep.contains(BlazeCover.key(s[0], 0, s[2]))) continue;
+                if (!seen.add(BlazeCover.key(s[0], s[1], s[2]))) continue;
+                queue.add(new int[]{s[0], s[1], s[2], c[3] + 1});
             }
         }
-        return List.of(new int[]{best[0], y, best[1]}, new int[]{best[0], y + 1, best[1]});
+        return false;
     }
 }

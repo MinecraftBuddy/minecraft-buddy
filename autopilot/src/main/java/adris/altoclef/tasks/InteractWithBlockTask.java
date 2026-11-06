@@ -75,7 +75,7 @@ public class InteractWithBlockTask extends Task {
     static final double UNSTUCK_SECONDS = 10;
     private final TimerGame _unstuckTimer = new TimerGame(UNSTUCK_SECONDS);
     private ClickResponse _cachedClickStatus = ClickResponse.CANT_REACH;
-    private static final int EQUIP_PATIENCE = 20;
+    static final int EQUIP_PATIENCE = 20;
     private int _equipMisses;
 
     public InteractWithBlockTask(ItemTarget toUse, Direction direction, BlockPos target, Input interactInput, boolean walkInto, Vec3i interactOffset, boolean shiftClick) {
@@ -206,6 +206,21 @@ public class InteractWithBlockTask extends Task {
 
     public boolean stillAiming() {
         return _aiming;
+    }
+
+    // (the buddy's fork: a click that goes out only with the item asked for in hand. the equip fallback below clicks with
+    // whatever the hand holds after EQUIP_PATIENCE misses, and a click that places a block then places that: a brew box's wall
+    // cell got the brewing stand, and the brew had no stand. the pillbox's clicks are made this way, BlazePillboxTask)
+    private boolean _onlyWith;
+
+    public InteractWithBlockTask onlyWith() {
+        _onlyWith = true;
+        return this;
+    }
+
+    // the click waits for the equip to show: always with onlyWith, else for EQUIP_PATIENCE misses and then clicks anyway
+    static boolean waitsForEquip(boolean onlyWith, int misses) {
+        return onlyWith || misses < EQUIP_PATIENCE;
     }
 
     static boolean walksWhenOutOfReach(boolean stayPut) {
@@ -451,7 +466,7 @@ public class InteractWithBlockTask extends Task {
             if (task._toUse != null && !task._toUse.equals(_toUse)) return false;
             if (!task._target.equals(_target)) return false;
             if (!task._interactInput.equals(_interactInput)) return false;
-            return task._walkInto == _walkInto && task._scoop == _scoop && task._stayPut == _stayPut && Objects.equals(task._goalFor, _goalFor);
+            return task._walkInto == _walkInto && task._scoop == _scoop && task._stayPut == _stayPut && task._onlyWith == _onlyWith && Objects.equals(task._goalFor, _goalFor);
         }
         return false;
     }
@@ -528,7 +543,7 @@ public class InteractWithBlockTask extends Task {
                     boolean equipped = mod.getSlotHandler().forceEquipItem(_toUse, false);
                     if (ItemTarget.nullOrEmpty(_toUse) || equipped) {
                         _equipMisses = 0;
-                    } else if (_equipMisses++ < EQUIP_PATIENCE) {
+                    } else if (waitsForEquip(_onlyWith, _equipMisses++)) {
                         // a seed click with an empty hand is a click that plants nothing and still counts as an attempt.
                         // wait for the swap to show, but not forever: the old behaviour (click anyway) is the fallback
                         return ClickResponse.WAIT_FOR_CLICK;

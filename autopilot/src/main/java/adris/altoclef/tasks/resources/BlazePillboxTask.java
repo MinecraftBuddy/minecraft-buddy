@@ -57,6 +57,31 @@ final class BlazePillboxTask extends Task {
         return n;
     }
 
+    // what the brew of fire resistance is made with and in (BrewFireResistanceTask): never a box's block. a brew box's wall cell
+    // got the brewing stand, that block of the build was never clicked, and the brew had no stand
+    static boolean brewItem(net.minecraft.world.item.Item item) {
+        return item == net.minecraft.world.item.Items.BREWING_STAND || item == net.minecraft.world.item.Items.GLASS_BOTTLE
+                || item == net.minecraft.world.item.Items.POTION || item == net.minecraft.world.item.Items.BLAZE_ROD
+                || item == net.minecraft.world.item.Items.BLAZE_POWDER || item == net.minecraft.world.item.Items.NETHER_WART
+                || item == net.minecraft.world.item.Items.MAGMA_CREAM;
+    }
+
+    // a click only with its block in hand, for the brew box (Tuning brew_box): with the brew's things in the bag nothing else
+    // may go into a wall. the fight's own pillbox keeps the old click (after 20 failed equips, with whatever is in hand), so
+    // the yardstick runs as before
+    private static adris.altoclef.tasks.InteractWithBlockTask held(adris.altoclef.tasks.InteractWithBlockTask t) {
+        return adris.altoclef.util.helpers.Tuning.get("brew_box", 0) >= 1 ? t.onlyWith() : t;
+    }
+
+    // the block a click places: the first of BLOCKS in the bag, never one the brew needs; null with none
+    static net.minecraft.world.item.Item buildingBlock(java.util.function.Predicate<net.minecraft.world.item.Item> inBag) {
+        for (Block b : BLOCKS) {
+            net.minecraft.world.item.Item item = b.asItem();
+            if (!brewItem(item) && inBag.test(item)) return item;
+        }
+        return null;
+    }
+
     BlockPos cell() {
         return cell;
     }
@@ -346,15 +371,10 @@ final class BlazePillboxTask extends Task {
 
     // a plain click on a solid face beside the block, the floor or the block under it first (as the portal frame's cells,
     // 7e521bd): Baritone's builder never got its place click in during the fight ("couldn't get a place click in for 2.0s"),
-    // with or without the shield, corner23d and corner23f. the builder only when no face is solid
+    // with or without the shield, corner23d and corner23f. the builder only when no face is solid. with brew_box on a click
+    // goes out only with its block in hand (held, InteractWithBlockTask.onlyWith): a brewing stand is never a block of the box
     private static Task click(AltoClef mod, BlockPos pos, boolean stayPut) {
-        net.minecraft.world.item.Item item = null;
-        for (Block b : BLOCKS) {
-            if (mod.getItemStorage().hasItem(b.asItem())) {
-                item = b.asItem();
-                break;
-            }
-        }
+        net.minecraft.world.item.Item item = buildingBlock(i -> mod.getItemStorage().hasItem(i));
         var level = mod.getWorld();
         if (item != null) {
             adris.altoclef.util.ItemTarget it = new adris.altoclef.util.ItemTarget(item, 1);
@@ -365,24 +385,24 @@ final class BlazePillboxTask extends Task {
             if (!stayPut) {
                 net.minecraft.world.phys.Vec3 eye = mod.getPlayer().getEyePosition();
                 if (!level.getBlockState(below).getCollisionShape(level, below).isEmpty() && eye.y > pos.getY()) {
-                    return new adris.altoclef.tasks.InteractWithBlockTask(it, net.minecraft.core.Direction.UP, below, false);
+                    return held(new adris.altoclef.tasks.InteractWithBlockTask(it, net.minecraft.core.Direction.UP, below, false));
                 }
                 for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
                     BlockPos by = pos.relative(d);
                     if (!level.getBlockState(by).getCollisionShape(level, by).isEmpty() && facesEye(eye, pos, d)) {
-                        return new adris.altoclef.tasks.InteractWithBlockTask(it, d.getOpposite(), by, false);
+                        return held(new adris.altoclef.tasks.InteractWithBlockTask(it, d.getOpposite(), by, false));
                     }
                 }
             }
             // (the roof row stays where it stands, standFor picked the cell it is reached from)
             if (!level.getBlockState(below).getCollisionShape(level, below).isEmpty()) {
-                var t = new adris.altoclef.tasks.InteractWithBlockTask(it, net.minecraft.core.Direction.UP, below, false);
+                var t = held(new adris.altoclef.tasks.InteractWithBlockTask(it, net.minecraft.core.Direction.UP, below, false));
                 return stayPut ? t.stayPut() : t;
             }
             for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
                 BlockPos by = pos.relative(d);
                 if (!level.getBlockState(by).getCollisionShape(level, by).isEmpty()) {
-                    var t = new adris.altoclef.tasks.InteractWithBlockTask(it, d.getOpposite(), by, false);
+                    var t = held(new adris.altoclef.tasks.InteractWithBlockTask(it, d.getOpposite(), by, false));
                     return stayPut ? t.stayPut() : t;
                 }
             }
