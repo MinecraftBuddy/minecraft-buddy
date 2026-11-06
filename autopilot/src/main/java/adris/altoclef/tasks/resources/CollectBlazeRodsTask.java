@@ -848,12 +848,17 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // (and none out there once a trip out has run its time, steering 35: the pickup carried two of those trips on)
             if (_fight.tripOver()) return true;
         }
+        // (Tuning rod_fetch: only with no climb to it. the near rods lay on a ledge two up where the blazes die, and the one trip
+        // up there that went through this rule died at the rod's own spot, piece2fix-4 run 4; the lure's fetch has the tests)
+        boolean noClimb = adris.altoclef.util.helpers.Tuning.get("rod_fetch", 0) <= 0;
         if (me != null && mod.getEntityTracker().getClosestItemDrop(me.position(), Items.BLAZE_ROD)
-                .filter(d -> d.distanceTo(me) <= ROD_STEP).isPresent()) return false;
+                .filter(d -> d.distanceTo(me) <= ROD_STEP && (noClimb || d.getY() <= me.getY() + ROD_CLIMB)).isPresent()) return false;
         // (and while the corner holds: the lure fetches the rods near it on a leash; the pickup's walk has none)
         return BlazeFightRules.holdPickup(_fight.mode() == BlazeFightRules.Mode.RUN, _fight.nearestBlaze()) || _fight.cornerHold();
     }
 
-    // a rod this close is picked up at any time, see shouldAvoidPickingUp
+    // a rod this close is picked up at any time, see shouldAvoidPickingUp; with rod_fetch on, only one at most this far above
+    // the feet (a slab, a step), not on a ledge
     static final double ROD_STEP = 3;
+    static final double ROD_CLIMB = 0.6;
 }

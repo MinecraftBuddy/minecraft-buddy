@@ -54,6 +54,13 @@ final class BlazeLureTask extends Task {
     static final boolean FEWEST = false;
     static final boolean FETCH = false;
 
+    // the buddy's fork, Tuning rod_fetch (steering 62 point 1, 6 Nov 2026: a rod on the ground is progress lying there): the
+    // fetch on again, with its own tests (at most FETCH_SEEN blazes see the rod's cell, none within FETCH_CLEAR of it, health
+    // FETCH_HP, the leash). it went off with the trips out at steering 18, one change a block, not for a fault of its own
+    static boolean fetchOn() {
+        return FETCH || adris.altoclef.util.helpers.Tuning.get("rod_fetch", 0) > 0;
+    }
+
     // the volley clock (steering 20, from the game's code: Blaze.isOnFire is its charge, the client sees it; charged 60 ticks
     // before its first ball, and a blaze that has us for target but no line keeps its charge until it sees us, or drops us
     // after 60 ticks unseen): no look out while a blaze that sees the look's cell has been charged LOOK_LOADED ticks or more
@@ -145,7 +152,7 @@ final class BlazeLureTask extends Task {
                 }
                 setDebugState("In the corner, waiting for the blazes to come round");
                 if (now - since >= GAP_TICKS) {
-                    ItemEntity drop = FETCH ? fetchable(mod) : null;
+                    ItemEntity drop = fetchOn() ? fetchable(mod) : null;
                     if (drop != null) {
                         fetching = drop;
                         fetches++;
