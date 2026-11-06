@@ -43,7 +43,7 @@ public class PortalStandCellsTest {
     @Test
     public void aColumnsThirdBlockIsClickedFromOneBlockUp() {
         for (Vec3i top : new Vec3i[]{new Vec3i(0, 2, -1), new Vec3i(0, 2, 2)}) {
-            List<Vec3i> stands = ConstructNetherPortalObsidianTask.standCells(top, Direction.UP);
+            List<Vec3i> stands = ConstructNetherPortalObsidianTask.standCells(top, Direction.UP, true);
             topFaceFrom(stands, top);
             for (Vec3i s : stands) assertTrue(top + " from " + s, s.getY() == 1);
         }
@@ -52,7 +52,7 @@ public class PortalStandCellsTest {
     @Test
     public void aCornerIsClickedFromTwoUp() {
         for (Vec3i corner : new Vec3i[]{new Vec3i(0, 3, -1), new Vec3i(0, 3, 2)}) {
-            List<Vec3i> stands = ConstructNetherPortalObsidianTask.standCells(corner, Direction.UP);
+            List<Vec3i> stands = ConstructNetherPortalObsidianTask.standCells(corner, Direction.UP, true);
             topFaceFrom(stands, corner);
             for (Vec3i s : stands) assertTrue(corner + " from " + s, s.getY() == 2);
         }
@@ -61,7 +61,7 @@ public class PortalStandCellsTest {
     @Test
     public void theLowBlocksAreClickedFromTheGround() {
         for (Vec3i low : new Vec3i[]{new Vec3i(0, 0, -1), new Vec3i(0, 1, -1), new Vec3i(0, 0, 2), new Vec3i(0, 1, 2)}) {
-            List<Vec3i> stands = ConstructNetherPortalObsidianTask.standCells(low, Direction.UP);
+            List<Vec3i> stands = ConstructNetherPortalObsidianTask.standCells(low, Direction.UP, true);
             topFaceFrom(stands, low);
             for (Vec3i s : stands) assertTrue(low + " from " + s, s.getY() == 0);
         }
@@ -70,7 +70,7 @@ public class PortalStandCellsTest {
     @Test
     public void noPillarStandsInThePortalsOwnSpace() {
         for (Vec3i high : new Vec3i[]{new Vec3i(0, 2, -1), new Vec3i(0, 2, 2), new Vec3i(0, 3, -1), new Vec3i(0, 3, 2)}) {
-            for (Vec3i s : ConstructNetherPortalObsidianTask.standCells(high, Direction.UP)) {
+            for (Vec3i s : ConstructNetherPortalObsidianTask.standCells(high, Direction.UP, true)) {
                 for (int y = 0; y <= s.getY(); y++) {
                     Vec3i p = new Vec3i(s.getX(), y, s.getZ());
                     assertFalse(high + " from " + s + ": the pillar's " + p, isIn(p, ConstructNetherPortalObsidianTask.PORTAL_INTERIOR));
@@ -84,18 +84,35 @@ public class PortalStandCellsTest {
     public void aTopCellsSideFaceIsClickedFromTheGroundOnItsSide() {
         // the first top cell against the north corner's south face: the face's plane is the cell's north edge
         Vec3i first = new Vec3i(0, 3, 0);
-        List<Vec3i> stands = ConstructNetherPortalObsidianTask.standCells(first, Direction.SOUTH);
+        List<Vec3i> stands = ConstructNetherPortalObsidianTask.standCells(first, Direction.SOUTH, true);
         assertFalse(stands.isEmpty());
         for (Vec3i s : stands) {
-            assertTrue(s.toString(), s.getY() == 0 && s.getZ() + 0.5 > first.getZ() && s.getX() != 0);
+            assertTrue(s.toString(), (s.getY() == 0 || s.getY() == 2) && s.getZ() + 0.5 > first.getZ() && s.getX() != 0);
         }
         // the second against the first's south face, or the south corner's north face
         Vec3i second = new Vec3i(0, 3, 1);
-        for (Vec3i s : ConstructNetherPortalObsidianTask.standCells(second, Direction.SOUTH)) {
+        for (Vec3i s : ConstructNetherPortalObsidianTask.standCells(second, Direction.SOUTH, true)) {
             assertTrue(s.toString(), s.getZ() + 0.5 > second.getZ());
         }
-        for (Vec3i s : ConstructNetherPortalObsidianTask.standCells(second, Direction.NORTH)) {
+        for (Vec3i s : ConstructNetherPortalObsidianTask.standCells(second, Direction.NORTH, true)) {
             assertTrue(s.toString(), s.getZ() + 0.5 < second.getZ() + 1);
+        }
+    }
+
+    @Test
+    public void withTheInteriorNotClearATopCellIsClickedFromAPillarOutsideIt() {
+        for (Vec3i top : new Vec3i[]{new Vec3i(0, 3, 0), new Vec3i(0, 3, 1)}) {
+            List<Vec3i> stands = ConstructNetherPortalObsidianTask.standCells(top, Direction.SOUTH, false);
+            assertFalse(top + ": somewhere to stand", stands.isEmpty());
+            for (Vec3i s : stands) {
+                assertTrue(top + " from " + s, s.getY() == 2 && s.getZ() + 0.5 > top.getZ());
+                double dx = s.getX() + 0.5 - (top.getX() + 0.5), dy = s.getY() + EYES - (top.getY() + 0.5), dz = s.getZ() + 0.5 - top.getZ();
+                assertTrue(top + " from " + s + ": in reach", Math.sqrt(dx * dx + dy * dy + dz * dz) <= REACH);
+                for (int y = 0; y <= s.getY(); y++) {
+                    Vec3i p = new Vec3i(s.getX(), y, s.getZ());
+                    assertFalse(top + " from " + s + ": the pillar's " + p, isIn(p, ConstructNetherPortalObsidianTask.PORTAL_INTERIOR));
+                }
+            }
         }
     }
 }

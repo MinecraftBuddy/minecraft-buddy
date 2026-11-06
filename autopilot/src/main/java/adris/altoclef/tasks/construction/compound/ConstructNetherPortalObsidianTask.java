@@ -323,13 +323,13 @@ public class ConstructNetherPortalObsidianTask extends Task {
                 || mod.getPlayer().getBoundingBox().intersects(new AABB(cell))) return null;
         BlockPos below = cell.below();
         if (level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)) {
-            return standing(new InteractWithBlockTask(new ItemTarget(Items.OBSIDIAN, 1), Direction.UP, below, false), cell, Direction.UP);
+            return standing(mod, new InteractWithBlockTask(new ItemTarget(Items.OBSIDIAN, 1), Direction.UP, below, false), cell, Direction.UP);
         }
         // the frame runs along z: a top cell's faces are its neighbours along it, the other top cell or a corner
         for (Direction side : new Direction[]{Direction.NORTH, Direction.SOUTH}) {
             BlockPos by = cell.relative(side);
             if (level.getBlockState(by).isFaceSturdy(level, by, side.getOpposite())) {
-                return standing(new InteractWithBlockTask(new ItemTarget(Items.OBSIDIAN, 1), side.getOpposite(), by, false), cell, side.getOpposite());
+                return standing(mod, new InteractWithBlockTask(new ItemTarget(Items.OBSIDIAN, 1), side.getOpposite(), by, false), cell, side.getOpposite());
             }
         }
         for (Direction side : new Direction[]{Direction.NORTH, Direction.SOUTH}) {
@@ -339,7 +339,7 @@ public class ConstructNetherPortalObsidianTask extends Task {
             for (Item block : CORNER_BLOCKS) {
                 if (mod.getItemStorage().hasItem(block)) {
                     setDebugState("Placing frame... a corner block first");
-                    return standing(new InteractWithBlockTask(new ItemTarget(block, 1), Direction.UP, corner.below(), false), corner, Direction.UP);
+                    return standing(mod, new InteractWithBlockTask(new ItemTarget(block, 1), Direction.UP, corner.below(), false), corner, Direction.UP);
                 }
             }
         }
@@ -353,18 +353,43 @@ public class ConstructNetherPortalObsidianTask extends Task {
     // left the overworld stood 40 game minutes under it, 6 Nov 2026. so a top face is clicked from beside the column with
     // the eyes over it, the third block from one block up and a corner from two (baritone pillars there, never in the
     // portal's own space), and a top cell's side face from the ground in front or behind, on that face's side)
-    private Task standing(InteractWithBlockTask click, BlockPos placed, Direction face) {
-        List<Vec3i> cells = standCells(placed.subtract(_origin), face);
-        if (cells.isEmpty()) return click;
-        Goal[] goals = new Goal[cells.size()];
-        for (int i = 0; i < goals.length; i++) goals[i] = new GoalBlock(_origin.offset(cells.get(i)));
-        GoalComposite goal = new GoalComposite(goals);
-        return click.walkTo(t -> goal);
+    private Task standing(AltoClef mod, InteractWithBlockTask click, BlockPos placed, Direction face) {
+        boolean ground = face == Direction.UP || interiorTopClear(mod);
+        // (one goal for one click: InteractWithBlockTask.isEqual compares the goal, and a new one each tick restarted the
+        // click every tick, its path cancelled before a step and its timers reset: 40 000 restarts a run, m4cream2-1, all
+        // eight stalled at the frame, 6 Nov 2026)
+        if (_standGoal == null || !placed.equals(_standCell) || face != _standFace || ground != _standGround) {
+            List<Vec3i> cells = standCells(placed.subtract(_origin), face, ground);
+            if (cells.isEmpty()) return click;
+            Goal[] goals = new Goal[cells.size()];
+            for (int i = 0; i < goals.length; i++) goals[i] = new GoalBlock(_origin.offset(cells.get(i)));
+            GoalComposite goal = new GoalComposite(goals);
+            _standCell = placed;
+            _standFace = face;
+            _standGround = ground;
+            _standGoal = t -> goal;
+        }
+        return click.walkTo(_standGoal);
+    }
+
+    private BlockPos _standCell;
+    private Direction _standFace;
+    private boolean _standGround;
+    private java.util.function.Function<BlockPos, Goal> _standGoal;
+
+    // the cells a click on a top cell's side face looks through from the ground: the interior's top and the rows in front
+    // and behind. they are cleared only once the frame stands, so a block left in one hides the face from below
+    private boolean interiorTopClear(AltoClef mod) {
+        if (mod == null || mod.getWorld() == null) return true;
+        for (Vec3i c : PORTAL_INTERIOR) {
+            if (c.getY() >= 1 && !WorldHelper.isAir(mod, _origin.offset(c))) return false;
+        }
+        return true;
     }
 
     // the feet cells, relative to the origin, from which a block goes into the frame cell `placed` by a click on `face` of
     // its neighbour (UP: the top face under it; NORTH or SOUTH: a side face along the frame)
-    static List<Vec3i> standCells(Vec3i placed, Direction face) {
+    static List<Vec3i> standCells(Vec3i placed, Direction face, boolean ground) {
         List<Vec3i> out = new ArrayList<>();
         if (face == Direction.UP) {
             // the eyes (1.62 over the feet) over the face, which is at the placed cell's own floor
@@ -381,10 +406,20 @@ public class ConstructNetherPortalObsidianTask extends Task {
                 }
             }
         } else if (face.getAxis() == Direction.Axis.Z) {
+            // the eyes on the face's own side: from the ground in front or behind (`ground`: the cells the look goes through
+            // are clear), or from a pillar two up beside a side, out of the portal's space
             int side = face.getStepZ();
-            for (int dx : new int[]{-1, 1, -2, 2}) {
-                for (int dz : new int[]{0, side}) {
-                    out.add(new Vec3i(placed.getX() + dx, 0, placed.getZ() + dz));
+            if (ground) {
+                for (int dx : new int[]{-1, 1, -2, 2}) {
+                    for (int dz : new int[]{0, side}) {
+                        out.add(new Vec3i(placed.getX() + dx, 0, placed.getZ() + dz));
+                    }
+                }
+            }
+            for (int dx : new int[]{-1, 1}) {
+                for (int dz : new int[]{0, side, 2 * side}) {
+                    Vec3i s = new Vec3i(placed.getX() + dx, 2, placed.getZ() + dz);
+                    if (!isIn(s, PORTAL_INTERIOR) && !isIn(s, PORTAL_FRAME)) out.add(s);
                 }
             }
         }

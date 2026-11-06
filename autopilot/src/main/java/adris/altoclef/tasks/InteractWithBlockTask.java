@@ -288,6 +288,9 @@ public class InteractWithBlockTask extends Task {
     @Override
     protected void onStart(AltoClef mod) {
         mod.getClientBaritone().getPathingBehavior().forceCancel();
+        // (the buddy's fork: and the goal another task left: while it stays active the click below never sets its own, and
+        // a portal frame's click walked on to the last cell's stand for twenty minutes, m4cream2-1 run 1, 6 Nov 2026)
+        mod.getClientBaritone().getCustomGoalProcess().onLostControl();
         _moveChecker.reset();
         stuckCheck.reset();
         _wanderTask.resetWander();
