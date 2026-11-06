@@ -233,6 +233,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // out, is a camp of the other kind, so the pick goes again and a box under way is dropped)
         if (_campSpotFor != null && BlazeFight.fireproofCamp(mod.getPlayer()) != _campFireproof) {
             Debug.logInternal("blaze camp: fire resistance " + (_campFireproof ? "gone" : "on") + ", the camp picked again");
+            notePillboxSpot();
             _campSpotFor = null;
             _campSpot = null;
             _pillbox = null;
@@ -646,11 +647,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // hovers, and they never come: a blaze that sees us stays put, 4 Nov 2026)
         _fight.corner(null);
         _lure = null;
+        notePillboxSpot();
         _pillbox = null;
         _pillboxCornered = false;
         _fight.pillboxPlanned(false);
         _fight.pillboxLookout(null);
         if (BlazeFight.fireproofCamp(us)) {
+            // (the buddy's fork: with the potion drunk by the pillbox the brew stood in, the camp is that box's open side,
+            // where the blazes flew in and every kill under the potion came. by the spawner the walk aimed at the block on top
+            // of it, behind the buddy's own tunnels, and the walk and the chase took turns for eleven minutes, piece2fix-4 run
+            // 2. no box before (the rig's potion): by the spawner as before, fpcamp2's camp)
+            BlockPos spot = _fireproofSpot;
+            if (spot != null && Math.hypot(spot.getX() - sx, spot.getZ() - sz) <= FIREPROOF_SPOT_RANGE) {
+                _campSpot = spot;
+                Debug.logInternal("blaze camp: fire-proof, at the pillbox's open side " + spot.toShortString() + " (spawner " + _foundBlazeSpawner.toShortString() + ")");
+                return;
+            }
             _campSpot = null;
             Debug.logInternal("blaze camp: fire-proof, by the spawner (" + _foundBlazeSpawner.toShortString() + ")");
             return;
@@ -855,6 +867,17 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 .filter(d -> d.distanceTo(me) <= ROD_STEP && (noClimb || d.getY() <= me.getY() + ROD_CLIMB)).isPresent()) return false;
         // (and while the corner holds: the lure fetches the rods near it on a leash; the pickup's walk has none)
         return BlazeFightRules.holdPickup(_fight.mode() == BlazeFightRules.Mode.RUN, _fight.nearestBlaze()) || _fight.cornerHold();
+    }
+
+    // the last standing pillbox's open side (its door, else its look out), the fire-proof camp once its potion is drunk
+    private BlockPos _fireproofSpot;
+    // a box's open side farther than this from the spawner (flat) is no camp of that spawner
+    static final double FIREPROOF_SPOT_RANGE = 12;
+
+    private void notePillboxSpot() {
+        if (_pillbox == null) return;
+        BlockPos door = _pillbox.door();
+        _fireproofSpot = door != null ? door : _pillbox.lookout();
     }
 
     // a rod this close is picked up at any time, see shouldAvoidPickingUp; with rod_fetch on, only one at most this far above
