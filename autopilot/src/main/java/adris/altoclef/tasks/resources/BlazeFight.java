@@ -395,6 +395,12 @@ final class BlazeFight {
         return corner;
     }
 
+    // the crowd's hiding place while the fight hides, else null (the buddy's fork, Tuning rod_snowball, off by default:
+    // RodSnowball throws from there)
+    BlockPos hidePlace() {
+        return hide;
+    }
+
     // the corner's rule holds this tick (set by scan): there is one and a crowd is about
     boolean cornerHold() {
         return cornerHold;
