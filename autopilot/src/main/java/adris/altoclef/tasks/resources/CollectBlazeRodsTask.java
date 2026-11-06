@@ -404,9 +404,31 @@ public class CollectBlazeRodsTask extends ResourceTask {
             return null;
         }
         // We need to find our fortress.
+        // (the buddy's fork, Tuning fortress_sweep, steering 68: the region sweep with a memory per server and dimension, a
+        // fortress a structure cell; the old search takes over once one is known near, or when the sweep gave up)
+        if (adris.altoclef.util.helpers.Tuning.get("fortress_sweep", 0) > 0 && WorldHelper.getCurrentDimension() == Dimension.NETHER) {
+            if (!_sweepTracking) {
+                ObtainSweep.track(mod, true);
+                _sweepTracking = true;
+            }
+            ObtainSweep sweep = ObtainSweep.of(mod);
+            sweep.scan(mod);
+            Task walk = sweep.step(mod);
+            if (walk != null) {
+                setDebugState("Sweeping the nether's structure cells for a fortress");
+                return walk;
+            }
+            if (sweep.failed() && !_sweepFailLogged) {
+                _sweepFailLogged = true;
+                Debug.logInternal("fortress sweep: gave up (" + sweep.failure() + "), the old search");
+            }
+        }
         setDebugState("Searching for fortress/Traveling around fortress");
         return _searcher;
     }
+
+    private boolean _sweepTracking;
+    private boolean _sweepFailLogged;
 
     // (the buddy's fork: a cube for the cream only in the fortress, on our own level, clear of lava and of any drop. one eleven
     // blocks down by a lava sea drew the hunt off a ledge into it, 24 seconds into the nether (attempt 223); with lava only
@@ -827,6 +849,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
     protected void onResourceStop(AltoClef mod, Task interruptTask) {
         mod.getBlockTracker().stopTracking(Blocks.SPAWNER);
         mod.getBlockTracker().stopTracking(Blocks.NETHER_WART);
+        if (_sweepTracking) {
+            ObtainSweep.track(mod, false);
+            _sweepTracking = false;
+        }
     }
 
     @Override

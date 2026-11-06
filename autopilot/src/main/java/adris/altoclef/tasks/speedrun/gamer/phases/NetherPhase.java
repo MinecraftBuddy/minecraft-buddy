@@ -83,9 +83,9 @@ import java.util.Optional;
 // RunState so a relog or a retry does not forget it; the sub step this tick is derived from the inventory and that memory,
 // not stored, so there is no step to get out of sync with
 public class NetherPhase implements PhaseHandler {
-    private static final Block[] FORTRESS = {Blocks.NETHER_BRICKS, Blocks.NETHER_BRICK_FENCE, Blocks.NETHER_BRICK_STAIRS};
+    public static final Block[] FORTRESS = {Blocks.NETHER_BRICKS, Blocks.NETHER_BRICK_FENCE, Blocks.NETHER_BRICK_STAIRS};
     // plain blackstone is not here on purpose: basalt deltas are full of it and would read as bastions all day
-    private static final Block[] BASTION = {Blocks.POLISHED_BLACKSTONE_BRICKS, Blocks.GILDED_BLACKSTONE};
+    public static final Block[] BASTION = {Blocks.POLISHED_BLACKSTONE_BRICKS, Blocks.GILDED_BLACKSTONE};
     private static final Block[] WARPED = {Blocks.WARPED_NYLIUM};
     private static final Block[] TRACKED = {Blocks.NETHER_BRICKS, Blocks.NETHER_BRICK_FENCE, Blocks.NETHER_BRICK_STAIRS,
             Blocks.POLISHED_BLACKSTONE_BRICKS, Blocks.GILDED_BLACKSTONE, Blocks.WARPED_NYLIUM, Blocks.NETHER_GOLD_ORE};
@@ -1258,7 +1258,7 @@ public class NetherPhase implements PhaseHandler {
     // loaded chunk, and a fortress or a forest behind rock is as good as seen (the sweep was walking past ones it could not look
     // at). one that turns out to be walled off is what the give-ups are for. the ones of a fortress or a forest we gave up on are
     // dropped before the sort, or the dud's thousand blocks would be the nearest forty for ever
-    private static Optional<RunState.Pos> seen(AltoClef mod, Sight sight, NetherSweepPlanner planner) {
+    public static Optional<RunState.Pos> seen(AltoClef mod, Sight sight, NetherSweepPlanner planner) {
         Block[] blocks = switch (sight) {
             case FORTRESS -> FORTRESS;
             case BASTION -> BASTION;
