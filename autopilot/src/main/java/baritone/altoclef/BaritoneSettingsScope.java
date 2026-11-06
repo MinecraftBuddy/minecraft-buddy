@@ -47,6 +47,13 @@ public final class BaritoneSettingsScope {
         this.mod = mod;
     }
 
+    // what of our throwaways the walker may build its pillars and bridges with: no soul sand, magma, sand or gravel, and no
+    // blackstone, which the stone gather mines for tools (CollectStoneMaterialTask): a pillar of it would be dug away
+    static boolean walkerPlaces(Item item) {
+        return item != Items.SOUL_SAND && item != Items.MAGMA_BLOCK && item != Items.SAND && item != Items.GRAVEL
+                && item != Items.BLACKSTONE;
+    }
+
     // safe to call again while applied (a settings reload does), it only refreshes the throwaway list then
     public void apply() {
         Settings s = Baritone.settings();
@@ -110,8 +117,7 @@ public final class BaritoneSettingsScope {
         }
         mergedFrom = s.altoThrowawayItems.value;
         List<Item> baritoneCanPlace = Arrays.stream(AltoSettings.getThrowawayItems(mod, true))
-                .filter(item -> item != Items.SOUL_SAND && item != Items.MAGMA_BLOCK && item != Items.SAND && item
-                        != Items.GRAVEL).toList();
+                .filter(BaritoneSettingsScope::walkerPlaces).toList();
         // the user's list first, then ours, each item once (a doubled entry doubles every count made from the list)
         List<Item> merged = mergeUnique(savedThrowaway, baritoneCanPlace);
         // the registry keeps the user's list from the first put, so a second apply only swaps what we hand baritone
