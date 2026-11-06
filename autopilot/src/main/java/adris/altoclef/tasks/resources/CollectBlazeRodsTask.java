@@ -92,6 +92,34 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // the spawner whose pillbox was given up on, more than SHORT_OK of its blocks open: its camp is picked again without a box
     private BlockPos _pillboxGaveUpFor;
 
+    // ---- the buddy's fork, Tuning far_box (off by default, steering 89): the far pillbox, planned outside the spawner's range
+    // (BlazePillbox.planFar), and its spawn trips (FarTrip). _far is the plan of _farBox, the pillbox it gave; any other box,
+    // or none, and the far plan is gone. all of it stays null and unused with the switch off
+    private adris.altoclef.util.helpers.BlazePillbox.Far _far;
+    private BlazePillboxTask _farBox;
+    private BlockPos _farTripCell;
+    private GetToBlockTask _farWalk;
+    private final adris.altoclef.util.helpers.FarTrip _farTrip = new adris.altoclef.util.helpers.FarTrip();
+    // the spawner the far box was given up at, the one the strategy's begun line was said for, and the clocks of its lines
+    private BlockPos _farGaveUpFor;
+    private BlockPos _farBegunFor;
+    private long _netherSince = -1;
+    private long _farBegunAt = -1;
+    private long _farPlannedAt = -1;
+    private long _farBackSince = -1;
+    private boolean _farTwoRods;
+    private boolean _farDone;
+    private int _farTrips;
+    private int _farKills;
+    // the live blazes within FAR_KILL_NEAR of the box's cell, watched for their death: a kill at the box
+    private final java.util.Map<Integer, Blaze> _farWatched = new java.util.HashMap<>();
+    static final double FAR_KILL_NEAR = 8;
+    // the fight's run is into the box from as far as the trip's walk and this many steps more (BlazeFight.farRun)
+    static final int FAR_RUN_SLACK = 4;
+    // the blocks a far box's floor may be: the fortress's own, never netherrack or a block the buddy placed
+    private static final java.util.Set<Block> FORTRESS_FLOOR = java.util.Set.of(Blocks.NETHER_BRICKS, Blocks.CRACKED_NETHER_BRICKS,
+            Blocks.CHISELED_NETHER_BRICKS, Blocks.RED_NETHER_BRICKS, Blocks.NETHER_BRICK_SLAB, Blocks.NETHER_BRICK_STAIRS);
+
     // true on ticks where we stand by the spawner waiting for blazes, so the gamer can give up on a dud spawner
     private boolean _camping;
     // the cell we step to when the camp spot is a rim, and how many ticks that walk has had
@@ -240,10 +268,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
             setDebugState("Going to nether");
             return new DefaultGoToDimensionTask(Dimension.NETHER);
         }
+        // (the buddy's fork, Tuning far_box: the clock of the strategy's lines starts with the first tick in the nether)
+        if (_netherSince < 0 && farOn()) _netherSince = mod.getWorld().getGameTime();
         // the spawner is what starts the dry timer, finding one only between fights meant a long fight never found it
         pickSpawner(mod);
         noteRods(mod);
         campDry(mod);
+        // (the buddy's fork, Tuning far_box: the far box's kills and the two rods, watched every tick, the fight's too)
+        if (_farBegunFor != null) farWatch(mod);
         // (again: the goal the walk is judged against is the spawner we just picked, not last tick's)
         noteZoneInputs(mod);
         fireproofFallback(mod);
@@ -272,6 +304,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // stayed the fight's corner and the camp, runs into it burned there, and nothing picked the camp again (the dry watch
         // passes over a camp with a box): the camp is picked again with no box at this spawner, the open camp as before the box)
         if (_pillbox != null && _pillbox.isFinished(mod) && !_pillbox.nearlyBuilt(mod)) {
+            if (_far != null && _pillbox == _farBox) {
+                Debug.logInternal("strategy far: given up, the box at " + _pillbox.cell().toShortString() + " was not built, the camp as without it");
+                _farGaveUpFor = _foundBlazeSpawner;
+            }
             Debug.logInternal("blaze camp: the pillbox at " + _pillbox.cell().toShortString() + " given up, the camp picked again without one");
             _pillboxGaveUpFor = _foundBlazeSpawner;
             _campSpotFor = null;
@@ -393,6 +429,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // looks went to cells through its walls, behind the back wall 108 times and never to the look out, roof-a run 4)
             _lure = new BlazeLureTask(_pillbox.cell(), _pillbox.lookout(), java.util.List.of(_pillbox.lookout()), java.util.List.of()).centred();
             Debug.logInternal("blaze camp: the pillbox stands, its cell the corner at " + _pillbox.cell().toShortString());
+            if (_far != null && _pillbox == _farBox) {
+                _farTrip.reset();
+                Debug.logInternal("strategy far: the box stands at " + _pillbox.cell().toShortString() + ", " + secs(mod.getWorld().getGameTime() - _farPlannedAt)
+                        + " s after it was planned");
+            }
         }
         // (the box kept closed, steering 36: a block of it gone is put back in the next lull, from inside: every REPAIR_CHECK
         // ticks, camping, with no blaze within pillbox_quiet. off unless pillbox_repair)
@@ -426,7 +467,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_foundBlazeSpawner != null) {
             // a wither skeleton pack at the spawner: hold where we are, the rods watch counts it as dud time and moves us on
             // if they never leave. walking in is how the last two runs ended
-            if (BlazeFightRules.packNear(BlazeFight.witherSkeletonsNear(mod, Vec3.atCenterOf(_foundBlazeSpawner), BlazeFightRules.PACK_SPAWNER_RADIUS))) {
+            // (the buddy's fork, Tuning far_box: not with a far box standing, out of the pack's way: the hold would keep the buddy
+            // wherever it stood, out on a spawn trip too. the trips stay home while the pack is there, farTripStep)
+            boolean farStands = _far != null && _pillbox == _farBox && _pillboxCornered;
+            if (!farStands && BlazeFightRules.packNear(BlazeFight.witherSkeletonsNear(mod, Vec3.atCenterOf(_foundBlazeSpawner), BlazeFightRules.PACK_SPAWNER_RADIUS))) {
                 setDebugState("wither skeletons at the spawner, waiting");
                 _camping = true;
                 return null;
@@ -438,6 +482,23 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // look out to it was cut short by the walk back, "Going to blaze spawner" 23 times and 3 looks in six game minutes,
             // a stall with the box built whole, bent-d run 1)
             double campRadius = _campSpot != null ? (_pillbox != null && _pillboxCornered ? PILLBOX_RADIUS : CAMP_SPOT_RADIUS) : CAMP_RADIUS;
+            // (the buddy's fork, Tuning far_box, off by default, steering 89: the far box's spawn trips, before the walk back into
+            // it. out of the box into the spawner's range till a blaze has spawned and seen the buddy, then the walk below and the
+            // lure take over)
+            // (again after the pick: a new spawner's camp is a new box, or none)
+            if (_far != null && _pillbox == _farBox && _pillboxCornered) {
+                int trip = farTripStep(mod);
+                if (trip == 1) {
+                    setDebugState("Spawn trip: into the spawner's range");
+                    _camping = true;
+                    return _farWalk;
+                }
+                if (trip == 2) {
+                    setDebugState("Spawn trip: waiting for a blaze to spawn and see the buddy");
+                    _camping = true;
+                    return null;
+                }
+            }
             // (the buddy's fork: outside a standing pillbox, round to its open side first. aimed at the cell itself, the walk from
             // a walled side drew the buddy to the wall nearest the cell, every block of the box protected, and the walk and the
             // lure took turns there till the stall: twelve game minutes, about eight stalls in the blocks of 6 Nov 2026 morning,
@@ -845,6 +906,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Debug.logInternal("blaze camp: fire-proof, by the spawner (" + _foundBlazeSpawner.toShortString() + ")");
             return;
         }
+        // (the buddy's fork, Tuning far_box, off by default, steering 89: the far box first, outside the spawner's range and no
+        // corner, the blazes drawn to it by spawn trips. none fits, or given up here: the camp as without the switch)
+        if (farOn() && !_foundBlazeSpawner.equals(_farGaveUpFor) && !_foundBlazeSpawner.equals(_pillboxGaveUpFor)
+                && farPick(mod, cells, sx, sy, sz)) return;
         int[][] corner = _noCorner ? null : cornerSpot(mod, cells, sx, sy, sz);
         if (corner != null) {
             _campSpot = new BlockPos(corner[0][0], corner[0][1], corner[0][2]);
@@ -942,6 +1007,230 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Debug.logInternal("blaze camp: no bent pillbox fits, the one-cell one");
         }
         return adris.altoclef.util.helpers.BlazePillbox.plan(cells, start, sx, sy, sz, eyes);
+    }
+
+    // ---- the far box (the buddy's fork, Tuning far_box, off by default, steering 89)
+
+    static boolean farOn() {
+        return adris.altoclef.util.helpers.Tuning.get("far_box", 0) > 0;
+    }
+
+    // the far plan's numbers: Tuning far_box_min, far_box_max (blocks from the spawner's middle), far_box_seen (the share of the
+    // spawn eyes that see the look out), far_trip_depth (the trip's cell this near the spawner), far_trip_walk (steps)
+    static adris.altoclef.util.helpers.BlazePillbox.FarRule farRule() {
+        adris.altoclef.util.helpers.BlazePillbox.FarRule d = adris.altoclef.util.helpers.BlazePillbox.FarRule.DEFAULT;
+        return new adris.altoclef.util.helpers.BlazePillbox.FarRule(adris.altoclef.util.helpers.Tuning.get("far_box_min", d.min()),
+                adris.altoclef.util.helpers.Tuning.get("far_box_max", d.max()), adris.altoclef.util.helpers.Tuning.get("far_box_seen", d.seenMin()),
+                adris.altoclef.util.helpers.Tuning.get("far_trip_depth", d.depth()), (int) Math.round(adris.altoclef.util.helpers.Tuning.get("far_trip_walk", d.tripWalk())));
+    }
+
+    private static String secs(long ticks) {
+        return Long.toString(Math.round(ticks / 20.0));
+    }
+
+    // the far box's plan, made the camp: true with one, false with none (the camp is then picked as without the switch, and
+    // this spawner gets no far box again)
+    private boolean farPick(AltoClef mod, Cells cells, int sx, int sy, int sz) {
+        long now = mod.getWorld().getGameTime();
+        if (!_foundBlazeSpawner.equals(_farBegunFor)) {
+            _farBegunFor = _foundBlazeSpawner;
+            if (_farBegunAt < 0) _farBegunAt = now;
+            Debug.logInternal("strategy far: begun at the spawner " + _foundBlazeSpawner.toShortString()
+                    + (_netherSince >= 0 ? ", " + secs(now - _netherSince) + " s into the nether" : ""));
+        }
+        int[] start = null;
+        double best = Double.MAX_VALUE;
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    if (!BlazeCover.walkable(cells, sx + dx, sy + dy, sz + dz)) continue;
+                    double d = dx * dx + dz * dz + dy * dy;
+                    if (d < best) {
+                        best = d;
+                        start = new int[]{sx + dx, sy + dy, sz + dz};
+                    }
+                }
+            }
+        }
+        adris.altoclef.util.helpers.BlazePillbox.FarRule rule = farRule();
+        var level = mod.getWorld();
+        adris.altoclef.util.helpers.BlazePillbox.Far far = null;
+        if (start != null) {
+            java.util.List<Vec3> eyes = new java.util.ArrayList<>();
+            for (Vec3 eye : BlazeCover.spawnEyes(sx, sy, sz)) {
+                if (level.getBlockState(BlockPos.containing(eye)).getCollisionShape(level, BlockPos.containing(eye)).isEmpty()) eyes.add(eye);
+            }
+            // (Tuning far_box_floor, on by default: only on the fortress's own floor)
+            adris.altoclef.util.helpers.BlazePillbox.Floor floor = adris.altoclef.util.helpers.Tuning.get("far_box_floor", 1) > 0
+                    ? (x, y, z) -> FORTRESS_FLOOR.contains(level.getBlockState(new BlockPos(x, y - 1, z)).getBlock()) : null;
+            far = adris.altoclef.util.helpers.BlazePillbox.planFar(cells, start, sx, sy, sz, eyes, rule, floor);
+            if (far != null) {
+                adris.altoclef.util.helpers.BlazePillbox.Plan plan = far.plan();
+                _far = far;
+                _pillbox = new BlazePillboxTask(plan);
+                _farBox = _pillbox;
+                _fight.pillboxPlanned(true);
+                _fight.pillboxLookout(_pillbox.lookout());
+                _fight.farRun(far.tripSteps() + FAR_RUN_SLACK);
+                _campSpot = _pillbox.cell();
+                _farTripCell = new BlockPos(far.trip()[0], far.trip()[1], far.trip()[2]);
+                _farWalk = null;
+                _farTrip.reset();
+                _farTrips = 0;
+                _farKills = 0;
+                _farWatched.clear();
+                _farBackSince = -1;
+                _farPlannedAt = now;
+                adris.altoclef.util.snapshot.Snapshots.chose("pillbox.far", plan.cell()).with("lookout", plan.lookout()).with("front", plan.front())
+                        .with("trip", far.trip()).blocks(plan.blocks()).spawner(sx, sy, sz);
+                Debug.logInternal(String.format(java.util.Locale.ROOT, "strategy far: box planned at %s, %.1f from the spawner (%d blocks, looking out from %s; %s; spawn trips to %s, %d steps, %.1f from the spawner)",
+                        _campSpot.toShortString(), far.distance(), plan.blocks().size(), _pillbox.lookout().toShortString(),
+                        adris.altoclef.util.helpers.BlazePillbox.describe(cells, plan, eyes, sx, sy, sz), _farTripCell.toShortString(), far.tripSteps(),
+                        adris.altoclef.util.helpers.BlazePillbox.spawnerDistance(far.trip()[0], far.trip()[1], far.trip()[2], sx, sy, sz)));
+                return true;
+            }
+        }
+        _farGaveUpFor = _foundBlazeSpawner;
+        Debug.logInternal(String.format(java.util.Locale.ROOT, "strategy far: given up, no box fits %.0f to %.0f from the spawner %s (%s), the camp as without it",
+                rule.min(), rule.max(), _foundBlazeSpawner.toShortString(),
+                start == null ? "no cell to stand on by the spawner" : adris.altoclef.util.helpers.BlazePillbox.whyNotFar()));
+        return false;
+    }
+
+    // the far box's spawn trip this tick (FarTrip): 0 not on one (the camp as with any standing box: the walk in, the lure),
+    // 1 walking out (_farWalk), 2 waiting at the trip's cell
+    private int farTripStep(AltoClef mod) {
+        var me = mod.getPlayer();
+        long now = mod.getWorld().getGameTime();
+        adris.altoclef.util.helpers.FarTrip.Numbers n = adris.altoclef.util.helpers.FarTrip.Numbers.tuned();
+        float hp = me.getHealth();
+        boolean burning = me.isOnFire() && !adris.altoclef.util.helpers.FireRes.has(me);
+        boolean inBox = _pillbox.holds(me.blockPosition());
+        Vec3 box = Vec3.atBottomCenterOf(_pillbox.cell());
+        int near = 0, drawn = 0;
+        boolean seen = false;
+        try {
+            for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+                if (!b.isAlive()) continue;
+                if (b.position().distanceTo(box) <= adris.altoclef.util.helpers.FarTrip.NEAR_BOX) near++;
+                double d = b.distanceTo(me);
+                boolean line = d <= BlazeCover.SIGHT && adris.altoclef.util.helpers.GhastCover.clear(mod.getWorld(), b.getEyePosition(), me.getEyePosition(), me);
+                seen |= line;
+                // (drawn: charged with a line on the buddy, so it has the buddy for its target; or close, line or not)
+                if ((line && b.isOnFire()) || d <= adris.altoclef.util.helpers.FarTrip.CLOSE) drawn++;
+            }
+        } catch (java.util.ConcurrentModificationException ignored) {
+            // the tracker rebuilds on another thread sometimes: this tick as the last
+            return switch (_farTrip.stage()) {
+                case HOME -> 0;
+                case OUT -> 1;
+                case WAIT -> 2;
+            };
+        }
+        if (_farTrip.stage() == adris.altoclef.util.helpers.FarTrip.Stage.HOME) {
+            if (_farBackSince >= 0 && inBox) {
+                Debug.logInternal("strategy far: back in the box after spawn trip " + _farTrips + ", " + secs(now - _farBackSince) + " s from its end");
+                _farBackSince = -1;
+            }
+            // (a wither skeleton pack at the spawner counts as a blaze about: no trip into it)
+            boolean about = near > 0 || seen || witherPackAtSpawner(mod);
+            if (!_farTrip.wantsTrip(now, about, hp, burning, inBox, n)) return 0;
+            _farTrip.begin(now);
+            _farTrips++;
+            _farWalk = new GetToBlockTask(_farTripCell, false);
+            Debug.logInternal(String.format(java.util.Locale.ROOT, "strategy far: spawn trip %d begun, to %s (%d steps, %.1f from the spawner) at %.0f hp",
+                    _farTrips, _farTripCell.toShortString(), _far.tripSteps(), adris.altoclef.util.helpers.BlazePillbox.spawnerDistance(_farTripCell.getX(),
+                    _farTripCell.getY(), _farTripCell.getZ(), _foundBlazeSpawner.getX(), _foundBlazeSpawner.getY(), _foundBlazeSpawner.getZ()), hp));
+        }
+        String back = _farTrip.turnBack(now, drawn, hp, burning, n);
+        if (back == null && witherPackAtSpawner(mod)) back = "wither skeletons at the spawner";
+        if (back != null) {
+            long out = _farTrip.out(now);
+            _farTrip.end(now);
+            _farBackSince = now;
+            _farWalk = null;
+            Debug.logInternal("strategy far: spawn trip " + _farTrips + " over after " + secs(out) + " s, " + _farTrip.drawnMost() + " drawn, back to the box (" + back + ")");
+            if (_farTrip.dried(n)) farGiveUp(_farTrip.dryRun() + " spawn trips in a row drew no blaze");
+            return 0;
+        }
+        // (there: in the cell, or the walk done; a walk that never gets there is the trip's cap)
+        if (_farTrip.stage() == adris.altoclef.util.helpers.FarTrip.Stage.OUT
+                && (BlazeLureTask.in(me.position(), _farTripCell) || (_farWalk != null && _farWalk.isFinished(mod)))) {
+            _farTrip.arrived(now);
+            Debug.logInternal("strategy far: spawn trip " + _farTrips + " at " + _farTripCell.toShortString() + " after " + secs(_farTrip.out(now)) + " s, waiting");
+        }
+        return _farTrip.stage() == adris.altoclef.util.helpers.FarTrip.Stage.OUT ? 1 : 2;
+    }
+
+    private boolean witherPackAtSpawner(AltoClef mod) {
+        return BlazeFightRules.packNear(BlazeFight.witherSkeletonsNear(mod, Vec3.atCenterOf(_foundBlazeSpawner), BlazeFightRules.PACK_SPAWNER_RADIUS));
+    }
+
+    // the far box given up at this spawner: the camp picked again as without the switch (a corner, the near pillbox, the open camp)
+    private void farGiveUp(String why) {
+        Debug.logInternal("strategy far: given up, " + why + ", the camp as without it");
+        _farGaveUpFor = _foundBlazeSpawner;
+        notePillboxSpot();
+        _campSpotFor = null;
+        _campSpot = null;
+        _pillbox = null;
+        _pillboxCornered = false;
+        _pillboxCornerSet = null;
+        _lure = null;
+        _fight.corner(null);
+        _fight.pillboxPlanned(false);
+        _fight.pillboxLookout(null);
+        farDrop();
+    }
+
+    private void farDrop() {
+        _far = null;
+        _farBox = null;
+        _farWalk = null;
+        _farTrip.reset();
+        _farWatched.clear();
+        _fight.farRun(0);
+    }
+
+    // every tick once the strategy began: the far plan dropped when its box is no longer the camp's, the two rods, the kills
+    // at the box (a blaze within FAR_KILL_NEAR of its cell that dies)
+    private void farWatch(AltoClef mod) {
+        if (_far != null && _pillbox != _farBox) farDrop();
+        long now = mod.getWorld().getGameTime();
+        var me = mod.getPlayer();
+        if (!_farTwoRods && mod.getItemStorage().getItemCount(Items.BLAZE_ROD) >= 2) {
+            _farTwoRods = true;
+            boolean inBox = _far != null && me != null && _pillbox.holds(me.blockPosition());
+            Debug.logInternal("strategy far: two rods after " + secs(now - (_netherSince >= 0 ? _netherSince : _farBegunAt)) + " seconds in the nether ("
+                    + secs(now - _farBegunAt) + " since the strategy began, " + _farKills + " kills at the box, " + _farTrips + " spawn trips"
+                    + (_far == null ? ", the far box given up" : inBox ? ", in the box" : ", out of the box") + ")");
+        }
+        // (done: the two rods in the bag and the buddy safe in the box, or with no far box left at once)
+        if (_farTwoRods && !_farDone && (_far == null || (me != null && _pillbox.holds(me.blockPosition())))) {
+            _farDone = true;
+            Debug.logInternal("strategy far: done after " + secs(now - (_netherSince >= 0 ? _netherSince : _farBegunAt)) + " seconds in the nether, "
+                    + mod.getItemStorage().getItemCount(Items.BLAZE_ROD) + " rods" + (_far == null ? ", no far box" : ", in the box"));
+        }
+        if (_far == null || me == null) return;
+        Vec3 c = Vec3.atBottomCenterOf(_pillbox.cell());
+        try {
+            for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+                if (b.isAlive() && b.position().distanceTo(c) <= FAR_KILL_NEAR) _farWatched.putIfAbsent(b.getId(), b);
+            }
+        } catch (java.util.ConcurrentModificationException ignored) {
+            // the tracker rebuilds on another thread sometimes, the next tick sees them
+        }
+        for (java.util.Iterator<Blaze> it = _farWatched.values().iterator(); it.hasNext(); ) {
+            Blaze b = it.next();
+            if (b.isDeadOrDying()) {
+                _farKills++;
+                it.remove();
+                Debug.logInternal(String.format(java.util.Locale.ROOT, "strategy far: a kill at the box, %d so far, %.1f from its cell (%d spawn trips, %s s since the box was planned)",
+                        _farKills, b.position().distanceTo(c), _farTrips, secs(now - _farPlannedAt)));
+            } else if (b.isRemoved() || b.position().distanceTo(c) > FAR_KILL_NEAR + 4) {
+                it.remove();
+            }
+        }
     }
 
     // a cell by the spawner to walk out from, then BlazeCover.corner with the spawn area's eyes (the ones inside a block left out)
