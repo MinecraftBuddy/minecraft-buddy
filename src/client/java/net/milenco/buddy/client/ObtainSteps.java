@@ -2322,6 +2322,9 @@ final class ObtainSteps {
 		int phase;   // 0 to the furnace and in, 1 waiting, 2 to the furnace and out
 		long nextClick, readyAt, menuSince;
 		boolean filled;
+		/** The looks for the output so far, how much of it the bag held at the last, since when it grows no more, and when the furnace was filled. */
+		int rounds, lastOut;
+		long grewAt, filledAt;
 
 		Station station() { return furnace; }
 
@@ -2348,7 +2351,9 @@ final class ObtainSteps {
 
 		Result menuTick(Minecraft mc, LocalPlayer p, long now) {
 			AbstractContainerMenu m = p.containerMenu;
-			if (menuSince == 0 || !filled) { if (menuSince == 0) menuSince = now; }
+			if (menuSince == 0) menuSince = now;
+			// a minute in the menu is a menu stuck (a click the server never answered): shut, and the step fails
+			if (now - menuSince > 60_000) { p.closeContainer(); menuSince = 0; return fail("the furnace's menu got stuck"); }
 			if (!filled) {
 				queue.clear();
 				filled = true;
@@ -2357,26 +2362,29 @@ final class ObtainSteps {
 				java.util.function.IntUnaryOperator slot = i -> 3 + (i < 9 ? 27 + i : i - 9);
 				if (phase == 0) {
 					var in = p.getInventory();
+					String[] ids = new String[36];
+					int[] counts = new int[36], taken = new int[36];
+					for (int i = 0; i < 36; i++) {
+						ItemStack st = in.getItem(i);
+						if (!st.isEmpty()) { ids[i] = AfkHelperClient.itemId(st); counts[i] = st.getCount(); }
+					}
 					int left = times;
 					for (int i = 0; i < 36 && left > 0; i++) {
-						ItemStack st = in.getItem(i);
-						if (st.isEmpty() || !r.parts().get(0).test(AfkHelperClient.itemId(st))) continue;
-						int from = slot.applyAsInt(i), k = Math.min(left, st.getCount());
+						if (ids[i] == null || !r.parts().get(0).test(ids[i])) continue;
+						int from = slot.applyAsInt(i), k = Math.min(left, counts[i]);
 						queue.add(() -> Game.click(mc.gameMode, menuId, from, 0, false, p));
 						for (int j = 0; j < k; j++) queue.add(() -> Game.click(mc.gameMode, menuId, 0, 1, false, p));
 						queue.add(() -> Game.click(mc.gameMode, menuId, from, 0, false, p));
+						taken[i] = k;
 						left -= k;
 					}
-					double fuel = times;
-					for (int i = 0; i < 36 && fuel > 0; i++) {
-						ItemStack st = in.getItem(i);
-						double v = st.isEmpty() ? 0 : ObtainPlan.fuelValue(AfkHelperClient.itemId(st));
-						if (v <= 0 || r.parts().get(0).test(AfkHelperClient.itemId(st))) continue;
-						int from = slot.applyAsInt(i), k = (int) Math.min(st.getCount(), Math.ceil(fuel / v));
+					int[] fuel = ObtainPlan.fuelPlan(ids, counts, taken, r.parts().get(0)::test, times);
+					for (int i = 0; i < 36; i++) {
+						if (fuel[i] <= 0) continue;
+						int from = slot.applyAsInt(i), k = fuel[i];
 						queue.add(() -> Game.click(mc.gameMode, menuId, from, 0, false, p));
 						for (int j = 0; j < k; j++) queue.add(() -> Game.click(mc.gameMode, menuId, 1, 1, false, p));
 						queue.add(() -> Game.click(mc.gameMode, menuId, from, 0, false, p));
-						fuel -= k * v;
 					}
 				} else {
 					queue.add(() -> Game.quickMove(mc.gameMode, menuId, 2, p));
@@ -2386,15 +2394,25 @@ final class ObtainSteps {
 			nextClick = now + 150;
 			if (!queue.isEmpty()) { queue.poll().run(); return Result.RUN; }
 			p.closeContainer();
+			menuSince = 0;
+			long cook = (long) r.cookTime() * 50;
 			if (phase == 0) {
 				if (furnace.at != null) Obtain.furnaceHolds(furnace.at);
 				phase = 1;
-				readyAt = now + (long) times * r.cookTime() * 50 + 1500;
+				readyAt = now + times * cook + 1500;
+				lastOut = count(p, result);
+				grewAt = filledAt = now;
 				Exchange.emit("obtain", "action", "smelting", "recipe", r.id(), "times", times, "s", (readyAt - now) / 1000);
 				return Result.RUN;
 			}
-			if (count(p, result) >= want) return Result.DONE;
-			// not all of it yet: wait a little more
+			int out = count(p, result);
+			if (out >= want) return Result.DONE;
+			// not all of it yet: a little more, while the furnace still makes some. It looked again every five seconds for
+			// ever with nothing alight in it; three smelts' time without one more, or far past the time it all takes, and the
+			// step fails (what is still in the furnace is fetched by the next step, Obtain.furnaceHolds)
+			if (out > lastOut) { lastOut = out; grewAt = now; }
+			if (now - grewAt > 3 * cook + 5000 || ++rounds > 4 * times + 10 || now - filledAt > 3 * times * cook + 60_000)
+				return fail("the furnace stopped making " + result + " with " + out + " of " + want + " in the bag");
 			phase = 1;
 			readyAt = now + 5000;
 			return Result.RUN;

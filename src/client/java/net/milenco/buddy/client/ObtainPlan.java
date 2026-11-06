@@ -156,6 +156,50 @@ final class ObtainPlan {
 	}
 
 	/**
+	 * What the buddy burns: what burns, but never blaze rods or a bucket. The rods are the brew's and the eyes', a lava
+	 * bucket is the obsidian's (and it leaves its bucket in the furnace's fuel slot).
+	 */
+	static boolean burns(String item) {
+		return fuelValue(item) > 0 && !item.equals("blaze_rod") && !item.endsWith("bucket");
+	}
+
+	/**
+	 * The fuel for {@code times} smelts out of the bag's slots ({@code ids} and {@code counts}, null for an empty slot,
+	 * {@code taken} of each gone in as the ingredient already): how many of each slot go into the fuel slot, all of one
+	 * kind, for the slot holds one. A kind that burns the lot, one that is not the ingredient first; the ingredient itself
+	 * only beyond what went in (logs burnt for charcoal: the planner counts them as its fuel, and every log was passed
+	 * over as the ingredient, so nothing lit). No kind enough on its own: the one that gets furthest.
+	 */
+	static int[] fuelPlan(String[] ids, int[] counts, int[] taken, java.util.function.Predicate<String> ingredient, int times) {
+		Map<String, Double> worth = new LinkedHashMap<>();
+		for (int i = 0; i < ids.length; i++)
+			if (ids[i] != null && burns(ids[i]) && counts[i] - taken[i] > 0) worth.merge(ids[i], (counts[i] - taken[i]) * fuelValue(ids[i]), Double::sum);
+		String kind = null;
+		boolean kindEnough = false, kindOwn = false;
+		double kindWorth = 0;
+		for (Map.Entry<String, Double> e : worth.entrySet()) {
+			boolean enough = e.getValue() >= times, own = !ingredient.test(e.getKey());
+			boolean better = kind == null || (enough != kindEnough ? enough : enough ? own && !kindOwn : e.getValue() > kindWorth);
+			if (!better) continue;
+			kind = e.getKey();
+			kindEnough = enough;
+			kindOwn = own;
+			kindWorth = e.getValue();
+		}
+		int[] out = new int[ids.length];
+		if (kind == null) return out;
+		double v = fuelValue(kind), left = times;
+		for (int i = 0; i < ids.length && left > 0; i++) {
+			if (!kind.equals(ids[i])) continue;
+			int k = (int) Math.min(counts[i] - taken[i], Math.ceil(left / v));
+			if (k <= 0) continue;
+			out[i] = k;
+			left -= k * v;
+		}
+		return out;
+	}
+
+	/**
 	 * Our own ways to items no recipe or drop gives: the name of the special and what it takes for one. A name with a
 	 * {@code +} before it is a tool the way keeps (a water bucket to cast obsidian with): wanted once, whatever the count.
 	 */
@@ -683,7 +727,7 @@ final class ObtainPlan {
 		static boolean fuel(Planner pl, int n, int depth, Deque<String> stack) {
 			double left = n;
 			for (Map.Entry<String, Integer> e : new ArrayList<>(pl.inv.entrySet())) {
-				double v = fuelValue(e.getKey());
+				double v = burns(e.getKey()) ? fuelValue(e.getKey()) : 0;
 				if (v <= 0 || e.getValue() <= 0 || left <= 0) continue;
 				int use = (int) Math.min(e.getValue(), Math.ceil(left / v));
 				pl.use(e.getKey(), use);
