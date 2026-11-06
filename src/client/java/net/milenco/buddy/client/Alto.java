@@ -11,7 +11,9 @@ package net.milenco.buddy.client;
  * of its own; it is switched on for an order and off again after it. When one of its chains holds the wheel (its pick
  * of the chains asks above nothing), the buddy lets go of every key and of Baritone and waits; a chain that only acts
  * without the wheel (the force field) lets the order go on. Only this class names AltoClef's classes, and only after
- * {@link #present()}.
+ * {@link #present()}. And it hands their objects on only as their own type or as Object, never as a supertype: the
+ * verifier loads both types to check that, when the class is linked, and without the jar the mod then failed on its
+ * first tick (AutopilotLinkTest).
  */
 final class Alto {
 	private Alto() {}
@@ -616,11 +618,12 @@ final class Alto {
 		var path = baritone.api.BaritoneAPI.getProvider().getPrimaryBaritone().getPathingBehavior().getPath();
 		if (path.isEmpty()) return false;
 		var level = p.level();
-		var nodes = path.get().positions();
+		// as plain BlockPos: Baritone's own kind of it, handed to the game, makes the verifier load Baritone with this class
+		java.util.List<?> nodes = path.get().positions();
 		int wet = 0;
-		for (var n : nodes) if (level.getFluidState(n).is(net.minecraft.tags.FluidTags.WATER)) wet++;
+		for (Object n : nodes) if (level.getFluidState((net.minecraft.core.BlockPos) n).is(net.minecraft.tags.FluidTags.WATER)) wet++;
 		if (wet > 32) return true;
-		var end = nodes.get(nodes.size() - 1);
+		var end = (net.minecraft.core.BlockPos) nodes.get(nodes.size() - 1);
 		double dx = end.getX() + 0.5 - p.getX(), dz = end.getZ() + 0.5 - p.getZ(), len = Math.hypot(dx, dz);
 		if (len < 4) return false;
 		dx /= len; dz /= len;
@@ -643,7 +646,7 @@ final class Alto {
 	static Run whole(String item, int count) {
 		return new Run("get " + count + " " + item, 6 * 3600_000L, () -> {
 			var get = adris.altoclef.TaskCatalogue.getItemTask(item, count);
-			return get == null ? null : new adris.altoclef.tasks.misc.SleepThroughNightsTask(get, ObtainSafe::sopranoSleeps);
+			return get == null ? null : night(get);
 		});
 	}
 
@@ -938,8 +941,8 @@ final class Alto {
 	 * night asleep. Food and the kit had none, so at night it hunted on the surface in its clothes among zombies with
 	 * spears and skeletons, and was shot dead.
 	 */
-	private static adris.altoclef.tasksystem.Task night(adris.altoclef.tasksystem.Task t) {
-		return new adris.altoclef.tasks.misc.SleepThroughNightsTask(t, ObtainSafe::sopranoSleeps);
+	private static Object night(Object t) {
+		return new adris.altoclef.tasks.misc.SleepThroughNightsTask((adris.altoclef.tasksystem.Task) t, ObtainSafe::sopranoSleeps);
 	}
 
 	private static long hungrySince = -1;
