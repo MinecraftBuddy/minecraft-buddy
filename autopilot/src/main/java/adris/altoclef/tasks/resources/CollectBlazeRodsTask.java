@@ -248,6 +248,13 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _fight.corner(null);
             _fight.pillboxPlanned(false);
             _fight.pillboxLookout(null);
+            // (the buddy's fork, Tuning fireproof_repick, off by default, steering 84: the camp picked again at once. it was
+            // picked only while camping, and under the potion the fight always had a blaze to chase, so the camp of the potion
+            // (the pillbox's open side) was never taken and the rods lay out of reach, Kai in piece2side-2 run 1)
+            if (adris.altoclef.util.helpers.Tuning.get("fireproof_repick", 0) > 0 && _foundBlazeSpawner != null) {
+                pickCampSpot(mod);
+                Debug.logInternal("blaze camp: picked again at once (fireproof_repick), " + (_campSpot != null ? "at " + _campSpot.toShortString() : "by the spawner"));
+            }
         }
         // (the buddy's fork: a pillbox given up on with more than SHORT_OK of its blocks open is no cover. kept, its bare cell
         // stayed the fight's corner and the camp, runs into it burned there, and nothing picked the camp again (the dry watch
