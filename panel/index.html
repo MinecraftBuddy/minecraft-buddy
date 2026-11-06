@@ -12,7 +12,9 @@
   --line: #2c343c; --line2: #36404a; --line3: #4a5662;
   --text: #e6e9ec; --soft: #c3ccd4; --muted: #93a0ac; --faint: #6f7b86;
   --accent: #c97d4a; --accent-ink: #1b120b; --accent-soft: #3a2a1d; --accent-dim: #2a2219; --accent-line: #5a3f28; --accent-text: #f0c6a3; --accent-note: #c79a76;
-  --ok: #5dbb7a; --ok-text: #9fd3a8;
+  /* good is blue, not green, a warning yellow and a fault red: blue, yellow and red stay apart with red/green colour
+     blindness */
+  --ok: #4ea3e8; --ok-text: #a9d2f5; --ok-ink: #0b1a26; --ok-soft: #1f3242; --warn: #e8c04a; --bad: #ef6f62;
   --bad-bg: #1f1a18; --bad-card: #241c1a; --bad-line: #4a2c26; --bad-text: #f3b1a7; --bad-title: #f1dcd6; --bad-note: #c4aaa3; --bad-badge: #5a2a24;
   --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -498,7 +500,7 @@ kbd { font: 11px/1 var(--mono); border: 1px solid var(--line3); border-bottom-wi
 .tbl tbody tr:first-child td { border-top: 0; } .tbl thead + tbody tr:first-child td { border-top: 1px solid var(--line); }
 .tbl td.b { text-align: right; white-space: nowrap; }
 .tbl input { width: 100%; padding: 6px 8px; }
-.pill { font-size: 11px; padding: 2px 6px; border-radius: 999px; background: #2a3b2e; color: var(--ok-text); }
+.pill { font-size: 11px; padding: 2px 6px; border-radius: 999px; background: var(--ok-soft); color: var(--ok-text); }
 .profs { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
 .plist { flex: 0 1 220px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .plist button { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; }
@@ -535,7 +537,7 @@ kbd { font: 11px/1 var(--mono); border: 1px solid var(--line3); border-bottom-wi
 .tgst { display: flex; flex-direction: column; gap: 6px; }
 .tgst div { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
 .tgst i { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--faint); transform: translateY(-1px); }
-.tgst .ok i { background: var(--ok); } .tgst .warn i { background: var(--accent); } .tgst .bad i { background: #e0675a; }
+.tgst .ok i { background: var(--ok); } .tgst .warn i { background: var(--warn); } .tgst .bad i { background: var(--bad); }
 .tgst .bad span { color: var(--bad-text); }
 .tgsub { font-size: 14px; color: var(--text); margin: 12px 0 -6px; }
 /* Telegram switched off: its settings and every other place it shows go (also the Telegram side of Trusted players) */
@@ -568,7 +570,7 @@ dialog#rawdlg td code { word-break: break-all; }
   background: var(--sunk); border: 1px solid var(--line); counter-increment: step; }
 .steps li::before { content: counter(step); grid-row: span 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
   font-weight: 600; background: var(--line2); color: var(--text); }
-.steps li.done::before { content: '✓'; background: var(--ok); color: #0d1a10; }
+.steps li.done::before { content: '✓'; background: var(--ok); color: var(--ok-ink); }
 .steps li.cur { border-color: var(--accent); }
 .steps b { font-size: 14px; }
 .steps .act { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -653,8 +655,8 @@ dialog#rawdlg td code { word-break: break-all; }
       </div>
       <div class="legend">
         <span><i style="background:#e05c5c"></i>Home bed</span>
-        <span><i style="background:#d29a4c"></i>Chest</span>
-        <span><i style="background:#c9d84f"></i>Field</span>
+        <span><i style="background:#e8c04a"></i>Chest</span>
+        <span><i style="background:#38b6c8"></i>Field</span>
         <span><i style="background:#fff;border-radius:50%"></i>Player</span>
         <span><i style="background:#fff;transform:rotate(45deg);width:8px;height:8px"></i>NPC</span>
         <span><i style="background:#ff5a4a;border-radius:50%;border:0;width:8px;height:8px"></i>Monster</span>
@@ -1953,7 +1955,8 @@ function drawMap() {
   }
   g.drawImage(mapImg, (M.x0 - vx0) * k, (M.z0 - vz0) * k, M.size * k, M.size * k);
   const px = x => (x - vx0) * k, pz = z => (z - vz0) * k, u = dpr;
-  const MARK = {bed: '#e05c5c', chest: '#d29a4c', field: '#c9d84f'};
+  // red, yellow and cyan: apart also with red/green colour blindness (a monster is red too, but round)
+  const MARK = {bed: '#e05c5c', chest: '#e8c04a', field: '#38b6c8'};
   for (const p of M.places || []) {
     const s = Math.max(9 * u, k * .8), x = px(p.x + .5) - s / 2, z = pz(p.z + .5) - s / 2;
     g.fillStyle = MARK[p.kind] || '#fff'; g.fillRect(x, z, s, s); g.strokeStyle = '#14181c'; g.lineWidth = u; g.strokeRect(x, z, s, s);

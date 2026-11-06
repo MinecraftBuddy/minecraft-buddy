@@ -3,6 +3,11 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.22
+
+- The panel's colours now stay apart with red/green colour blindness: online, running and done are blue instead of
+  green, a warning in the Telegram settings is yellow, and on the map a chest is yellow and a field cyan.
+
 ## 0.5.21
 
 - **Walk there** while the buddy sits: the buddy rides on as long as that gets closer, then walks the rest. A boat goes
