@@ -403,6 +403,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
             setDebugState(_fight.around() > 0 ? "Waiting for the blazes to come in reach" : "Waiting near blaze spawner for blazes to spawn");
             return null;
         }
+        // (the buddy's fork, Tuning nether_restock, steering 70 point 2: the throwaways topped up with netherrack on the way, as
+        // #gamer's NetherPhase does, so a lava bridge or a pillbox never stops for blocks; never by the spawner: no spawner is
+        // known here)
+        if (adris.altoclef.util.helpers.Tuning.get("nether_restock", 0) > 0) {
+            Task dig = _restock.tickPhase(mod, WorldHelper.getTicks() / 20.0);
+            if (dig != null) {
+                setDebugState("Restocking building blocks");
+                return dig;
+            }
+        }
         // We need to find our fortress.
         // (the buddy's fork, Tuning fortress_sweep, steering 68: the region sweep with a memory per server and dimension, a
         // fortress a structure cell; the old search takes over once one is known near, or when the sweep gave up)
@@ -431,6 +441,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     static final int BREW_WAIT_TICKS = 1200;
     private int _brewWaitUntil = Integer.MIN_VALUE;
     private boolean _openLogged;
+
+    private final adris.altoclef.tasks.speedrun.gamer.tasks.NetherBlockRestock _restock = new adris.altoclef.tasks.speedrun.gamer.tasks.NetherBlockRestock();
 
     private boolean _sweepTracking;
     private boolean _sweepFailLogged;
