@@ -8,7 +8,7 @@ import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import org.junit.Test;
 
-// every fire we touch gets hit, not just the first one, or we stand in the second one and burn anyway
+// every fire we touch is a candidate, not just the first one, or we stand in the second one and burn anyway
 public class FireWeTouchTest {
 
     @Test

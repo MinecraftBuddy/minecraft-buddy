@@ -88,6 +88,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private long _repairCheckedAt = Long.MIN_VALUE / 2;
     static final long REPAIR_CHECK = 40;
     private boolean _pillboxCornered;
+    // the spawner whose pillbox was given up on, more than SHORT_OK of its blocks open: its camp is picked again without a box
+    private BlockPos _pillboxGaveUpFor;
 
     // true on ticks where we stand by the spawner waiting for blazes, so the gamer can give up on a dud spawner
     private boolean _camping;
@@ -246,6 +248,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _fight.pillboxPlanned(false);
             _fight.pillboxLookout(null);
         }
+        // (the buddy's fork: a pillbox given up on with more than SHORT_OK of its blocks open is no cover. kept, its bare cell
+        // stayed the fight's corner and the camp, runs into it burned there, and nothing picked the camp again (the dry watch
+        // passes over a camp with a box): the camp is picked again with no box at this spawner, the open camp as before the box)
+        if (_pillbox != null && _pillbox.isFinished(mod) && !_pillbox.nearlyBuilt(mod)) {
+            Debug.logInternal("blaze camp: the pillbox at " + _pillbox.cell().toShortString() + " given up, the camp picked again without one");
+            _pillboxGaveUpFor = _foundBlazeSpawner;
+            _campSpotFor = null;
+            _campSpot = null;
+            _pillbox = null;
+            _pillboxCornered = false;
+            _pillboxCornerSet = null;
+            _lure = null;
+            _fight.corner(null);
+            _fight.pillboxPlanned(false);
+            _fight.pillboxLookout(null);
+        }
         // (the buddy's fork, Tuning brew_box: shut in the brew box with nothing hostile inside, no fire and the health at
         // BrewBox.LOW_HP or more, the fight sits out and the brew goes on (BrewBoxTask.holds); the stamp stands the mob defense
         // down too. the open brew was cut off by a fight five times in ten runs and never finished)
@@ -283,6 +301,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         if (building) adris.altoclef.util.helpers.BlazeShelter.building(mod.getWorld().getGameTime());
         if (_pillbox != null && _pillboxCornered) adris.altoclef.util.helpers.BlazeShelter.boxStands(mod.getWorld().getGameTime());
+        // (the standing box's way in, for every walk into the corner: round by its door, BoxWay)
+        BlazePillboxTask standing = _pillbox != null && _pillboxCornered ? _pillbox : null;
+        adris.altoclef.util.helpers.BlazeShelter.box(standing == null ? null : standing.cell(), standing == null ? null : standing.door(),
+                standing == null ? null : standing::holds);
         // (a brew box going up is built as a pillbox is: only a blaze that bites is fought meanwhile, its blocks may be placed)
         boolean brewBuilding = _brewBox != null && _brewBox.building();
         _fight.building(building || brewBuilding);
@@ -789,7 +811,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         // (the buddy's fork: no corner, a pillbox built by the spawner, steering 21; its cell is the fight's corner once it
         // stands, and the looks start from it)
-        if (adris.altoclef.util.helpers.Tuning.get("pillbox", 1) > 0) {
+        if (adris.altoclef.util.helpers.Tuning.get("pillbox", 1) > 0 && !_foundBlazeSpawner.equals(_pillboxGaveUpFor)) {
             adris.altoclef.util.helpers.BlazePillbox.Plan plan = pillboxPlan(mod, cells, sx, sy, sz);
             if (plan != null) {
                 _pillbox = new BlazePillboxTask(plan);

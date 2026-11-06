@@ -536,9 +536,11 @@ public class TakeAlongChain extends SingleTaskChain {
     // the animals that are food, as the food task hunts them (a mooshroom is a cow)
     private static final List<Class<? extends Entity>> PREY = List.of(Cow.class, Pig.class, Sheep.class, Chicken.class);
 
-    // an animal the hunt may go for: alive, grown, nobody riding it, not banned by anybody or by us, dry
+    // an animal the hunt may go for: alive, grown, nobody riding it, not somebody's (named, on a lead, in a pen), not banned
+    // by anybody or by us, dry
     private static boolean preyOk(AltoClef mod, Entity e) {
-        if (!(e instanceof LivingEntity living) || !living.isAlive() || living.isBaby() || e.isVehicle() || e.isInWater()) {
+        if (!(e instanceof LivingEntity living) || !living.isAlive() || living.isBaby() || e.isVehicle() || e.isInWater()
+                || adris.altoclef.tasks.resources.PreyScan.keptAnimal(e)) {
             return false;
         }
         return mod.getEntityTracker().isEntityReachable(e) && !BanPolicy.takeAlongEntityBanned(mod.getBans(), e.getId());

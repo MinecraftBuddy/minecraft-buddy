@@ -33,10 +33,12 @@ public class GhastShelterChain extends SingleTaskChain {
     // the walk to cover gets half a game minute, a stay at most two
     static final int WALK_TICKS = 600;
     static final int STAY_TICKS = 2400;
-    // before a crossing: a ghast anywhere this close, seen or not, and the path's next nodes over the sea. the shelter that
-    // only answered a ghast already seeing the buddy on its bridge changed nothing in the drill (four passes in ten, as
-    // without it): one ball in the first second is enough. so the crossing waits until no ghast is this close
+    // before a crossing: a ghast this close that sees the buddy or the crossing, and the path's next nodes over the sea. the
+    // shelter that only answered a ghast already seeing the buddy on its bridge changed nothing in the drill (four passes in
+    // ten, as without it): one ball in the first second is enough. so the crossing waits until no ghast is this close
     static final double NEAR = 64;
+    // after a stay of STAY_TICKS or a walk of WALK_TICKS, this long with no shelter before it may take one again
+    static final int REST_TICKS = 200;
     static final int LOOKAHEAD = 8;
 
     private BlockPos _cover;
@@ -44,9 +46,15 @@ public class GhastShelterChain extends SingleTaskChain {
     // standing in cover is a task too: a chain that wins with a finished one holds the wheel over nothing
     private final Task _stay = new IdleTask();
     private long _since = Long.MIN_VALUE;
+    private long _walkSince = Long.MIN_VALUE;
+    private long _restUntil = Long.MIN_VALUE;
     private long _clearSince = Long.MIN_VALUE;
     // waiting before a crossing (any ghast near) rather than hiding from one that sees us
     private boolean _before;
+    // the cover is the blaze fight's corner: the walk is round by a standing pillbox's door (BoxWay), and the ghast's own cover
+    // once that had its time
+    private boolean _fightCorner;
+    private final adris.altoclef.util.helpers.BoxWay _way = new adris.altoclef.util.helpers.BoxWay();
 
     public GhastShelterChain(TaskRunner runner) {
         super(runner);
@@ -64,17 +72,44 @@ public class GhastShelterChain extends SingleTaskChain {
         long now = level.getGameTime();
         Ghast ghast = GhastCover.seeingGhast(mod, SIGHT);
         if (_cover != null) {
-            if (now < _since || now - _since > STAY_TICKS || player.isInLava()) {
+            if (now < _since || player.isInLava()) {
                 reset();
+                return Float.NEGATIVE_INFINITY;
+            }
+            if (now - _since > STAY_TICKS) {
+                Debug.logInternal("ghast shelter: " + STAY_TICKS / 20 + " s in cover, the order goes on, no shelter for " + REST_TICKS / 20 + " s");
+                rest(now);
                 return Float.NEGATIVE_INFINITY;
             }
             boolean there = player.blockPosition().distSqr(_cover) <= 2;
-            if (!there && now - _since > WALK_TICKS) {
-                reset();
+            if (!there && (now < _walkSince || now - _walkSince > WALK_TICKS)) {
+                Debug.logInternal("ghast shelter: the cover at " + _cover.toShortString() + " not reached in " + WALK_TICKS / 20 + " s, no shelter for " + REST_TICKS / 20 + " s");
+                rest(now);
                 return Float.NEGATIVE_INFINITY;
             }
+            if (there && ghast != null) {
+                // (still in a ghast's sight there: from where it is now that cell is no cover, so the next one. the idle there held
+                // the buddy in its sight up to STAY_TICKS)
+                BlockPos other = GhastCover.cover(mod, ghast);
+                if (other != null && !other.equals(_cover)) {
+                    Debug.logInternal("ghast shelter: seen in cover at " + _cover.toShortString() + " by the ghast at " + ghast.blockPosition().toShortString()
+                            + ", on to cover at " + other.toShortString());
+                    walkTo(other, false, now);
+                    setTask(_go);
+                    return PRIORITY;
+                }
+                if (other == null || player.blockPosition().equals(_cover)) {
+                    Debug.logInternal("ghast shelter: seen in cover at " + _cover.toShortString() + " and no other cover, no shelter for " + REST_TICKS / 20 + " s");
+                    rest(now);
+                    return Float.NEGATIVE_INFINITY;
+                }
+                // (beside the cell, seen: into the cell itself)
+                _clearSince = Long.MIN_VALUE;
+                setTask(_go);
+                return PRIORITY;
+            }
             if (there) {
-                if (_before ? nearestGhast(mod, NEAR) != null : ghast != null) {
+                if (_before && nearestGhast(mod, NEAR) != null) {
                     _clearSince = Long.MIN_VALUE;
                 } else if (_clearSince == Long.MIN_VALUE) {
                     _clearSince = now;
@@ -85,38 +120,95 @@ public class GhastShelterChain extends SingleTaskChain {
                     return Float.NEGATIVE_INFINITY;
                 }
             }
+            if (!there && _fightCorner) {
+                Task way = _way.step(mod, _cover);
+                if (way != null) {
+                    setTask(way);
+                    return PRIORITY;
+                }
+                Ghast g = ghast != null ? ghast : nearestGhast(mod, NEAR);
+                BlockPos other = g == null ? null : GhastCover.cover(mod, g);
+                if (other == null) {
+                    reset();
+                    return Float.NEGATIVE_INFINITY;
+                }
+                Debug.logInternal("ghast shelter: the blaze fight's corner not reached, into cover at " + other.toShortString());
+                walkTo(other, false, now);
+                setTask(_go);
+                return PRIORITY;
+            }
             setTask(there ? _stay : _go);
             return PRIORITY;
         }
+        // (after a stay or a walk that ran out its time, a while with no shelter: the trigger at once took the same cover again)
+        if (_restUntil != Long.MIN_VALUE && now < _restUntil && now >= _restUntil - REST_TICKS) return Float.NEGATIVE_INFINITY;
         if (!player.onGround() || player.isInLava()) return Float.NEGATIVE_INFINITY;
         BlockPos feet = player.blockPosition();
         CliffAvoidance.Cells cells = CliffAvoidance.of(new BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
         boolean exposed = ghast != null && (CliffAvoidance.overSea(cells, feet.getX(), feet.getY(), feet.getZ())
                 || CliffAvoidance.dropNear(cells, feet.getX(), feet.getY(), feet.getZ()));
-        Ghast near = exposed ? ghast : nearestGhast(mod, NEAR);
-        boolean before = !exposed && near != null && crossingAhead(mod, cells);
+        Ghast close = exposed ? ghast : nearestGhast(mod, NEAR);
+        // (before a crossing only for a ghast that sees us or the crossing: one with a wall between it and both shoots at
+        // neither, and the wait for it held the order in cover up to STAY_TICKS)
+        List<BlockPos> ahead = !exposed && close != null ? seaAhead(mod, cells) : List.of();
+        Ghast near = exposed ? ghast : ahead.isEmpty() ? null : watching(mod, NEAR, ahead);
+        boolean before = !exposed && near != null;
         if (!exposed && !before) {
-            // (why not, once a few seconds while one is near: in sight, over the sea, a drop by us)
-            if (near != null) say(now, "not exposed: " + (ghast == null ? "none in sight" : "in sight at " + Math.round(ghast.distanceTo(player)))
+            // (why not, once a few seconds while one is near: in sight, over the sea, a drop by us, the crossing in sight)
+            if (close != null) say(now, "not exposed: " + (ghast == null ? "none in sight" : "in sight at " + Math.round(ghast.distanceTo(player)))
                     + ", over the sea " + CliffAvoidance.overSea(cells, feet.getX(), feet.getY(), feet.getZ())
-                    + ", a drop by us " + CliffAvoidance.dropNear(cells, feet.getX(), feet.getY(), feet.getZ()));
+                    + ", a drop by us " + CliffAvoidance.dropNear(cells, feet.getX(), feet.getY(), feet.getZ())
+                    + (ahead.isEmpty() ? "" : ", a crossing ahead in no ghast's sight"));
             return Float.NEGATIVE_INFINITY;
         }
         // (the buddy's fork: in a blaze fight with its corner near, the corner is the cover from a ghast too: the cover picked for
-        // the ghast alone stood by the spawner in the blazes' fire, blazeroom drill, corner15 run 3 and corner19 run 2, 4 Nov 2026)
+        // the ghast alone stood by the spawner in the blazes' fire, blazeroom drill, corner15 run 3 and corner19 run 2, 4 Nov 2026.
+        // only a corner the ghast has no line to: one it sees is no cover from it)
         BlockPos fight = adris.altoclef.util.helpers.BlazeShelter.fresh(now);
-        BlockPos cover = fight != null && player.position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(fight))
-                <= adris.altoclef.util.helpers.BlazeShelter.RANGE ? fight : GhastCover.cover(mod, near);
+        boolean fightCorner = fight != null && player.position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(fight))
+                <= adris.altoclef.util.helpers.BlazeShelter.RANGE && !GhastCover.seesCell(level, near.getEyePosition(), fight, player);
+        BlockPos cover = fightCorner ? fight : GhastCover.cover(mod, near);
         if (cover == null) return Float.NEGATIVE_INFINITY;
         _before = before;
-        _cover = cover;
-        _go = new GetToBlockTask(cover);
         _since = now;
-        _clearSince = Long.MIN_VALUE;
-        Debug.logInternal("ghast shelter: " + (before ? "a crossing over the sea ahead with a ghast near at " : "on a rim or over the sea in the sight of a ghast at ")
+        walkTo(cover, fightCorner, now);
+        Debug.logInternal("ghast shelter: " + (before ? "a crossing over the sea ahead in the sight of a ghast at " : "on a rim or over the sea in the sight of a ghast at ")
                 + near.blockPosition().toShortString() + ", into cover at " + cover.toShortString());
         setTask(_go);
         return PRIORITY;
+    }
+
+    // the walk to a cover cell, its own clock (WALK_TICKS); the stay's clock (STAY_TICKS) goes on
+    private void walkTo(BlockPos cover, boolean fightCorner, long now) {
+        _cover = cover;
+        _fightCorner = fightCorner;
+        _way.reset();
+        _go = new GetToBlockTask(cover);
+        _walkSince = now;
+        _clearSince = Long.MIN_VALUE;
+    }
+
+    private void rest(long now) {
+        reset();
+        _restUntil = now + REST_TICKS;
+    }
+
+    // the nearest ghast within range with a line to our eyes or to a cell of the crossing ahead
+    private static Ghast watching(AltoClef mod, double range, List<BlockPos> cells) {
+        var player = mod.getPlayer();
+        Ghast best = null;
+        double bestD = range;
+        for (Ghast g : mod.getEntityTracker().getTrackedEntities(Ghast.class)) {
+            if (!g.isAlive()) continue;
+            double d = g.distanceTo(player);
+            if (d > bestD) continue;
+            boolean sees = GhastCover.clear(mod.getWorld(), g.getEyePosition(), player.getEyePosition(), player);
+            for (int i = 0; i < cells.size() && !sees; i++) sees = GhastCover.seesCell(mod.getWorld(), g.getEyePosition(), cells.get(i), player);
+            if (!sees) continue;
+            best = g;
+            bestD = d;
+        }
+        return best;
     }
 
     private static Ghast nearestGhast(AltoClef mod, double range) {
@@ -133,27 +225,28 @@ public class GhastShelterChain extends SingleTaskChain {
         return best;
     }
 
-    // the user task's path goes out over the lava sea within its next few nodes
     private static long _lastSaid = Long.MIN_VALUE;
 
-    private static boolean crossingAhead(AltoClef mod, CliffAvoidance.Cells cells) {
+    // the cells of the user task's path over the lava sea within its next few nodes; none with no path or none over the sea
+    private static List<BlockPos> seaAhead(AltoClef mod, CliffAvoidance.Cells cells) {
         IPathExecutor current = mod.getClientBaritone().getPathingBehavior().getCurrent();
         long now = mod.getWorld().getGameTime();
         if (current == null) {
             say(now, "no path running");
-            return false;
+            return List.of();
         }
         List<BetterBlockPos> positions = current.getPath().positions();
         int from = Math.max(0, current.getPosition());
         int seen = 0;
+        List<BlockPos> sea = new java.util.ArrayList<>();
         for (int i = from; i < positions.size() && i <= from + LOOKAHEAD; i++) {
             BetterBlockPos p = positions.get(i);
             seen++;
-            if (CliffAvoidance.overSea(cells, p.x, p.y, p.z)) return true;
+            if (CliffAvoidance.overSea(cells, p.x, p.y, p.z)) sea.add(new BlockPos(p.x, p.y, p.z));
         }
         // (why the crossing was never seen in the drill: what the path held, once a few seconds with a ghast near)
-        say(now, "path ahead " + seen + " nodes, none over the sea, the last " + (positions.isEmpty() ? "-" : positions.get(positions.size() - 1).toString()));
-        return false;
+        if (sea.isEmpty()) say(now, "path ahead " + seen + " nodes, none over the sea, the last " + (positions.isEmpty() ? "-" : positions.get(positions.size() - 1).toString()));
+        return sea;
     }
 
     private static void say(long now, String what) {
@@ -168,6 +261,7 @@ public class GhastShelterChain extends SingleTaskChain {
         _since = Long.MIN_VALUE;
         _clearSince = Long.MIN_VALUE;
         _before = false;
+        _fightCorner = false;
     }
 
     @Override

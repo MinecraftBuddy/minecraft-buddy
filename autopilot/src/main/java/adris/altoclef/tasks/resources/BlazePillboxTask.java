@@ -169,13 +169,18 @@ final class BlazePillboxTask extends Task {
     boolean nearlyBuilt(AltoClef mod) {
         if (done) return true;
         if (!gaveUp) return false;
+        return openBlocks(mod) <= SHORT_OK;
+    }
+
+    // the blocks of the plan that are not in
+    private int openBlocks(AltoClef mod) {
         var level = mod.getWorld();
         int open = 0;
         for (int[] b : plan.blocks()) {
             BlockPos p = new BlockPos(b[0], b[1], b[2]);
             if (level.getBlockState(p).getCollisionShape(level, p).isEmpty()) open++;
         }
-        return open <= SHORT_OK;
+        return open;
     }
 
     boolean gaveUp() {
@@ -268,6 +273,14 @@ final class BlazePillboxTask extends Task {
             }
         }
         if (next >= plan.blocks().size()) {
+            // (more than SHORT_OK of its blocks open at the end is no box: counted as standing, its bare cell became the
+            // fight's corner and the camp, and the runs into it burned there. given up instead, so the camp is picked again)
+            int open = openBlocks(mod);
+            if (open > SHORT_OK) {
+                gaveUp = true;
+                Debug.logInternal("pillbox: through its plan at " + cell.toShortString() + " with " + open + " of " + plan.blocks().size() + " blocks open, given up");
+                return null;
+            }
             done = true;
             Debug.logInternal("pillbox: built at " + cell.toShortString() + " (" + left + " of " + plan.blocks().size() + " left out), looking out from " + lookout().toShortString());
             return null;
