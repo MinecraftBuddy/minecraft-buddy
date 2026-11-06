@@ -77,6 +77,11 @@ import net.minecraft.world.level.chunk.LevelChunkSection;
  * level event 2001, by the buddy and by the other players), each {@code [x, y, z, state]}, for the page to throw their
  * bits.
  * <p>
+ * <b>Recording runs</b>: while {@link RunRecorder} records, all of this keeps up as if a page asked to keep up, the
+ * positions go to the recorder every second tick as well, and every copy and change file goes into the recording too. A
+ * copy is then also made at the start, at a change of dimension (instead of a reset in a change file), after a teleport,
+ * and at least every ten minutes: a page that watches loads each one as usual.
+ * <p>
  * Sections are copied on the game's thread (a few milliseconds); everything else happens on a thread of its own, in the
  * order it was asked for.
  */
@@ -111,6 +116,8 @@ public final class World3d {
 	private static long liveUntil, base, watchUntil;
 	/** Blocks broken around the buddy since the last positions file: x, y, z and the state (at most 64 between two files). */
 	private static final List<Object> broken = new ArrayList<>();
+	/** The same since the last frame of the recording. */
+	private static final List<Object> recBroken = new ArrayList<>();
 	private static int radius = 6, tick;
 	/** Ticks of the buddy's game since it started, every one: the page draws the places by these (twenty a second, as the
 	 *  game moved the buddy), not by the clock of the moment a file was written, which runs unevenly when two ticks fall in
@@ -150,7 +157,7 @@ public final class World3d {
 	 *  sections around it, whose blocks did not change). Masks count from the section below the world. */
 	public static void lightChanged(int cx, int cz, java.util.BitSet... masks) {
 		ClientLevel level = Minecraft.getInstance().level;
-		if (level == null || liveUntil < System.currentTimeMillis()) return;
+		if (level == null || !live(System.currentTimeMillis())) return;
 		for (var mask : masks)
 			for (int i = mask.nextSetBit(0); i >= 0; i = mask.nextSetBit(i + 1)) {
 				int sy = level.getMinSectionY() - 1 + i;
@@ -181,10 +188,16 @@ public final class World3d {
 	 *  the window shows the buddy's own work or another driver's too, sleeping, eating and block breaking included. */
 	static boolean watched() { return System.currentTimeMillis() < watchUntil; }
 
+	/** A page keeps up, or a run is recorded: the changes are followed. */
+	private static boolean live(long now) { return now <= liveUntil || RunRecorder.on(); }
+
 	/** A block broken near the buddy, by the buddy or another player (ClientLevel.addDestroyBlockEffect, the game's thread). */
 	public static void broke(BlockPos pos, BlockState state) {
-		if (System.currentTimeMillis() > liveUntil || broken.size() >= 64 || state.isAir()) return;
-		broken.add(List.of(pos.getX(), pos.getY(), pos.getZ(), BlockStateParser.serialize(state)));
+		boolean page = System.currentTimeMillis() <= liveUntil && broken.size() < 64, rec = RunRecorder.on() && recBroken.size() < 64;
+		if (!page && !rec || state.isAir()) return;
+		List<Object> b = List.of(pos.getX(), pos.getY(), pos.getZ(), BlockStateParser.serialize(state));
+		if (page) broken.add(b);
+		if (rec) recBroken.add(b);
 	}
 
 	static void command(JsonObject o, Minecraft mc) {
@@ -194,9 +207,10 @@ public final class World3d {
 		}
 		if (o.has("live") && o.get("live").getAsBoolean()) {
 			long now = System.currentTimeMillis();
-			boolean was = now < liveUntil;
+			boolean was = live(now);
 			liveUntil = now + LIVE_MS;
-			// what changed while nobody looked was not kept: a new copy, which a page then reads
+			// what changed while nobody looked was not kept: a new copy, which a page then reads (while a run is recorded
+			// the copy and its change files are kept up)
 			if (!was || base == 0) snapshot(mc, radius);
 			return;
 		}
@@ -206,7 +220,7 @@ public final class World3d {
 
 	/** A block changed in the buddy's world (the game's thread). */
 	public static void changed(BlockPos pos) {
-		if (System.currentTimeMillis() > liveUntil) return;
+		if (!live(System.currentTimeMillis())) return;
 		dirty.add(SectionPos.asLong(pos.getX() >> 4, pos.getY() >> 4, pos.getZ() >> 4));
 	}
 
@@ -243,14 +257,14 @@ public final class World3d {
 		// sends its sections again a few ticks after, or some chunks were drawn without their light
 		ClientLevel level = Minecraft.getInstance().level;
 		long k = pos.pack();
-		if (level != null && liveUntil > System.currentTimeMillis()) level.queueLightUpdate(() -> relight.put(k, gameTicks + 4));
+		if (level != null && live(System.currentTimeMillis())) level.queueLightUpdate(() -> relight.put(k, gameTicks + 4));
 	}
 
 	private static void snapshot(Minecraft mc, int r) {
 		LocalPlayer p = mc.player;
 		ClientLevel level = mc.level;
 		if (p == null || level == null) { Exchange.emit("world3d", "error", "not in a world"); return; }
-		long t0 = System.currentTimeMillis();
+		long t0 = System.currentTimeMillis(), tk = gameTicks;
 		int pcx = p.getBlockX() >> 4, pcz = p.getBlockZ() >> 4;
 		List<Out> chunks = new ArrayList<>();
 		Map<String, Object> bes = new LinkedHashMap<>();
@@ -268,6 +282,7 @@ public final class World3d {
 		resetNext = false;
 		chainFull = false;
 		base = Math.max(base + 1, t0);
+		RunRecorder.copied(level, t0);
 		Map<String, Object> meta = common(level, p);
 		meta.put("base", base);
 		meta.put("version", SharedConstants.getCurrentVersion().name());
@@ -278,63 +293,82 @@ public final class World3d {
 		meta.put("light", 1);
 		meta.put("be", bes);
 		long copied = System.currentTimeMillis() - t0;
-		submit(() -> writeCopy(chunks, meta, t0, copied));
+		submit(() -> writeCopy(chunks, meta, t0, copied, tk));
 	}
 
 	/** Once a tick. */
 	static void tick(Minecraft mc) {
 		gameTicks++;
 		long now = System.currentTimeMillis();
+		boolean rec = RunRecorder.tick(mc, gameTicks, now), page = now <= liveUntil;
 		// while the page drives the buddy, five times a second, so that the view keeps up with every step
-		// played from the panel or watched closely every tick (the buddy's place drives the view), else every half second
-		if (now > liveUntil || base == 0) { relight.clear(); broken.clear(); return; }
-		if (++tick % (Steer.active() || watched() ? 1 : 10) != 0) return;
+		// played from the panel or watched closely every tick (the buddy's place drives the view), else every half second;
+		// a recording takes the buddy's place every second tick besides
+		if (!page && !rec || base == 0 && !rec) { relight.clear(); broken.clear(); recBroken.clear(); return; }
+		boolean round = ++tick % (Steer.active() || watched() ? 1 : 10) == 0, frame = rec && tick % 2 == 0;
+		if (!round && !frame) return;
 		LocalPlayer p = mc.player;
 		ClientLevel level = mc.level;
 		if (p == null || level == null) return;
-		if (chainFull) { snapshot(mc, radius); return; }
-		if (pending.get() > 3) return;
-		if (level != level0) { resetNext = true; sent.clear(); dirty.clear(); level0 = level; }
-		int pcx = p.getBlockX() >> 4, pcz = p.getBlockZ() >> 4;
-		Set<Long> want = new HashSet<>();
-		for (int cx = pcx - radius; cx <= pcx + radius; cx++)
-			for (int cz = pcz - radius; cz <= pcz + radius; cz++)
-				if (level.hasChunk(cx, cz)) want.add(ChunkPos.pack(cx, cz));
-		List<Long> removed = new ArrayList<>();
-		for (long k : sent) if (!want.contains(k)) removed.add(k);
-		List<Long> added = new ArrayList<>();
-		for (long k : want) if (!sent.contains(k)) added.add(k);
-		added.sort(Comparator.comparingInt(k -> Math.max(Math.abs(ChunkPos.getX(k) - pcx), Math.abs(ChunkPos.getZ(k) - pcz))));
-		if (added.size() > MAX_NEW_CHUNKS) added = new ArrayList<>(added.subList(0, MAX_NEW_CHUNKS));
+		if (chainFull || rec && RunRecorder.copyDue(level, p.getX(), p.getY(), p.getZ(), now)) { snapshot(mc, radius); return; }
+		// the writer behind: the chunks wait for a later round (they stay dirty); the recording's frames go on
+		boolean chunks = round && pending.get() <= 3;
+		if (!frame && !chunks) return;
 		List<Out> outs = new ArrayList<>();
-		for (long k : added) { outs.add(whole(level, ChunkPos.getX(k), ChunkPos.getZ(k))); sent.add(k); }
-		removed.forEach(sent::remove);
-		// a chunk whose light has come since it was sent: all its sections again, light and all
-		for (var it = relight.entrySet().iterator(); it.hasNext();) {
-			var en = it.next();
-			if (en.getValue() > gameTicks) continue;
-			it.remove();
-			long k = en.getKey();
-			if (!sent.contains(k)) continue;
-			for (int sy = level.getMinSectionY(); sy <= level.getMaxSectionY(); sy++) dirty.add(SectionPos.asLong(ChunkPos.getX(k), sy, ChunkPos.getZ(k)));
+		List<Long> removed = new ArrayList<>();
+		if (chunks) {
+			if (level != level0) { resetNext = true; sent.clear(); dirty.clear(); level0 = level; }
+			int pcx = p.getBlockX() >> 4, pcz = p.getBlockZ() >> 4;
+			Set<Long> want = new HashSet<>();
+			for (int cx = pcx - radius; cx <= pcx + radius; cx++)
+				for (int cz = pcz - radius; cz <= pcz + radius; cz++)
+					if (level.hasChunk(cx, cz)) want.add(ChunkPos.pack(cx, cz));
+			for (long k : sent) if (!want.contains(k)) removed.add(k);
+			List<Long> added = new ArrayList<>();
+			for (long k : want) if (!sent.contains(k)) added.add(k);
+			added.sort(Comparator.comparingInt(k -> Math.max(Math.abs(ChunkPos.getX(k) - pcx), Math.abs(ChunkPos.getZ(k) - pcz))));
+			if (added.size() > MAX_NEW_CHUNKS) added = new ArrayList<>(added.subList(0, MAX_NEW_CHUNKS));
+			for (long k : added) { outs.add(whole(level, ChunkPos.getX(k), ChunkPos.getZ(k))); sent.add(k); }
+			removed.forEach(sent::remove);
+			// a chunk whose light has come since it was sent: all its sections again, light and all
+			for (var it = relight.entrySet().iterator(); it.hasNext();) {
+				var en = it.next();
+				if (en.getValue() > gameTicks) continue;
+				it.remove();
+				long k = en.getKey();
+				if (!sent.contains(k)) continue;
+				for (int sy = level.getMinSectionY(); sy <= level.getMaxSectionY(); sy++) dirty.add(SectionPos.asLong(ChunkPos.getX(k), sy, ChunkPos.getZ(k)));
+			}
+			Map<Long, List<Sec>> partial = new HashMap<>();
+			for (long s : dirty) {
+				long k = ChunkPos.pack(SectionPos.x(s), SectionPos.z(s));
+				if (!sent.contains(k) || added.contains(k)) continue;
+				int index = level.getSectionIndexFromSectionY(SectionPos.y(s));
+				if (index < 0 || index >= level.getSectionsCount()) continue;
+				LevelChunkSection sec = level.getChunk(SectionPos.x(s), SectionPos.z(s)).getSections()[index];
+				partial.computeIfAbsent(k, x -> new ArrayList<>()).add(sec(level, SectionPos.x(s), SectionPos.z(s), index, sec));
+			}
+			dirty.clear();
+			for (var e : partial.entrySet()) outs.add(new Out(ChunkPos.getX(e.getKey()), ChunkPos.getZ(e.getKey()), false, e.getValue()));
 		}
-		Map<Long, List<Sec>> partial = new HashMap<>();
-		for (long s : dirty) {
-			long k = ChunkPos.pack(SectionPos.x(s), SectionPos.z(s));
-			if (!sent.contains(k) || added.contains(k)) continue;
-			int index = level.getSectionIndexFromSectionY(SectionPos.y(s));
-			if (index < 0 || index >= level.getSectionsCount()) continue;
-			LevelChunkSection sec = level.getChunk(SectionPos.x(s), SectionPos.z(s)).getSections()[index];
-			partial.computeIfAbsent(k, x -> new ArrayList<>()).add(sec(level, SectionPos.x(s), SectionPos.z(s), index, sec));
+		// the buddy's place goes before the changes of the same round, so that a recording has them in that order
+		boolean pageFile = chunks && page;
+		if (frame || pageFile) {
+			long t0 = System.nanoTime();
+			Map<String, Object> ents = common(level, p);
+			ents.put("base", base);
+			ents.put("cracks", cracks(mc));
+			if (frame) {
+				Map<String, Object> f = new LinkedHashMap<>(ents);
+				if (!recBroken.isEmpty()) { f.put("breaks", new ArrayList<>(recBroken)); recBroken.clear(); }
+				RunRecorder.frame(f, now, gameTicks, System.nanoTime() - t0);
+			}
+			if (pageFile) {
+				if (!broken.isEmpty()) { ents.put("breaks", new ArrayList<>(broken)); broken.clear(); }
+				submit(() -> writeJson("world3d-ent.json", ents));
+			}
 		}
-		dirty.clear();
-		for (var e : partial.entrySet()) outs.add(new Out(ChunkPos.getX(e.getKey()), ChunkPos.getZ(e.getKey()), false, e.getValue()));
-		Map<String, Object> ents = common(level, p);
-		ents.put("base", base);
-		ents.put("cracks", cracks(mc));
-		if (!broken.isEmpty()) { ents.put("breaks", new ArrayList<>(broken)); broken.clear(); }
-		submit(() -> writeJson("world3d-ent.json", ents));
-		if (outs.isEmpty() && removed.isEmpty() && !resetNext) return;
+		if (!chunks || outs.isEmpty() && removed.isEmpty() && !resetNext) return;
 		Map<String, Object> meta = new LinkedHashMap<>();
 		meta.put("base", base);
 		meta.put("dim", Work.dimOf(level));
@@ -353,7 +387,8 @@ public final class World3d {
 		for (Out o : outs) bes.put(o.x() + "," + o.z(), blockEntities(level, o.x(), o.z()));
 		meta.put("be", bes);
 		resetNext = false;
-		submit(() -> writeChanges(outs, meta));
+		long tk = gameTicks;
+		submit(() -> writeChanges(outs, meta, now, tk));
 	}
 
 	private static Out whole(ClientLevel level, int cx, int cz) {
@@ -547,7 +582,13 @@ public final class World3d {
 		if (sk.model() == net.minecraft.world.entity.player.PlayerModelType.SLIM) o.put("slim", true);
 	}
 
-	private interface Job { void run() throws Exception; }
+	interface Job { void run() throws Exception; }
+
+	/** Something to do on the writer's thread, after what was asked before it (the recorder's jobs). */
+	static void writer(Runnable r) { WRITER.execute(r); }
+
+	/** The writer's jobs of this class that wait. */
+	static int backlog() { return pending.get(); }
 
 	private static void submit(Job r) {
 		pending.incrementAndGet();
@@ -598,7 +639,7 @@ public final class World3d {
 		return out;
 	}
 
-	private static void writeCopy(List<Out> chunks, Map<String, Object> meta, long t0, long copied) throws IOException {
+	private static void writeCopy(List<Out> chunks, Map<String, Object> meta, long t0, long copied, long tk) throws IOException {
 		List<short[]> nums = new ArrayList<>();
 		for (Out c : chunks) for (Sec s : c.secs()) nums.add(s.copy() == null ? null : numbers(s.copy()));
 		long seq = nextSeq();
@@ -606,7 +647,7 @@ public final class World3d {
 		meta.put("states", new ArrayList<>(stateNames));
 		meta.put("biomes", new ArrayList<>(biomeNames));
 		Path f = dir().resolve("world3d.bin");
-		long bytes = write(f, out -> {
+		Body body = out -> {
 			out.writeBytes("MQ3D");
 			json(out, meta);
 			out.writeInt(chunks.size());
@@ -624,7 +665,8 @@ public final class World3d {
 					light(out, s);
 				}
 			}
-		});
+		};
+		long bytes = write(f, body);
 		// the files of the copy before go: a page with them takes this copy
 		Path live = dir().resolve("world3d-live");
 		Files.createDirectories(live);
@@ -632,11 +674,12 @@ public final class World3d {
 			for (Path q : list.toList()) Files.deleteIfExists(q);
 		}
 		chainBytes = 0;
+		RunRecorder.copy(t0, tk, body);
 		Exchange.emit("world3d", "chunks", chunks.size(), "sections", nums.size(), "states", stateNames.size(),
 			"bytes", bytes, "copy_ms", copied, "ms", System.currentTimeMillis() - t0);
 	}
 
-	private static void writeChanges(List<Out> chunks, Map<String, Object> meta) throws IOException {
+	private static void writeChanges(List<Out> chunks, Map<String, Object> meta, long ms, long tk) throws IOException {
 		int sf = stateNames.size(), bf = biomeNames.size();
 		Map<Sec, short[]> nums = new IdentityHashMap<>();
 		for (Out c : chunks) for (Sec s : c.secs()) if (s.copy() != null) nums.put(s, numbers(s.copy()));
@@ -649,7 +692,7 @@ public final class World3d {
 		meta.put("biomes", new ArrayList<>(biomeNames.subList(bf, biomeNames.size())));
 		Path live = dir().resolve("world3d-live");
 		Files.createDirectories(live);
-		long bytes = write(live.resolve(seq + ".bin"), out -> {
+		Body body = out -> {
 			out.writeBytes("MQ3L");
 			json(out, meta);
 			out.writeInt(chunks.size());
@@ -668,9 +711,11 @@ public final class World3d {
 					if (n != null || lit) light(out, s);
 				}
 			}
-		});
+		};
+		long bytes = write(live.resolve(seq + ".bin"), body);
 		chainBytes += bytes;
 		if (chainBytes > CHAIN_LIMIT) chainFull = true;
+		RunRecorder.change(ms, tk, body, bytes);
 	}
 
 	/** A section's light: a byte saying which follow (1 sky, 2 block), then 2048 bytes of each. */
@@ -696,7 +741,8 @@ public final class World3d {
 		out.write(b);
 	}
 
-	private interface Body { void write(DataOutputStream out) throws IOException; }
+	/** What goes into a file, written again for the recording: the same bytes each time. */
+	interface Body { void write(DataOutputStream out) throws IOException; }
 
 	/** Gzip of what the body writes, put in place at once; its size. */
 	private static long write(Path f, Body body) throws IOException {

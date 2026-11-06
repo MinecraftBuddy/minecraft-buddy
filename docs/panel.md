@@ -184,6 +184,23 @@ Scroll up for older lines.
 - **Behavior**: the buddy's logs (download, empty, and switch the recording of menus and screens on or off), and a
   field for any [exchange command](exchange.md) as JSON, with the ones worth knowing listed.
 
+### Recording runs
+
+For practice servers: the buddy can record everything the 3D view shows, so that a run can be played back later. It
+is off unless the file `recordings/on` exists in the exchange folder; there is no setting in the panel. Create the
+file to start and delete it to stop; the buddy notices within five seconds. While it records, the world is kept up as
+if someone watched, and every minute of play becomes one file in `recordings/` with:
+
+- a copy of the world around the buddy (at the start, after a change of dimension or a teleport, and every ten
+  minutes) and every change of its blocks since;
+- where the buddy, the players and the mobs are, ten times a second;
+- a timeline: what the buddy is doing, the order's steps and plan, damage and deaths, and what the autopilot
+  considered ("No path found", "let the blaze go"), a line that repeats counted rather than written again.
+
+`recordings/index.jsonl` lists the finished files. The buddy never deletes a recording. `tools/recording.py` lists the
+files, shows what is in them and rebuilds the positions at a given moment. The format is described at the top of
+`RunRecorder.java`.
+
 ## Who may open it
 
 - **The owner password** opens everything, from anywhere, for thirty days. Choose it at the first visit, with the setup
