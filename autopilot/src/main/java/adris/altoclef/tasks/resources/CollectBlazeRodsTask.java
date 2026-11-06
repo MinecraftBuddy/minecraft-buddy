@@ -368,11 +368,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // a walled side drew the buddy to the wall nearest the cell, every block of the box protected, and the walk and the
             // lure took turns there till the stall: twelve game minutes, about eight stalls in the blocks of 6 Nov 2026 morning,
             // the yardstick's bent-n-ap-3 on 8 rods among them. from the door the way in through the look out works)
-            BlockPos door = _campStep == null && _pillbox != null && _pillboxCornered && camp.equals(_pillbox.cell()) ? _pillbox.door() : null;
+            BlockPos door = _campStep == null && _pillbox != null && _pillboxCornered && camp.equals(_pillbox.cell()) && _doorGaveUp != _pillbox ? _pillbox.door() : null;
             if (door != null && !_pillbox.holds(mod.getPlayer().blockPosition()) && !door.equals(mod.getPlayer().blockPosition())) {
-                setDebugState("Round to the pillbox's open side");
-                _toSpawner = true;
-                return new GetToBlockTask(door, false);
+                // (the door itself out of reach: "No path found" 49 times in three minutes on the way to it, rod-1 run 5. after
+                // DOOR_WALK_TICKS this box gets the walk at its cell again)
+                long now = mod.getWorld().getGameTime();
+                if (_doorWalkSince < 0 || now < _doorWalkSince) _doorWalkSince = now;
+                if (now - _doorWalkSince > DOOR_WALK_TICKS) {
+                    _doorGaveUp = _pillbox;
+                    Debug.logInternal("blaze camp: the pillbox's open side " + door.toShortString() + " not reached in " + DOOR_WALK_TICKS / 20 + " s, the walk at its cell");
+                } else {
+                    setDebugState("Round to the pillbox's open side");
+                    _toSpawner = true;
+                    return new GetToBlockTask(door, false);
+                }
+            } else {
+                _doorWalkSince = -1;
             }
             if (_campStep == null && !camp.closerToCenterThan(mod.getPlayer().position(), campRadius)) {
                 setDebugState("Going to blaze spawner (" + (RunZones.INSTANCE.active(_zoneNow) + _deathZones.active(_zoneNow)) + " zones)");
@@ -963,6 +974,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
         _lure = null;
         _fight.corner(null);
     }
+
+    // the walk round to a standing pillbox's open side, at most this long in one go (ticks), and the box it gave up on
+    static final long DOOR_WALK_TICKS = 400;
+    private long _doorWalkSince = -1;
+    private BlazePillboxTask _doorGaveUp;
 
     // the last standing pillbox's open side (its door, else its look out), the fire-proof camp once its potion is drunk
     private BlockPos _fireproofSpot;
