@@ -115,7 +115,6 @@ public class WorldSurvivalChain extends SingleTaskChain {
 
     @Override
     public float getPriority(AltoClef mod) {
-        baritone.pathing.movement.MovementHelper.IN_LAVA.set(mod.getPlayer() != null && mod.getPlayer().isInLava());
         if (!AltoClef.inGame()) {
             letGoOfMagmaSneak();
             return Float.NEGATIVE_INFINITY;

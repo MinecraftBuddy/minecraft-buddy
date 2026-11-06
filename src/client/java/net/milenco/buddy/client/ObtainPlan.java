@@ -200,6 +200,29 @@ final class ObtainPlan {
 	}
 
 	/**
+	 * The ingredient for {@code times} smelts out of the bag's slots, as {@link #fuelPlan}: how many of each slot go into
+	 * the input slot, all of one kind, for a click with another kind onto it swaps the two. The kind already in that slot
+	 * ({@code inSlot}, null when it is empty), else the kind the bag holds most of.
+	 */
+	static int[] inputPlan(String[] ids, int[] counts, java.util.function.Predicate<String> ingredient, String inSlot, int times) {
+		String kind = inSlot;
+		if (kind == null) {
+			Map<String, Integer> have = new LinkedHashMap<>();
+			for (int i = 0; i < ids.length; i++) if (ids[i] != null && ingredient.test(ids[i])) have.merge(ids[i], counts[i], Integer::sum);
+			for (Map.Entry<String, Integer> e : have.entrySet()) if (kind == null || e.getValue() > have.get(kind)) kind = e.getKey();
+		}
+		int[] out = new int[ids.length];
+		if (kind == null || !ingredient.test(kind)) return out;
+		int left = times;
+		for (int i = 0; i < ids.length && left > 0; i++) {
+			if (!kind.equals(ids[i])) continue;
+			out[i] = Math.min(left, counts[i]);
+			left -= out[i];
+		}
+		return out;
+	}
+
+	/**
 	 * Our own ways to items no recipe or drop gives: the name of the special and what it takes for one. A name with a
 	 * {@code +} before it is a tool the way keeps (a water bucket to cast obsidian with): wanted once, whatever the count.
 	 */

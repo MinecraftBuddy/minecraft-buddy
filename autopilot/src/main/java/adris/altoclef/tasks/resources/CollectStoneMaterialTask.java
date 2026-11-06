@@ -13,12 +13,14 @@ import net.minecraft.world.level.block.Blocks;
 // the buddy's fork: what stone tools and a furnace are made of in 26.x, cobblestone, cobbled deepslate or blackstone (the
 // game's stone_tool_materials and stone_crafting_materials). the catalogue knew cobblestone only, so a stone pickaxe at y -9
 // sent it after stone it could not reach with 76 cobbled deepslate in the bag, until the runner called it stuck (the runner,
-// 2 Nov 2026, attempt 80). mined from stone and deepslate, whichever is near
+// 2 Nov 2026, attempt 80). mined from stone, deepslate and blackstone, whichever is near
 public class CollectStoneMaterialTask extends ResourceTask {
 
     public static final Item[] MATERIALS = {Items.COBBLESTONE, Items.COBBLED_DEEPSLATE, Items.BLACKSTONE};
-    // stone and deepslate only, as CollectCobblestoneTask: cobble in the world is our own pillars
-    private static final Block[] STONES = {Blocks.STONE, Blocks.DEEPSLATE};
+    // never cobble, as CollectCobblestoneTask: cobble in the world is our own pillars. blackstone is mined: in the nether it
+    // is the only stone there is, and a broken pickaxe there looked for stone that was not there. it is no pillar of ours,
+    // the walker does not build with it (BaritoneSettingsScope), and what was placed a minute ago is left (PlacedByUs)
+    private static final Block[] STONES = {Blocks.STONE, Blocks.DEEPSLATE, Blocks.BLACKSTONE};
 
     private final int _count;
 
@@ -43,7 +45,7 @@ public class CollectStoneMaterialTask extends ResourceTask {
 
     @Override
     protected boolean minesOnItsOwn(Block[] blocks) {
-        return coversAll(blocks, new Block[]{Blocks.STONE, Blocks.DEEPSLATE, Blocks.COBBLESTONE, Blocks.COBBLED_DEEPSLATE});
+        return coversAll(blocks, new Block[]{Blocks.STONE, Blocks.DEEPSLATE, Blocks.BLACKSTONE, Blocks.COBBLESTONE, Blocks.COBBLED_DEEPSLATE});
     }
 
     @Override

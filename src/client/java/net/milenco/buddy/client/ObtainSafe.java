@@ -469,6 +469,9 @@ final class ObtainSafe {
 		}
 
 		String detail() { return goal == null ? "a dry cell" : "to " + goal.toShortString(); }
+
+		/** The leaks' blocks are placed by the click at the start of the tick: without it the placer only aimed. */
+		void startTick(Minecraft mc) { placer.startTick(mc); }
 	}
 
 	// ---------- a night in a bed ----------
@@ -881,6 +884,8 @@ final class ObtainSafe {
 		final java.util.Set<BlockPos> bad = new java.util.HashSet<>();
 		boolean sealed, open;
 		long since = System.currentTimeMillis(), noted, stuckSince;
+		/** The cells it shut with a block of its own: the morning breaks the roof only when it is one of them. */
+		final java.util.Set<BlockPos> placed = new java.util.HashSet<>();
 
 		/** For a wound and not the night: done once healed, or after a while when the food bar does not heal. */
 		final boolean wound;
@@ -960,7 +965,9 @@ final class ObtainSafe {
 				// never a roof with water or lava over or beside it: it once opened its roof into an aquifer in the morning and
 				// stood in the water, where no station goes down and no tunnel starts; the walls lead out instead
 				if (sealed && !open && (ObtainSteps.wet(level, roof) || !level.getFluidState(roof).isEmpty())) open = true;
-				if (sealed && !open && solid(level, roof) && level.getBlockEntity(roof) == null) {
+				// and only a roof it placed itself: the rock over a shelter under the ground stays, as does whatever stands over
+				// a cell it was not shut in (moved, or respawned under someone's build)
+				if (sealed && !open && placed.contains(roof) && solid(level, roof) && level.getBlockEntity(roof) == null) {
 					ObtainSteps.Result r = breaker.tick(mc, p, roof, now);
 					if (r == ObtainSteps.Result.RUN) return r;
 					open = true;
@@ -1058,6 +1065,7 @@ final class ObtainSafe {
 					if (b == ObtainSteps.Result.RUN) return b;
 				}
 				phase = "shuts " + c.toShortString();
+				placed.add(c.immutable());
 				ObtainSteps.Result r = placer.tick(mc, p, c);
 				if (r == ObtainSteps.Result.RUN) return r;
 				// no face of a neighbour in sight (the cell behind it over the step of a staircase, with a hole under it): the hole
@@ -1239,6 +1247,7 @@ final class ObtainSafe {
 			return true;
 		}
 
-		void startTick(Minecraft mc) { placer.startTick(mc); }
+		/** The walls' click, and the way to land's (its leaks): each clicks only on the face it aims at. */
+		void startTick(Minecraft mc) { placer.startTick(mc); if (dry != null) dry.startTick(mc); }
 	}
 }

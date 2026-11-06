@@ -45,8 +45,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private static final double CAMP_SPOT_RADIUS = 1.5;
     private static final double PILLBOX_RADIUS = 2.5;
     // (at 12 the rods outside the box lay till they despawned, a blaze was always that near: 12 blazes killed for 1 rod and for
-    // 0, realfort-a-bent-i runs 2 and 4)
-    private static final double PILLBOX_QUIET = 6;
+    // 0, realfort-a-bent-i runs 2 and 4. Tuning pillbox_quiet, the default the rod drills' yardstick plays)
+    private static final double PILLBOX_QUIET = 3;
     private final int _count;
     private final Task _searcher = new SearchChunkForBlockTask(Blocks.NETHER_BRICKS);
     // the fight logic lives in there. this task used to just camp, silently, while blazes it had decided not to see shot at it
@@ -54,7 +54,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // fire resistance from the kit's water bottles: fire was over half the nether's damage, and the blazes' fireballs, lava and
     // the burning are all fire. the wart and the cream are taken as they come along, never a trip of their own
     private final BrewFireResistanceTask _brew = new BrewFireResistanceTask(BrewRules.BATCH);
-    private static final double CREAM_RANGE = 24;
+    // (Tuning cream_range, here and in CollectMagmaCreamTask: one default, the one the brew drills played)
+    static final double CREAM_RANGE = 48;
     // (a count of the cubes about while the cream is wanted, every 20 s: how many, how far, why each was left; game ticks)
     private static final int CREAM_LOG_TICKS = 400;
     private int _creamLogAt = -1;

@@ -396,6 +396,26 @@ class ObtainPlanTest {
 		assertEquals(3, f2[1]);
 	}
 
+	/** The input slot takes one kind: the kind already in it, else the kind the bag has most of. */
+	@Test
+	void inputIsOneKind() {
+		java.util.function.Predicate<String> log = id -> id.endsWith("_log");
+		String[] ids = { "oak_log", "birch_log", "cobblestone", "birch_log" };
+		int[] counts = { 3, 4, 30, 2 };
+		int[] most = ObtainPlan.inputPlan(ids, counts, log, null, 5);
+		assertEquals(0, most[0]);
+		assertEquals(4, most[1]);
+		assertEquals(0, most[2]);
+		assertEquals(1, most[3]);
+		// oak already lies in the slot: only oak goes on top
+		int[] onOak = ObtainPlan.inputPlan(ids, counts, log, "oak_log", 5);
+		assertEquals(3, onOak[0]);
+		assertEquals(0, onOak[1] + onOak[3]);
+		// something in the slot that is not the ingredient: nothing goes in
+		int[] none = ObtainPlan.inputPlan(ids, counts, log, "raw_iron", 5);
+		assertEquals(0, none[0] + none[1] + none[2] + none[3]);
+	}
+
 	/** Never blaze rods or a lava bucket as fuel; coal of course, and with nothing else nothing burns. */
 	@Test
 	void fuelNeverRodsOrBuckets() {

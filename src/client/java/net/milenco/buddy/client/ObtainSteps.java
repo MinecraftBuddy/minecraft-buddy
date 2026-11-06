@@ -113,6 +113,14 @@ final class ObtainSteps {
 		return n;
 	}
 
+	/** What the bag's 36 slots hold of every kind that passes the test (an ingredient's tag). */
+	static int countMatching(LocalPlayer p, Predicate<String> what) {
+		int n = 0;
+		var in = p.getInventory();
+		for (int i = 0; i < 36; i++) { ItemStack s = in.getItem(i); if (!s.isEmpty() && what.test(AfkHelperClient.itemId(s))) n += s.getCount(); }
+		return n;
+	}
+
 	static String id(BlockState st) { return BuiltInRegistries.BLOCK.getKey(st.getBlock()).getPath(); }
 
 	/** The item in hand, from anywhere in the inventory: true when it is there now. */
@@ -2357,6 +2365,9 @@ final class ObtainSteps {
 		boolean filled;
 		/** The looks for the output so far, how much of it the bag held at the last, since when it grows no more, and when the furnace was filled. */
 		int rounds, lastOut;
+		/** Smelts still to put in, the ones the last fill put in, and whether the input slot still held some at the last look. */
+		int toPut, putNow;
+		boolean inputLeft;
 		long grewAt, filledAt;
 
 		Station station() { return furnace; }
@@ -2365,6 +2376,7 @@ final class ObtainSteps {
 			r = s.recipe();
 			result = r.result();
 			times = s.times();
+			toPut = times;
 			want = count(p, result) + s.count();
 		}
 
@@ -2394,32 +2406,55 @@ final class ObtainSteps {
 				int menuId = m.containerId;
 				java.util.function.IntUnaryOperator slot = i -> 3 + (i < 9 ? 27 + i : i - 9);
 				if (phase == 0) {
+					ItemStack in0 = m.slots.get(0).getItem(), in1 = m.slots.get(1).getItem(), in2 = m.slots.get(2).getItem();
+					boolean own = furnace.placed || Obtain.ownStation(furnace.at);
+					// a furnace not of this order only when all three slots are empty: on a server one with something in it
+					// is another player's, and a click into its slots swaps or takes what lies there. It is passed by, and the
+					// station finds another or places its own
+					if (!own && !(in0.isEmpty() && in1.isEmpty() && in2.isEmpty())) {
+						p.closeContainer();
+						menuSince = 0;
+						filled = false;
+						if (furnace.at != null) Obtain.stationInUse(furnace.at);
+						furnace.at = null;
+						furnace.since = 0;
+						return Result.RUN;
+					}
+					// its own furnace: a result of before out first (another kind there stops the smelt), and an input that
+					// is not this recipe's, so no click lands on another kind
+					String inSlot = in0.isEmpty() ? null : AfkHelperClient.itemId(in0);
+					if (!in2.isEmpty()) queue.add(() -> Game.quickMove(mc.gameMode, menuId, 2, p));
+					if (inSlot != null && !r.parts().get(0).test(inSlot)) { queue.add(() -> Game.quickMove(mc.gameMode, menuId, 0, p)); inSlot = null; }
 					var in = p.getInventory();
 					String[] ids = new String[36];
-					int[] counts = new int[36], taken = new int[36];
+					int[] counts = new int[36];
 					for (int i = 0; i < 36; i++) {
 						ItemStack st = in.getItem(i);
 						if (!st.isEmpty()) { ids[i] = AfkHelperClient.itemId(st); counts[i] = st.getCount(); }
 					}
-					int left = times;
-					for (int i = 0; i < 36 && left > 0; i++) {
-						if (ids[i] == null || !r.parts().get(0).test(ids[i])) continue;
-						int from = slot.applyAsInt(i), k = Math.min(left, counts[i]);
+					int[] taken = ObtainPlan.inputPlan(ids, counts, r.parts().get(0)::test, inSlot, toPut);
+					int put = 0;
+					for (int i = 0; i < 36; i++) {
+						if (taken[i] <= 0) continue;
+						int from = slot.applyAsInt(i), k = taken[i];
 						queue.add(() -> Game.click(mc.gameMode, menuId, from, 0, false, p));
 						for (int j = 0; j < k; j++) queue.add(() -> Game.click(mc.gameMode, menuId, 0, 1, false, p));
 						queue.add(() -> Game.click(mc.gameMode, menuId, from, 0, false, p));
-						taken[i] = k;
-						left -= k;
+						put += k;
 					}
-					int[] fuel = ObtainPlan.fuelPlan(ids, counts, taken, r.parts().get(0)::test, times);
+					putNow = put;
+					String fuelIn = in1.isEmpty() ? null : AfkHelperClient.itemId(in1);
+					int[] fuel = ObtainPlan.fuelPlan(ids, counts, taken, r.parts().get(0)::test, put);
 					for (int i = 0; i < 36; i++) {
-						if (fuel[i] <= 0) continue;
+						// never another kind onto the fuel that lies there: the click would swap them
+						if (fuel[i] <= 0 || (fuelIn != null && !fuelIn.equals(ids[i]))) continue;
 						int from = slot.applyAsInt(i), k = fuel[i];
 						queue.add(() -> Game.click(mc.gameMode, menuId, from, 0, false, p));
 						for (int j = 0; j < k; j++) queue.add(() -> Game.click(mc.gameMode, menuId, 1, 1, false, p));
 						queue.add(() -> Game.click(mc.gameMode, menuId, from, 0, false, p));
 					}
 				} else {
+					inputLeft = !m.slots.get(0).getItem().isEmpty();
 					queue.add(() -> Game.quickMove(mc.gameMode, menuId, 2, p));
 				}
 			}
@@ -2432,14 +2467,23 @@ final class ObtainSteps {
 			if (phase == 0) {
 				if (furnace.at != null) Obtain.furnaceHolds(furnace.at);
 				phase = 1;
-				readyAt = now + times * cook + 1500;
+				toPut -= putNow;
+				readyAt = now + putNow * cook + 1500;
 				lastOut = count(p, result);
 				grewAt = filledAt = now;
-				Exchange.emit("obtain", "action", "smelting", "recipe", r.id(), "times", times, "s", (readyAt - now) / 1000);
+				Exchange.emit("obtain", "action", "smelting", "recipe", r.id(), "times", putNow, "s", (readyAt - now) / 1000);
 				return Result.RUN;
 			}
 			int out = count(p, result);
 			if (out >= want) return Result.DONE;
+			// one kind went in and the bag has the ingredient in another kind (oak and birch logs): once the input slot is
+			// empty, the next kind goes in
+			if (toPut > 0 && !inputLeft && countMatching(p, r.parts().get(0)::test) > 0) {
+				phase = 0;
+				filled = false;
+				furnace.since = 0;
+				return Result.RUN;
+			}
 			// not all of it yet: a little more, while the furnace still makes some. It looked again every five seconds for
 			// ever with nothing alight in it; three smelts' time without one more, or far past the time it all takes, and the
 			// step fails (what is still in the furnace is fetched by the next step, Obtain.furnaceHolds)
