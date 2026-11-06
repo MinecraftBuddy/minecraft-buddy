@@ -749,7 +749,9 @@ public class WorldSurvivalChain extends SingleTaskChain {
     }
 
     private boolean isInLavaOhShit(AltoClef mod) {
-        if (mod.getPlayer().isInLava() && !adris.altoclef.util.helpers.FireRes.has(mod.getPlayer())) {
+        // (the buddy's fork: under the potion too once it is about to end, FireRes.endingSoon)
+        if (mod.getPlayer().isInLava() && (!adris.altoclef.util.helpers.FireRes.has(mod.getPlayer())
+                || adris.altoclef.util.helpers.FireRes.endingSoon(mod.getPlayer()))) {
             _wasInLavaTimer.reset();
             return true;
         }

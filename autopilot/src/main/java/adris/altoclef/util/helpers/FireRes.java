@@ -15,6 +15,16 @@ public final class FireRes {
         return e.hasEffect(MobEffects.FIRE_RESISTANCE) && Tuning.get("ignore_fire_resistance", 0) <= 0;
     }
 
+    // in lava under the potion the lava escape waits till this many ticks are left of it: deep in a shaft dug down past the lava
+    // sea's level (the walk to the spawner, realfort-ab-fpreach-1 run 8 and realfort-ab-fpcamp-1 run 2) the escape never started
+    // while the potion held, and with it gone the lava killed the buddy in two seconds
+    public static final int LAVA_MARGIN_TICKS = 600;
+
+    public static boolean endingSoon(LivingEntity e) {
+        var fx = e.getEffect(MobEffects.FIRE_RESISTANCE);
+        return fx != null && !fx.isInfiniteDuration() && fx.getDuration() <= LAVA_MARGIN_TICKS;
+    }
+
     // a drink asked for by a task, the last game tick it was (the brew box drinks its potion inside before it opens, with no
     // blaze near or fire on the buddy, BrewBoxTask): the food chain drinks as if on fire while it is fresh
     static final long ASK_FRESH = 5;
