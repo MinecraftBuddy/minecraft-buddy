@@ -73,6 +73,32 @@ public class CombatCommitFastCornerTest {
         assertEquals(Why.HEAVY, c.why());
     }
 
+    // a split of the cube just killed, or a cube knocked back by its own bite: not hit by it yet, or past FAST_FIGHT_RANGE
+    private static Foe freshCube(int id, double distance) {
+        return new Foe(id, distance, false, false, NEVER).withFast(true).withSplit("magma_cube", true, distance, 64, 0);
+    }
+
+    @Test
+    public void aCubeThatHasNotHitUsIsStillTheFightAtLowHp() {
+        CombatCommit c = new CombatCommit();
+        assertEquals(Event.RUN_TO_FIGHT, c.step(tick(NOW, 7, null, freshCube(1, 5), freshCube(2, 5.5))));
+        assertEquals("fast", c.cornerKind());
+    }
+
+    @Test
+    public void byLavaACubeThatHasNotHitUsIsTheRunAsBefore() {
+        CombatCommit c = new CombatCommit();
+        Tick t = new Tick(NOW, 7, 0, 0, List.of(freshCube(1, 5)), null, Way.NONE.withLavaClose(true), false, false, false,
+                RecoverHold.Body.NONE, true);
+        assertEquals(Event.RUN_START, c.step(t));
+    }
+
+    @Test
+    public void aCubeBeyondItsRangeIsTheRun() {
+        CombatCommit c = new CombatCommit();
+        assertEquals(Event.RUN_START, c.step(tick(NOW, 7, null, freshCube(1, CombatCommit.CUBE_FIGHT_RANGE + 1))));
+    }
+
     @Test
     public void aFreshFightIsNotAFastCorner() {
         CombatCommit c = new CombatCommit();

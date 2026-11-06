@@ -112,6 +112,11 @@ public final class CombatCommit {
 
     // a fast melee mob that already hit us this close is not outrun: at a run decision (low hp, crowd) it is the cornered fight
     public static final double FAST_FIGHT_RANGE = 4;
+    // a magma cube or slime this close is that fight whether it has hit us yet or not: a split fresh from the cube just killed
+    // has not, and a bite's knockback puts the one that did past FAST_FIGHT_RANGE. cubes keep up with any run: the cream hunt
+    // ran from two medium cubes at 8 hp, three blocks in six seconds with three bites taken, where each was one swing of the
+    // sword (m4cream3-3 run 4, 6 Nov 2026). by lava the walk's cube rules stand (rimEngage, the lava wait)
+    public static final double CUBE_FIGHT_RANGE = 6;
     // that corner lets go once the fast mob has been off us this long. one tick is not enough: its own hit knocks it past the range
     // above, and at low hp that would be us turning our back on the first bite
     public static final long FAST_CORNER_RELEASE_TICKS = 20;
@@ -1600,7 +1605,9 @@ public final class CombatCommit {
         double range = recover.on() ? RecoverHold.RERUN_RANGE : FAST_FIGHT_RANGE;
         Foe best = null;
         for (Foe foe : t.foes()) {
-            if (!foe.fast() || !foe.melee() || !foe.hitUs() || foe.distance() > range || foe.kind() == Kind.UNTOUCHABLE) continue;
+            boolean close = foe.hitUs() && foe.distance() <= range;
+            boolean cube = foe.splitType() != null && !t.way().lavaClose() && foe.distance() <= CUBE_FIGHT_RANGE;
+            if (!foe.fast() || !foe.melee() || !(close || cube) || foe.kind() == Kind.UNTOUCHABLE) continue;
             if (foe.mustRun(t.guardHealth()) || gaveUpOn(foe, t.now()) || stillIgnored(foe, t.now())) continue;
             if (best == null || foe.distance() < best.distance()) best = foe;
         }
