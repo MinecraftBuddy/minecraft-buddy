@@ -3,6 +3,11 @@ package adris.altoclef.util.helpers;
 import baritone.pathing.movement.CliffAvoidance;
 import baritone.pathing.movement.CliffAvoidance.Cell;
 import baritone.pathing.movement.CliffAvoidance.Cells;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 // fighting next to lava, no world: cells come in through a lookup so the whole thing can be tested without minecraft.
 //
@@ -356,8 +361,12 @@ public final class LavaShore {
 
     // the one-block step off a rim: null when our spot is fine (or nothing around is better), else {dx, dz} to a neighbour
     // cell that is standable. no lava within 2 wins over a cell that is merely not-on-fire, then the one nearest the foe, so
-    // the step also closes the gap instead of backing off. a cell the foe is standing in is no step
+    // the step also closes the gap instead of backing off. a cell the foe is standing in is no step. with SafeStand on (its
+    // switch) the first step of the walk to the nearest standable cell instead, {dx, dz, dy} (walkOff)
     public static int[] safeStep(Cells cells, double ux, double uy, double uz, double fx, double fz) {
+        if (SafeStand.on()) {
+            return walkOff(cells, ux, uy, uz, fx, fz, true);
+        }
         if (!rimUnsafe(cells, ux, uy, uz, fx, fz)) {
             return null;
         }
@@ -462,8 +471,12 @@ public final class LavaShore {
     }
 
     // safeStep with no foe: a standing-still spot that is on a rim by the same edge test. null when we are fine or nothing
-    // next door is better. every neighbour is judged with itself as the "foe" (standable does not ask the foe's place)
+    // next door is better. every neighbour is judged with itself as the "foe" (standable does not ask the foe's place). with
+    // SafeStand on the first step of the walk to the nearest standable cell instead, {dx, dz, dy} (walkOff)
     public static int[] edgeStep(Cells cells, double ux, double uy, double uz) {
+        if (SafeStand.on()) {
+            return walkOff(cells, ux, uy, uz, Double.NaN, Double.NaN, false);
+        }
         if (!edgeNear(cells, ux, uy, uz)) {
             return null;
         }
@@ -487,6 +500,95 @@ public final class LavaShore {
             }
         }
         return best;
+    }
+
+    // ---- the walk off a rim, with SafeStand on: every neighbour of a rim cell is still within a knock (2.5) of the drop, so a
+    // step of one cell is no way off it. the walk goes out up to WALK_STEPS steps (to a side, the same level or one up or
+    // down) over cells with floor and room, never the foe's own, to the nearest standable cell
+
+    static final int WALK_STEPS = 4;
+    // how far round a goal the nearest drop is looked for, to choose between goals equally near
+    static final int GAP_RADIUS = 3;
+    private static final int[][] SIDES = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    // sin 22.5: of eight ways round, the one a direction is nearest
+    private static final double OCTANT = 0.3827;
+
+    // the first step of the walk from (ux, uy, uz) to the nearest standable cell, {dx, dz, dy}: null when our own cell is
+    // standable, when there is none within WALK_STEPS, or when the feet are not in an open cell (a slab, soul sand: the cells
+    // are a block off there). of goals equally near, one with a wall at its back away from the foe wins (foe: a knock into a
+    // wall is no knock), then the one farthest from the nearest drop, then the first found
+    static int[] walkOff(Cells cells, double ux, double uy, double uz, double fx, double fz, boolean foe) {
+        int sx = (int) Math.floor(ux);
+        int sy = (int) Math.floor(uy);
+        int sz = (int) Math.floor(uz);
+        if (cells.at(sx, sy, sz) != Cell.OPEN || standable(cells, sx, sy, sz, fx, fz)) {
+            return null;
+        }
+        // {x, y, z, steps, and the first step's dx, dz, dy}
+        ArrayDeque<int[]> queue = new ArrayDeque<>();
+        Set<Long> seen = new HashSet<>();
+        queue.add(new int[]{sx, sy, sz, 0, 0, 0, 0});
+        seen.add(BlazeCover.key(sx, sy, sz));
+        List<int[]> goals = new ArrayList<>();
+        while (!queue.isEmpty()) {
+            int[] c = queue.poll();
+            if (!goals.isEmpty() && c[3] > goals.get(0)[3]) break;
+            if (c[3] > 0 && standable(cells, c[0], c[1], c[2], fx, fz)) {
+                goals.add(c);
+                continue;
+            }
+            if (c[3] >= WALK_STEPS) continue;
+            for (int[] side : SIDES) {
+                int nx = c[0] + side[0];
+                int nz = c[2] + side[1];
+                if (foe && Math.hypot(nx + 0.5 - fx, nz + 0.5 - fz) < 1.0) continue;
+                // (one height per side: the first that fits is the step)
+                for (int dy = 1; dy >= -1; dy--) {
+                    if (!stepOn(cells, c[0], c[1], c[2], nx, c[1] + dy, nz)) continue;
+                    if (seen.add(BlazeCover.key(nx, c[1] + dy, nz))) {
+                        boolean first = c[3] == 0;
+                        queue.add(new int[]{nx, c[1] + dy, nz, c[3] + 1, first ? side[0] : c[4], first ? side[1] : c[5], first ? dy : c[6]});
+                    }
+                    break;
+                }
+            }
+        }
+        int[] best = null;
+        boolean bestWall = false;
+        double bestGap = -1;
+        for (int[] g : goals) {
+            boolean wall = foe && wallBehind(cells, g[0], g[1], g[2], fx, fz);
+            double gap = SafeStand.dropGap(cells, g[0], g[1], g[2], GAP_RADIUS);
+            if (best == null || (wall && !bestWall) || (wall == bestWall && gap > bestGap)) {
+                best = g;
+                bestWall = wall;
+                bestGap = gap;
+            }
+        }
+        return best == null ? null : new int[]{best[4], best[5], best[6]};
+    }
+
+    // a step from (x, y, z) to the cell beside it at ny (one up, level or one down) the body can take and stand in: floor
+    // under it (never a cell the box would fall from), room for the body, and the room on the way (over us going up, over
+    // it going down)
+    public static boolean stepOn(Cells cells, int x, int y, int z, int nx, int ny, int nz) {
+        if (cells.at(nx, ny - 1, nz) != Cell.SOLID || cells.at(nx, ny, nz) != Cell.OPEN || cells.at(nx, ny + 1, nz) != Cell.OPEN) {
+            return false;
+        }
+        if (ny > y) return cells.at(x, y + 2, z) == Cell.OPEN;
+        if (ny < y) return cells.at(nx, y + 1, nz) == Cell.OPEN;
+        return true;
+    }
+
+    // a block at feet or head height on the cell's far side from the foe, of eight ways round
+    static boolean wallBehind(Cells cells, int x, int y, int z, double fx, double fz) {
+        double dx = x + 0.5 - fx;
+        double dz = z + 0.5 - fz;
+        double len = Math.hypot(dx, dz);
+        if (len < 0.05) return false;
+        int bx = x + (dx / len > OCTANT ? 1 : dx / len < -OCTANT ? -1 : 0);
+        int bz = z + (dz / len > OCTANT ? 1 : dz / len < -OCTANT ? -1 : 0);
+        return cells.at(bx, y, bz) == Cell.SOLID || cells.at(bx, y + 1, bz) == Cell.SOLID;
     }
 
     // the keys to press to lean toward the foe, from where the head points. no look added: whatever the yaw is, the keys

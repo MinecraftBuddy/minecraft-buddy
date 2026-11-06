@@ -84,7 +84,79 @@ public final class SafeStand {
         Probe probe = new Probe(cells);
         double cx = x + 0.5;
         double cz = z + 0.5;
-        if (pushHurts(probe, cx, cz, y, 1, 0, 0)) return true;
+        if (badAt(probe, cx, cz, y, 1, 0, 0) >= 0) return true;
+        return lines(cx, cz, pushes, (ux, uz, reach) -> badAt(probe, cx, cz, y, ux, uz, reach) >= 0);
+    }
+
+    // where a throwaway block would stop the knock that goes wrong soonest: the cell beside this one, at feet height, that
+    // the centre enters first along the push that ends badly the shortest way out (the drop's side). {x, y, z}, or null when
+    // no push ends badly. a block there stops that push; on a bare bridge that cell has no face to go against but the one
+    // under it, which goes first
+    public static int[] blockSide(Cells cells, int x, int y, int z, Iterable<Push> pushes) {
+        Probe probe = new Probe(cells);
+        double cx = x + 0.5;
+        double cz = z + 0.5;
+        double[] worst = {Double.MAX_VALUE, 0, 0};
+        lines(cx, cz, pushes, (ux, uz, reach) -> {
+            double s = badAt(probe, cx, cz, y, ux, uz, reach);
+            if (s >= 0 && s < worst[0]) {
+                worst[0] = s;
+                worst[1] = ux;
+                worst[2] = uz;
+            }
+            return false;
+        });
+        if (worst[0] == Double.MAX_VALUE) return null;
+        for (double s = 0.01; s < 1.5; s += 0.01) {
+            int bx = (int) Math.floor(cx + worst[1] * s);
+            int bz = (int) Math.floor(cz + worst[2] * s);
+            if (bx != x || bz != z) return new int[]{bx, y, bz};
+        }
+        return null;
+    }
+
+    // the same for an ordinary hit from any side
+    public static int[] blockSide(Cells cells, int x, int y, int z) {
+        return blockSide(cells, x, y, z, List.of(Push.round(HIT)));
+    }
+
+    // how far the cell's centre is from the nearest column within radius (flat, to the column's nearest side) where a body at
+    // this height would burn or fall HURTS or more; Double.MAX_VALUE for none. for choosing between safe cells, not for safety
+    public static double dropGap(Cells cells, int x, int y, int z, int radius) {
+        double best = Double.MAX_VALUE;
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                if (dx == 0 && dz == 0) continue;
+                double gap = Math.hypot(Math.max(0, Math.abs(dx) - 0.5), Math.max(0, Math.abs(dz) - 0.5));
+                if (gap < best && hazard(cells, x + dx, y, z + dz)) best = gap;
+            }
+        }
+        return best;
+    }
+
+    // a column a body with its feet at this height burns in (lava at feet or head) or falls HURTS or more from, lava on the
+    // way counting; a wall is none. HURTS cells down are enough: past them it is a fall that hurts whatever is at the bottom
+    static boolean hazard(Cells cells, int x, int feet, int z) {
+        Cell body = cells.at(x, feet, z);
+        Cell head = cells.at(x, feet + 1, z);
+        if (body == Cell.SOLID || head == Cell.SOLID) return false;
+        if (body == Cell.LAVA || head == Cell.LAVA) return true;
+        if (body == Cell.WATER) return false;
+        for (int d = 1; d <= HURTS; d++) {
+            Cell c = cells.at(x, feet - d, z);
+            if (c == Cell.LAVA) return true;
+            if (c != Cell.OPEN) return false;
+        }
+        return true;
+    }
+
+    // a line a push can take out of a cell; true from take stops the look
+    private interface Line {
+        boolean take(double ux, double uz, double reach);
+    }
+
+    // every line of every push: a foe's within CONE of the line away from it, the others all round
+    private static boolean lines(double cx, double cz, Iterable<Push> pushes, Line line) {
         for (Push p : pushes) {
             double dx = cx - p.fromX();
             double dz = cz - p.fromZ();
@@ -93,7 +165,7 @@ public final class SafeStand {
                 int n = 8 * (int) Math.ceil(2 * Math.PI * p.reach() / SPACING / 8);
                 for (int i = 0; i < n; i++) {
                     double a = 2 * Math.PI * i / n;
-                    if (pushHurts(probe, cx, cz, y, Math.cos(a), Math.sin(a), p.reach())) return true;
+                    if (line.take(Math.cos(a), Math.sin(a), p.reach())) return true;
                 }
                 continue;
             }
@@ -102,7 +174,7 @@ public final class SafeStand {
             int n = Math.max(3, (int) Math.ceil(2 * CONE * p.reach() / SPACING) + 1) | 1;
             for (int i = 0; i < n; i++) {
                 double a = base - CONE + 2 * CONE * i / (n - 1);
-                if (pushHurts(probe, cx, cz, y, Math.cos(a), Math.sin(a), p.reach())) return true;
+                if (line.take(Math.cos(a), Math.sin(a), p.reach())) return true;
             }
         }
         return false;
@@ -170,8 +242,9 @@ public final class SafeStand {
     static final int END_STONE = 2;
     static final int END_VOID = 3;
 
-    // one push from (cx, cz) with the feet at y, along (ux, uz), up to reach: whether it ends in lava or in a fall that hurts
-    private static boolean pushHurts(Probe probe, double cx, double cz, int y, double ux, double uz, double reach) {
+    // one push from (cx, cz) with the feet at y, along (ux, uz), up to reach: how far along it the box touches lava or starts
+    // a fall that hurts, or -1 when it does neither
+    private static double badAt(Probe probe, double cx, double cz, int y, double ux, double uz, double reach) {
         int feet = y;
         int steps = (int) Math.ceil(reach / STEP - 1e-9);
         long last = Long.MIN_VALUE;
@@ -192,12 +265,12 @@ public final class SafeStand {
             for (int bx = x0; bx <= x1; bx++) {
                 for (int bz = z0; bz <= z1; bz++) {
                     int kind = probe.at(bx, feet, bz) & 3;
-                    if (kind == BLOCKED) return false;
+                    if (kind == BLOCKED) return -1;
                     if (kind == LAVA) lava = true;
                     else if (kind == FLOOR) held = true;
                 }
             }
-            if (lava) return true;
+            if (lava) return s;
             if (held) continue;
             // nothing under the box: it falls until the first of its columns ends
             int depth = Integer.MAX_VALUE;
@@ -215,14 +288,14 @@ public final class SafeStand {
                     }
                 }
             }
-            if ((ends & 1 << END_LAVA) != 0) return true;
+            if ((ends & 1 << END_LAVA) != 0) return s;
             // (water takes the fall, and the push with it)
-            if ((ends & 1 << END_WATER) != 0) return false;
-            if ((ends & 1 << END_VOID) != 0 || depth - 1 >= HURTS) return true;
+            if ((ends & 1 << END_WATER) != 0) return -1;
+            if ((ends & 1 << END_VOID) != 0 || depth - 1 >= HURTS) return s;
             feet = feet - depth + 1;
             last = Long.MIN_VALUE;
         }
-        return false;
+        return -1;
     }
 
     // the columns one call looks at, each read once: the kind in the low two bits, for a drop where it ends in the next two and

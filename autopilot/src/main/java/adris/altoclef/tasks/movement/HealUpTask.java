@@ -4,6 +4,7 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.GhastHole;
 import adris.altoclef.util.helpers.LavaShore;
+import adris.altoclef.util.helpers.SafeStand;
 import baritone.pathing.movement.CliffAvoidance;
 import baritone.pathing.movement.MovementHelper;
 import baritone.utils.BlockStateInterface;
@@ -74,10 +75,21 @@ public class HealUpTask extends Task {
         BlockPos here = us.blockPosition();
         if (stepCell == null) {
             int[] s = LavaShore.edgeStep(CliffAvoidance.of(mod.getClientBaritone().bsi), us.getX(), us.getY(), us.getZ());
-            if (s != null) stepCell = here.offset(s[0], 0, s[1]);
+            if (s != null) stepCell = here.offset(s[0], s.length > 2 ? s[2] : 0, s[1]);
         }
-        // in the block is not off the rim yet: the cell's near half can still be inside the edge radius
-        boolean arrived = here.equals(stepCell) && !LavaShore.edgeNear(CliffAvoidance.of(mod.getClientBaritone().bsi), us.getX(), us.getY(), us.getZ());
+        boolean arrived;
+        if (SafeStand.on()) {
+            // the step is the first of a walk to a safe cell: in it, the next one, until there is none (there, or nowhere better)
+            arrived = false;
+            if (here.equals(stepCell)) {
+                int[] s = LavaShore.edgeStep(CliffAvoidance.of(mod.getClientBaritone().bsi), us.getX(), us.getY(), us.getZ());
+                if (s == null) arrived = true;
+                else stepCell = here.offset(s[0], s[2], s[1]);
+            }
+        } else {
+            // in the block is not off the rim yet: the cell's near half can still be inside the edge radius
+            arrived = here.equals(stepCell) && !LavaShore.edgeNear(CliffAvoidance.of(mod.getClientBaritone().bsi), us.getX(), us.getY(), us.getZ());
+        }
         if (!wantsStep(stepCell != null, arrived, stepTicks)) {
             // fine where we are, nowhere better, or there: done for this hold
             stepTicks = STEP_TICKS;

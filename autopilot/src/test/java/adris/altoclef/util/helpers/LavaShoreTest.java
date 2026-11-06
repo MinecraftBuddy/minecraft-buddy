@@ -652,13 +652,14 @@ public class LavaShoreTest {
             assertFalse(LavaShore.backUnsafe(w, 0.5, 0, 0.5, 1.5, 0.5));
             assertTrue(LavaShore.edgeNear(w, 0.5, 0, 0.5));
             assertTrue(LavaShore.rimUnsafe(w, 0.5, 0, 0.5, 1.5, 0.5));
-            // every neighbour is within a knock (2.5) of that row of pits: no step is any better
-            assertNull(LavaShore.safeStep(w, 0.5, 0, 0.5, 1.5, 0.5));
-            // one pit behind us to the side: the neighbour across from it, ahead toward the foe, is out of its reach
+            // every neighbour is within a knock (2.5) of that row of pits: the walk goes two cells away from it, (0, -2)
+            assertArrayEquals(new int[]{0, -1, 0}, LavaShore.safeStep(w, 0.5, 0, 0.5, 1.5, 0.5));
+            // one pit behind us to the side: (1, -1) and (0, -2) are clear of it, the second further from it, the foe's cell
+            // is no way there
             World one = new World().pit(-1, 1);
             assertFalse(LavaShore.backUnsafe(one, 0.5, 0, 0.5, 1.5, 0.5));
             assertTrue(LavaShore.rimUnsafe(one, 0.5, 0, 0.5, 1.5, 0.5));
-            assertArrayEquals(new int[]{1, -1}, LavaShore.safeStep(one, 0.5, 0, 0.5, 1.5, 0.5));
+            assertArrayEquals(new int[]{0, -1, 0}, LavaShore.safeStep(one, 0.5, 0, 0.5, 1.5, 0.5));
         } finally {
             SafeStand.forced = null;
         }
@@ -668,14 +669,122 @@ public class LavaShoreTest {
     public void edgeStepWalksAwayFromARimWithSafeStand() {
         SafeStand.forced = true;
         try {
-            // the step has to be a standable neighbour that is itself clear of the edge. a pit along our east side leaves none
-            // (every neighbour is within a knock of it); a pit at the north east corner leaves the one diagonally away from it
+            // no neighbour is clear of a pit along our east side: the walk goes west to (-2, 0), two cells off it
             World w = new World().pit(1, 0).pit(1, -1).pit(1, 1).pit(2, 0).pit(2, -1).pit(2, 1);
             assertTrue(LavaShore.edgeNear(w, 0.5, 0, 0.5));
-            assertNull(LavaShore.edgeStep(w, 0.5, 0, 0.5));
+            assertArrayEquals(new int[]{-1, 0, 0}, LavaShore.edgeStep(w, 0.5, 0, 0.5));
+            // a pit at the north east corner: (-2, 0), (-1, -1) and (0, -2) are clear two steps out, the first and the last
+            // furthest from it, the first found wins
             World corner = new World().pit(1, 1);
             assertTrue(LavaShore.edgeNear(corner, 0.5, 0, 0.5));
-            assertArrayEquals(new int[]{-1, -1}, LavaShore.edgeStep(corner, 0.5, 0, 0.5));
+            assertArrayEquals(new int[]{-1, 0, 0}, LavaShore.edgeStep(corner, 0.5, 0, 0.5));
+        } finally {
+            SafeStand.forced = null;
+        }
+    }
+
+    // the walk off a rim, with SafeStand on: from each cell it reaches it is asked again, as the callers do, until it is in a
+    // standable cell. the cells it went through, the last one where it stopped
+    private static java.util.List<int[]> walk(Cells w, int x, int y, int z, double fx, double fz) {
+        java.util.List<int[]> cells = new java.util.ArrayList<>();
+        cells.add(new int[]{x, y, z});
+        for (int i = 0; i < LavaShore.WALK_STEPS; i++) {
+            int[] s = LavaShore.safeStep(w, x + 0.5, y, z + 0.5, fx, fz);
+            if (s == null) break;
+            x += s[0];
+            y += s[2];
+            z += s[1];
+            cells.add(new int[]{x, y, z});
+        }
+        return cells;
+    }
+
+    @Test
+    public void aCellBesideALongRowOfPitsWalksTwoCellsOff() {
+        SafeStand.forced = true;
+        try {
+            World w = new World();
+            for (int x = -12; x <= 12; x++) w.pit(x, 1);
+            java.util.List<int[]> way = walk(w, 0, 0, 0, 1.5, 0.5);
+            int[] end = way.get(way.size() - 1);
+            assertArrayEquals(new int[]{0, 0, -2}, end);
+            assertTrue(LavaShore.standable(w, end[0], end[1], end[2], 1.5, 0.5));
+            // every cell on the way has a floor
+            for (int[] c : way) assertEquals(Cell.SOLID, w.at(c[0], c[1] - 1, c[2]));
+            // and from the end, nothing more
+            assertNull(LavaShore.safeStep(w, 0.5, 0, -1.5, 1.5, 0.5));
+        } finally {
+            SafeStand.forced = null;
+        }
+    }
+
+    @Test
+    public void theWalkTakesAStepUp() {
+        SafeStand.forced = true;
+        try {
+            // pits along z = 1, and everything from z = -1 south one block higher: the way off goes up onto it
+            World w = new World();
+            for (int x = -12; x <= 12; x++) {
+                w.pit(x, 1);
+                for (int z = -12; z <= -1; z++) w.solid(x, 0, z);
+            }
+            int[] s = LavaShore.safeStep(w, 0.5, 0, 0.5, 1.5, 0.5);
+            assertArrayEquals(new int[]{0, -1, 1}, s);
+            java.util.List<int[]> way = walk(w, 0, 0, 0, 1.5, 0.5);
+            int[] end = way.get(way.size() - 1);
+            assertTrue(LavaShore.standable(w, end[0], end[1], end[2], 1.5, 0.5));
+            assertEquals(1, end[1]);
+        } finally {
+            SafeStand.forced = null;
+        }
+    }
+
+    @Test
+    public void aWallAtTheBackAwayFromTheFoeWinsAmongEquallyNearCells() {
+        SafeStand.forced = true;
+        try {
+            // a pit at the north east corner, the foe over it: (-2, 0) and (0, -2) are as near and as far from it, the first
+            // found wins; a wall behind (0, -2), on its far side from the foe, makes it that one
+            World open = new World().pit(1, 1);
+            assertArrayEquals(new int[]{-1, 0, 0}, LavaShore.safeStep(open, 0.5, 0, 0.5, 1.5, 1.5));
+            World walled = new World().pit(1, 1).solid(0, 0, -3);
+            assertArrayEquals(new int[]{0, -1, 0}, LavaShore.safeStep(walled, 0.5, 0, 0.5, 1.5, 1.5));
+        } finally {
+            SafeStand.forced = null;
+        }
+    }
+
+    @Test
+    public void aBridgeOverLavaHasNoWalkOffAndNamesTheSideForABlock() {
+        SafeStand.forced = true;
+        try {
+            // a bridge one wide along x with lava a block down on both sides, four wide: every cell on it within four steps
+            // is in a knock of the lava
+            World w = new World();
+            for (int x = -12; x <= 12; x++) {
+                for (int z = 1; z <= 4; z++) w.lava(x, -1, z).lava(x, -1, -z);
+            }
+            assertNull(LavaShore.safeStep(w, 0.5, 0, 0.5, 0.5, -1.5));
+            assertNull(LavaShore.edgeStep(w, 0.5, 0, 0.5));
+            // the foe on the south side throws us north: a block goes in the cell north of us
+            assertArrayEquals(new int[]{0, 0, 1}, SafeStand.blockSide(w, 0, 0, 0, java.util.List.of(SafeStand.Push.away(0.5, -1.5, SafeStand.HIT))));
+            assertArrayEquals(new int[]{0, 0, -1}, SafeStand.blockSide(w, 0, 0, 0, java.util.List.of(SafeStand.Push.away(0.5, 2.5, SafeStand.HIT))));
+        } finally {
+            SafeStand.forced = null;
+        }
+    }
+
+    @Test
+    public void theWalkNeverStepsOntoTheFoesCellOrOffTheFloor() {
+        SafeStand.forced = true;
+        try {
+            // the row of pits again, the foe on the one cell the walk would take first: it goes round
+            World w = new World();
+            for (int x = -12; x <= 12; x++) w.pit(x, 1);
+            int[] s = LavaShore.safeStep(w, 0.5, 0, 0.5, 0.5, -0.5);
+            assertNotNull(s);
+            assertFalse(s[0] == 0 && s[1] == -1);
+            assertEquals(Cell.SOLID, w.at(s[0], -1, s[1]));
         } finally {
             SafeStand.forced = null;
         }

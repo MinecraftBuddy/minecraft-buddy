@@ -1,5 +1,6 @@
 package adris.altoclef.util.helpers;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -133,5 +134,23 @@ public class SafeStandTest {
     @Test
     public void aCellWithNoFloorFalls() {
         assertTrue(SafeStand.unsafe(edge(39, Cell.LAVA), -1, 0, 0, List.of()));
+    }
+
+    @Test
+    public void theBlockGoesWhereTheKnockLeavesFirst() {
+        // two in from the edge: the knock west crosses the last floor cell, a block on it at feet height stops it
+        assertArrayEquals(new int[]{0, 0, 0}, SafeStand.blockSide(edge(39, Cell.LAVA), 1, 0, 0));
+        Cells floor = (x, y, z) -> y < 0 ? Cell.SOLID : Cell.OPEN;
+        assertNull(SafeStand.blockSide(floor, 0, 0, 0));
+    }
+
+    @Test
+    public void theGapToTheNearestDropIsToItsSide() {
+        Cells w = edge(39, Cell.LAVA);
+        assertEquals(1.5, SafeStand.dropGap(w, 1, 0, 0, 3), 1e-9);
+        assertEquals(2.5, SafeStand.dropGap(w, 2, 0, 0, 3), 1e-9);
+        // a fall of three is no drop here, nor anything past the radius
+        assertEquals(Double.MAX_VALUE, SafeStand.dropGap(edge(3, Cell.SOLID), 1, 0, 0, 3), 0);
+        assertEquals(Double.MAX_VALUE, SafeStand.dropGap(w, 4, 0, 0, 3), 0);
     }
 }

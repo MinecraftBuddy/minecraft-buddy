@@ -17,6 +17,7 @@ import adris.altoclef.tasks.speedrun.gamer.DeathZones;
 import adris.altoclef.util.helpers.BlazeCover;
 import adris.altoclef.util.helpers.BlazeFightRules;
 import adris.altoclef.util.helpers.LavaShore;
+import adris.altoclef.util.helpers.SafeStand;
 import adris.altoclef.util.helpers.PotionHelper;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.BrewRules;
@@ -536,10 +537,21 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 _campStepTicks = BlazeFightRules.CAMP_STEP_TICKS;
                 return null;
             }
-            _campStep = here.offset(s[0], 0, s[1]);
+            _campStep = here.offset(s[0], s.length > 2 ? s[2] : 0, s[1]);
         }
-        // in the block is not off the rim yet, the cell's near half can still be inside the edge radius
-        boolean arrived = here.equals(_campStep) && !LavaShore.edgeNear(cells, us.getX(), us.getY(), us.getZ());
+        boolean arrived;
+        if (SafeStand.on()) {
+            // the step is the first of a walk to a safe cell: in it, the next one, until there is none (there, or nowhere better)
+            arrived = false;
+            if (here.equals(_campStep)) {
+                int[] s = LavaShore.edgeStep(cells, us.getX(), us.getY(), us.getZ());
+                if (s == null) arrived = true;
+                else _campStep = here.offset(s[0], s[2], s[1]);
+            }
+        } else {
+            // in the block is not off the rim yet, the cell's near half can still be inside the edge radius
+            arrived = here.equals(_campStep) && !LavaShore.edgeNear(cells, us.getX(), us.getY(), us.getZ());
+        }
         if (!BlazeFightRules.wantsCampStep(true, arrived, _campStepTicks)) {
             _campStepTicks = BlazeFightRules.CAMP_STEP_TICKS;
             return null;

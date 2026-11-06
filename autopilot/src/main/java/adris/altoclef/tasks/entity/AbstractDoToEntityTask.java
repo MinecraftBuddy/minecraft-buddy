@@ -22,6 +22,7 @@ import net.minecraft.world.entity.monster.Enemy;
 import adris.altoclef.util.helpers.BackOffRules;
 import adris.altoclef.util.helpers.EntityBlockerRules;
 import adris.altoclef.util.helpers.ItemHelper;
+import adris.altoclef.util.helpers.SafeStand;
 import adris.altoclef.util.helpers.StandCap;
 import adris.altoclef.util.helpers.WaitCap;
 import adris.altoclef.util.helpers.LookHelper;
@@ -496,6 +497,13 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
     private final java.util.Set<BlockPos> _rimFailed = new java.util.HashSet<>();
     private double _rimBestDist;
     private int _rimIdleTicks;
+    // with SafeStand on the step is the first of a walk, a search of a few dozen cells: asked again only when we or the foe
+    // are in another cell, or after RIM_ASK_TICKS
+    private static final int RIM_ASK_TICKS = 10;
+    private BlockPos _rimAskedAt;
+    private BlockPos _rimAskedFoe;
+    private long _rimAskedTime;
+    private int[] _rimAsked;
     // the cell a walk off a shore is headed for, see LavaShore.groundCell
     private BlockPos _groundCell;
     // walking for the whole fight, not per walk: a foe that never follows us (a calm enderman) would otherwise be a walk
@@ -598,7 +606,7 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
             return null;
         }
         var us = mod.getPlayer();
-        int[] step = LavaShore.safeStep(CliffAvoidance.of(mod.getClientBaritone().bsi), us.getX(), us.getY(), us.getZ(), entity.getX(), entity.getZ());
+        int[] step = askSafeStep(mod, entity);
         if (step == null) {
             _rimCell = null;
             _rimStepTicks = 0;
@@ -609,10 +617,15 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
         }
         // the cell we picked stays picked while it is still a step away: the foe shuffling about would otherwise flip it every tick
         BlockPos here = us.blockPosition();
-        BlockPos pick = here.offset(step[0], 0, step[1]);
+        // (with SafeStand on a step can go one up or down, and the cell is one on the way, not standable itself: it stays while
+        // the body can still step onto it)
+        BlockPos pick = here.offset(step[0], step.length > 2 ? step[2] : 0, step[1]);
         Cells cells = CliffAvoidance.of(mod.getClientBaritone().bsi);
-        if (_rimCell == null || _rimCell.equals(here) || _rimCell.distSqr(here) > 2
-                || !LavaShore.stepFit(cells, _rimCell.getX(), _rimCell.getY(), _rimCell.getZ(), entity.getX(), entity.getZ())) {
+        boolean keep = _rimCell != null && (SafeStand.on()
+                ? LavaShore.stepOn(cells, here.getX(), here.getY(), here.getZ(), _rimCell.getX(), _rimCell.getY(), _rimCell.getZ())
+                        && Math.hypot(_rimCell.getX() + 0.5 - entity.getX(), _rimCell.getZ() + 0.5 - entity.getZ()) >= 1.0
+                : LavaShore.stepFit(cells, _rimCell.getX(), _rimCell.getY(), _rimCell.getZ(), entity.getX(), entity.getZ()));
+        if (_rimCell == null || _rimCell.equals(here) || _rimCell.distSqr(here) > 2 || !keep) {
             // a cell that already went nowhere is not picked again this fight, the plan (the swing) gets the tick instead
             if (_rimFailed.contains(pick)) {
                 _rimCell = null;
@@ -640,6 +653,25 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
         _rimLive = true;
         setDebugState("Stepping off the rim");
         return new GetToBlockTask(_rimCell);
+    }
+
+    // LavaShore.safeStep from where we stand; with SafeStand on the last answer while we and the foe stay in our cells
+    private int[] askSafeStep(AltoClef mod, Entity entity) {
+        var us = mod.getPlayer();
+        Cells cells = CliffAvoidance.of(mod.getClientBaritone().bsi);
+        if (!SafeStand.on()) {
+            return LavaShore.safeStep(cells, us.getX(), us.getY(), us.getZ(), entity.getX(), entity.getZ());
+        }
+        BlockPos at = us.blockPosition();
+        BlockPos foe = entity.blockPosition();
+        long now = mod.getWorld().getGameTime();
+        if (!at.equals(_rimAskedAt) || !foe.equals(_rimAskedFoe) || now < _rimAskedTime || now - _rimAskedTime >= RIM_ASK_TICKS) {
+            _rimAsked = LavaShore.safeStep(cells, us.getX(), us.getY(), us.getZ(), entity.getX(), entity.getZ());
+            _rimAskedAt = at;
+            _rimAskedFoe = foe;
+            _rimAskedTime = now;
+        }
+        return _rimAsked;
     }
 
     // by type, not by mood: an enderman nobody has angered yet or a day spider reads as not hostile until the first hit, and
