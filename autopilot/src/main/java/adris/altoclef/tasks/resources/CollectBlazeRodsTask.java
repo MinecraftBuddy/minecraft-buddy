@@ -732,7 +732,15 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // 2. no box before (the rig's potion): by the spawner as before, fpcamp2's camp)
             // (steering 71: the spawner's top first, where they spawn within reach, as fpcamp2's camp; the box's open side, eight
             // off and three down, gave no blaze in reach for minutes, Makena. only a top not reached in FIREPROOF_WALK_TICKS
-            // falls back to that side, campStepFireproof)
+            // falls back to that side, campStepFireproof. Tuning fireproof_side 1: the open side at once, dbec29a's camp: the
+            // two measured as many rods a minute under the potion, each better at other fortresses, 6 Nov 2026 afternoon)
+            BlockPos side = _fireproofSpot;
+            if (adris.altoclef.util.helpers.Tuning.get("fireproof_side", 0) > 0 && side != null
+                    && Math.hypot(side.getX() - sx, side.getZ() - sz) <= FIREPROOF_SPOT_RANGE) {
+                _campSpot = side;
+                Debug.logInternal("blaze camp: fire-proof, at the pillbox's open side " + side.toShortString() + " (spawner " + _foundBlazeSpawner.toShortString() + ")");
+                return;
+            }
             _campSpot = null;
             Debug.logInternal("blaze camp: fire-proof, by the spawner (" + _foundBlazeSpawner.toShortString() + ")");
             return;
