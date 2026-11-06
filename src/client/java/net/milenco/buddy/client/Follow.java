@@ -14,17 +14,23 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.item.SpawnEggItem;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.happyghast.HappyGhast;
+import net.minecraft.world.entity.animal.nautilus.AbstractNautilus;
+import net.minecraft.world.entity.animal.pig.Pig;
+import net.minecraft.world.entity.monster.Strider;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
 import net.minecraft.world.entity.vehicle.boat.AbstractBoat;
 import net.minecraft.world.entity.vehicle.boat.AbstractChestBoat;
+import net.minecraft.world.entity.vehicle.minecart.AbstractMinecart;
 import net.minecraft.world.entity.vehicle.minecart.Minecart;
 import net.minecraft.world.level.block.AbstractBedBlock;
 import net.minecraft.world.level.block.DoorBlock;
@@ -173,6 +179,15 @@ final class Follow {
 	private static long seatSince;          // when the walk to this cushion began
 	private static boolean seated;          // sat down of the buddy's own accord, so up again the same way
 	private static int standTicks;          // shift held this many ticks more: getting up
+	// a walk to a spot begun seated (rideTo): the ride, the spot, the least still to go and when, the way over water
+	private static Entity rideOn;
+	private static BlockPos rideSpot;
+	private static double rideBest;
+	private static int rideBestTick, boatIdx;
+	private static List<BlockPos> boatWay;
+	private static boolean rideTold, rideWaits, rideLanding;
+	/** This near the spot (horizontally) the buddy gets off and walks the rest. */
+	private static final double RIDE_NEAR = 2.5;
 	/** Cushions a click did not seat the buddy on (a region at spawn that does not allow it, taken just then): skipped a minute. */
 	private static final Map<Integer, Long> seatRefused = new HashMap<>();
 	/** Sit within this distance of the player, or not at all. */
@@ -506,6 +521,7 @@ final class Follow {
 		Wander.abort("goto");
 		release(); clearRoute();
 		leap = null; leapFails.clear(); avoid.clear(); refused.clear(); backTicks = 0; walking = false; noPathTold = false;
+		rideOn = null;
 		spots.clear();
 		spots.addAll(list);
 		Pen.stop("goto");
@@ -1041,6 +1057,14 @@ final class Follow {
 		}
 		spotsLast = p.position();
 		BlockPos s = spots.get(0);
+		// seated: the ride goes on while it gets the buddy nearer, since the walk keys move the seat and not the buddy (6 Nov
+		// 2026: a walk sent from the panel went nowhere while the buddy sat on a cushion). In bed: up first
+		if (standTicks > 0) { HeldKeys.set(mc.options.keyShift, --standTicks > 0); return true; }
+		if (p.isSleeping()) { p.connection.send(new ServerboundPlayerCommandPacket(p, ServerboundPlayerCommandPacket.Action.STOP_SLEEPING)); return true; }
+		if (p.isPassenger()) return rideTo(mc, p, s);
+		rideOn = null;
+		// off a happy ghast the buddy stands on top of it: down over the edge with the shortest drop first
+		if (stepOffGhast(mc, p, null)) return true;
 		if (p.onGround() && Math.abs(p.getX() - (s.getX() + 0.5)) < 0.55 && Math.abs(p.getZ() - (s.getZ() + 0.5)) < 0.55 && Math.abs(p.getY() - s.getY()) < 0.9) {
 			spots.remove(0);
 			Exchange.emit("goto", "action", "point", "x", s.getX(), "y", s.getY(), "z", s.getZ(), "left", spots.size());
@@ -2183,7 +2207,7 @@ final class Follow {
 		if (oh < 0.5) { ox = 1; oz = 0; oh = 1; }
 		Vec3 goal = new Vec3(t.getX() + ox / oh * GHAST_SIDE, t.getY() + GHAST_UNDER, t.getZ() + oz / oh * GHAST_SIDE);
 		Vec3 d = goal.subtract(g.position());
-		double dh = Math.hypot(d.x, d.z), dist = d.length();
+		double dist = d.length();
 		// there: let go, and set off again once it is a block and a half off
 		boolean go = dist > (driving ? 0.6 : 1.5);
 		if (go && !driving) { ghastBest = dist; ghastBestTick = ticks; }
@@ -2197,6 +2221,13 @@ final class Follow {
 			Exchange.emit("follow", "action", "ghast waits", "distance", round(dist), "x", Math.round(g.getX()), "y", Math.round(g.getY()), "z", Math.round(g.getZ()));
 			return;
 		}
+		steerGhast(mc, p, g, d);
+	}
+
+	/** A ghast the buddy steers, toward a point d away from it: turned after it, up over a wall or a hill in the way. */
+	private static void steerGhast(Minecraft mc, LocalPlayer p, HappyGhast g, Vec3 d) {
+		var o = mc.options;
+		double dh = Math.hypot(d.x, d.z);
 		float yaw = dh > 0.3 ? (float) Math.toDegrees(Math.atan2(-d.x, d.z)) : p.getYRot();
 		float pitch = (float) -Math.toDegrees(Math.atan2(d.y, dh));
 		if (g.horizontalCollision) pitch = Math.min(pitch, -45f);   // a wall or a hill in the way: up over it
@@ -2301,15 +2332,225 @@ final class Follow {
 
 	/** In a boat of the buddy's own: turn the boat toward the player with left and right, forward while it roughly faces the player, not near yet. */
 	private static void steerBoat(Minecraft mc, LocalPlayer p, Entity boat, Player t) {
+		steerBoat(mc, p, boat, t.position(), 4);
+	}
+
+	/** A boat the buddy steers, toward a point: turned with left and right, forward while it roughly faces it and is farther than {@code near}. */
+	private static void steerBoat(Minecraft mc, LocalPlayer p, Entity boat, Vec3 at, double near) {
 		var o = mc.options;
-		double dx = t.getX() - boat.getX(), dz = t.getZ() - boat.getZ(), d = Math.hypot(dx, dz);
+		double dx = at.x - boat.getX(), dz = at.z - boat.getZ(), d = Math.hypot(dx, dz);
 		float want = (float) Math.toDegrees(Math.atan2(-dx, dz));
 		float diff = Mth.wrapDegrees(want - boat.getYRot());
 		HeldKeys.set(o.keyLeft, diff < -6f);
 		HeldKeys.set(o.keyRight, diff > 6f);
-		HeldKeys.set(o.keyUp, d > 4 && Math.abs(diff) < 70f);
+		HeldKeys.set(o.keyUp, d > near && Math.abs(diff) < 70f);
 		HeldKeys.set(o.keySprint, false);
 		MouseTurn.toward(p, p.getYRot() + Mth.clamp(Mth.wrapDegrees(want - p.getYRot()), -10f, 10f), p.getXRot() + Mth.clamp(10f - p.getXRot(), -5f, 5f));
+	}
+
+	/**
+	 * A walk to a spot while seated: the ride goes on as long as it gets the buddy nearer, steered where the buddy can
+	 * steer it, and is left with a crouch once it no longer helps; the rest on foot. A cushion never helps, nor a ride
+	 * that stands still and that the buddy does not steer. A boat the buddy steers takes the way over water to the water
+	 * nearest the spot and is left there, at the shore. A saddled horse, donkey, mule, camel or nautilus, a pig or a
+	 * strider with its stick in hand (taken from the hotbar), and a happy ghast in a harness are steered straight at the
+	 * spot, and left before a drop or lava. A minecart goes where its rails go, given a push toward the spot while it
+	 * stands. Never off high above the ground: a ghast the buddy steers goes down first, a ride someone else steers is
+	 * waited out. True while seated.
+	 */
+	private static boolean rideTo(Minecraft mc, LocalPlayer p, BlockPos s) {
+		var o = mc.options;
+		Level level = p.level();
+		Entity v = p.getVehicle();
+		if (v != rideOn || !s.equals(rideSpot)) {
+			rideOn = v; rideSpot = s; boatWay = null; boatIdx = 0; rideTold = false; rideWaits = false; rideLanding = false;
+			rideBest = Double.MAX_VALUE; rideBestTick = ticks;
+		}
+		walking = false;
+		seated = true;
+		for (var k : new net.minecraft.client.KeyMapping[] { o.keyShift, o.keyJump, o.keySprint, o.keyDown, o.keyLeft, o.keyRight })
+			HeldKeys.set(k, false);
+		Vec3 goal = Vec3.atBottomCenterOf(s);
+		double hd = Math.hypot(goal.x - v.getX(), goal.z - v.getZ());
+		boolean steers = steersRide(p, v);
+		boolean boat = v instanceof AbstractBoat, cart = v instanceof AbstractMinecart, ghast = v instanceof HappyGhast;
+		Vec3 aim = ghast ? goal.add(0, 1, 0) : goal;
+		double left = ghast ? aim.distanceTo(v.position()) : hd;
+		String why = null;
+		if (rideLanding) why = "landing";
+		else if (isCushion(v)) why = "cushion";
+		else if (hd < RIDE_NEAR) why = "there";
+		else if (!steers && !cart && v.getDeltaMovement().horizontalDistance() < 0.02) why = "cannot steer";
+		else if (boat && steers) {
+			if (boatWay == null || v.position().distanceTo(Vec3.atBottomCenterOf(boatWay.get(boatIdx))) > 3) {
+				boatWay = boatWay(level, v, goal);
+				boatIdx = 0;
+				rideBest = Double.MAX_VALUE; rideBestTick = ticks;
+			}
+			if (boatWay == null) why = "no water that way";
+			else {
+				for (int i = boatIdx + 1, n = Math.min(boatWay.size(), boatIdx + 12); i < n; i++)
+					if (flatDist(v, boatWay.get(i)) < flatDist(v, boatWay.get(boatIdx))) boatIdx = i;
+				left = boatWay.size() - 1 - boatIdx;
+				if (left <= 1) why = "shore";
+				else aim = Vec3.atBottomCenterOf(boatWay.get(Math.min(boatIdx + 3, boatWay.size() - 1)));
+			}
+		}
+		if (why == null) {
+			if (left < rideBest - 1) { rideBest = left; rideBestTick = ticks; }
+			else if (ticks - rideBestTick > (boat ? 40 : 60)) why = "no nearer";
+		}
+		if (why == null && steers && !boat && !ghast && dropAhead(level, v)) why = "drop ahead";
+		if (why == null) {
+			if (!rideTold) {
+				rideTold = true;
+				Exchange.emit("goto", "action", "rides", "in", vehicleKind(v), "steers", steers, "distance", round(hd));
+			}
+			if (boat && steers) steerBoat(mc, p, v, aim, 0);
+			else if (ghast && steers) steerGhast(mc, p, (HappyGhast) v, aim.subtract(v.position()));
+			else if (steers) steerMount(mc, p, v, aim);
+			else {
+				// a ride someone else steers, or a minecart: a push toward the spot while it stands still
+				// (NewMinecartBehavior.calculatePlayerInputSpeed takes the rider's forward only then)
+				float yaw = (float) Math.toDegrees(Math.atan2(-(aim.x - v.getX()), aim.z - v.getZ()));
+				MouseTurn.toward(p, p.getYRot() + Mth.clamp(Mth.wrapDegrees(yaw - p.getYRot()), -10f, 10f), p.getXRot());
+				HeldKeys.set(o.keyUp, cart && v.getDeltaMovement().horizontalDistance() < 0.1);
+			}
+			return true;
+		}
+		HeldKeys.set(o.keyUp, false);
+		double high = v.getY() - groundUnder(level, v.getBoundingBox(), 40);
+		if (ghast && steers) {
+			// down first, looking down with forward held (HappyGhast.getRiddenInput), until just above the ground or no lower
+			// for two seconds: getting off puts the rider on top of it
+			if (!rideLanding) {
+				rideLanding = true; rideBest = high; rideBestTick = ticks;
+				Exchange.emit("goto", "action", "lands", "reason", why, "height", round(high));
+			}
+			if (high < rideBest - 0.2) { rideBest = high; rideBestTick = ticks; }
+			if (high > 0.5 && ticks - rideBestTick <= 40) {
+				MouseTurn.toward(p, p.getYRot(), p.getXRot() + Mth.clamp(90f - p.getXRot(), -12f, 12f));
+				HeldKeys.set(o.keyUp, p.getXRot() > 70f);
+				return true;
+			}
+		} else if (high > 3) {
+			// high up on a ride someone else steers: off would be a fall, so wait
+			if (!rideWaits) { rideWaits = true; Exchange.emit("goto", "action", "waits", "reason", "high up", "in", vehicleKind(v), "height", round(high)); }
+			return true;
+		}
+		release();
+		clearRoute();
+		seated = false;
+		standTicks = 4;
+		HeldKeys.set(o.keyShift, true);
+		Exchange.emit("goto", "action", "gets off", "off", vehicleKind(v), "reason", why, "distance", round(hd),
+			"x", Math.round(v.getX()), "y", Math.round(v.getY()), "z", Math.round(v.getZ()));
+		rideOn = null;
+		return true;
+	}
+
+	/**
+	 * Whether the buddy steers this ride: the first one in a boat, on a saddled horse, donkey, mule, camel or nautilus,
+	 * or on a happy ghast in a harness; on a pig or a strider with its stick in hand, taken from the hotbar when there.
+	 */
+	private static boolean steersRide(LocalPlayer p, Entity v) {
+		if (v.getControllingPassenger() == p) return true;
+		if ((v instanceof Pig || v instanceof Strider) && v.getFirstPassenger() == p) {
+			var stick = v instanceof Pig ? Items.CARROT_ON_A_STICK : Items.WARPED_FUNGUS_ON_A_STICK;
+			var inv = p.getInventory();
+			for (int i = 0; i < 9; i++) if (inv.getItem(i).is(stick)) {
+				if (inv.getSelectedSlot() != i) inv.setSelectedSlot(i);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** A mount the buddy steers, toward a point: turned after it with forward held; a pig or a strider goes where its rider looks by itself, a nautilus up and down too. */
+	private static void steerMount(Minecraft mc, LocalPlayer p, Entity v, Vec3 at) {
+		double dx = at.x - v.getX(), dz = at.z - v.getZ(), dh = Math.hypot(dx, dz);
+		float diff = Mth.wrapDegrees((float) Math.toDegrees(Math.atan2(-dx, dz)) - p.getYRot());
+		float pitch = v instanceof AbstractNautilus && v.isInWater() ? (float) -Math.toDegrees(Math.atan2(at.y + 0.5 - v.getY(), dh)) : 10f;
+		MouseTurn.toward(p, p.getYRot() + Mth.clamp(diff, -15f, 15f), p.getXRot() + Mth.clamp(pitch - p.getXRot(), -8f, 8f));
+		HeldKeys.set(mc.options.keyUp, Math.abs(diff) < 40f && !(v instanceof Pig || v instanceof Strider));
+	}
+
+	/** A drop of more than three blocks, or lava or fire, just ahead of a mount the buddy steers (a strider walks on lava). */
+	private static boolean dropAhead(Level level, Entity v) {
+		if (v.isInWater()) return false;
+		double far = Math.max(1.5, v.getDeltaMovement().horizontalDistance() * 6), yaw = Math.toRadians(v.getYRot());
+		AABB b = v.getBoundingBox().move(-Math.sin(yaw) * far, 0, Math.cos(yaw) * far);
+		if (v.getY() - groundUnder(level, b, 8) > 3) return true;
+		BlockPos c = BlockPos.containing(b.getCenter().x, b.minY, b.getCenter().z);
+		for (BlockPos q : new BlockPos[] { c, c.below() }) {
+			BlockState st = level.getBlockState(q);
+			if (st.is(BlockTags.FIRE) || (!(v instanceof Strider) && st.getFluidState().is(FluidTags.LAVA))) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * The way a boat goes from where it is, over water open to the air or over ice, to the cell of it nearest the spot
+	 * (within 96 blocks, 6000 cells): the cells from the boat's own on, or null when that cell is not three blocks nearer
+	 * the spot than the boat is.
+	 */
+	private static List<BlockPos> boatWay(Level level, Entity boat, Vec3 goal) {
+		BlockPos at = BlockPos.containing(boat.position());
+		BlockPos start = boatCell(level, at) ? at : boatCell(level, at.below()) ? at.below() : boatCell(level, at.above()) ? at.above() : null;
+		if (start == null) return null;
+		Map<BlockPos, BlockPos> from = new HashMap<>();
+		ArrayDeque<BlockPos> todo = new ArrayDeque<>();
+		from.put(start, start);
+		todo.add(start);
+		BlockPos best = start;
+		double bestD = Double.MAX_VALUE;
+		while (!todo.isEmpty() && from.size() < 6000) {
+			BlockPos c = todo.poll();
+			double d = Math.hypot(goal.x - c.getX() - 0.5, goal.z - c.getZ() - 0.5) + Math.abs(goal.y - c.getY()) * 0.5;
+			if (d < bestD) { bestD = d; best = c; }
+			for (Direction dir : Direction.Plane.HORIZONTAL) {
+				BlockPos n = c.relative(dir);
+				if (Math.abs(n.getX() - start.getX()) > 96 || Math.abs(n.getZ() - start.getZ()) > 96) continue;
+				// along the water, or down a step where it flows down
+				if (!boatCell(level, n)) {
+					if (!level.getBlockState(n).getCollisionShape(level, n).isEmpty() || !boatCell(level, n.below())) continue;
+					n = n.below();
+				}
+				if (from.putIfAbsent(n, c) == null) todo.add(n);
+			}
+		}
+		Vec3 b = boat.position();
+		if (Math.hypot(goal.x - b.x, goal.z - b.z) - Math.hypot(goal.x - best.getX() - 0.5, goal.z - best.getZ() - 0.5) < 3) return null;
+		List<BlockPos> way = new ArrayList<>();
+		for (BlockPos c = best; ; c = from.get(c)) {
+			way.add(c);
+			if (c.equals(start)) break;
+		}
+		Collections.reverse(way);
+		return way;
+	}
+
+	/** A cell a boat goes through: water with open air above it (a lily pad breaks), or the air over ice. */
+	private static boolean boatCell(Level level, BlockPos c) {
+		BlockState here = level.getBlockState(c);
+		if (!here.getCollisionShape(level, c).isEmpty()) return false;
+		if (here.getFluidState().is(FluidTags.WATER)) {
+			BlockPos up = c.above();
+			BlockState above = level.getBlockState(up);
+			return above.getFluidState().isEmpty() && (above.getCollisionShape(level, up).isEmpty() || above.is(Blocks.LILY_PAD));
+		}
+		return here.getFluidState().isEmpty() && level.getBlockState(c.below()).is(BlockTags.ICE);
+	}
+
+	/** How far a cell's middle is from an entity, across. */
+	private static double flatDist(Entity e, BlockPos c) {
+		return Math.hypot(c.getX() + 0.5 - e.getX(), c.getZ() + 0.5 - e.getZ());
+	}
+
+	/** What a ride is called in the events: as rideKind, else its entity type (a horse, a pig). */
+	private static String vehicleKind(Entity v) {
+		String k = rideKind(v);
+		return k != null ? k : EntityType.getKey(v.getType()).getPath();
 	}
 
 	/**
@@ -2319,7 +2560,7 @@ final class Follow {
 	private static String rideKind(Entity e) {
 		if (e == null) return null;
 		if (isCushion(e)) return "cushion";
-		if (e instanceof AbstractBoat) return "boot";
+		if (e instanceof AbstractBoat) return "boat";
 		if (e instanceof Minecart) return "minecart";
 		if (e instanceof HappyGhast g && !g.isBaby() && g.isWearingBodyArmor()) return "ghast";
 		return null;

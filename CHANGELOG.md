@@ -3,6 +3,12 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.21
+
+- **Walk there** while the buddy sits: the buddy rides on as long as that gets closer, then walks the rest. A boat goes
+  over the water to the shore; a horse, a pig with its stick or a happy ghast is steered there; a minecart follows its
+  rails. From a cushion or a bed the buddy gets up first.
+
 ## 0.5.20
 
 - Browsers and password managers now fill in only the panel's password, no other field.

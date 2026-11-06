@@ -71,7 +71,13 @@ day and time.
   again. A coordinate in Problems or Activity takes the map there.
 - What was seen before stays on the map, dimmer. The buddy draws the chunks around, also while the page is shut.
 - `Auto` shows the buddy's layer when deep under rock or in the nether; `Surface` and `Cave` choose one.
-- Click a spot and **Walk there** sends the buddy.
+- Click a spot and **Walk there** sends the buddy. A seated buddy rides on as long as that gets closer, and walks the
+  rest:
+  - a boat goes over the water to the shore nearest the spot;
+  - a saddled horse, donkey, mule, camel or nautilus, a pig or strider with its stick, and a happy ghast in a harness
+    are steered there; a happy ghast lands first;
+  - a minecart goes where its rails go;
+  - from a cushion or a bed the buddy gets up at once.
 - **2D / 3D** switches the map. In 3D, drag with the left button to move and with the right to turn and tilt (on a
   touchpad, hold `Shift`, `Option` or `Ctrl` and drag). Zoom with the wheel, two fingers, a pinch, the buttons, a double
   click (in) or a double right click (out). A click on a block offers **Walk there** too, also underground, where the
