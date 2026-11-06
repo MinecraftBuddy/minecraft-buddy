@@ -756,9 +756,12 @@ public class WorldSurvivalChain extends SingleTaskChain {
         return mod.getPlayer().isOnFire() && !_wasInLavaTimer.elapsed();
     }
 
-    // no task, no look, no wheel: a task at the top of the pile stops the path and the fight while it waits on a click that a
-    // raised shield can hold off forever, and the fire keeps biting the whole time. the server only checks range here, it
-    // never asks where we are looking
+    // no task and no wheel: a task at the top of the pile stops the path and the fight while it waits on a click that a
+    // raised shield can hold off forever, and the fire keeps biting the whole time. one fire a tick, and only the one the
+    // crosshair is on, broken by the face the look came in by (the face toward the eye): a dig on a block the look never
+    // reached, by a face the eye can't see, or several digs in one tick is what the anti-cheat's break checks flag.
+    // standing still we turn to the nearest one; a walking path keeps the head (movement goes where the yaw points), and
+    // the escape or the dunk gets us out of the fire instead
     private void breakFireWeTouch(AltoClef mod) {
         if (!mod.getPlayer().isOnFire() || adris.altoclef.util.helpers.FireRes.has(mod.getPlayer())) return;
         MultiPlayerGameMode controller = mod.getController();
@@ -766,15 +769,27 @@ public class WorldSurvivalChain extends SingleTaskChain {
         List<BlockPos> fires = allMatches(WorldHelper.getBlocksTouchingPlayer(mod),
                 pos -> mod.getWorld().getBlockState(pos).getBlock() instanceof BaseFireBlock);
         if (fires.isEmpty()) return;
-        // startDestroyBlock aborts the old dig to the server but leaves isDestroying up on our side, so stop it properly. a
-        // dig that loses its progress starts again, it is a cheap price for not being on fire
-        controller.stopDestroyBlock();
-        for (BlockPos fire : fires) {
-            controller.startDestroyBlock(fire, Direction.UP);
+        HitResult hit = mod.getClientBaritone().getPlayerContext().objectMouseOver();
+        if (hit instanceof BlockHitResult b && b.getType() == HitResult.Type.BLOCK && fires.contains(b.getBlockPos())) {
+            // startDestroyBlock aborts the old dig to the server but leaves isDestroying up on our side, so stop it properly.
+            // a dig that loses its progress starts again, it is a cheap price for not being on fire
+            controller.stopDestroyBlock();
+            controller.startDestroyBlock(b.getBlockPos(), b.getDirection());
             // (the buddy's fork, upstream bug, PR #6: a dig goes to the server with its punch, or Vulcan sees a dig nobody swung)
             baritone.behavior.LegacyCombat.swing(mod.getPlayer(), net.minecraft.world.InteractionHand.MAIN_HAND);
+            Debug.logInternal("fire: broke 1 of " + fires.size() + " touching, using=" + mod.getPlayer().isUsingItem());
+            return;
         }
-        Debug.logInternal("fire: broke " + fires.size() + " touching, using=" + mod.getPlayer().isUsingItem());
+        if (mod.getClientBaritone().getPathingBehavior().isPathing()) return;
+        Vec3 eye = mod.getPlayer().getEyePosition();
+        fires.sort(java.util.Comparator.comparingDouble(pos -> pos.distToCenterSqr(eye)));
+        for (BlockPos fire : fires) {
+            Optional<Rotation> reach = LookHelper.getReach(fire);
+            if (reach.isPresent()) {
+                mod.getClientBaritone().getLookBehavior().updateTarget(reach.get(), true);
+                return;
+            }
+        }
     }
 
     // scanRegion may hand back the same mutable pos every step, so the hits are copied
