@@ -129,6 +129,7 @@ final class BlazeLureTask extends Task {
         // look's walk out to the door and onto the platform, in every blaze's sight, corner15 run 4)
         walk = null;
         fetching = null;
+        intoBox.reset();
     }
 
     @Override
@@ -143,8 +144,12 @@ final class BlazeLureTask extends Task {
                 if (!in(at, corner)) {
                     setDebugState("Back into the corner");
                     Task fire = fireOnTheWay(mod);
-                    return fire != null ? fire : walk(corner);
+                    if (fire != null) return fire;
+                    // (round by a standing pillbox's door, BoxWay; the plain walk at the cell once that had its time)
+                    Task way = intoBox.step(mod, corner);
+                    return way != null ? way : walk(corner);
                 }
+                intoBox.reset();
                 // (a pillbox's cell: to its middle, out of the front cell the look out shows)
                 if (centred && BlazePillboxTask.hideIn(mod, corner)) {
                     setDebugState("To the middle of the corner");
@@ -285,6 +290,9 @@ final class BlazeLureTask extends Task {
         if (walk == null) walk = new GetToBlockTask(to);
         return walk;
     }
+
+    // the walk back into the corner from outside it
+    private final adris.altoclef.util.helpers.BoxWay intoBox = new adris.altoclef.util.helpers.BoxWay();
 
     private void lower(AltoClef mod) {
         // (the key let go is the shield down: the game lets go of a use whose key is up)

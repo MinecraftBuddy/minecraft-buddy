@@ -43,6 +43,30 @@ public final class BlazeShelter {
         at = now;
     }
 
+    // the standing pillbox that is the fight's corner: its cell, its door (BlazePillbox.door, the cell outside the look out's
+    // open side; null for a raised box) and the cells it holds. set by the rods task every tick it runs, null with no box
+    // standing; read for a corner equal to its cell only, so a box left behind changes no other corner's walk (BoxWay)
+    private record Box(BlockPos cell, BlockPos door, java.util.function.Predicate<BlockPos> holds) {
+    }
+
+    private static volatile Box box;
+
+    public static void box(BlockPos cell, BlockPos door, java.util.function.Predicate<BlockPos> holds) {
+        box = cell == null ? null : new Box(cell, door, holds);
+    }
+
+    // the door of the box whose cell is this corner, null for any other corner
+    public static BlockPos door(BlockPos corner) {
+        Box b = box;
+        return b != null && b.cell().equals(corner) ? b.door() : null;
+    }
+
+    // the feet in the box whose cell is this corner (its cell, front cell or look out)
+    public static boolean inBox(BlockPos corner, BlockPos feet) {
+        Box b = box;
+        return b != null && b.cell().equals(corner) && b.holds() != null && b.holds().test(feet);
+    }
+
     // the corner while fresh, else null (a clock that went backwards, a new world, is stale too)
     public static BlockPos fresh(long now) {
         BlockPos c = corner;

@@ -301,6 +301,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         if (building) adris.altoclef.util.helpers.BlazeShelter.building(mod.getWorld().getGameTime());
         if (_pillbox != null && _pillboxCornered) adris.altoclef.util.helpers.BlazeShelter.boxStands(mod.getWorld().getGameTime());
+        // (the standing box's way in, for every walk into the corner: round by its door, BoxWay)
+        BlazePillboxTask standing = _pillbox != null && _pillboxCornered ? _pillbox : null;
+        adris.altoclef.util.helpers.BlazeShelter.box(standing == null ? null : standing.cell(), standing == null ? null : standing.door(),
+                standing == null ? null : standing::holds);
         // (a brew box going up is built as a pillbox is: only a blaze that bites is fought meanwhile, its blocks may be placed)
         boolean brewBuilding = _brewBox != null && _brewBox.building();
         _fight.building(building || brewBuilding);

@@ -103,7 +103,8 @@ final class BlazeFight {
     // to corner20)
     static final double BUDDY_LEASH = 1.5;
     static final double CORNER_RUN = 12;
-    private GetToBlockTask cornerRun;
+    // the run into the corner: round by a standing pillbox's door, and the plain run or cover once it had BoxWay.RUN_TICKS
+    private final adris.altoclef.util.helpers.BoxWay cornerWay = new adris.altoclef.util.helpers.BoxWay();
     private BlockPos cornerRunTo;
     private BlockPos corner;
     private boolean cornerHold;
@@ -515,7 +516,7 @@ final class BlazeFight {
             cover = null;
             coverBanned.clear();
             coverRetryAt = Long.MIN_VALUE;
-            cornerRun = null;
+            cornerWay.reset();
             cornerRunTo = null;
         }
         noPlacing = mode != Mode.CAMP;
@@ -540,27 +541,34 @@ final class BlazeFight {
             case RUN -> {
                 // (with a corner near, the run is into it: standing in it is the heal wait, null)
                 if (held != null && player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= adris.altoclef.util.helpers.Tuning.get("corner_run", CORNER_RUN)) {
-                    cover = null;
                     // (a pillbox going up: anywhere in the box is in, its roof row is placed from the front cell, and the rods
                     // task goes on building through the heal wait)
                     if (building && pillboxPlanned && adris.altoclef.util.helpers.Tuning.get("pillbox_heal_build", 1) > 0
-                            && player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= PILLBOX_LEASH) yield null;
+                            && player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= PILLBOX_LEASH) {
+                        cover = null;
+                        yield null;
+                    }
                     if (BlazeLureTask.in(player.position(), held)) {
+                        cover = null;
+                        cornerWay.reset();
                         // (a pillbox's cell: the heal wait at its middle, see BlazePillboxTask.centreIn)
                         if (pillboxPlanned) BlazePillboxTask.hideIn(mod, held);
                         yield null;
                     }
-                    Task fire = fireOnTheWay(mod, held);
-                    if (fire != null) yield fire;
-                    if (cornerRun == null || !held.equals(cornerRunTo)) {
-                        cornerRun = new GetToBlockTask(held);
-                        cornerRunTo = held;
-                        Debug.logInternal("rods: running into the corner at " + held.toShortString() + " at "
-                                + String.format(java.util.Locale.ROOT, "%.1f", health) + " hp");
+                    // (null: the corner not reached in BoxWay.RUN_TICKS, the run goes on below as with no corner near)
+                    Task way = cornerWay.step(mod, held);
+                    if (way != null) {
+                        cover = null;
+                        Task fire = fireOnTheWay(mod, held);
+                        if (fire != null) yield fire;
+                        if (!held.equals(cornerRunTo)) {
+                            cornerRunTo = held;
+                            Debug.logInternal("rods: running into the corner at " + held.toShortString() + " at "
+                                    + String.format(java.util.Locale.ROOT, "%.1f", health) + " hp");
+                        }
+                        yield way;
                     }
-                    yield cornerRun;
                 }
-                cornerRun = null;
                 cornerRunTo = null;
                 List<Entity> crowd = underFireCrowd(mod);
                 if (crowd.isEmpty()) {

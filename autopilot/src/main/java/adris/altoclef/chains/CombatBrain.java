@@ -131,8 +131,9 @@ final class CombatBrain {
     private CommittedRunTask _run;
     private KillEntityTask _fight;
     private final HealUpTask _healUp = new HealUpTask();
-    // the run into a blaze fight's corner (BlazeShelter) and where it goes
-    private adris.altoclef.tasks.movement.GetToBlockTask _shelterRun;
+    // the run into a blaze fight's corner (BlazeShelter): round by a standing pillbox's door, and the committed run once it
+    // had BoxWay.RUN_TICKS
+    private final adris.altoclef.util.helpers.BoxWay _shelterWay = new adris.altoclef.util.helpers.BoxWay();
     private net.minecraft.core.BlockPos _shelterRunTo;
     private final adris.altoclef.util.helpers.FireOnTheWay _shelterFire = new adris.altoclef.util.helpers.FireOnTheWay();
     private final IdleTask _splitHold = new IdleTask();
@@ -348,17 +349,23 @@ final class CombatBrain {
                 net.minecraft.core.BlockPos shelter = adris.altoclef.util.helpers.BlazeShelter.fresh(mod.getWorld().getGameTime());
                 if (shelter != null && mod.getPlayer().position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(shelter))
                         <= adris.altoclef.util.helpers.BlazeShelter.RANGE) {
-                    if (adris.altoclef.util.helpers.BlazeShelter.in(mod.getPlayer().position(), shelter)) return _healUp;
-                    adris.altoclef.tasksystem.Task fire = _shelterFire.step(mod, shelter);
-                    if (fire != null) return fire;
-                    if (_shelterRun == null || !shelter.equals(_shelterRunTo)) {
-                        _shelterRun = new adris.altoclef.tasks.movement.GetToBlockTask(shelter);
-                        _shelterRunTo = shelter;
-                        adris.altoclef.Debug.logInternal("combat: the run is into the blaze fight's corner at " + shelter.toShortString());
+                    if (adris.altoclef.util.helpers.BlazeShelter.in(mod.getPlayer().position(), shelter)) {
+                        _shelterWay.reset();
+                        return _healUp;
                     }
-                    return _shelterRun;
+                    // (null: the corner not reached in BoxWay.RUN_TICKS, the committed run below)
+                    adris.altoclef.tasksystem.Task way = _shelterWay.step(mod, shelter);
+                    if (way != null) {
+                        adris.altoclef.tasksystem.Task fire = _shelterFire.step(mod, shelter);
+                        if (fire != null) return fire;
+                        if (!shelter.equals(_shelterRunTo)) {
+                            _shelterRunTo = shelter;
+                            adris.altoclef.Debug.logInternal("combat: the run is into the blaze fight's corner at " + shelter.toShortString());
+                        }
+                        return way;
+                    }
                 }
-                _shelterRun = null;
+                _shelterRunTo = null;
                 // (a run that goes on from the last one has the old origin and a longer way: the old task's goal is met already)
                 if (_run == null || _run.stopped() || !_run.sameRun(_commit.originX(), _commit.originZ(), _commit.runDistance())) {
                     _run = new CommittedRunTask(_commit.originX(), _commit.originZ(), _commit.runDistance(), this::crowd);

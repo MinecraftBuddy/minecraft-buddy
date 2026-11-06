@@ -47,6 +47,10 @@ public class GhastShelterChain extends SingleTaskChain {
     private long _clearSince = Long.MIN_VALUE;
     // waiting before a crossing (any ghast near) rather than hiding from one that sees us
     private boolean _before;
+    // the cover is the blaze fight's corner: the walk is round by a standing pillbox's door (BoxWay), and the ghast's own cover
+    // once that had its time
+    private boolean _fightCorner;
+    private final adris.altoclef.util.helpers.BoxWay _way = new adris.altoclef.util.helpers.BoxWay();
 
     public GhastShelterChain(TaskRunner runner) {
         super(runner);
@@ -85,6 +89,26 @@ public class GhastShelterChain extends SingleTaskChain {
                     return Float.NEGATIVE_INFINITY;
                 }
             }
+            if (!there && _fightCorner) {
+                Task way = _way.step(mod, _cover);
+                if (way != null) {
+                    setTask(way);
+                    return PRIORITY;
+                }
+                Ghast g = ghast != null ? ghast : nearestGhast(mod, NEAR);
+                BlockPos other = g == null ? null : GhastCover.cover(mod, g);
+                if (other == null) {
+                    reset();
+                    return Float.NEGATIVE_INFINITY;
+                }
+                Debug.logInternal("ghast shelter: the blaze fight's corner not reached, into cover at " + other.toShortString());
+                _cover = other;
+                _fightCorner = false;
+                _go = new GetToBlockTask(other);
+                _since = now;
+                setTask(_go);
+                return PRIORITY;
+            }
             setTask(there ? _stay : _go);
             return PRIORITY;
         }
@@ -105,11 +129,14 @@ public class GhastShelterChain extends SingleTaskChain {
         // (the buddy's fork: in a blaze fight with its corner near, the corner is the cover from a ghast too: the cover picked for
         // the ghast alone stood by the spawner in the blazes' fire, blazeroom drill, corner15 run 3 and corner19 run 2, 4 Nov 2026)
         BlockPos fight = adris.altoclef.util.helpers.BlazeShelter.fresh(now);
-        BlockPos cover = fight != null && player.position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(fight))
-                <= adris.altoclef.util.helpers.BlazeShelter.RANGE ? fight : GhastCover.cover(mod, near);
+        boolean fightCorner = fight != null && player.position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(fight))
+                <= adris.altoclef.util.helpers.BlazeShelter.RANGE;
+        BlockPos cover = fightCorner ? fight : GhastCover.cover(mod, near);
         if (cover == null) return Float.NEGATIVE_INFINITY;
         _before = before;
         _cover = cover;
+        _fightCorner = fightCorner;
+        _way.reset();
         _go = new GetToBlockTask(cover);
         _since = now;
         _clearSince = Long.MIN_VALUE;
@@ -168,6 +195,7 @@ public class GhastShelterChain extends SingleTaskChain {
         _since = Long.MIN_VALUE;
         _clearSince = Long.MIN_VALUE;
         _before = false;
+        _fightCorner = false;
     }
 
     @Override
