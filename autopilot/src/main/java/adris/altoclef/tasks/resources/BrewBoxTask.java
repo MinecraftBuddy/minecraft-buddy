@@ -42,7 +42,7 @@ import net.minecraft.world.phys.Vec3;
 // order goes on. no box (no floor, no blocks, three tries): the open brew as before. no stand in F or the bag at the stand's
 // step: opened at once
 final class BrewBoxTask extends Task {
-    enum Stage { PREP, BUILD, STEP_IN, STAND, BREW, DRINK, OPEN, LEAVE, DONE }
+    enum Stage { PREP, BUILD, STEP_IN, CRAFT, STAND, BREW, DRINK, OPEN, LEAVE, DONE }
 
     // a box not whole after this many builds is given up
     static final int TRIES = 3;
@@ -51,6 +51,8 @@ final class BrewBoxTask extends Task {
     // the step into B and the stand's click, at most (ticks it ran)
     static final long STEP_TICKS = 100;
     static final long STAND_TICKS = 100;
+    // the stand made inside the pillbox (brew_box 2): the table in F, the craft, the table back, at most (ticks it ran)
+    static final long CRAFT_TICKS = 600;
     // the drink asked for this long at most, and the door broken open in this long at most (game ticks)
     static final long DRINK_TICKS = 200;
     static final long OPEN_TICKS = 400;
@@ -76,6 +78,9 @@ final class BrewBoxTask extends Task {
     private long stepTicks;
     private long standTicks;
     private Task placeStand;
+    private long craftTicks;
+    private Task placeTable;
+    private Task takeTable;
     private long drinkSince;
     // the walls to break, best first (BrewBox.doors), and the one being opened or walked out of
     private List<BrewBox.Door> doors;
@@ -139,7 +144,7 @@ final class BrewBoxTask extends Task {
     }
 
     private boolean shutIn() {
-        return stage == Stage.STEP_IN || stage == Stage.STAND || stage == Stage.BREW || stage == Stage.DRINK;
+        return stage == Stage.STEP_IN || stage == Stage.CRAFT || stage == Stage.STAND || stage == Stage.BREW || stage == Stage.DRINK;
     }
 
     // the brew was given up (its budget, BREW_BUDGET_TICKS): a shut box opens, one not yet shut is dropped
@@ -203,8 +208,9 @@ final class BrewBoxTask extends Task {
         Level level = mod.getWorld();
         switch (stage) {
             case PREP -> {
-                // (the stand from the bag: made inside, its table would want F)
-                if (!mod.getItemStorage().hasItem(Items.BREWING_STAND)) {
+                // (the stand from the bag: made inside, its table would want F. in the pillbox, brew_box 2, it is made inside
+                // the shut box instead: CRAFT)
+                if (pillboxBack == null && !mod.getItemStorage().hasItem(Items.BREWING_STAND)) {
                     setDebugState("Making the brewing stand before the box");
                     return TaskCatalogue.getItemTask("brewing_stand", 1);
                 }
@@ -267,10 +273,49 @@ final class BrewBoxTask extends Task {
                     setDebugState("Into the brew box's back cell");
                     return null;
                 }
-                stage = Stage.STAND;
+                // (brew_box 2 with no stand yet: made in here, CRAFT)
+                stage = pillboxBack != null && !mod.getItemStorage().hasItem(Items.BREWING_STAND) ? Stage.CRAFT : Stage.STAND;
                 standTicks = 0;
                 placeStand = null;
+                craftTicks = 0;
+                placeTable = null;
+                takeTable = null;
                 return null;
+            }
+            case CRAFT -> {
+                // (steering 62: the station inside the shut box with the buddy, never the buddy outside by it. the table goes in F
+                // beside B, the stand is made at it, the table comes back into the bag and the stand takes F. a table set down
+                // where the station placer liked stood in the pillbox's corner with the buddy outside it, piece2box-3)
+                BlockPos f = pos(box.front());
+                boolean tableInF = level.getBlockState(f).is(Blocks.CRAFTING_TABLE);
+                if (++craftTicks > CRAFT_TICKS) {
+                    Debug.logInternal("brew box: the stand not made inside in " + CRAFT_TICKS / 20 + " s, opening");
+                    stage = Stage.OPEN;
+                    return null;
+                }
+                if (mod.getItemStorage().hasItem(Items.BREWING_STAND)) {
+                    if (tableInF) {
+                        if (takeTable == null) takeTable = new DestroyBlockTask(f);
+                        setDebugState("Taking the crafting table back");
+                        return takeTable;
+                    }
+                    Debug.logInternal("brew box: the stand made inside (" + craftTicks + " ticks)");
+                    stage = Stage.STAND;
+                    return null;
+                }
+                if (!tableInF) {
+                    if (!mod.getItemStorage().hasItem(Items.CRAFTING_TABLE)) {
+                        setDebugState("A crafting table for inside the box");
+                        return TaskCatalogue.getItemTask("crafting_table", 1);
+                    }
+                    // (in B's middle first, as for the stand: a body over the line into F and the game refuses the block)
+                    if (BlazePillboxTask.centreIn(mod, pos(box.back()), BlazePillboxTask.HIDE_SLACK)) return null;
+                    if (placeTable == null) placeTable = new InteractWithBlockTask(new ItemTarget(Items.CRAFTING_TABLE, 1), Direction.UP, f.below(), false).stayPut();
+                    setDebugState("Putting the crafting table in the box");
+                    return placeTable;
+                }
+                setDebugState("Making the brewing stand inside the box");
+                return TaskCatalogue.getItemTask("brewing_stand", 1);
             }
             case STAND -> {
                 BlockPos f = pos(box.front());
