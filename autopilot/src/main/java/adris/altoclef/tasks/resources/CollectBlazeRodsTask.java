@@ -227,6 +227,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         // the spawner is what starts the dry timer, finding one only between fights meant a long fight never found it
         pickSpawner(mod);
+        noteRods(mod);
+        campDry(mod);
         // (again: the goal the walk is judged against is the spawner we just picked, not last tick's)
         noteZoneInputs(mod);
         // (the buddy's fork: the camp was picked with or without fire resistance; a potion brewed and drunk here, or one run
@@ -638,6 +640,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_foundBlazeSpawner.equals(_campSpotFor) || mod.getClientBaritone().bsi == null) return;
         _campSpotFor = _foundBlazeSpawner;
         _campFireproof = BlazeFight.fireproofCamp(mod.getPlayer());
+        _campPickedAt = mod.getWorld().getGameTime();
         // (a fresh look at the world: Baritone's bsi is the last path search's copy, and read the room as all solid, so the
         // camp ring had "0 cells to stand on" in a real fortress and the camp stood beside the spawner, 4 Nov 2026)
         Cells cells = CliffAvoidance.of(new baritone.utils.BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
@@ -667,7 +670,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Debug.logInternal("blaze camp: fire-proof, by the spawner (" + _foundBlazeSpawner.toShortString() + ")");
             return;
         }
-        int[][] corner = cornerSpot(mod, cells, sx, sy, sz);
+        int[][] corner = _noCorner ? null : cornerSpot(mod, cells, sx, sy, sz);
         if (corner != null) {
             _campSpot = new BlockPos(corner[0][0], corner[0][1], corner[0][2]);
             BlockPos peek = new BlockPos(corner[1][0], corner[1][1], corner[1][2]);
@@ -867,6 +870,38 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 .filter(d -> d.distanceTo(me) <= ROD_STEP && (noClimb || d.getY() <= me.getY() + ROD_CLIMB)).isPresent()) return false;
         // (and while the corner holds: the lure fetches the rods near it on a leash; the pickup's walk has none)
         return BlazeFightRules.holdPickup(_fight.mode() == BlazeFightRules.Mode.RUN, _fight.nearestBlaze()) || _fight.cornerHold();
+    }
+
+    // the buddy's fork, Tuning camp_dry (game minutes, 0 off): a corner camp with no rod in that long while a blaze is within
+    // CAMP_DRY_NEAR is picked again without a corner, so a pillbox. the corners at two fortresses of set a gave no rod in
+    // twelve minutes with five blazes within 8, run after run and block after block (6 Nov 2026: bent-n-ap-1, door-2,
+    // piece2ap-1, piece2pill-1 at 3553 67 1211; bent-n-rm-1, door-1 at 4482 64 -1198)
+    static final double CAMP_DRY_NEAR = 16;
+    private long _campPickedAt = -1;
+    private long _lastRodAt = -1;
+    private int _lastRodCount;
+    private boolean _noCorner;
+
+    private void noteRods(AltoClef mod) {
+        int n = mod.getItemStorage().getItemCount(Items.BLAZE_ROD);
+        if (n > _lastRodCount) _lastRodAt = mod.getWorld().getGameTime();
+        _lastRodCount = n;
+    }
+
+    private void campDry(AltoClef mod) {
+        double dry = adris.altoclef.util.helpers.Tuning.get("camp_dry", 0);
+        if (dry <= 0 || _noCorner || _campSpotFor == null || _pillbox != null || _fight.corner() == null || _campFireproof) return;
+        long now = mod.getWorld().getGameTime();
+        long since = Math.max(_lastRodAt, _campPickedAt);
+        if (since < 0 || now - since < dry * 1200 || now < since) return;
+        if (_fight.nearestBlaze() > CAMP_DRY_NEAR) return;
+        Debug.logInternal("blaze camp: no rod at the corner " + (_campSpot == null ? "" : _campSpot.toShortString() + " ") + "in " + dry
+                + " game min with a blaze within " + String.format(java.util.Locale.ROOT, "%.0f", _fight.nearestBlaze()) + ", the camp picked again without a corner");
+        _noCorner = true;
+        _campSpotFor = null;
+        _campSpot = null;
+        _lure = null;
+        _fight.corner(null);
     }
 
     // the last standing pillbox's open side (its door, else its look out), the fire-proof camp once its potion is drunk
