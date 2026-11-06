@@ -51,8 +51,22 @@ public final class PreyScan {
             return true;
         }
         Level level = entity.level();
-        return fencedIn(entity.blockPosition(), pos -> isFence(level.getBlockState(pos)));
+        long now = level.getGameTime();
+        Pen known = PENS.get(entity.getId());
+        if (known != null && now >= known.at() && now - known.at() < PEN_EVERY) return known.in();
+        if (PENS.size() > 512) PENS.clear();
+        boolean in = fencedIn(entity.blockPosition(), pos -> isFence(level.getBlockState(pos)));
+        PENS.put(entity.getId(), new Pen(now, in));
+        return in;
     }
+
+    // the pen test once a second per animal: every hunt asks it of every animal of a farm every tick. the client thread only
+    static final long PEN_EVERY = 20;
+
+    private record Pen(long at, boolean in) {
+    }
+
+    private static final java.util.Map<Integer, Pen> PENS = new java.util.HashMap<>();
 
     static boolean isFence(BlockState state) {
         return state.getBlock() instanceof FenceBlock || state.getBlock() instanceof FenceGateBlock
