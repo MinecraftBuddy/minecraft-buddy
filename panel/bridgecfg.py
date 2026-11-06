@@ -26,9 +26,9 @@ MCNAME = re.compile(r"^\.?[A-Za-z0-9_]{2,16}$")
 WHO = re.compile(r"^[^\x00-\x1f\x7f]{1,64}$")       # a Telegram user id, or a name, as the bridge matched admins before
 PATH = re.compile(r"^[/~][^\x00-\x1f\x7f]{0,299}$")
 PATH_KEYS = ("exchange", "schematics", "status_site", "since")
-# what the bridge can leave out of the chat (its SHOW): players' chat, private messages, joins and leaves, other server
-# messages, the buddy's own news
-SHOW_KEYS = ("chat", "pm", "joins", "server", "buddy")
+# what the bridge can leave out of the chat (its SHOW): players' chat, private messages, joins and leaves, deaths,
+# advancements, other server messages, the buddy's own news
+SHOW_KEYS = ("chat", "pm", "joins", "deaths", "advancements", "server", "buddy")
 # a status older than this is a bridge that is not running: it writes one at least once a minute
 DOWN_AFTER = 150
 

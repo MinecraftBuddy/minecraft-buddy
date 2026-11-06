@@ -3,6 +3,29 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.20
+
+- Browsers and password managers now fill in only the panel's password, no other field.
+- When someone who is not in Trusted players writes to the bot in Telegram, the panel's chat says so, with that
+  person's Telegram user id. If the bot does not answer you, check your own id there: a password manager may have
+  put a login name in it.
+- On a computer the chat stays in view while you scroll the page, so typing in it no longer makes the page jump,
+  also with a tall menu open.
+
+## 0.5.19
+
+- When the buddy dies, Take control shows the coordinates where the buddy's things are.
+- **Deaths and advancements in Telegram**, each with a switch of their own. The game's own lines are known on any server;
+  where a plugin writes its own, the server profile's new texts death and advancement match them.
+- When the buddy dies, Telegram says where.
+- After a kick or a lost connection, Telegram says so with the server's reason, and when the buddy joins again.
+
+## 0.5.18
+
+- **Chat from outside the game in Telegram.** A server profile can now say how lines the server passes on from IRC or
+  Discord look (Lines the server sends: `relay`). Those lines then come into Telegram with players' chat, as the server
+  shows them, also when other server messages are off.
+
 ## 0.5.17
 
 - In Take control, new chat lines now sit at the bottom left, level with the block name at the bottom right.

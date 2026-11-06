@@ -107,10 +107,45 @@ class History(threading.Thread):
 
     MAX, KEEP = 30_000_000, 20_000_000
 
-    def __init__(self, exchange, path):
+    def __init__(self, exchange, path, bridge_status=None):
         super().__init__(daemon=True)
         self.events, self.path, self.pos = os.path.join(exchange, "events.jsonl"), path, path + ".pos"
         self.lock = threading.Lock()
+        self.bridge_status, self.bridge_stamp, self.unheard_at, self.unheard_told = bridge_status, None, None, {}
+
+    def unheard(self):
+        """The bridge's messages that got no answer, their senders not in Trusted players (bridge-status.json, unheard), as
+        lines for the chat: one a sender in ten minutes at most. What is there at the start counts as told, so that a
+        restart of the panel repeats nothing."""
+        if not self.bridge_status:
+            return []
+        try:
+            st = os.stat(self.bridge_status)
+        except OSError:
+            return []
+        if (st.st_ino, st.st_mtime_ns) == self.bridge_stamp:
+            return []
+        self.bridge_stamp = (st.st_ino, st.st_mtime_ns)
+        try:
+            with open(self.bridge_status, encoding="utf-8") as f:
+                rows = json.load(f).get("unheard") or []
+        except (OSError, ValueError, AttributeError):
+            return []
+        rows = sorted((r for r in rows if isinstance(r, dict) and isinstance(r.get("at"), int)), key=lambda r: r["at"])
+        newest = rows[-1]["at"] if rows else 0
+        if self.unheard_at is None:
+            self.unheard_at = newest
+            return []
+        out = []
+        for r in rows:
+            who = str(r.get("user_id") or r.get("username") or r.get("user") or "")
+            if r["at"] <= self.unheard_at or r["at"] - self.unheard_told.get(who, -600) < 600:
+                continue
+            self.unheard_told[who] = r["at"]
+            out.append(json.dumps({"t": r["at"] * 1000, "type": "telegram", "action": "unheard",
+                                   **{k: str(r.get(k) or "") for k in ("user", "username", "user_id")}}, ensure_ascii=False))
+        self.unheard_at = max(self.unheard_at, newest)
+        return out
 
     def run(self):
         try:
@@ -119,6 +154,11 @@ class History(threading.Thread):
             ino, off = None, 0
         while True:
             try:
+                told = self.unheard()
+                if told:
+                    with self.lock:
+                        with open(self.path, "a", encoding="utf-8") as out:
+                            out.write("\n".join(told) + "\n")
                 st = os.stat(self.events)
                 if st.st_ino != ino or st.st_size < off:
                     ino, off = st.st_ino, 0
@@ -1633,7 +1673,7 @@ def main():
     Panel.history = a.history
     Panel.since_file = a.since
     Panel.bridge = bridgecfg.Bridge(a.bridge_config)
-    History(a.exchange, a.history).start()
+    History(a.exchange, a.history, Panel.bridge.status_path).start()
     srv = Server((a.host, a.port), Panel, ":" in a.host)
     if a.proxy_host:
         # every connection comes from Caddy: no cap per address, Caddy's own limits hold

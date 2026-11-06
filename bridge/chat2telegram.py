@@ -283,10 +283,11 @@ DOC = {
                  "!settings lists every setting with its value, by group. !settings farm (or raid, wood, build, eat, alt, "
                  "panic …) lists the matching ones with what each does."),
     "get": ("!get name", "One setting and what it does", ""),
-    "show": ("!show [kind on|off]", "What shows up in this chat: players' chat, private messages, joins and leaves, other server messages, the buddy's own news",
-             "!show lists the five, on or off. !show joins off (or chat, pm, server, buddy, all) switches one. Which kind a "
-             "line is comes from the server profile's texts chat, join, leave, pm and pmOut; joins and leaves themselves come "
-             "from the player list. The panel has the same switches (Settings, Telegram)."),
+    "show": ("!show [kind on|off]", "What shows up in this chat: players' chat, private messages, joins and leaves, deaths, advancements, other server messages, the buddy's own news",
+             "!show lists the seven, on or off. !show joins off (or chat, pm, deaths, advancements, server, buddy, all) switches "
+             "one. Which kind a line is comes from the server profile's texts chat, relay, join, leave, death, advancement, pm "
+             "and pmOut; joins and leaves themselves come from the player list, and the game's own death messages and "
+             "advancements are known on any server. The panel has the same switches (Settings, Telegram)."),
     "set": ("!set name value", "Change a setting: !set buildMaxPerSec 3, !set raidDrink off",
             "For on/off, number and text settings; the change counts within a second. Lists (trusted players, food) cannot "
             "be set here. Locked: the buddy's name, the server list and the shop key. The click rate goes up to 6 a second."),
@@ -1767,9 +1768,22 @@ def buddy_line(ev):
         kind = ev.get("is") or ("chat" if ev.get("kind") == "chat" else "server")
         if kind in ("join", "leave"):
             return None
-        if not show({"pm": "pm", "chat": "chat"}.get(kind, "server")):
+        if not show({"pm": "pm", "chat": "chat", "death": "deaths", "advancement": "advancements"}.get(kind, "server")):
             return None
         who, said = ev.get("player"), ev.get("said")
+        if kind == "death":
+            # the game's own death message or the profile's text death: as the server shows it, the one who died in bold;
+            # the buddy's own with where it happened, for the things that fell there
+            line = "💀 " + bold_name(text, who)
+            if all(isinstance(ev.get(k), int) for k in ("x", "y", "z")):
+                line += f"\n📍 X: {ev['x']}, Y: {ev['y']}, Z: {ev['z']}" + escape(dimension_name(ev.get("dim")))
+            return line
+        if kind == "advancement":
+            return "🏆 " + bold_name(text, who)
+        if who and ev.get("relay"):
+            # a line from a chat outside the game (the profile's text relay): as the server shows it, so that its
+            # mark ([IRC], [Discord]) stays, with the name in bold
+            return bold_name(text, who)
         if who and said is not None and kind == "chat":
             return f"<b>{escape(str(who))}</b> » {escape(str(said))}"
         return escape(text)
@@ -1788,19 +1802,49 @@ def buddy_line(ev):
         if a == "logged out":       # the mod leaves the server itself (low health, a new session)
             why = ev.get("reason") or ""
             return f"🔴 {escape(me())} left {escape(str(srv))}" + (f": {escape(str(why))}" if why else "")
+        if a == "try again" and ev.get("attempt") == 1:
+            # a kick or a lost connection, with what the server said; only the first try, not every one while it is down
+            why = " ".join(str(ev.get("reason") or "").split()).rstrip(".")
+            why = why[:300] + "…" if len(why) > 300 else why
+            sec = ev.get("left_s")
+            return (f"🟠 {escape(me())} is off {escape(str(srv))}" + (f": {escape(why)}" if why else "") + "."
+                    + (f" Joins again in {sec} seconds." if isinstance(sec, int) else " Joins again by itself."))
+        if a == "quitting for a new session":
+            return f"🔄 {escape(me())} could not join {ev.get('attempts')} times in a row and restarts the game"
         return None
     if t == "helper" and ev.get("action") == "lacks" and ev.get("text"):
         return f"🧰 {escape(str(ev['text']))}"
     return None
 
 
+def dimension_name(dim):
+    """Where, after a place in the overworld: nothing there, else ", in the Nether" or the dimension's own name."""
+    if not dim or dim == "minecraft:overworld":
+        return ""
+    return ", in " + {"minecraft:the_nether": "the Nether", "minecraft:the_end": "the End"}.get(dim, str(dim).split(":")[-1].replace("_", " "))
+
+
+def bold_name(text, who):
+    """The line, escaped, with the first time it names this player in bold."""
+    i = text.find(str(who)) if who else -1
+    if i < 0:
+        return escape(text)
+    return escape(text[:i]) + f"<b>{escape(str(who))}</b>" + escape(text[i + len(str(who)):])
+
+
 # what comes into the chat, each on or off: "show" in the settings, set in the panel (Settings, Telegram) or with !show here
-SHOW = (("chat", "players' chat", "the lines the game marks as a player's, or that match the server profile's text chat"),
+SHOW = (("chat", "players' chat", "the lines the game marks as a player's, or that match the server profile's text chat, "
+                                  "and chat from outside the game (IRC, Discord) that matches its text relay"),
         ("pm", "private messages", "to and from the buddy: the server profile's texts pm and pmOut"),
         ("joins", "joins and leaves", "players coming online and going offline, from the player list; the server's own join "
                                       "and leave lines stay out when they match the profile's texts join and leave"),
-        ("server", "other server messages", "everything else the server says: deaths, broadcasts, plugin lines"),
-        ("buddy", "the buddy's own news", "joining or leaving the server, and what is missing to help"))
+        ("deaths", "deaths", "players dying: the game's own death messages, known on any server, or the server profile's "
+                             "text death where a plugin writes its own; for the buddy's own death, where it happened"),
+        ("advancements", "advancements", "players making an advancement: the game's own lines, known on any server, or the "
+                                         "server profile's text advancement where a plugin writes its own"),
+        ("server", "other server messages", "everything else the server says: broadcasts, plugin lines"),
+        ("buddy", "the buddy's own news", "joining or leaving the server, a kick or a lost connection with the server's "
+                                          "reason, and what is missing to help"))
 _show = [None, {}]
 
 
@@ -1847,7 +1891,7 @@ def show_command(rest):
         return "❌ Like this: <b>!show</b>, <b>!show joins off</b> or <b>!show all on</b> (" + ", ".join(names) + ")"
     out = ["<b>What shows up here</b> (<b>!show name on</b> or <b>off</b>)"]
     out += [f"{'✅' if show(k) else '⬜'} <b>{k}</b>: {escape(named(label))}, {escape(named(why))}" for k, label, why in SHOW]
-    out.append("\nWhich kind a line is comes from the server profile's texts chat, join, leave, pm and pmOut (panel: Settings, "
+    out.append("\nWhich kind a line is comes from the server profile's texts chat, relay, join, leave, death, advancement, pm and pmOut (panel: Settings, "
                "Server profiles). A line that matches none of them is a server message.")
     return "\n".join(out)
 
@@ -1878,6 +1922,24 @@ def seen(m):
         del SEEN[20:]
         copy = list(SEEN)
     bridge_status(seen=copy)
+
+
+UNHEARD = []          # messages in the window that got no answer, their senders not admins: the last ten, newest first
+
+
+def unheard(m):
+    """A message in the window from someone who is not an admin: no answer, so that a stranger learns nothing of the bot,
+    but noted in bridge-status.json, from where the panel puts it in its chat. A Telegram user id gone wrong in Trusted
+    players looks like a bot that stopped listening otherwise."""
+    who = m.get("from") or {}
+    e = {"at": int(time.time()), "user_id": str(who.get("id", "")), "username": who.get("username") or "",
+         "user": " ".join(x for x in (who.get("first_name"), who.get("last_name")) if x)}
+    print("telegram: no answer to", e["user"] or e["user_id"], "(not in Trusted players)", flush=True)
+    with SEEN_LOCK:
+        UNHEARD.insert(0, e)
+        del UNHEARD[10:]
+        copy = list(UNHEARD)
+    bridge_status(unheard=copy)
 
 
 def no_chat_hint(m):
@@ -1935,7 +1997,11 @@ def listener(token):
                     continue
                 mc = name_of(m.get("from") or {}, chat.get("type") == "private")
                 if mc is None:
-                    continue                    # not an admin: ignored without a word
+                    # not an admin: no answer in Telegram, but the panel's chat says so. In a group only a ! line was
+                    # meant for the bot; the members' talk among themselves is not noted.
+                    if chat.get("type") == "private" or (m.get("text") or "").lstrip().startswith("!"):
+                        unheard(m)
+                    continue
                 text = (m.get("text") or "").strip()
                 try:
                     if m.get("document"):

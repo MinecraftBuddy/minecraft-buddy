@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The buddy in 3D</title>
-<link rel="stylesheet" href="/fonts/fonts.css">
+<link rel="stylesheet" href="fonts/fonts.css">
 <style>
   :root { --bg: #0e1013; --card: rgba(16,18,22,.82); --line: rgba(255,255,255,.12); --text: #e9ecef; --soft: #a9b0b8; --gold: #e3b341; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 Inter, system-ui, sans-serif; overflow: hidden; }
@@ -36,7 +36,8 @@
   @media (prefers-reduced-motion: reduce) { .load .track i { transition: none; } }
   @media (max-width: 600px) { h1 { display: none; } }
 </style>
-<script type="importmap">{ "imports": { "three": "/3d/three.module.min.js" } }</script>
+<!-- every address of this page and of 3d/world3d.js is relative, so that it also works behind a path prefix (/c/t3/3d) -->
+<script type="importmap">{ "imports": { "three": "./3d/three.module.min.js" } }</script>
 </head>
 <body>
 <canvas id="view"></canvas>
@@ -46,7 +47,7 @@
   <button id="eyes" data-nm title="The buddy's own view">The buddy's eyes</button>
   <button id="fly" title="Click the view, then W A S D, Space and Shift; Esc releases the mouse">Fly</button>
   <button id="refresh" data-nm title="A new copy of the world around the buddy">Refresh</button>
-  <a href="/" style="margin-left:auto"><button>Panel</button></a>
+  <a href="./" style="margin-left:auto"><button>Panel</button></a>
 </div>
 <div id="help" class="card">Click the view to look around with the mouse. <b>W A S D</b> move, <b>Space</b> up, <b>Shift</b> down, <b>Ctrl</b> faster. <b>Esc</b> lets the mouse go.</div>
 <div id="cross"></div>
@@ -54,9 +55,9 @@
 <div id="status" class="card">Starting…</div>
 <div id="load" class="load" role="status"><div class="card"><b data-part="title">Loading the 3D view</b><div class="track"><i data-part="bar"></i></div><span data-part="step">Starting…</span></div></div>
 <script type="module">
-  import { start3d } from '/3d/world3d.js';
+  import { start3d } from './3d/world3d.js';
   // the buddy's own name in the title, and in the buttons' texts (data-nm) where they say "the buddy"
-  fetch('/api/state', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(s => {
+  fetch('api/state', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(s => {
     if (!s || !s.name) return;
     document.title = s.name + ' in 3D'; document.getElementById('title').textContent = s.name + ' in 3D';
     const fill = t => t.replace(/[Tt]he buddy/g, s.name);
