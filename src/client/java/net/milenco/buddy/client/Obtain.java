@@ -270,7 +270,15 @@ final class Obtain {
 		Exchange.emit("obtain", "action", "start", "item", it, "count", n, "by", who, "had", startHad);
 	}
 
-	static void stop(String why) {
+	static void stop(String why) { stop(why, false); }
+
+	/** Given up by the buddy itself, not stopped: ended as given up, and shut in until the morning if it is night. */
+	private static void giveUp(String why) {
+		stop(why, true);
+		if (last != null) last.put("end", "gave up");
+	}
+
+	private static void stop(String why, boolean gaveUp) {
 		if (!on()) return;
 		ended("stopped", why);
 		if (exec != null) exec.stop();
@@ -278,7 +286,7 @@ final class Obtain {
 			"s", (System.currentTimeMillis() - since) / 1000);
 		// given up (not stopped by whoever ordered it) in the night: shut in until the morning
 		LocalPlayer me = AfkHelperClient.mc() == null ? null : AfkHelperClient.mc().player;
-		resting = why != null && why.startsWith("no ") && me != null && ObtainSafe.needsShelter(me);
+		resting = gaveUp && me != null && ObtainSafe.needsShelter(me);
 		rest = null;
 		item = null;
 		step = null;
@@ -507,8 +515,7 @@ final class Obtain {
 					return false;
 				}
 				Exchange.emit("obtain", "action", "gives up", "item", item, "why", plan.missing());
-				stop("no way: " + plan.missing());
-				last.put("end", "gave up");
+				giveUp("no way: " + plan.missing());
 				return false;
 			}
 			ObtainPlan.Step s = plan.next();
@@ -586,8 +593,7 @@ final class Obtain {
 						if (now < kitRetryAt) { Follow.stand(); return false; }
 						if (++kitUnmet > 3) {
 							Exchange.emit("obtain", "action", "gives up", "item", item, "why", "the kit for the " + d.name().toLowerCase() + ": " + need.name());
-							stop("no safe way: the kit for the " + d.name().toLowerCase() + " lacks " + need.name());
-							last.put("end", "gave up");
+							giveUp("no safe way: the kit for the " + d.name().toLowerCase() + " lacks " + need.name());
 							return false;
 						}
 						Exchange.emit("obtain", "action", "kit again", "need", need.name(), "for", d.name().toLowerCase(), "try", kitUnmet, "blocked", new ArrayList<>(blocked.keySet()));
@@ -865,8 +871,7 @@ final class Obtain {
 		if (ObtainSteps.count(p, item) >= count) { done(p); return false; }
 		if (++sopranoEnds >= 3) {
 			Exchange.emit("obtain", "action", "gives up", "item", item, "why", "Soprano's task ended three times without it" + (why == null ? "" : ": " + why));
-			stop("Soprano did not get " + item + (why == null ? "" : ": " + why));
-			last.put("end", "gave up");
+			giveUp("Soprano did not get " + item + (why == null ? "" : ": " + why));
 			return false;
 		}
 		Exchange.emit("obtain", "action", "soprano again", "item", item, "why", why == null ? "its task ended" : why, "try", sopranoEnds);
