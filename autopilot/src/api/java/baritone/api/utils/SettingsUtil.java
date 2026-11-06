@@ -1,0 +1,419 @@
+/*
+ * This file is part of Baritone.
+ *
+ * Baritone is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Baritone is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with Baritone.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package baritone.api.utils;
+
+import baritone.api.BaritoneAPI;
+import baritone.api.Settings;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
+import net.minecraft.core.Vec3i;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
+
+import java.awt.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+public class SettingsUtil {
+
+    public static final String SETTINGS_DEFAULT_NAME = "settings.txt";
+    // key and value split by the first space. the value may be empty, "altoIdleCommand " is what an emptied string setting saves as
+    private static final Pattern SETTING_PATTERN = Pattern.compile("^(?<setting>[^ ]+) +(?<value>.*)");
+    // settings that are gone. a settings file from before still names them, and "Unable to parse line" with a stack trace for a
+    // line that is just old is noise: they are skipped without a word (lowercase, like the lookup)
+    private static final Set<String> RETIRED = Set.of("altohostileengagerange", "altohostileengageheight", "altopassbygraceticks",
+            "altoswarmthreshold");
+
+    /**
+     * Whether a setting name (any case) belonged to a setting that has since been removed, so reading an old settings file
+     * can skip its line quietly.
+     *
+     * @param settingName the name from the settings file
+     * @return true if the setting is retired
+     */
+    public static boolean isRetired(String settingName) {
+        return RETIRED.contains(settingName.toLowerCase(Locale.ROOT));
+    }
+
+
+    private static boolean isComment(String line) {
+        return line.startsWith("#") || line.startsWith("//");
+    }
+
+    private static void forEachLine(Path file, Consumer<String> consumer) throws IOException {
+        try (BufferedReader scan = Files.newBufferedReader(file)) {
+            String line;
+            while ((line = scan.readLine()) != null) {
+                if (line.isEmpty() || isComment(line)) {
+                    continue;
+                }
+                consumer.accept(line);
+            }
+        }
+    }
+
+    /**
+     * Applies one line of a settings file. A line for a retired setting is skipped without a word.
+     *
+     * @param settings the settings to change
+     * @param line     one non-empty, non-comment line of the file
+     */
+    public static void applyLine(Settings settings, String line) {
+        Matcher matcher = SETTING_PATTERN.matcher(line);
+        if (!matcher.matches()) {
+            Helper.HELPER.logDirect("Invalid syntax in setting file: " + line);
+            return;
+        }
+
+        String settingName = matcher.group("setting").toLowerCase(Locale.ROOT);
+        String settingValue = matcher.group("value");
+        // TODO remove soonish
+        if ("allowjumpat256".equals(settingName)) {
+            settingName = "allowjumpatbuildlimit";
+        }
+        if (isRetired(settingName)) {
+            return;
+        }
+        try {
+            parseAndApply(settings, settingName, settingValue);
+        } catch (Exception ex) {
+            Helper.HELPER.logDirect("Unable to parse line " + line);
+            ex.printStackTrace();
+        }
+    }
+
+    public static void readAndApply(Settings settings, String settingsName) {
+        try {
+            forEachLine(settingsByName(settingsName), line -> applyLine(settings, line));
+        } catch (NoSuchFileException ignored) {
+            Helper.HELPER.logDirect("Baritone settings file not found, resetting.");
+        } catch (Exception ex) {
+            Helper.HELPER.logDirect("Exception while reading Baritone settings, some settings may be reset to default values!");
+            ex.printStackTrace();
+        }
+    }
+
+    public static synchronized void save(Settings settings) {
+        try (BufferedWriter out = Files.newBufferedWriter(settingsByName(SETTINGS_DEFAULT_NAME))) {
+            for (Settings.Setting setting : modifiedSettings(settings)) {
+                out.write(settingToString(setting) + "\n");
+            }
+        } catch (Exception ex) {
+            Helper.HELPER.logDirect("Exception thrown while saving Baritone settings!");
+            ex.printStackTrace();
+        }
+    }
+
+    private static Path settingsByName(String name) {
+        return Minecraft.getInstance().gameDirectory.toPath().resolve("baritone").resolve(name);
+    }
+
+    public static List<Settings.Setting> modifiedSettings(Settings settings) {
+        List<Settings.Setting> modified = new ArrayList<>();
+        for (Settings.Setting setting : settings.allSettings) {
+            if (setting.value == null) {
+                System.out.println("NULL SETTING?" + setting.getName());
+                continue;
+            }
+            if (setting.isJavaOnly()) {
+                continue; // NO
+            }
+            if (setting.value == setting.defaultValue) {
+                continue;
+            }
+            modified.add(setting);
+        }
+        return modified;
+    }
+
+    /**
+     * Gets the type of a setting and returns it as a string, with package names stripped.
+     * <p>
+     * For example, if the setting type is {@code java.util.List<java.lang.String>}, this function returns
+     * {@code List<String>}.
+     *
+     * @param setting The setting
+     * @return The type
+     */
+    public static String settingTypeToString(Settings.Setting setting) {
+        return setting.getType().getTypeName()
+                .replaceAll("(?:\\w+\\.)+(\\w+)", "$1");
+    }
+
+    public static <T> String settingValueToString(Settings.Setting<T> setting, T value) throws IllegalArgumentException {
+        Parser io = Parser.getParser(setting.getType());
+
+        if (io == null) {
+            throw new IllegalStateException("Missing " + setting.getValueClass() + " " + setting.getName());
+        }
+
+        return io.toString(setting.getType(), value);
+    }
+
+    public static String settingValueToString(Settings.Setting setting) throws IllegalArgumentException {
+        //noinspection unchecked
+        return settingValueToString(setting, setting.value);
+    }
+
+    public static String settingDefaultToString(Settings.Setting setting) throws IllegalArgumentException {
+        //noinspection unchecked
+        return settingValueToString(setting, setting.defaultValue);
+    }
+
+    public static String maybeCensor(int coord) {
+        if (BaritoneAPI.getSettings().censorCoordinates.value) {
+            return "<censored>";
+        }
+
+        return Integer.toString(coord);
+    }
+
+    public static String settingToString(Settings.Setting setting) throws IllegalStateException {
+        if (setting.isJavaOnly()) {
+            return setting.getName();
+        }
+
+        return setting.getName() + " " + settingValueToString(setting);
+    }
+
+    /**
+     * Deprecated. Use {@link Settings.Setting#isJavaOnly()} instead.
+     *
+     * @param setting The Setting
+     * @return true if the setting can not be set or read by the user
+     */
+    @Deprecated
+    public static boolean javaOnlySetting(Settings.Setting setting) {
+        return setting.isJavaOnly();
+    }
+
+    public static void parseAndApply(Settings settings, String settingName, String settingValue) throws IllegalStateException, NumberFormatException {
+        Settings.Setting setting = settings.findByLowerName(settingName);
+        if (setting == null) {
+            throw new IllegalStateException("No setting by that name");
+        }
+        Class intendedType = setting.getValueClass();
+        ISettingParser ioMethod = Parser.getParser(setting.getType());
+        Object parsed = ioMethod.parse(setting.getType(), settingValue);
+        if (!intendedType.isInstance(parsed)) {
+            throw new IllegalStateException(ioMethod + " parser returned incorrect type, expected " + intendedType + " got " + parsed + " which is " + parsed.getClass());
+        }
+        setting.value = parsed;
+    }
+
+    private interface ISettingParser<T> {
+
+        T parse(Type type, String raw);
+
+        String toString(Type type, T value);
+
+        boolean accepts(Type type);
+    }
+
+    private enum Parser implements ISettingParser {
+
+        DOUBLE(Double.class, Double::parseDouble),
+        BOOLEAN(Boolean.class, Boolean::parseBoolean),
+        INTEGER(Integer.class, Integer::parseInt),
+        FLOAT(Float.class, Float::parseFloat),
+        LONG(Long.class, Long::parseLong),
+        STRING(String.class, String::new),
+        MIRROR(Mirror.class, Mirror::valueOf, Mirror::name),
+        ROTATION(Rotation.class, Rotation::valueOf, Rotation::name),
+        COLOR(
+                Color.class,
+                str -> new Color(Integer.parseInt(str.split(",")[0]), Integer.parseInt(str.split(",")[1]), Integer.parseInt(str.split(",")[2])),
+                color -> color.getRed() + "," + color.getGreen() + "," + color.getBlue()
+        ),
+        // before VEC3I: a BlockPos is a Vec3i, and VEC3I would claim it and then hand back a plain Vec3i
+        BLOCKPOS(
+                BlockPos.class,
+                str -> new BlockPos(Integer.parseInt(str.split(",")[0].trim()), Integer.parseInt(str.split(",")[1].trim()), Integer.parseInt(str.split(",")[2].trim())),
+                pos -> pos.getX() + "," + pos.getY() + "," + pos.getZ()
+        ),
+        BLOCKRANGE(BlockRange.class, BlockRange::parse, BlockRange::format),
+        VEC3I(
+                Vec3i.class,
+                str -> new Vec3i(Integer.parseInt(str.split(",")[0]), Integer.parseInt(str.split(",")[1]), Integer.parseInt(str.split(",")[2])),
+                vec -> vec.getX() + "," + vec.getY() + "," + vec.getZ()
+        ),
+        BLOCK(
+                Block.class,
+                str -> BlockUtils.stringToBlockRequired(str.trim()),
+                BlockUtils::blockToString
+        ),
+        ITEM(
+            Item.class,
+                str -> BuiltInRegistries.ITEM.get(Identifier.parse(str.trim())).map(Holder.Reference::value).orElse(null),
+                item -> BuiltInRegistries.ITEM.getKey(item).toString()
+        ),
+        // any enum, matched on its constant names without caring about case. after MIRROR and ROTATION, which got here first
+        ENUM() {
+            @Override
+            public Object parse(Type type, String raw) {
+                Object[] constants = ((Class<?>) type).getEnumConstants();
+                for (Object constant : constants) {
+                    if (((Enum<?>) constant).name().equalsIgnoreCase(raw.trim())) {
+                        return constant;
+                    }
+                }
+                throw new IllegalArgumentException("unknown value " + raw.trim() + ", expected one of " + enumNames((Class<?>) type));
+            }
+
+            @Override
+            public String toString(Type type, Object value) {
+                return ((Enum<?>) value).name();
+            }
+
+            @Override
+            public boolean accepts(Type type) {
+                return type instanceof Class && ((Class<?>) type).isEnum();
+            }
+        },
+        LIST() {
+            @Override
+            public Object parse(Type type, String raw) {
+                Type elementType = ((ParameterizedType) type).getActualTypeArguments()[0];
+                Parser parser = Parser.getParser(elementType);
+                // an empty list saves as nothing at all, "".split(",") would be one empty element
+                if (raw.isBlank()) {
+                    return new ArrayList<>();
+                }
+                return Stream.of(raw.split(","))
+                        .map(s -> parser.parse(elementType, s))
+                        .collect(Collectors.toList());
+            }
+
+            @Override
+            public String toString(Type type, Object value) {
+                Type elementType = ((ParameterizedType) type).getActualTypeArguments()[0];
+                Parser parser = Parser.getParser(elementType);
+
+                return ((List<?>) value).stream()
+                        .map(o -> parser.toString(elementType, o))
+                        .collect(Collectors.joining(","));
+            }
+
+            @Override
+            public boolean accepts(Type type) {
+                return List.class.isAssignableFrom(TypeUtils.resolveBaseClass(type));
+            }
+        },
+        MAPPING() {
+            @Override
+            public Object parse(Type type, String raw) {
+                Type keyType = ((ParameterizedType) type).getActualTypeArguments()[0];
+                Type valueType = ((ParameterizedType) type).getActualTypeArguments()[1];
+                Parser keyParser = Parser.getParser(keyType);
+                Parser valueParser = Parser.getParser(valueType);
+
+                return Stream.of(raw.split(",(?=[^,]*->)"))
+                        .map(s -> s.split("->"))
+                        .collect(Collectors.toMap(s -> keyParser.parse(keyType, s[0]), s -> valueParser.parse(valueType, s[1])));
+            }
+
+            @Override
+            public String toString(Type type, Object value) {
+                Type keyType = ((ParameterizedType) type).getActualTypeArguments()[0];
+                Type valueType = ((ParameterizedType) type).getActualTypeArguments()[1];
+                Parser keyParser = Parser.getParser(keyType);
+                Parser valueParser = Parser.getParser(valueType);
+
+                return ((Map<?, ?>) value).entrySet().stream()
+                        .map(o -> keyParser.toString(keyType, o.getKey()) + "->" + valueParser.toString(valueType, o.getValue()))
+                        .collect(Collectors.joining(","));
+            }
+
+            @Override
+            public boolean accepts(Type type) {
+                return Map.class.isAssignableFrom(TypeUtils.resolveBaseClass(type));
+            }
+        };
+
+        private final Class<?> cla$$;
+        private final Function<String, Object> parser;
+        private final Function<Object, String> toString;
+
+        Parser() {
+            this.cla$$ = null;
+            this.parser = null;
+            this.toString = null;
+        }
+
+        <T> Parser(Class<T> cla$$, Function<String, T> parser) {
+            this(cla$$, parser, Object::toString);
+        }
+
+        <T> Parser(Class<T> cla$$, Function<String, T> parser, Function<T, String> toString) {
+            this.cla$$ = cla$$;
+            this.parser = parser::apply;
+            this.toString = x -> toString.apply((T) x);
+        }
+
+        @Override
+        public Object parse(Type type, String raw) {
+            Object parsed = this.parser.apply(raw);
+            Objects.requireNonNull(parsed);
+            return parsed;
+        }
+
+        @Override
+        public String toString(Type type, Object value) {
+            return this.toString.apply(value);
+        }
+
+        @Override
+        public boolean accepts(Type type) {
+            return type instanceof Class && this.cla$$.isAssignableFrom((Class) type);
+        }
+
+        public static String enumNames(Class<?> type) {
+            return Stream.of(type.getEnumConstants()).map(c -> ((Enum<?>) c).name()).collect(Collectors.joining(", "));
+        }
+
+        public static Parser getParser(Type type) {
+            return Stream.of(values())
+                    .filter(parser -> parser.accepts(type))
+                    .findFirst().orElse(null);
+        }
+    }
+}

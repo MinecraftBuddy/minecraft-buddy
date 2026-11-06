@@ -1,0 +1,303 @@
+/*
+ * This file is part of Baritone.
+ *
+ * Baritone is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Baritone is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with Baritone.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package baritone.cache;
+
+import baritone.api.utils.BlockUtils;
+import baritone.utils.pathing.PathingBlockType;
+import com.google.common.collect.ImmutableSet;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.dimension.DimensionType;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.BitSet;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @author Brady
+ * @since 8/3/2018
+ */
+public final class CachedChunk {
+
+    public static final ImmutableSet<Block> BLOCKS_TO_KEEP_TRACK_OF = new ImmutableSet.Builder<Block>()
+        .add(
+            Blocks.ENDER_CHEST,
+            Blocks.FURNACE,
+            Blocks.CHEST,
+            Blocks.TRAPPED_CHEST,
+            Blocks.END_PORTAL,
+            Blocks.END_PORTAL_FRAME,
+            Blocks.SPAWNER,
+            Blocks.BARRIER,
+            Blocks.OBSERVER,
+            Blocks.NETHER_PORTAL,
+            Blocks.HOPPER,
+            Blocks.BEACON,
+            Blocks.BREWING_STAND,
+
+// TODO: Maybe add a predicate for blocks to keep track of?
+// This should really not need to happen
+            Blocks.CREEPER_HEAD,
+            Blocks.CREEPER_WALL_HEAD,
+            Blocks.DRAGON_HEAD,
+            Blocks.DRAGON_WALL_HEAD,
+            Blocks.PLAYER_HEAD,
+            Blocks.PLAYER_WALL_HEAD,
+            Blocks.ZOMBIE_HEAD,
+            Blocks.ZOMBIE_WALL_HEAD,
+            Blocks.SKELETON_SKULL,
+            Blocks.SKELETON_WALL_SKULL,
+            Blocks.WITHER_SKELETON_SKULL,
+            Blocks.WITHER_SKELETON_WALL_SKULL,
+            Blocks.ENCHANTING_TABLE,
+            Blocks.ANVIL,
+            Blocks.DRAGON_EGG,
+            Blocks.JUKEBOX,
+            Blocks.END_GATEWAY,
+            Blocks.COBWEB,
+            Blocks.NETHER_WART,
+            Blocks.LADDER,
+            Blocks.VINE
+        ).addAll(Blocks.DYED_SHULKER_BOX.asList())
+        .addAll(Blocks.BED.asList())
+        .build();
+
+    public final int height;
+
+    /**
+     * The size of the chunk data in bits. Equal to 16 KiB.
+     * <p>
+     * Chunks are 16x16xH, each block requires 2 bits.
+     */
+    public final int size;
+
+    /**
+     * The size of the chunk data in bytes. Equal to 16 KiB for 256 height.
+     */
+    public final int sizeInBytes;
+
+    /**
+     * The chunk x coordinate
+     */
+    public final int x;
+
+    /**
+     * The chunk z coordinate
+     */
+    public final int z;
+
+    /**
+     * The actual raw data of this packed chunk.
+     * <p>
+     * Each block is expressed as 2 bits giving a total of 16 KiB
+     */
+    private final BitSet data;
+
+    private final Int2ObjectOpenHashMap<String> special;
+
+    /**
+     * The block names of each surface level block for generating an overview
+     */
+    private final BlockState[] overview;
+
+    private final int[] heightMap;
+
+    private final Map<String, List<BlockPos>> specialBlockLocations;
+
+    public final long cacheTimestamp;
+
+    CachedChunk(int x, int z, int height, BitSet data, BlockState[] overview, Map<String, List<BlockPos>> specialBlockLocations, long cacheTimestamp) {
+        this.size = size(height);
+        this.sizeInBytes = sizeInBytes(size);
+        validateSize(data);
+
+        this.x = x;
+        this.z = z;
+        this.height = height;
+        this.data = data;
+        this.overview = overview;
+        this.heightMap = new int[256];
+        this.specialBlockLocations = specialBlockLocations;
+        this.cacheTimestamp = cacheTimestamp;
+        if (specialBlockLocations.isEmpty()) {
+            this.special = null;
+        } else {
+            this.special = new Int2ObjectOpenHashMap<>();
+            setSpecial();
+        }
+        calculateHeightMap();
+    }
+
+    public static int size(int dimension_height) {
+        return 2 * 16 * 16 * dimension_height;
+    }
+
+    public static int sizeInBytes(int size) {
+        return size / 8;
+    }
+
+    private final void setSpecial() {
+        for (Map.Entry<String, List<BlockPos>> entry : specialBlockLocations.entrySet()) {
+            for (BlockPos pos : entry.getValue()) {
+                special.put(getPositionIndex(pos.getX(), pos.getY(), pos.getZ()), entry.getKey());
+            }
+        }
+    }
+
+    public final BlockState getBlock(int x, int y, int z, DimensionType dimension, ResourceKey<Level> dimensionId) {
+        int index = getPositionIndex(x, y, z);
+        PathingBlockType type = getType(index);
+        int internalPos = z << 4 | x;
+        if (heightMap[internalPos] == y && type != PathingBlockType.AVOID) {
+            // if the top block in a column is water, we cache it as AVOID but we don't want to just return default state water (which is not flowing) beacuse then it would try to path through it
+
+            // we have this exact block, it's a surface block
+            /*System.out.println("Saying that " + x + "," + y + "," + z + " is " + state);
+            if (!Minecraft.getInstance().world.getBlockState(new BlockPos(x + this.x * 16, y, z + this.z * 16)).getBlock().equals(state.getBlock())) {
+                throw new IllegalStateException("failed " + Minecraft.getInstance().world.getBlockState(new BlockPos(x + this.x * 16, y, z + this.z * 16)).getBlock() + " " + state.getBlock() + " " + (x + this.x * 16) + " " + y + " " + (z + this.z * 16));
+            }*/
+            return overview[internalPos];
+        }
+        if (special != null) {
+            // the special map is keyed by the real world y (that's what the packer and the file loader hand us), but y here
+            // is relative to the bottom of the dimension. identical in the nether and end, off by 64 in the overworld
+            String str = special.get(getPositionIndex(x, y + dimension.minY(), z));
+            if (str != null) {
+                return BlockUtils.stringToBlockRequired(str).defaultBlockState();
+            }
+        }
+
+        if (type == PathingBlockType.SOLID) {
+            if (y == dimension.logicalHeight() - 1 && dimension.hasCeiling()) {
+                // nether roof is always unbreakable
+                return Blocks.BEDROCK.defaultBlockState();
+            }
+            // y is relative to the dimension floor here, so "below 5" is just y < 5 (this used to compare against -59 and never fired)
+            // (natural is gone from the dimension type, it was only ever the overworld, so the nether stays out like it did on
+            // 1.21.4. the old 26.3 check did fire there by accident of the same bad arithmetic)
+            if (y < 5 && dimensionId == Level.OVERWORLD) {
+                // solid blocks below 5 are commonly bedrock
+                // however, returning bedrock always would be a little yikes
+                // discourage paths that include breaking blocks below 5 a little more heavily just so that it takes paths breaking what's known to be stone (at 5 or above) instead of what could maybe be bedrock (below 5)
+                return Blocks.OBSIDIAN.defaultBlockState();
+            }
+        }
+        return ChunkPacker.pathingTypeToBlock(type, dimension, dimensionId);
+    }
+
+    private PathingBlockType getType(int index) {
+        return PathingBlockType.fromBits(data.get(index), data.get(index + 1));
+    }
+
+    private void calculateHeightMap() {
+        calculateHeightMap(data, height, heightMap);
+    }
+
+    // highest non air y of every column (z << 4 | x), 0 if the whole column is air
+    // this used to be two BitSet.get per block per column from the top down, so ~130k calls for a chunk with its
+    // surface at y=64. and it runs for all 1024 chunks every time a region loads, plus twice per pack
+    // a y layer is 8 longs though, 2 bits per column, so do a whole layer of 32 columns per long instead
+    static void calculateHeightMap(BitSet data, int height, int[] heightMap) {
+        Arrays.fill(heightMap, 0);
+        long[] words = data.toLongArray(); // trailing zero words are cut off, those are air anyway
+        // bit 2i of each word = column i still hasn't found its top block
+        long[] todo = new long[8];
+        Arrays.fill(todo, 0x5555555555555555L);
+        int left = 256;
+        for (int y = Math.min(height - 1, (words.length >> 3)); y >= 0 && left > 0; y--) {
+            for (int w = 0; w < 8; w++) {
+                int wi = (y << 3) | w;
+                if (todo[w] == 0 || wi >= words.length) {
+                    continue;
+                }
+                long v = words[wi];
+                // either of a column's two bits set = not air, fold that onto the even bit
+                long found = (v | (v >>> 1)) & todo[w];
+                todo[w] &= ~found;
+                while (found != 0) {
+                    int bit = Long.numberOfTrailingZeros(found);
+                    // bit = ((z & 1) << 5) | (x << 1), and the word is z >> 1. see getPositionIndex
+                    int x = (bit & 31) >> 1;
+                    int z = (w << 1) | (bit >> 5);
+                    heightMap[z << 4 | x] = y;
+                    left--;
+                    found &= found - 1;
+                }
+            }
+        }
+    }
+
+    public final BlockState[] getOverview() {
+        return overview;
+    }
+
+    public final Map<String, List<BlockPos>> getRelativeBlocks() {
+        return specialBlockLocations;
+    }
+
+    public final ArrayList<BlockPos> getAbsoluteBlocks(String blockType) {
+        if (specialBlockLocations.get(blockType) == null) {
+            return null;
+        }
+        ArrayList<BlockPos> res = new ArrayList<>();
+        for (BlockPos pos : specialBlockLocations.get(blockType)) {
+            res.add(new BlockPos(pos.getX() + x * 16, pos.getY(), pos.getZ() + z * 16));
+        }
+        return res;
+    }
+
+    /**
+     * @return Returns the raw packed chunk data as a byte array
+     */
+    public final byte[] toByteArray() {
+        return this.data.toByteArray();
+    }
+
+    /**
+     * Returns the raw bit index of the specified position
+     *
+     * @param x The x position
+     * @param y The y position
+     * @param z The z position
+     * @return The bit index
+     */
+    public static int getPositionIndex(int x, int y, int z) {
+        return (x << 1) | (z << 5) | (y << 9);
+    }
+
+    /**
+     * Validates the size of an input {@link BitSet} containing the raw
+     * packed chunk data. Sizes that exceed {@link CachedChunk#size} are
+     * considered invalid, and thus, an exception will be thrown.
+     *
+     * @param data The raw data
+     * @throws IllegalArgumentException if the bitset size exceeds the maximum size
+     */
+    private void validateSize(BitSet data) {
+        if (data.size() > size) {
+            throw new IllegalArgumentException("BitSet of invalid length provided");
+        }
+    }
+}

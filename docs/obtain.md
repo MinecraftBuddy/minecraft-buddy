@@ -12,7 +12,7 @@ dying on the way. Orders for everyday things (iron blocks, diamonds, obsidian, t
   and **Fetch**. Under it the progress: how many are gathered so far, the current step and for how long, or that the
   buddy is dug in for the night or to heal. **Stop** ends it; once it is over the panel says how it ended.
 - **Watching an order** (**Take control**): at the left the plan (**Plan** shows and hides it): the order, its step, and
-  Soprano's tasks from the outer to the deepest (a golden helmet, its gold, the raw gold, the mine down to it). When
+  the autopilot's tasks from the outer to the deepest (a golden helmet, its gold, the raw gold, the mine down to it). When
   something else takes over (monsters, food, lava, a fall, the buddy's own fighting), it shows on top as **Interrupted**
   and the plan under it waits. Under the plan a timeline of the order, newest on top: every step and task, every hit
   with the hearts before and after, every interruption and the return to the plan, a death. Hits show only here, not in
@@ -35,7 +35,7 @@ An order is kept in `obtain.json` in the exchange folder and taken up again afte
 the list of what can be ordered, written once at every start.
 
 Events of type `obtain`: `start`, `resumed`, `step` (what is being done now), `step done`, `failed` (a step that did
-not come off, and why), `gives up` (with the reason), `stop`, `done`, `status`, `plan`. Soprano's own lines come as
+not come off, and why), `gives up` (with the reason), `stop`, `done`, `status`, `plan`. The autopilot's own lines come as
 events of type `alto` and go to the panel's Activity tab.
 
 ## What the mode may use, and what it will not do
@@ -52,17 +52,17 @@ events of type `alto` and go to the panel's Activity tab.
 
 ## How it works
 
-With [Soprano](https://github.com/AverWasTaken/soprano) (Baritone with AltoClef) in the mods folder, the work is split:
+With the autopilot (Baritone with AltoClef) in the mods folder, the work is split:
 
 | who | what |
 |---|---|
-| Soprano, its `#get` and catalogue | an order for an item it knows, whole: planning, walking, mining, crafting, smelting, food |
-| Soprano's chains, on for the whole order | fighting (mob defense), eating, out of lava, fire and water, a bucket under a fall |
+| the autopilot, its `#get` and catalogue | an order for an item it knows, whole: planning, walking, mining, crafting, smelting, food |
+| the autopilot's chains, on for the whole order | fighting (mob defense), eating, out of lava, fire and water, a bucket under a fall |
 | Baritone | walking and mining for the buddy's own steps (paths, digging through, building up, bridging, falls into water) |
-| the buddy | the order itself (panel, Telegram, exchange file), its status, a stop and the delivery; the kit before a danger; the night; an item Soprano does not know (the elytra), planned by the buddy, with every step of it that Soprano knows handed to Soprano; a server's rules; the base's chests |
+| the buddy | the order itself (panel, Telegram, exchange file), its status, a stop and the delivery; the kit before a danger; the night; an item the autopilot does not know (the elytra), planned by the buddy, with every step of it that the autopilot knows handed to the autopilot; a server's rules; the base's chests |
 
-While a task of Soprano's runs, the buddy's own layer stands down: fight, flight, creeper shield and meals, the kit, the
-night's hole, out of the water, digging out, throwing junk away, the brink. Without Soprano the buddy's own planner,
+While a task of the autopilot's runs, the buddy's own layer stands down: fight, flight, creeper shield and meals, the kit, the
+night's hole, out of the water, digging out, throwing junk away, the brink. Without the autopilot the buddy's own planner,
 steps and walker do it all.
 
 The buddy's own parts, all in `net.milenco.buddy.client`:
@@ -121,8 +121,8 @@ gate lacks is fetched by safer steps first, all of it planned together.
   diamond sword when the diamonds are in the bag, 48 blocks, flint and steel, and food to 160 points. Torches and the
   water bucket are the overworld's. A potion of fire resistance in the bag is drunk when fire is about, and it stops all
   fire damage: burning, the blazes' fireballs and lava.
-- **The brew**: with Soprano the nether kit also takes three water bottles and a redstone
-  dust, each a piece of its own and filled in the overworld, the redstone tried once an order. In the fortress Soprano's
+- **The brew**: with the autopilot the nether kit also takes three water bottles and a redstone
+  dust, each a piece of its own and filled in the overworld, the redstone tried once an order. In the fortress the autopilot's
   blaze hunt then picks up a nether wart and a magma cream when they are close by and, with two rods for the stand and
   its fuel, brews three potions of fire resistance (eight minutes each). Without water bottles in the bag it brews nothing.
 - **The End**: a bow with arrows on top.
@@ -131,23 +131,23 @@ A piece of the kit may take ten game minutes and three more for each ingot; a pi
 for ten game minutes, while the others go on. The golden helmet for the nether is never given up: the order waits for
 its gold. A stock of eight or more (food, torches, blocks) counts as enough at three quarters. A tool or piece of armour
 at its last tenth counts as gone, so a new one comes while the old still works; a shield at its last uses gets a spare
-in the bag, before the food run when the iron and the wood for it are in the bag already. With Soprano the portal into
+in the bag, before the food run when the iron and the wood for it are in the bag already. With the autopilot the portal into
 the nether is built from the bag's obsidian when it holds ten and flint and steel, where the buddy stands; otherwise it
 is cast with a bucket of lava and one of water. A frame begun and left (a food run broke in) is finished where it
 stands; under the ground the buddy climbs to the surface first, under a sea the frame goes into the rock. The frame is
 lit once its inside has stayed clear for half a second. A frame begun is finished before a food run or a night's sleep;
 the food comes after, before the buddy steps in. A fire beside an obsidian frame is punched out, never put out
-with water, which would flood the frame. With the bag full, Soprano makes room by
+with water, which would flood the frame. With the bag full, the autopilot makes room by
 throwing what no task uses; the brew's things, the portal's, the golden helmet, the shield, the water bucket, blaze
 rods, ender pearls and golden apples are never among them during an order.
 
 ## Taken along on the way
 
-With Soprano, a cluster of blocks the order or the kit still lacks, seen close to the way, is mined on the way when it
+With the autopilot, a cluster of blocks the order or the kit still lacks, seen close to the way, is mined on the way when it
 is worth the detour: what it brings, in seconds saved, against what the detour costs, both measured alike.
 
 - **What counts**: iron, coal, gold, copper, diamond and redstone ore, gravel for flint, and logs while standing under
-  the open sky; only in the overworld. Counted as Soprano would mine them for the order and the kit's missing pieces.
+  the open sky; only in the overworld. Counted as the autopilot would mine them for the order and the kit's missing pieces.
 - **What one is worth**: the seconds coming back for it later would cost, with none in sight (raw iron about 30, coal
   20, raw gold 80, a diamond 230, a flint from gravel 160).
 - **How urgent**: in full what the gate ahead lacks (armour, the shield, the swords, the golden helmet and the diamond
@@ -170,7 +170,7 @@ Drops on the floor are taken along the same way: anything the order or the kit s
 the same reach, raw or made (a raw iron, coal, a flint, an iron ingot, a piece of armour). A made item is worth what
 went into it: an iron ingot its raw iron and an eighth of a coal for the smelting. The cost is the walk there and back,
 a second for the drops and three for picking the order up again. Drops lying together are one detour, and only those
-are picked up. Never a drop in water or by lava, never one Soprano's own task is already after, never junk the buddy
+are picked up. Never a drop in water or by lava, never one the autopilot's own task is already after, never junk the buddy
 threw away; a drop it could not get is left alone for five game minutes.
 
 Food is weighed the same way, in food points: an animal that is food (a cow, a pig, a sheep, a chicken), grown, in
@@ -189,7 +189,7 @@ hunted; their meat is picked up.
   night). Three blocks down under the open sky and shut, or underground the open sides shut right there; out in the
   morning once nothing waits at the hole's mouth. Deep under the ground the night changes nothing and the work goes on.
   A bed in the bag skips the night where the server lets one sleeper do that.
-- **Sleep only outside**: Soprano's bed at dusk goes down only outside in the overworld. Deep under the ground the buddy
+- **Sleep only outside**: the autopilot's bed at dusk goes down only outside in the overworld. Deep under the ground the buddy
   does not sleep (phantoms come only under the open sky); back outside at night, the bed goes down at once.
 - **Hurt**: under half health with no fight on and food to heal by, a hole until healed; with nothing to eat, food first.
 - **Fight or flight by numbers**: the time the best weapon in the bag takes to kill what comes against the time they
@@ -223,9 +223,9 @@ hunted; their meat is picked up.
 
 | setting | default | what |
 |---|---|---|
-| `obtainSopranoFirst` | on | an item Soprano's catalogue knows is got by Soprano whole; the buddy's own steps only where it has none |
-| `obtainAltoSurvival` | on | Soprano's chains fight, eat and get out of lava and water during an order |
-| `obtainTakeAlong` | on | Soprano mines what the order and the kit lack on the way, when it is in sight and worth the detour |
+| `obtainSopranoFirst` | on | an item the autopilot's catalogue knows is got by the autopilot whole; the buddy's own steps only where it has none |
+| `obtainAltoSurvival` | on | the autopilot's chains fight, eat and get out of lava and water during an order |
+| `obtainTakeAlong` | on | the autopilot mines what the order and the kit lack on the way, when it is in sight and worth the detour |
 | `obtainBaritone` | on | the buddy's own steps walk and mine with Baritone when it is in the mods folder |
 | `practiceFastTicks` | off | for a practice server run at a raised `/tick rate`: the client ticks as fast as the server |
 
@@ -282,6 +282,5 @@ The mode is practised on a local server, where a death costs nothing. What such 
 
 ## Building
 
-The mode compiles against Soprano's jar (a fork of it, with what a server with an anti-xray plugin needs, more kinds of
-food, copper tools and a night's sleep for any task) and does not ship it. The jar is not in git until that fork is
-published with its source: put `soprano-unoptimized-fabric-1.1.6.jar` in `libs/` by hand (see `build.gradle`).
+The mode compiles against the autopilot's jar (`autopilot/`, built by `./gradlew build`; see the development doc) and
+does not ship it: the jar goes into the mods folder beside the mod's.

@@ -1,0 +1,15 @@
+This directory holds the buddy's autopilot: the code that plays the game for an order (finding, gathering, crafting,
+fighting, building) and the pathfinder under it.
+
+It comes from three projects:
+
+- Baritone (https://github.com/cabaletta/baritone), LGPL-3.0: the pathfinder. Its files keep their own headers.
+- AltoClef by Adris Jautakas (https://github.com/gaucho-matrero/altoclef), MIT: the tasks. See LICENSE-AltoClef.
+- Soprano by AverWasTaken (https://github.com/AverWasTaken/soprano), LGPL-3.0: both brought to Minecraft 26.3, taken
+  at its commit 887da394545865676379e23a53c04e50f068c1ec.
+
+Changed by the Minecraft Buddy project since November 2026.
+
+This directory is licensed under the GNU Lesser General Public License, version 3 (LICENSE), which builds on the GNU
+General Public License, version 3 (COPYING). The Inter font in src/main/resources is under the SIL Open Font License
+1.1 (LICENSE-Inter). The rest of this repository is under the GNU Affero General Public License, version 3.

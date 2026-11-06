@@ -50,6 +50,8 @@ loom {
 // net.milenco.buddy.version: that is where everything lives that is named differently per Minecraft version.
 sourceSets.client.java.srcDir project.version_src
 
+def autopilotJar = file('autopilot/fabric/build/libs/soprano-unoptimized-fabric-1.1.6.jar')
+
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	// Minecraft 26.3 is not obfuscated and needs no mappings (versions/26.3.properties: loom_mappings=none).
@@ -62,11 +64,22 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	add(mod, "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}")
 
-	// Baritone in its Soprano fork (LGPL-3.0, github.com/AverWasTaken/soprano), in a fork of our own: compiled against,
-	// not shipped in the jar; the obtain mode walks with it when it is in the mods folder (Bari). The jar is not in git
-	// until that fork is published with its source: put soprano-unoptimized-fabric-1.1.6.jar in libs/ by hand.
-	compileOnly files('libs/soprano-unoptimized-fabric-1.1.6.jar')
-	clientCompileOnly files('libs/soprano-unoptimized-fabric-1.1.6.jar')
+	// The autopilot (autopilot/, LGPL-3.0, its NOTICE says where it comes from): compiled against, not shipped in the
+	// jar; the obtain mode walks with it when its jar is in the mods folder (Bari). The task below builds it.
+	compileOnly files(autopilotJar).builtBy('autopilot')
+	clientCompileOnly files(autopilotJar).builtBy('autopilot')
+}
+
+// The autopilot is a Gradle build of its own (its own wrapper and plugins), run from here. Its jar keeps the name the
+// mods folders know it by.
+tasks.register('autopilot', Exec) {
+	description = 'Builds the autopilot jar (autopilot/fabric/build/libs).'
+	workingDir file('autopilot')
+	commandLine './gradlew', ':fabric:build', '-x', 'test', '-Prelease_version=1.1.6'
+	inputs.files(fileTree('autopilot') {
+		exclude '**/build/**', '.gradle/**', 'run/**'
+	})
+	outputs.file(autopilotJar)
 }
 
 // Tests of what can be worked out without a game: the jump around a wall, the lang files. They see the client classes.

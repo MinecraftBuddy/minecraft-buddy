@@ -12,6 +12,18 @@ bash docker/build.sh         # the Docker image, as minecraft-buddy:dev
 
 JDK 25. A new jar works after a restart of the buddy's game.
 
+### The autopilot
+
+`autopilot/` is the code that plays the game for an order: Baritone's pathfinder and AltoClef's tasks, brought to
+26.3 and changed for the buddy. It is LGPL-3.0 (its `NOTICE` says where it comes from), the rest of the
+repository AGPL-3.0. It is a Gradle build of its own, with its own wrapper; `./gradlew build` runs it first (the task
+`autopilot`) and compiles the mod against its jar, `autopilot/fabric/build/libs/soprano-unoptimized-fabric-1.1.6.jar`.
+That jar goes into the mods folder beside the mod's; without it an order uses the buddy's own planner. Its tests:
+
+```bash
+cd autopilot && ./gradlew test    # about 2,000 tests, a few minutes
+```
+
 ## Trying a jar before it is released
 
 Put `BUDDY_JARS: folder` in a buddy's environment in `compose.yaml`: the game then uses the jars in that buddy's mods

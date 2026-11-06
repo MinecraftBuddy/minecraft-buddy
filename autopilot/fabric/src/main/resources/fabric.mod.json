@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "baritone",
+  "version": "${version}",
+
+  "name": "Soprano",
+  "description": "A Baritone fork with extra movement tech. Drop-in replacement, same API.",
+  "authors": [
+    "leijurv", "Brady", "AverWasTaken"
+  ],
+  "contact": {
+    "homepage": "https://github.com/AverWasTaken/soprano",
+    "sources": "https://github.com/AverWasTaken/soprano",
+    "issues": "https://github.com/AverWasTaken/soprano/issues"
+  },
+
+  "license": "LGPL-3.0",
+  "icon": "assets/baritone/icon.png",
+
+  "environment": "*",
+  "entrypoints": {
+  },
+  "mixins": [
+      "mixins.baritone.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "~26.3"
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.discord": "https://discord.gg/s6fRBAUpmr"
+      }
+    }
+  }
+}

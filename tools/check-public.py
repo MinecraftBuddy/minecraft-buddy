@@ -25,6 +25,10 @@ ROOT = os.path.dirname(HERE)
 # exact texts that look like a finding and are not
 ALLOWED = {
     "noreply@anthropic.com",
+    # autopilot's tests: a URI's user part on a pinned host, and mod versions of four numbers
+    "user@github.com",
+    "1.1.6.1",
+    "1.1.7.0",
 }
 ALLOWED_MAIL_DOMAINS = ("example.com", "example.net", "example.org", "users.noreply.github.com")
 # IP ranges that say nothing about anyone: loopback, private, link-local, documentation, broadcast, two public resolvers

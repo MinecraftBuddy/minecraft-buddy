@@ -1,0 +1,434 @@
+package adris.altoclef.tasks.resources;
+
+import adris.altoclef.AltoClef;
+import adris.altoclef.Debug;
+import adris.altoclef.tasks.construction.PlaceBlockTask;
+import adris.altoclef.tasks.movement.GetToBlockTask;
+import adris.altoclef.tasksystem.Task;
+import adris.altoclef.util.helpers.BlazePillbox;
+import adris.altoclef.util.helpers.BlazeShelter;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+
+// the buddy's fork: builds a BlazePillbox plan by the spawner (steering 21): to the cell, then the blocks in the plan's order,
+// each one only while no blaze that sees the cell is near its shot (the volley clock: a charged blaze shoots the moment it
+// sees us, so a block waits while one has been charged LOADED ticks or more; the old wall went up under fire and was never
+// finished, 0 of 10). a block not in after PLACE_TICKS is left out, the whole after GIVE_UP_TICKS: then the camp is the
+// open one as before. done when every block of the plan is solid
+final class BlazePillboxTask extends Task {
+    static final double LOADED = 40;
+    static final long PLACE_TICKS = 100;
+    static final long GIVE_UP_TICKS = 2400;
+    private static final Block[] BLOCKS = {Blocks.COBBLESTONE, Blocks.NETHERRACK, Blocks.COBBLED_DEEPSLATE, Blocks.BLACKSTONE,
+            Blocks.STONE, Blocks.DIRT, Blocks.NETHER_BRICKS, Blocks.BASALT};
+
+    private final BlazePillbox.Plan plan;
+    private final BlockPos cell;
+    private int next;
+    private long startedAt = Long.MIN_VALUE;
+    private Task walk;
+    private BlockPos walkTo;
+    private Task placing;
+    private BlockPos placingPos;
+    private long placingTicks;
+    private long waitLoggedAt = Long.MIN_VALUE / 2;
+    private boolean done, gaveUp;
+    static final int ROOF_RETRIES = 3;
+    private int roofRetries;
+    private int left;
+
+    BlazePillboxTask(BlazePillbox.Plan plan) {
+        this.plan = plan;
+        hideAway(plan);
+        this.cell = new BlockPos(plan.cell()[0], plan.cell()[1], plan.cell()[2]);
+    }
+
+    BlockPos cell() {
+        return cell;
+    }
+
+    // the plan's blocks, for the fight's placing ban to leave alone; for a raised box also the columns under B and F up there,
+    // where Baritone's pillar climbs (feet level and up is banned in a fight)
+    java.util.Set<BlockPos> blocks() {
+        java.util.Set<BlockPos> s = new java.util.HashSet<>();
+        for (int[] b : plan.blocks()) s.add(new BlockPos(b[0], b[1], b[2]));
+        if (plan.raise() > 0 && plan.front() != null) {
+            BlockPos f = new BlockPos(plan.front()[0], plan.front()[1], plan.front()[2]);
+            for (int k = 1; k <= plan.raise(); k++) {
+                s.add(cell.below(k));
+                s.add(f.below(k));
+            }
+        }
+        return s;
+    }
+
+    // the fight's corner while building: the cell, for a raised box the cell on the ground under it till B's floor is in
+    BlockPos corner(AltoClef mod) {
+        if (plan.raise() <= 0 || solid(mod, cell.below())) return cell;
+        return cell.below(plan.raise());
+    }
+
+    BlockPos lookout() {
+        return new BlockPos(plan.lookout()[0], plan.lookout()[1], plan.lookout()[2]);
+    }
+
+    boolean built() {
+        return done;
+    }
+
+    // the first block of the plan is in (the wall nearest the spawner): the cell gives some cover from then on
+    boolean begun(AltoClef mod) {
+        if (plan.blocks().isEmpty()) return true;
+        int[] b = plan.blocks().get(0);
+        BlockPos p = new BlockPos(b[0], b[1], b[2]);
+        var level = mod.getWorld();
+        return !level.getBlockState(p).getCollisionShape(level, p).isEmpty();
+    }
+
+    // given up with at most SHORT_OK blocks short: the box is cover enough to lure from (realfort-b run 7: one roof block
+    // would not go in, "not built in 2400 ticks, 1 blocks short", and the lure never ran, a stall)
+    static final int SHORT_OK = 1;
+
+    boolean nearlyBuilt(AltoClef mod) {
+        if (done) return true;
+        if (!gaveUp) return false;
+        var level = mod.getWorld();
+        int open = 0;
+        for (int[] b : plan.blocks()) {
+            BlockPos p = new BlockPos(b[0], b[1], b[2]);
+            if (level.getBlockState(p).getCollisionShape(level, p).isEmpty()) open++;
+        }
+        return open <= SHORT_OK;
+    }
+
+    boolean gaveUp() {
+        return gaveUp;
+    }
+
+    // a block placed from inside the box (for a raised one, not its ground part, the step and the columns: those are reached
+    // from outside)
+    private boolean fromBox(int i) {
+        if (plan.stands() == null) return true;
+        return plan.stands().get(i)[1] == cell.getY();
+    }
+
+    // the box kept closed (steering 36: in run 3 of realfort-b-raised2 the pillbox had a hole in its back, which left the
+    // buddy open to the blazes): the blocks of a standing box that are open now, each put back at most REPAIR_TRIES
+    // times (one that will not go in is not tried for ever)
+    static final int REPAIR_TRIES = 2;
+    static final int HOLES_NEAR = 16;
+    private final java.util.Map<BlockPos, Integer> repairs = new java.util.HashMap<>();
+
+    java.util.List<BlockPos> holes(AltoClef mod) {
+        java.util.List<BlockPos> out = new java.util.ArrayList<>();
+        var level = mod.getWorld();
+        // (not dead, not far off, and only blocks of loaded chunks: right after a death every block read as gone, realfort-b-repair
+        // runs 2 and 4, "8 of its blocks gone" in the second of the death)
+        var me = mod.getPlayer();
+        if (me == null || !me.isAlive() || me.blockPosition().distManhattan(cell) > HOLES_NEAR) return out;
+        for (int i = 0; i < plan.blocks().size(); i++) {
+            int[] b = plan.blocks().get(i);
+            BlockPos p = new BlockPos(b[0], b[1], b[2]);
+            if (fromBox(i) && level.isLoaded(p) && repairs.getOrDefault(p, 0) < REPAIR_TRIES && level.getBlockState(p).getCollisionShape(level, p).isEmpty()) out.add(p);
+        }
+        return out;
+    }
+
+    // build again from the first open block; done once they are in, or after GIVE_UP_TICKS
+    void repair(AltoClef mod, java.util.List<BlockPos> holes) {
+        for (BlockPos p : holes) repairs.merge(p, 1, Integer::sum);
+        done = false;
+        gaveUp = false;
+        next = 0;
+        placing = null;
+        walk = null;
+        startedAt = mod.getWorld().getGameTime();
+        StringBuilder sb = new StringBuilder();
+        for (BlockPos p : holes) sb.append(sb.length() == 0 ? "" : ", ").append(p.toShortString());
+        Debug.logInternal("pillbox: " + holes.size() + " of its blocks gone, putting them back: " + sb);
+    }
+
+    @Override
+    protected void onStart(AltoClef mod) {
+        if (startedAt == Long.MIN_VALUE) startedAt = mod.getWorld().getGameTime();
+        walk = null;
+        placing = null;
+    }
+
+    @Override
+    protected Task onTick(AltoClef mod) {
+        long now = mod.getWorld().getGameTime();
+        if (now < startedAt) startedAt = now;
+        if (now - startedAt > GIVE_UP_TICKS) {
+            gaveUp = true;
+            Debug.logInternal("pillbox: not built in " + GIVE_UP_TICKS + " ticks, " + (plan.blocks().size() - next) + " blocks short");
+            return null;
+        }
+        var level = mod.getWorld();
+        while (next < plan.blocks().size()) {
+            int[] b = plan.blocks().get(next);
+            BlockPos p = new BlockPos(b[0], b[1], b[2]);
+            if (level.getBlockState(p).getCollisionShape(level, p).isEmpty()) break;
+            next++;
+        }
+        // (a roof row block left out is tried again: without it the box is no cover, a ball came into the back cell through the
+        // front cell's missing roof, bent-e run 3, and the buddy burned in it)
+        if (next >= plan.blocks().size() && roofRetries < ROOF_RETRIES) {
+            for (int i = 0; i < plan.blocks().size(); i++) {
+                int[] b = plan.blocks().get(i);
+                BlockPos p = new BlockPos(b[0], b[1], b[2]);
+                // (with pillbox_repair every block of the box, not the roof row alone: one the client saw go in was gone half a
+                // minute later, the server's no, and a fireball came through it, realfort-b-raised2 run 3, steering 36)
+                boolean any = adris.altoclef.util.helpers.Tuning.get("pillbox_repair", 0) > 0 && fromBox(i);
+                if ((b[1] >= cell.getY() + 2 || any) && level.getBlockState(p).getCollisionShape(level, p).isEmpty()) {
+                    roofRetries++;
+                    left--;
+                    next = i;
+                    placing = null;
+                    Debug.logInternal("pillbox: the " + (b[1] >= cell.getY() + 2 ? "roof " : "") + "block at " + p.toShortString() + " again (" + roofRetries + " of " + ROOF_RETRIES + ")");
+                    break;
+                }
+            }
+        }
+        if (next >= plan.blocks().size()) {
+            done = true;
+            Debug.logInternal("pillbox: built at " + cell.toShortString() + " (" + left + " of " + plan.blocks().size() + " left out), looking out from " + lookout().toShortString());
+            return null;
+        }
+        int[] nb = plan.blocks().get(next);
+        BlockPos pos = new BlockPos(nb[0], nb[1], nb[2]);
+        BlockPos stand = standFor(next, pos);
+        if (!inColumn(mod.getPlayer().position(), stand) && BlazeShelter.loadedOn(mod, cell, now) < adris.altoclef.util.helpers.Tuning.get("pillbox_loaded", LOADED)) {
+            setDebugState(stand.equals(cell) ? "To the pillbox's cell" : "To the pillbox's front cell");
+            if (walk == null || !stand.equals(walkTo)) {
+                walk = new GetToBlockTask(stand);
+                walkTo = stand;
+            }
+            return walk;
+        }
+        walk = null;
+        long loaded = BlazeShelter.loadedOn(mod, cell, now);
+        if (loaded >= adris.altoclef.util.helpers.Tuning.get("pillbox_loaded", LOADED)) {
+            if (now - waitLoggedAt >= 40) {
+                waitLoggedAt = now;
+                Debug.logInternal("pillbox: waiting out of sight, a blaze that sees the cell has been charged " + loaded + " ticks");
+            }
+            setDebugState("Waiting out a blaze's volley, out of its sight");
+            // (out of sight while it waits: standing at the bare cell, it burned there, corner23's first check)
+            Task hide = hideNear(mod, now);
+            return hide;
+        }
+        hideAt = null;
+        hideWalk = null;
+        boolean roofRow = pos.getY() >= stand.getY() + 2;
+        if (placing == null || !pos.equals(placingPos)) {
+            placing = click(mod, pos, roofRow);
+            placingPos = pos;
+            placingTicks = 0;
+        }
+        // (the ticks spent placing it, not since it was begun: a fight's interruptions ran the clock out)
+        if (++placingTicks > adris.altoclef.util.helpers.Tuning.get("pillbox_place_ticks", PLACE_TICKS)) {
+            Debug.logInternal("pillbox: the block at " + pos.toShortString() + " would not go in, left out");
+            left++;
+            next++;
+            placing = null;
+            return null;
+        }
+        if (centre(mod, stand, pos)) {
+            setDebugState("To the middle of the pillbox's cell, block " + (next + 1) + " of " + plan.blocks().size());
+            return null;
+        }
+        setDebugState("Building the pillbox, block " + (next + 1) + " of " + plan.blocks().size());
+        // (a roof row block on a wall's top face wants a jump: standing, the eye is at 1.62, under that face, which no click can
+        // see; at a jump's top it can, as a player builds a roof. the click stays put and the aim is set on the ground, so the
+        // jump's top is spent clicking: merged-d jumped but its click walked off for a spot to see the face from, 88 walks back
+        // to the cell and the roof never in. one against a side face is clicked standing: at a jump's top the body is in its cell)
+        if (roofRow && solid(mod, pos.below()) && mod.getPlayer().onGround()) {
+            adris.altoclef.util.helpers.LookHelper.lookAt(mod, new net.minecraft.world.phys.Vec3(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5));
+            mod.getInputControls().tryPress(baritone.api.utils.input.Input.JUMP);
+        }
+        return placing;
+    }
+
+    // where a block is placed from: the roof row of a bent box from its front cell (from the back cell the face F's roof goes on
+    // faces away), all else from the cell
+    // a raised box's from its plan (its ground part from the ground, the floors and the roof from F up there)
+    private BlockPos standFor(int index, BlockPos pos) {
+        if (plan.stands() != null) {
+            int[] s = plan.stands().get(index);
+            return new BlockPos(s[0], s[1], s[2]);
+        }
+        if (plan.front() != null && pos.getY() >= cell.getY() + 2) return new BlockPos(plan.front()[0], plan.front()[1], plan.front()[2]);
+        return cell;
+    }
+
+    // in the stand cell's column, up to a jump's top (BlazeShelter.in is the feet's block alone: a jump read as out of the cell)
+    static boolean inColumn(net.minecraft.world.phys.Vec3 at, BlockPos c) {
+        double dx = at.x - (c.getX() + 0.5), dz = at.z - (c.getZ() + 0.5), dy = at.y - c.getY();
+        return dx * dx + dz * dz <= 0.64 && dy > -0.5 && dy < 1.6;
+    }
+
+    // the body in the block's cell: the game refuses the block. the walk to the cell stops at its edge (bent-a, every run at
+    // 3196.14 against the middle's 3196.5, the box 0.16 into the wall's cell, each fireball pushed it back in, and the wall
+    // never went in), so a step to the middle of the stand cell first, again after each push: the movement keys under the
+    // look it has, crouched so it does not overshoot. true while stepping
+    static final double CENTRE_SLACK = 0.05;
+
+    private static boolean centre(AltoClef mod, BlockPos stand, BlockPos pos) {
+        if (!mod.getPlayer().getBoundingBox().intersects(new net.minecraft.world.phys.AABB(pos))) return false;
+        return centreIn(mod, stand, CENTRE_SLACK);
+    }
+
+    // in the middle of the cell, within slack each way: false; else a step toward it this tick, true. for the box's hiding
+    // too (BlazeFight, BlazeLureTask): "in the corner" counts up to 0.8 off its middle, half in the front cell, which the look
+    // out shows, and bent-d run 3 healed and burned there
+    static final double HIDE_SLACK = 0.15;
+
+    static boolean centreIn(AltoClef mod, BlockPos stand, double slack) {
+        return centreAt(mod, stand, 0, 0, slack);
+    }
+
+    // a bent box's hiding place: B's middle moved HIDE_BACK away from F. a ball over the look out's open face or top came in at
+    // the corner of O, F and B and touched the buddy 0.5 off B's middle on F's side, straight-bent-g run 4; a roof over the
+    // look out shut most spawn eyes out of it (44 against the half needed), so deeper in B instead
+    static final double HIDE_BACK = 0.2;
+    static volatile int hideAwayX, hideAwayZ;
+
+    static void hideAway(BlazePillbox.Plan plan) {
+        hideAwayX = plan.front() == null ? 0 : plan.cell()[0] - plan.front()[0];
+        hideAwayZ = plan.front() == null ? 0 : plan.cell()[2] - plan.front()[2];
+    }
+
+    static boolean hideIn(AltoClef mod, BlockPos cell) {
+        return centreAt(mod, cell, hideAwayX * HIDE_BACK, hideAwayZ * HIDE_BACK, HIDE_SLACK);
+    }
+
+    static boolean centreAt(AltoClef mod, BlockPos stand, double ox, double oz, double slack) {
+        var player = mod.getPlayer();
+        double dx = stand.getX() + 0.5 + ox - player.getX(), dz = stand.getZ() + 0.5 + oz - player.getZ();
+        if (Math.abs(dx) <= slack && Math.abs(dz) <= slack) return false;
+        double yaw = Math.toRadians(player.getYRot());
+        // (forward is (-sin, cos) of the yaw, left (cos, sin): facing south, +z, the left hand is east)
+        double f = -dx * Math.sin(yaw) + dz * Math.cos(yaw), l = dx * Math.cos(yaw) + dz * Math.sin(yaw);
+        var in = mod.getInputControls();
+        in.tryPress(baritone.api.utils.input.Input.SNEAK);
+        double k = Math.min(slack, CENTRE_SLACK);
+        if (f > k) in.tryPress(baritone.api.utils.input.Input.MOVE_FORWARD);
+        else if (f < -k) in.tryPress(baritone.api.utils.input.Input.MOVE_BACK);
+        if (l > k) in.tryPress(baritone.api.utils.input.Input.MOVE_LEFT);
+        else if (l < -k) in.tryPress(baritone.api.utils.input.Input.MOVE_RIGHT);
+        return true;
+    }
+
+    private static boolean solid(AltoClef mod, BlockPos p) {
+        var level = mod.getWorld();
+        return !level.getBlockState(p).getCollisionShape(level, p).isEmpty();
+    }
+
+    // a plain click on a solid face beside the block, the floor or the block under it first (as the portal frame's cells,
+    // 7e521bd): Baritone's builder never got its place click in during the fight ("couldn't get a place click in for 2.0s"),
+    // with or without the shield, corner23d and corner23f. the builder only when no face is solid
+    private static Task click(AltoClef mod, BlockPos pos, boolean stayPut) {
+        net.minecraft.world.item.Item item = null;
+        for (Block b : BLOCKS) {
+            if (mod.getItemStorage().hasItem(b.asItem())) {
+                item = b.asItem();
+                break;
+            }
+        }
+        var level = mod.getWorld();
+        if (item != null) {
+            adris.altoclef.util.ItemTarget it = new adris.altoclef.util.ItemTarget(item, 1);
+            BlockPos below = pos.below();
+            // (a click that does not stay put takes only a face the eye is in front of: from a raised box's front cell the face of
+            // its own floor toward the back cell looks away, and B's floor goes against the inside of B's walls instead. the roof
+            // row's click is made standing and clicked at a jump's top, so it keeps the floor's face as before)
+            if (!stayPut) {
+                net.minecraft.world.phys.Vec3 eye = mod.getPlayer().getEyePosition();
+                if (!level.getBlockState(below).getCollisionShape(level, below).isEmpty() && eye.y > pos.getY()) {
+                    return new adris.altoclef.tasks.InteractWithBlockTask(it, net.minecraft.core.Direction.UP, below, false);
+                }
+                for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+                    BlockPos by = pos.relative(d);
+                    if (!level.getBlockState(by).getCollisionShape(level, by).isEmpty() && facesEye(eye, pos, d)) {
+                        return new adris.altoclef.tasks.InteractWithBlockTask(it, d.getOpposite(), by, false);
+                    }
+                }
+            }
+            // (the roof row stays where it stands, standFor picked the cell it is reached from)
+            if (!level.getBlockState(below).getCollisionShape(level, below).isEmpty()) {
+                var t = new adris.altoclef.tasks.InteractWithBlockTask(it, net.minecraft.core.Direction.UP, below, false);
+                return stayPut ? t.stayPut() : t;
+            }
+            for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+                BlockPos by = pos.relative(d);
+                if (!level.getBlockState(by).getCollisionShape(level, by).isEmpty()) {
+                    var t = new adris.altoclef.tasks.InteractWithBlockTask(it, d.getOpposite(), by, false);
+                    return stayPut ? t.stayPut() : t;
+                }
+            }
+        }
+        return new PlaceBlockTask(pos, BLOCKS, true, false);
+    }
+
+    // the face between pos and its neighbour pos + d (the neighbour's face toward pos) has the eye on pos's side: a click can hit it
+    static boolean facesEye(net.minecraft.world.phys.Vec3 eye, BlockPos pos, net.minecraft.core.Direction d) {
+        if (d.getStepX() != 0) {
+            double plane = pos.getX() + (d.getStepX() > 0 ? 1 : 0);
+            return d.getStepX() > 0 ? eye.x < plane : eye.x > plane;
+        }
+        double plane = pos.getZ() + (d.getStepZ() > 0 ? 1 : 0);
+        return d.getStepZ() > 0 ? eye.z < plane : eye.z > plane;
+    }
+
+    // the nearest cell by walk no blaze sees (BlazeCover.pick), looked for again every HIDE_CHECK ticks; null standing in it
+    // or with none
+    static final long HIDE_CHECK = 40;
+    private BlockPos hideAt;
+    private long hideAtSince = Long.MIN_VALUE / 2;
+    private Task hideWalk;
+
+    private Task hideNear(AltoClef mod, long now) {
+        if (hideAt == null || now - hideAtSince >= HIDE_CHECK) {
+            hideAtSince = now;
+            if (mod.getClientBaritone().getPlayerContext() == null) return null;
+            var cells = baritone.pathing.movement.CliffAvoidance.of(new baritone.utils.BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
+            java.util.List<net.minecraft.world.phys.Vec3> eyes = new java.util.ArrayList<>();
+            try {
+                for (net.minecraft.world.entity.monster.Blaze b : mod.getEntityTracker().getTrackedEntities(net.minecraft.world.entity.monster.Blaze.class)) {
+                    if (b.isAlive() && b.distanceTo(mod.getPlayer()) <= adris.altoclef.util.helpers.BlazeCover.SIGHT) eyes.add(b.getEyePosition());
+                }
+            } catch (java.util.ConcurrentModificationException ignored) {
+                return hideWalk;
+            }
+            BlockPos at = mod.getPlayer().blockPosition();
+            int[] c = adris.altoclef.util.helpers.BlazeCover.pick(cells, at.getX(), at.getY(), at.getZ(), java.util.List.of(), new java.util.HashSet<>(),
+                    (x, y, z) -> adris.altoclef.util.helpers.BlazeCover.hidden(mod.getWorld(), eyes, x, y, z, mod.getPlayer()));
+            BlockPos h = c == null ? null : new BlockPos(c[0], c[1], c[2]);
+            if (h == null || !h.equals(hideAt)) hideWalk = h == null ? null : new GetToBlockTask(h);
+            hideAt = h;
+        }
+        if (hideAt == null || BlazeShelter.in(mod.getPlayer().position(), hideAt)) return null;
+        return hideWalk;
+    }
+
+    @Override
+    public boolean isFinished(AltoClef mod) {
+        return done || gaveUp;
+    }
+
+    @Override
+    protected void onStop(AltoClef mod, Task interruptTask) {
+    }
+
+    @Override
+    protected boolean isEqual(Task other) {
+        return other instanceof BlazePillboxTask t && t.cell.equals(cell);
+    }
+
+    @Override
+    protected String toDebugString() {
+        return "Building a pillbox at " + cell.toShortString();
+    }
+}
