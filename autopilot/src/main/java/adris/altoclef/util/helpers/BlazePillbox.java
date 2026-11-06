@@ -286,6 +286,20 @@ public final class BlazePillbox {
         return out;
     }
 
+    // the cell outside the look out's open side, where the way into a standing box starts. the bent box's look out is open
+    // straight on from its front cell (planBentAt: O + p, the side opposite F); the one-cell box's look out is outside it
+    // already. null for the raised box, whose look out stands over the ground (6 Nov 2026: a walk aimed at the cell itself
+    // from outside drew the buddy to the wall nearest it, and every block of the box is protected)
+    public static int[] door(Plan plan) {
+        if (plan.raise() > 0) return null;
+        int[] o = plan.lookout();
+        if (plan.front() == null) return o.clone();
+        int[] f = plan.front();
+        int dx = o[0] - f[0], dz = o[2] - f[2];
+        if (Math.abs(dx) + Math.abs(dz) != 1 || o[1] != f[1]) return null;
+        return new int[]{o[0] + dx, o[1], o[2] + dz};
+    }
+
     // B at (x, y, z), F at B + a, the look out at F + p (p across a)
     static Plan planBentAt(Cells cells, int x, int y, int z, int[] a, int[] p, boolean wing, List<Vec3> eyes, int sx, int sz) {
         int fx = x + a[0], fz = z + a[1];

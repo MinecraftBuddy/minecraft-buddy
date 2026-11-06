@@ -111,6 +111,21 @@ final class BlazePillboxTask extends Task {
         return new BlockPos(plan.lookout()[0], plan.lookout()[1], plan.lookout()[2]);
     }
 
+    // the cell outside the look out's open side (BlazePillbox.door), null for the raised box
+    BlockPos door() {
+        int[] d = BlazePillbox.door(plan);
+        return d == null ? null : new BlockPos(d[0], d[1], d[2]);
+    }
+
+    // the buddy stands in the box: over the cell, the front cell or the look out, from a block under its floor to its roof
+    // (by x and z: a jump in the cell takes the feet a block up)
+    boolean holds(BlockPos at) {
+        for (BlockPos c : new BlockPos[]{cell, front(), lookout()}) {
+            if (c != null && c.getX() == at.getX() && c.getZ() == at.getZ() && at.getY() >= c.getY() - 1 && at.getY() <= c.getY() + 2) return true;
+        }
+        return false;
+    }
+
     // the bent box's front cell, null for the one-cell box
     BlockPos front() {
         return plan.front() == null ? null : new BlockPos(plan.front()[0], plan.front()[1], plan.front()[2]);

@@ -360,6 +360,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // look out to it was cut short by the walk back, "Going to blaze spawner" 23 times and 3 looks in six game minutes,
             // a stall with the box built whole, bent-d run 1)
             double campRadius = _campSpot != null ? (_pillbox != null && _pillboxCornered ? PILLBOX_RADIUS : CAMP_SPOT_RADIUS) : CAMP_RADIUS;
+            // (the buddy's fork: outside a standing pillbox, round to its open side first. aimed at the cell itself, the walk from
+            // a walled side drew the buddy to the wall nearest the cell, every block of the box protected, and the walk and the
+            // lure took turns there till the stall: twelve game minutes, about eight stalls in the blocks of 6 Nov 2026 morning,
+            // the yardstick's bent-n-ap-3 on 8 rods among them. from the door the way in through the look out works)
+            BlockPos door = _campStep == null && _pillbox != null && _pillboxCornered && camp.equals(_pillbox.cell()) ? _pillbox.door() : null;
+            if (door != null && !_pillbox.holds(mod.getPlayer().blockPosition()) && !door.equals(mod.getPlayer().blockPosition())) {
+                setDebugState("Round to the pillbox's open side");
+                _toSpawner = true;
+                return new GetToBlockTask(door, false);
+            }
             if (_campStep == null && !camp.closerToCenterThan(mod.getPlayer().position(), campRadius)) {
                 setDebugState("Going to blaze spawner (" + (RunZones.INSTANCE.active(_zoneNow) + _deathZones.active(_zoneNow)) + " zones)");
                 _toSpawner = true;
