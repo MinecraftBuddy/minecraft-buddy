@@ -137,7 +137,7 @@ def cmd_list(a):
             continue
         copy = o.get("copy") or {}
         print(f"{name}  {when(o['from_ms'])} to {when(o['to_ms'])[11:]}  tk {o['from_tk']}-{o['to_tk']}  {o.get('dim')}  "
-              f"{o['bytes'] // 1024} KB  copy {copy.get('file')}@{copy.get('offset')}")
+              f"{o['bytes'] // 1024} KB  copy {copy.get('file')}@{copy.get('offset')}" + ("  broken" if o.get("broken") else ""))
 
 
 def cmd_dump(a):
