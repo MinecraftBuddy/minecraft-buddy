@@ -221,15 +221,22 @@ final class BlazeLureTask extends Task {
                 return walk(out);
             }
             case PEEK -> {
-                // (the sword in hand: with food there the held key is a meal, and the shield does not go up)
-                if (mod.getPlayer().getMainHandItem().getUseAnimation() != net.minecraft.world.item.ItemUseAnimation.NONE) {
-                    mod.getSlotHandler().forceEquipItem(SWORDS);
-                }
+                // (the sword in hand, or an empty hand: the held key with food is a meal and the shield does not go up, with a
+                // block it places one, with a water bucket it empties it, with flint and steel it lights the block in the
+                // crosshair. and the key is held only for a ready shield in the off hand)
+                boolean handSafe = peekHand(mod);
+                var off = mod.getPlayer().getOffhandItem();
+                boolean shield = off.is(net.minecraft.world.item.Items.SHIELD) && !mod.getPlayer().getCooldowns().isOnCooldown(off);
                 Blaze blaze = nearest(mod);
                 if (blaze != null) LookHelper.lookAt(mod, blaze.getEyePosition());
-                mod.getInputControls().hold(Input.CLICK_RIGHT, this);
-                ShieldRaise.raise(mod);
-                setDebugState("Looking round the corner, shield up");
+                if (handSafe && shield) {
+                    mod.getInputControls().hold(Input.CLICK_RIGHT, this);
+                    ShieldRaise.raise(mod);
+                    setDebugState("Looking round the corner, shield up");
+                } else {
+                    lower(mod);
+                    setDebugState("Looking round the corner");
+                }
                 long held = now - since;
                 // (back in before the ball: a blaze that sees us charged PEEK_LOADED ticks, its first one due at 60)
                 boolean due = adris.altoclef.util.helpers.BlazeShelter.loadedOn(mod, mod.getPlayer().blockPosition(), now) >= adris.altoclef.util.helpers.Tuning.get("peek_loaded", PEEK_LOADED);
@@ -297,6 +304,22 @@ final class BlazeLureTask extends Task {
     private void lower(AltoClef mod) {
         // (the key let go is the shield down: the game lets go of a use whose key is up)
         mod.getInputControls().releaseOwnedBy(this);
+    }
+
+    // the main hand for a look: a sword (or a pickaxe of the list), else an empty hotbar slot. true once the hand holds one of
+    // them, so that a held use key does nothing with the main hand
+    private static boolean peekHand(AltoClef mod) {
+        var inventory = mod.getPlayer().getInventory();
+        net.minecraft.world.item.ItemStack main = mod.getPlayer().getMainHandItem();
+        if (main.isEmpty() || java.util.Arrays.asList(SWORDS).contains(main.getItem())) return true;
+        if (mod.getSlotHandler().forceEquipItem(SWORDS)) return true;
+        for (int i = 0; i < 9; i++) {
+            if (inventory.getItem(i).isEmpty()) {
+                inventory.setSelectedSlot(i);
+                return true;
+            }
+        }
+        return false;
     }
 
     // the look out the fewest live blazes see from where they are now, one at least: the near cells first, the far ones when no
