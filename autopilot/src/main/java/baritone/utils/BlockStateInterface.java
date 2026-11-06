@@ -54,6 +54,13 @@ public class BlockStateInterface {
 
     private final boolean useTheRealWorld;
 
+    // (the buddy's fork: the player was in lava when this was made. then lava beside a block is no reason to leave it: an
+    // escape walled in by nylium and a wart block, every one of them beside the lava it stood in, found no path 66 times and
+    // burned to death under a one block ceiling, attempt 236. one value per search, taken with its context on the main
+    // thread, and per tick for the live one: a static set by a chain stayed true after an order ended in lava, and later
+    // searches, the mod's own walks among them, broke blocks beside lava)
+    public boolean inLava;
+
     // world.dimensionType() goes through a Holder and we were calling it twice per block. per block!
     public final int minY;
     public final int maxY;
@@ -88,6 +95,7 @@ public class BlockStateInterface {
         if (!ctx.minecraft().isSameThread()) {
             throw new IllegalStateException("BlockStateInterface must be constructed on the main thread");
         }
+        this.inLava = ctx.player() != null && ctx.player().isInLava();
         this.minY = world.dimensionType().minY();
         this.height = world.dimensionType().height();
         this.maxY = minY + height - 1;

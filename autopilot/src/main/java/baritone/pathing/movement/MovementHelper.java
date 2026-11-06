@@ -81,15 +81,11 @@ import static baritone.pathing.precompute.Ternary.*;
  */
 public interface MovementHelper extends ActionCosts, Helper {
 
-    // (the buddy's fork: the player is in lava right now, set every tick by WorldSurvivalChain. then lava beside a block is no
-    // reason to leave it: an escape walled in by nylium and a wart block, every one of them beside the lava it stood in, found
-    // no path 66 times and burned to death under a one block ceiling, attempt 236, 4 Nov 2026)
-    java.util.concurrent.atomic.AtomicBoolean IN_LAVA = new java.util.concurrent.atomic.AtomicBoolean();
-
     // (the buddy's fork: a block under an open cell that lava sits beside: once it is gone the lava pours over and down into
     // the cell. a trench dug under a fungus canopy opened one, and lava a block up and over came in on the buddy, attempt 236)
+    // (in lava already, it pours in on nobody new: see BlockStateInterface.inLava)
     static boolean lavaPoursIn(BlockStateInterface bsi, int x, int y, int z) {
-        if (IN_LAVA.get()) return false;
+        if (bsi.inLava) return false;
         BlockState above = bsi.get0(x, y, z);
         if (!above.getFluidState().isEmpty() || !above.canBeReplaced()) return false;
         return lava(bsi.get0(x + 1, y, z)) || lava(bsi.get0(x - 1, y, z)) || lava(bsi.get0(x, y, z + 1)) || lava(bsi.get0(x, y, z - 1));
@@ -153,8 +149,8 @@ public interface MovementHelper extends ActionCosts, Helper {
         // only pure liquids for now
         // waterlogged blocks can have closed bottom sides and such
         if (block instanceof LiquidBlock) {
-            // (in lava already, more of it next to the way out changes nothing: see IN_LAVA)
-            if (IN_LAVA.get() && block == Blocks.LAVA) return false;
+            // (in lava already, more of it next to the way out changes nothing: see BlockStateInterface.inLava)
+            if (bsi.inLava && block == Blocks.LAVA) return false;
             return liquidBesideBlocks(directlyAbove, Baritone.settings().strictLiquidCheck.value, block == Blocks.LAVA,
                     state.getValue(LiquidBlock.LEVEL), bsi.get0(x, y - 1, z).getBlock() instanceof LiquidBlock);
         }
