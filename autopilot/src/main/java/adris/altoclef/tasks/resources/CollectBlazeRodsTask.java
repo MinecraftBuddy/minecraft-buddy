@@ -88,6 +88,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private long _repairCheckedAt = Long.MIN_VALUE / 2;
     static final long REPAIR_CHECK = 40;
     private boolean _pillboxCornered;
+    // the spawner whose pillbox was given up on, more than SHORT_OK of its blocks open: its camp is picked again without a box
+    private BlockPos _pillboxGaveUpFor;
 
     // true on ticks where we stand by the spawner waiting for blazes, so the gamer can give up on a dud spawner
     private boolean _camping;
@@ -241,6 +243,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _campSpot = null;
             _pillbox = null;
             _pillboxCornered = false;
+            _lure = null;
+            _fight.corner(null);
+            _fight.pillboxPlanned(false);
+            _fight.pillboxLookout(null);
+        }
+        // (the buddy's fork: a pillbox given up on with more than SHORT_OK of its blocks open is no cover. kept, its bare cell
+        // stayed the fight's corner and the camp, runs into it burned there, and nothing picked the camp again (the dry watch
+        // passes over a camp with a box): the camp is picked again with no box at this spawner, the open camp as before the box)
+        if (_pillbox != null && _pillbox.isFinished(mod) && !_pillbox.nearlyBuilt(mod)) {
+            Debug.logInternal("blaze camp: the pillbox at " + _pillbox.cell().toShortString() + " given up, the camp picked again without one");
+            _pillboxGaveUpFor = _foundBlazeSpawner;
+            _campSpotFor = null;
+            _campSpot = null;
+            _pillbox = null;
+            _pillboxCornered = false;
+            _pillboxCornerSet = null;
             _lure = null;
             _fight.corner(null);
             _fight.pillboxPlanned(false);
@@ -789,7 +807,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         // (the buddy's fork: no corner, a pillbox built by the spawner, steering 21; its cell is the fight's corner once it
         // stands, and the looks start from it)
-        if (adris.altoclef.util.helpers.Tuning.get("pillbox", 1) > 0) {
+        if (adris.altoclef.util.helpers.Tuning.get("pillbox", 1) > 0 && !_foundBlazeSpawner.equals(_pillboxGaveUpFor)) {
             adris.altoclef.util.helpers.BlazePillbox.Plan plan = pillboxPlan(mod, cells, sx, sy, sz);
             if (plan != null) {
                 _pillbox = new BlazePillboxTask(plan);
