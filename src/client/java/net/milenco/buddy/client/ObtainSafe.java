@@ -469,6 +469,9 @@ final class ObtainSafe {
 		}
 
 		String detail() { return goal == null ? "a dry cell" : "to " + goal.toShortString(); }
+
+		/** The leaks' blocks are placed by the click at the start of the tick: without it the placer only aimed. */
+		void startTick(Minecraft mc) { placer.startTick(mc); }
 	}
 
 	// ---------- a night in a bed ----------
@@ -1239,6 +1242,7 @@ final class ObtainSafe {
 			return true;
 		}
 
-		void startTick(Minecraft mc) { placer.startTick(mc); }
+		/** The walls' click, and the way to land's (its leaks): each clicks only on the face it aims at. */
+		void startTick(Minecraft mc) { placer.startTick(mc); if (dry != null) dry.startTick(mc); }
 	}
 }

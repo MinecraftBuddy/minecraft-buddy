@@ -319,6 +319,8 @@ final class Obtain {
 	static void startTick(Minecraft mc) {
 		throwJunk(mc);
 		if (exec != null) exec.startTick(mc);
+		// the shelter of an order given up at night places its walls by the same click
+		else if (resting && rest != null) rest.startTick(mc);
 	}
 
 	// ---------- junk out of a nearly full bag ----------
