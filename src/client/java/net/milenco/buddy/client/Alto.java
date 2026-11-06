@@ -59,11 +59,31 @@ final class Alto {
 		return mod == null || mod.getTaskRunner() == null || mod.getUserTaskChain() == null ? null : mod;
 	}
 
-	/** AltoClef keeps the buddy alive for the order under way. */
+	/** AltoClef keeps the buddy alive for the order under way, while the gate (Jobs.autopilot) is open. */
 	static boolean on() {
-		boolean on = present() && AfkConfig.get().obtainAltoSurvival && Obtain.on();
+		boolean on = present() && AfkConfig.get().obtainAltoSurvival && Obtain.on() && gateOpen;
 		ObtainKit.sopranoBrews = on;
 		return on;
+	}
+
+	/** The gate of Jobs.autopilot: the mod on, a server it may play on, the panel's hands off. */
+	private static boolean gateOpen = true;
+	/** How often the gate shut: a task of AltoClef's begun before the last shut was cancelled with it (Run begins it again). */
+	private static int shuts;
+
+	/**
+	 * Every tick before anything returns early (Jobs.autopilot). Shut: AltoClef's runner goes down at once, its own chains
+	 * and the order's task with it, and Baritone's path with them. Open: the next tick brings it up again for the order.
+	 */
+	static void gate(boolean open) {
+		if (open == gateOpen) return;
+		gateOpen = open;
+		if (open) return;
+		shuts++;
+		if (!present() || !up) return;
+		tick();
+		if (net.minecraft.client.Minecraft.getInstance().player != null)
+			baritone.api.BaritoneAPI.getProvider().getPrimaryBaritone().getPathingBehavior().cancelEverything();
 	}
 
 	/** Once a tick, before the chain: AltoClef's task runner up for an order and down after it. */
@@ -1006,6 +1026,8 @@ final class Alto {
 		private long startedAt = -1;
 		/** Since when the step waits for AltoClef to come up; -1 while it does not. */
 		private long waitFrom = -1;
+		/** The gate's shuts when the task began: one since then cancelled it. */
+		private int shutsAtStart;
 		private static final long WAIT_UP = 120_000;
 
 		Run(String what, long limit, java.util.function.Supplier<Object> make) { this.what = what; this.limit = limit; this.make = make; }
@@ -1020,6 +1042,13 @@ final class Alto {
 
 		@Override
 		ObtainSteps.Result tick(net.minecraft.client.Minecraft mc, net.minecraft.client.player.LocalPlayer p, long now) {
+			// the gate shut since the task began (the mod off, another server, the panel's hands): it was cancelled then, and
+			// begins again now, not taken for done
+			if (startedAt >= 0 && shutsAtStart != shuts) {
+				startedAt = -1;
+				waitFrom = -1;
+				Exchange.emit("alto", "action", "task again", "task", what, "why", "the autopilot was held");
+			}
 			if (startedAt < 0) {
 				// AltoClef up first (instance()): till then the step stands, with one event to say it waits. Two game minutes
 				// without it is AltoClef off for the session, and the step fails with that
@@ -1032,6 +1061,7 @@ final class Alto {
 					return ObtainSteps.Result.WAIT;
 				}
 				startedAt = now;
+				shutsAtStart = shuts;
 				Bari.yieldTo();
 				HeldKeys.releaseAll();
 				Object t = make.get();

@@ -581,6 +581,8 @@ public class AfkHelperClient implements ClientModInitializer {
 		Yield.tick();
 
 		LocalPlayer p = mc.player;
+		// no world, the mod off: the autopilot's gate shut before the returns (Jobs.tick asks it otherwise)
+		if (p == null || mc.level == null || !AfkConfig.get().modEnabled) Jobs.autopilot(false);
 		if (p == null || mc.level == null) {
 			if (tick % 20 == 0) offlineCommands();
 			return;

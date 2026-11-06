@@ -65,6 +65,10 @@ While a task of the autopilot's runs, the buddy's own layer stands down: fight, 
 night's hole, out of the water, digging out, throwing junk away, the brink. Without the autopilot the buddy's own planner,
 steps and walker do it all.
 
+The autopilot acts only while the mod is on, on a server the mod may play on, and while the panel neither steers the
+buddy nor holds its inventory. Otherwise it stops at once, fights and meals included, and Baritone's walk with it; the
+order carries on when that is over.
+
 The buddy's own parts, all in `net.milenco.buddy.client`:
 
 - **Knowledge** (`VanillaData`, `Recipes`, `Drops`, `Nature`): the recipes (crafting, smelting, the stonecutter,
