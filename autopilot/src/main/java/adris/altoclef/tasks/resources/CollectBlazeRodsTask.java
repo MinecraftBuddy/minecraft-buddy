@@ -558,7 +558,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
         _brewSince = WorldHelper.getTicks();
         Debug.logInternal("brew: begun, rods " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
         // (the buddy's fork, Tuning brew_box: the brew walled in, BrewBoxTask; off, the open brew as before)
-        if (adris.altoclef.util.helpers.BrewBox.on(adris.altoclef.util.helpers.Tuning.get("brew_box", 0))) {
+        double boxTuning = adris.altoclef.util.helpers.Tuning.get("brew_box", 0);
+        // (brew_box 2: in the fight's standing pillbox, its look out walled: the box of its own went up in 2 runs of 30, and the
+        // open brew by the spawner died during the brew in half the brews begun. no standing bent box: the open brew)
+        if (adris.altoclef.util.helpers.BrewBox.inPillbox(boxTuning)) {
+            int[][] cells = _pillbox != null && _pillboxCornered ? _pillbox.brewCells() : null;
+            if (cells != null) {
+                _brewBox = new BrewBoxTask(_brew, _foundBlazeSpawner, () -> java.util.Set.of(), cells);
+                Debug.logInternal("brew: in the pillbox at " + _pillbox.cell().toShortString());
+                return _brewBox;
+            }
+            Debug.logInternal("brew: no standing bent pillbox, the open brew");
+        } else if (adris.altoclef.util.helpers.BrewBox.on(boxTuning)) {
             _brewBox = new BrewBoxTask(_brew, _foundBlazeSpawner, this::brewBoxKeepClear);
             return _brewBox;
         }

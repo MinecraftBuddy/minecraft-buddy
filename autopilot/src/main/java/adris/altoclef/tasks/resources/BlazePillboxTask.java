@@ -111,6 +111,14 @@ final class BlazePillboxTask extends Task {
         return new BlockPos(plan.lookout()[0], plan.lookout()[1], plan.lookout()[2]);
     }
 
+    // the bent box on the ground as a brew box's two cells, {B, F - B as x and z}: null for the one-cell or raised box
+    // (BrewBoxTask, brew_box 2)
+    int[][] brewCells() {
+        if (plan.front() == null || plan.raise() > 0) return null;
+        int[] b = plan.cell(), f = plan.front();
+        return new int[][]{b.clone(), {f[0] - b[0], f[2] - b[2]}};
+    }
+
     // the cell outside the look out's open side (BlazePillbox.door), null for the raised box
     BlockPos door() {
         int[] d = BlazePillbox.door(plan);

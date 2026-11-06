@@ -37,6 +37,11 @@ public final class BrewBox {
         return tuning >= 1;
     }
 
+    // brew_box 2: the box is the fight's standing pillbox with its look out walled (BrewBoxTask), never a box of its own
+    public static boolean inPillbox(double tuning) {
+        return tuning >= 2;
+    }
+
     // back B (the buddy's cell), front F = B + dir (the stand's), the blocks to place in BlazePillboxTask's order (low walls,
     // high walls, the roof), the shell (every cell that must be solid for the box to be shut: the floor under both, the six
     // wall columns two high, the roof over both) and the wall columns as {x, z, outward x, outward z}: B's three first, F's after

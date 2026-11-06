@@ -91,10 +91,29 @@ final class BrewBoxTask extends Task {
     private boolean holdsWas;
     private String holdsWhy = "";
 
+    // the fight's standing pillbox as the box (brew_box 2): its cell B and the step to its front cell F. the bent box is the brew
+    // box's two cells with the look out open, so its walls and roof stand and only the look out's column goes in. null: a box
+    // of its own planned near the buddy (brew_box 1)
+    private final int[] pillboxBack;
+    private final int[] pillboxDir;
+
     BrewBoxTask(BrewFireResistanceTask brew, BlockPos spawner, Supplier<Set<BlockPos>> keepClear) {
+        this(brew, spawner, keepClear, null);
+    }
+
+    BrewBoxTask(BrewFireResistanceTask brew, BlockPos spawner, Supplier<Set<BlockPos>> keepClear, int[][] pillbox) {
         this.brew = brew;
         this.spawner = spawner;
         this.keepClear = keepClear;
+        this.pillboxBack = pillbox == null ? null : pillbox[0];
+        this.pillboxDir = pillbox == null ? null : pillbox[1];
+    }
+
+    // the box planned at the pillbox's cells: no spawner rule (its cells were planned hidden from the spawn area, and the buddy
+    // and the stand fill them) and nothing to keep clear (they are the cells kept clear). null when they do not shut
+    private BrewBox.Box pillboxPlan(CliffAvoidance.Cells world, CliffAvoidance.Cells stand) {
+        if (pillboxBack == null) return null;
+        return BrewBox.planAt(world, stand, pillboxBack[0], pillboxBack[1], pillboxBack[2], pillboxDir, Double.NaN, Double.NaN, null);
     }
 
     // the box is going up: the fight fights only what bites meanwhile, and lets its blocks be placed (BlazeFight.building and
@@ -192,13 +211,19 @@ final class BrewBoxTask extends Task {
                 CliffAvoidance.Cells stand = cells(mod);
                 if (stand == null) return null;
                 BlockPos at = mod.getPlayer().blockPosition();
-                BrewBox.Box plan = BrewBox.plan(worldCells(level), stand, new int[]{at.getX(), at.getY(), at.getZ()}, eyes(level), sx(), sz(), avoid());
+                BrewBox.Box plan;
+                if (pillboxBack != null) {
+                    plan = pillboxPlan(worldCells(level), stand);
+                    if (plan == null) return fail("the pillbox does not shut");
+                } else {
+                    plan = BrewBox.plan(worldCells(level), stand, new int[]{at.getX(), at.getY(), at.getZ()}, eyes(level), sx(), sz(), avoid());
+                }
                 if (plan == null) return fail("no floor: no two cells to shut within " + BrewBox.WALK + " steps");
                 if (!enoughBlocks(mod, plan)) return fail("no blocks: " + plan.blocks().size() + " to place, " + BlazePillboxTask.blocksInBag(mod) + " in the bag");
                 buildStartedAt = now;
                 startTry(plan);
                 Debug.logInternal("brew box: planned, the buddy's cell " + pos(plan.back()).toShortString() + ", the stand's "
-                        + pos(plan.front()).toShortString() + ", " + plan.blocks().size() + " blocks"
+                        + pos(plan.front()).toShortString() + ", " + plan.blocks().size() + " blocks" + (pillboxBack != null ? ", in the pillbox" : "")
                         + (spawner == null ? "" : String.format(java.util.Locale.ROOT, ", %.1f from the spawner", Math.hypot(plan.back()[0] - spawner.getX(), plan.back()[2] - spawner.getZ()))));
                 return null;
             }
@@ -220,8 +245,9 @@ final class BrewBoxTask extends Task {
                     CliffAvoidance.Cells stand = cells(mod);
                     if (stand == null) return null;
                     CliffAvoidance.Cells world = worldCells(level);
-                    BrewBox.Box again = BrewBox.planAt(world, stand, box.back()[0], box.back()[1], box.back()[2], box.dir(), sx(), sz(), avoid());
-                    if (again == null) {
+                    BrewBox.Box again = pillboxBack != null ? pillboxPlan(world, stand)
+                            : BrewBox.planAt(world, stand, box.back()[0], box.back()[1], box.back()[2], box.dir(), sx(), sz(), avoid());
+                    if (again == null && pillboxBack == null) {
                         BlockPos at = mod.getPlayer().blockPosition();
                         again = BrewBox.plan(world, stand, new int[]{at.getX(), at.getY(), at.getZ()}, eyes(level), sx(), sz(), avoid());
                     }

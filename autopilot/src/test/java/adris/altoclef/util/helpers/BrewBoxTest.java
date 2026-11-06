@@ -55,6 +55,24 @@ public class BrewBoxTest {
         return sb.toString();
     }
 
+    // a bent pillbox standing on the floor: B (10, 64, 0), F east of it, the look out south of F and open, the other walls two
+    // high and the roof over B and F, as BlazePillbox.planBentAt leaves it
+    static final Cells PILLBOX = (x, y, z) -> {
+        int[][] walls = {{9, 0}, {10, 1}, {10, -1}, {12, 0}, {11, -1}};
+        for (int[] w : walls) if (x == w[0] && z == w[1] && (y == 64 || y == 65)) return Cell.SOLID;
+        if (y == 66 && z == 0 && (x == 9 || x == 10 || x == 11)) return Cell.SOLID;
+        return FLOOR.at(x, y, z);
+    };
+
+    @Test
+    public void aStandingPillboxShutsWithItsLookOutAlone() {
+        BrewBox.Box box = BrewBox.planAt(PILLBOX, 10, 64, 0, new int[]{1, 0}, Double.NaN, Double.NaN, null);
+        assertNotNull(box);
+        assertEquals(describe(box), 2, box.blocks().size());
+        assertTrue(describe(box), same(box.blocks().get(0), 11, 64, 1) && same(box.blocks().get(1), 11, 65, 1));
+        assertShut(BlazePillbox.after(PILLBOX, box.blocks()), box);
+    }
+
     @Test
     public void anOpenFloorGetsTheWholeBox() {
         BrewBox.Box box = BrewBox.plan(FLOOR, new int[]{10, 64, 0}, List.of(), Double.NaN, Double.NaN, NONE);
