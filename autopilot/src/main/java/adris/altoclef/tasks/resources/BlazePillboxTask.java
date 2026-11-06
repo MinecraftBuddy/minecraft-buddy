@@ -116,7 +116,8 @@ final class BlazePillboxTask extends Task {
     int[][] brewCells() {
         if (plan.front() == null || plan.raise() > 0) return null;
         int[] b = plan.cell(), f = plan.front();
-        return new int[][]{b.clone(), {f[0] - b[0], f[2] - b[2]}};
+        int[] door = BlazePillbox.door(plan);
+        return new int[][]{b.clone(), {f[0] - b[0], f[2] - b[2]}, door};
     }
 
     // the cell outside the look out's open side (BlazePillbox.door), null for the raised box

@@ -427,6 +427,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
         return _searcher;
     }
 
+    // brew_box 2: a failed box waits this long before the next (ticks), and the open brew's line once a brew
+    static final int BREW_WAIT_TICKS = 1200;
+    private int _brewWaitUntil = Integer.MIN_VALUE;
+    private boolean _openLogged;
+
     private boolean _sweepTracking;
     private boolean _sweepFailLogged;
 
@@ -518,6 +523,13 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // (a brew box still to do keeps the brew's turn after the potions are in: the drink and the door. one that failed
             // leaves the open brew below, as before)
             boolean boxed = _brewBox != null && _brewBox.active();
+            if (!boxed && _brewBox != null && _brewBox.waitOnFail && _brewBox.failed() && !BrewFireResistanceTask.pending()) {
+                Debug.logInternal("brew: the box failed, the brew waits a minute in cover (no station outside a shut box at a fortress)");
+                _brewSince = -1;
+                _brewBox = null;
+                _brewWaitUntil = WorldHelper.getTicks() + BREW_WAIT_TICKS;
+                return null;
+            }
             if (_brew.isFinished(mod) && !boxed) {
                 _brewSince = -1;
             } else if (WorldHelper.getTicks() - _brewSince > BREW_BUDGET_TICKS) {
@@ -534,6 +546,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 setDebugState("Brewing fire resistance walled in");
                 return _brewBox;
             } else {
+                // (said once a brew: a station used outside a shut box, steering 69's kind for bin/odd.py)
+                if (!_openLogged) {
+                    _openLogged = true;
+                    Debug.logInternal("brew: in the open at " + mod.getPlayer().blockPosition().toShortString());
+                }
                 setDebugState(BrewFireResistanceTask.pending() ? "Back to the brewing stand" : "Brewing fire resistance");
                 return _brew;
             }
@@ -579,8 +596,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (mod.getItemStorage().getItemCount(Items.BLAZE_ROD) < rodsWanted) {
             return null;
         }
+        if (WorldHelper.getTicks() < _brewWaitUntil) return null;
         setDebugState("Brewing fire resistance");
         _brewSince = WorldHelper.getTicks();
+        _openLogged = false;
         Debug.logInternal("brew: begun, rods " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
         // (the buddy's fork, Tuning brew_box: the brew walled in, BrewBoxTask; off, the open brew as before)
         double boxTuning = adris.altoclef.util.helpers.Tuning.get("brew_box", 0);
@@ -591,9 +610,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
             if (cells != null) {
                 _brewBox = new BrewBoxTask(_brew, _foundBlazeSpawner, () -> java.util.Set.of(), cells);
                 Debug.logInternal("brew: in the pillbox at " + _pillbox.cell().toShortString());
-                return _brewBox;
+            } else {
+                // (steering 69: never the open brew at a fortress. with no standing bent box (a corner, a one-cell box) a box of
+                // its own near the buddy, the stand made inside it; the open brew at a one-cell box's camp killed Zuri)
+                _brewBox = new BrewBoxTask(_brew, _foundBlazeSpawner, this::brewBoxKeepClear);
+                Debug.logInternal("brew: no standing bent pillbox, a box of its own");
             }
-            Debug.logInternal("brew: no standing bent pillbox, the open brew");
+            _brewBox.waitOnFail = true;
+            return _brewBox;
         } else if (adris.altoclef.util.helpers.BrewBox.on(boxTuning)) {
             _brewBox = new BrewBoxTask(_brew, _foundBlazeSpawner, this::brewBoxKeepClear);
             return _brewBox;

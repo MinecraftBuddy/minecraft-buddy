@@ -101,6 +101,13 @@ final class BrewBoxTask extends Task {
     // of its own planned near the buddy (brew_box 1)
     private final int[] pillboxBack;
     private final int[] pillboxDir;
+    // its door (the cell outside the look out) and look out, for the way back in: a fight's run during the build took the buddy
+    // out, and the build walked at the cell from the walled side and gave up (piece2craft-1, Steve and Makena, steering 69)
+    private final BlockPos pillboxDoor;
+    private final BlockPos pillboxLookout;
+    private Task doorWalk;
+    // brew_box 2: a failed box is no open brew, the rods task waits and tries again (steering 69)
+    boolean waitOnFail;
 
     BrewBoxTask(BrewFireResistanceTask brew, BlockPos spawner, Supplier<Set<BlockPos>> keepClear) {
         this(brew, spawner, keepClear, null);
@@ -112,6 +119,14 @@ final class BrewBoxTask extends Task {
         this.keepClear = keepClear;
         this.pillboxBack = pillbox == null ? null : pillbox[0];
         this.pillboxDir = pillbox == null ? null : pillbox[1];
+        this.pillboxDoor = pillbox == null || pillbox.length < 3 || pillbox[2] == null ? null : new BlockPos(pillbox[2][0], pillbox[2][1], pillbox[2][2]);
+        // (the look out between F and the door: the door is F + 2p, so O is their middle)
+        if (pillboxDoor != null) {
+            int fx = pillbox[0][0] + pillbox[1][0], fz = pillbox[0][2] + pillbox[1][1];
+            this.pillboxLookout = new BlockPos((fx + pillboxDoor.getX()) / 2, pillbox[0][1], (fz + pillboxDoor.getZ()) / 2);
+        } else {
+            this.pillboxLookout = null;
+        }
     }
 
     // the box planned at the pillbox's cells: no spawner rule (its cells were planned hidden from the spawn area, and the buddy
@@ -160,13 +175,16 @@ final class BrewBoxTask extends Task {
 
     // the fight sits out this tick (BrewBox.holds), asked once per tick
     boolean holds(AltoClef mod) {
-        if (!shutIn() || box == null || mod.getPlayer() == null || mod.getWorld() == null) return false;
+        // (in the pillbox, brew_box 2, its look out going up: the buddy in B or F is out of the spawn area's sight already, and
+        // a fight's run from there took the buddy out of the box mid build and the way back in failed, steering 69)
+        boolean buildingIn = stage == Stage.BUILD && pillboxBack != null;
+        if ((!shutIn() && !buildingIn) || box == null || mod.getPlayer() == null || mod.getWorld() == null) return false;
         long now = mod.getWorld().getGameTime();
         if (now == holdsAt) return holdsWas;
         holdsAt = now;
         var me = mod.getPlayer();
         Level level = mod.getWorld();
-        boolean whole = whole(level);
+        boolean whole = buildingIn || whole(level);
         boolean inside = inside(me.position());
         boolean hostile;
         try {
@@ -208,12 +226,8 @@ final class BrewBoxTask extends Task {
         Level level = mod.getWorld();
         switch (stage) {
             case PREP -> {
-                // (the stand from the bag: made inside, its table would want F. in the pillbox, brew_box 2, it is made inside
-                // the shut box instead: CRAFT)
-                if (pillboxBack == null && !mod.getItemStorage().hasItem(Items.BREWING_STAND)) {
-                    setDebugState("Making the brewing stand before the box");
-                    return TaskCatalogue.getItemTask("brewing_stand", 1);
-                }
+                // (no stand made out here: the box first, the stand at a table inside it, CRAFT. made before the box, its
+                // table went down in the open where the station placer liked, steering 62 and 69)
                 CliffAvoidance.Cells stand = cells(mod);
                 if (stand == null) return null;
                 BlockPos at = mod.getPlayer().blockPosition();
@@ -263,6 +277,13 @@ final class BrewBoxTask extends Task {
                     startTry(again);
                     return null;
                 }
+                // (in the pillbox: from outside it round to its open side first, never at the cell through its walls)
+                BlockPos me = mod.getPlayer().blockPosition();
+                if (pillboxDoor != null && !inPillbox(me) && !(me.getX() == pillboxDoor.getX() && me.getZ() == pillboxDoor.getZ())) {
+                    if (doorWalk == null || doorWalk.isFinished(mod)) doorWalk = new GetToBlockTask(pillboxDoor, false);
+                    setDebugState("Round to the pillbox's open side for the brew box");
+                    return doorWalk;
+                }
                 setDebugState("Building the brew box, try " + tries + " of " + TRIES);
                 return builder;
             }
@@ -274,7 +295,8 @@ final class BrewBoxTask extends Task {
                     return null;
                 }
                 // (brew_box 2 with no stand yet: made in here, CRAFT)
-                stage = pillboxBack != null && !mod.getItemStorage().hasItem(Items.BREWING_STAND) ? Stage.CRAFT : Stage.STAND;
+                // (steering 69: the stand made in here for every box, never at a table outside it)
+                stage = !mod.getItemStorage().hasItem(Items.BREWING_STAND) ? Stage.CRAFT : Stage.STAND;
                 standTicks = 0;
                 placeStand = null;
                 craftTicks = 0;
@@ -451,7 +473,7 @@ final class BrewBoxTask extends Task {
         failed = true;
         stage = Stage.DONE;
         BrewFireResistanceTask.pinBoxStand(null);
-        Debug.logInternal("brew box: failed (" + why + "), the open brew");
+        Debug.logInternal("brew box: failed (" + why + ")" + (pillboxBack != null || waitOnFail ? ", the brew waits" : ", the open brew"));
         return null;
     }
 
@@ -550,6 +572,17 @@ final class BrewBoxTask extends Task {
     }
 
     // the feet in one of the two cells
+    // over B, F or the look out of the pillbox this box is made of, from under the floor to the roof
+    private boolean inPillbox(BlockPos at) {
+        if (pillboxBack == null) return false;
+        BlockPos b = new BlockPos(pillboxBack[0], pillboxBack[1], pillboxBack[2]);
+        BlockPos f = b.offset(pillboxDir[0], 0, pillboxDir[1]);
+        for (BlockPos c : new BlockPos[]{b, f, pillboxLookout}) {
+            if (c != null && c.getX() == at.getX() && c.getZ() == at.getZ() && at.getY() >= c.getY() - 1 && at.getY() <= c.getY() + 2) return true;
+        }
+        return false;
+    }
+
     private boolean inside(Vec3 at) {
         if (box == null) return false;
         AABB r = room();
