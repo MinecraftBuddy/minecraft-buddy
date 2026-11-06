@@ -2221,15 +2221,6 @@ final class ObtainSteps {
 			java.util.function.IntUnaryOperator slot = inv ? i -> i < 9 ? 36 + i : i : i -> (n - 36) + (i < 9 ? 27 + i : i - 9);
 			int times = Math.max(1, (want - count(p, result) + r.count() - 1) / r.count());
 			times = Math.min(times, 64);
-			// which item fills each ingredient: the one it has most of
-			Map<Recipes.Ing, String> choice = new HashMap<>();
-			Map<Recipes.Ing, Integer> per = r.perCraft();
-			for (Map.Entry<Recipes.Ing, Integer> e : per.entrySet()) {
-				String bestItem = null; int bestN = -1;
-				for (String it : e.getKey().items()) { int c = count(p, it); if (c > bestN) { bestN = c; bestItem = it; } }
-				choice.put(e.getKey(), bestItem);
-				times = Math.min(times, Math.max(1, bestN / e.getValue()));
-			}
 			List<int[]> cells = new ArrayList<>();   // {grid slot, ingredient index}
 			List<Recipes.Ing> ings = new ArrayList<>();
 			if (r.shaped()) {
@@ -2242,20 +2233,36 @@ final class ObtainSteps {
 			} else {
 				for (int k = 0; k < r.parts().size(); k++) { ings.add(r.parts().get(k)); cells.add(new int[] { gridStart + k, k }); }
 			}
-			final int t = times;
+			// the bag, slot by slot, and which item fills each cell: any that matches its ingredient, as the planner counts
+			// a tag's kinds together (a furnace of five cobblestone and five cobbled deepslate, a table of oak and birch)
+			var in = p.getInventory();
+			int[] rem = new int[36];
+			String[] ids = new String[36];
+			Map<String, Integer> have = new HashMap<>();
+			for (int i = 0; i < 36; i++) {
+				ItemStack st = in.getItem(i);
+				if (st.isEmpty()) continue;
+				ids[i] = AfkHelperClient.itemId(st);
+				rem[i] = st.getCount();
+				have.merge(ids[i], rem[i], Integer::sum);
+			}
+			List<Recipes.Ing> cellIngs = new ArrayList<>();
+			for (int[] cell : cells) cellIngs.add(ings.get(cell[1]));
+			String[] kinds = new String[cells.size()];
+			final int t = cellKinds(cellIngs, have, times, kinds);
 			int menuId = m.containerId;
-			for (int[] cell : cells) {
-				String it = choice.get(ings.get(cell[1]));
-				// pick a stack up, one into the cell per craft with the right button, the rest back where it was
+			for (int c = 0; c < cells.size() && t > 0; c++) {
+				int[] cell = cells.get(c);
+				// pick a stack up, one into the cell per craft with the right button, the rest back where it was; stack by
+				// stack, with what the cells before took off each
 				int left = t;
-				var in = p.getInventory();
 				for (int i = 0; i < 36 && left > 0; i++) {
-					ItemStack st = in.getItem(i);
-					if (st.isEmpty() || !AfkHelperClient.itemId(st).equals(it)) continue;
-					int from = slot.applyAsInt(i), k = Math.min(left, st.getCount());
+					if (rem[i] <= 0 || !ids[i].equals(kinds[c])) continue;
+					int from = slot.applyAsInt(i), k = Math.min(left, rem[i]);
 					queue.add(() -> Game.click(mc.gameMode, menuId, from, 0, false, p));
 					for (int j = 0; j < k; j++) queue.add(() -> Game.click(mc.gameMode, menuId, cell[0], 1, false, p));
 					queue.add(() -> Game.click(mc.gameMode, menuId, from, 0, false, p));
+					rem[i] -= k;
 					left -= k;
 				}
 			}
@@ -2263,6 +2270,32 @@ final class ObtainSteps {
 			int last = gridStart + g * g;
 			queue.add(() -> { for (int s = gridStart; s < last; s++) if (!m.slots.get(s).getItem().isEmpty()) Game.quickMove(mc.gameMode, menuId, s, p); });
 			Exchange.emit("obtain", "action", "craft", "recipe", r.id(), "times", t, "at", inv ? "grid" : "table");
+		}
+
+		/**
+		 * Which item goes into each cell ({@code cells}: the ingredient of each), for as many crafts as the bag ({@code have})
+		 * allows up to {@code most}: a cell holds one kind, any that matches its ingredient, so mixed kinds of a tag fill the
+		 * grid together. The kinds are written into {@code kinds}; returns the crafts, 0 when not even one comes off.
+		 */
+		static int cellKinds(List<Recipes.Ing> cells, Map<String, Integer> have, int most, String[] kinds) {
+			// the cells with the fewest kinds to choose from first, so that a cell with a choice leaves the others theirs
+			Integer[] order = new Integer[cells.size()];
+			for (int c = 0; c < order.length; c++) order[c] = c;
+			java.util.Arrays.sort(order, java.util.Comparator.comparingInt(c -> (int) cells.get(c).items().stream().filter(it -> have.getOrDefault(it, 0) > 0).count()));
+			for (int t = most; t >= 1; t--) {
+				Map<String, Integer> left = new HashMap<>(have);
+				boolean all = true;
+				for (int c : order) {
+					String best = null;
+					int bestN = 0;
+					for (String it : cells.get(c).items()) { int n = left.getOrDefault(it, 0); if (n >= t && n > bestN) { best = it; bestN = n; } }
+					if (best == null) { all = false; break; }
+					kinds[c] = best;
+					left.put(best, bestN - t);
+				}
+				if (all) return t;
+			}
+			return 0;
 		}
 	}
 
