@@ -7,6 +7,8 @@ import baritone.api.utils.Helper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 
+import java.util.function.Consumer;
+
 // everything altoclef prints to chat goes through soprano's own logger now, so it gets the same [Soprano] prefix, the
 // logAsToast/useMessageTag settings and the same chat hooks as every other message. the verbosity switch
 // (altoHideAllWarningLogs) is a normal soprano setting now
@@ -19,10 +21,31 @@ public class Debug {
     // cap on the whole stream, the log file keeps the stack trace for whatever got through
     private static final ChatThrottle CHAT_THROTTLE = new ChatThrottle(10_000, 6);
 
+    // one listener for every line logged here (the mod's run recorder takes them as the timeline of what the bot was
+    // thinking), as given and without a prefix, on whatever thread logged. null when nothing listens, the default
+    private static volatile Consumer<String> listener;
+
+    public static void listen(Consumer<String> to) {
+        listener = to;
+    }
+
+    private static void tell(String message) {
+        Consumer<String> to = listener;
+        if (to == null || message == null) {
+            return;
+        }
+        try {
+            to.accept(message);
+        } catch (RuntimeException ignored) {
+            // a listener has no business taking the tick or a path thread down
+        }
+    }
+
     public static void logInternal(String message) {
         String line = "ALTO CLEF: " + message;
         System.out.println(line);
         Trace.record(line);
+        tell(message);
     }
 
     public static void logInternal(String format, Object... args) {
@@ -37,6 +60,7 @@ public class Debug {
     public static void logMessage(String message) {
         if (canChat()) {
             Trace.record("chat: " + message);
+            tell(message);
             Helper.HELPER.logDirect(message);
         } else {
             logInternal(message);
@@ -49,6 +73,7 @@ public class Debug {
 
     // chat only with chatDebug on, the trace keeps it either way. for the play by play nobody asked to read
     public static void logDebug(String message) {
+        // the listener hears it through baritone's tap (Monitors), as "baritone: ..." like baritone's own
         Trace.record("debug: " + message);
         Helper.HELPER.logDebug(message);
     }
@@ -73,6 +98,7 @@ public class Debug {
         if (line == null) return;
         String stacktrace = getStack(2);
         Trace.record("ERROR: " + message);
+        tell("ERROR: " + message);
         // the trace goes to the log file only (stderr lands there), chat gets the one line
         System.err.println(message);
         System.err.println("at:");

@@ -66,6 +66,8 @@ public class Exchange {
 		try {
 			Files.writeString(events(), GSON.toJson(o) + "\n", StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
 		} catch (IOException ignored) { }
+		// the lines a recorded run's timeline wants
+		RunRecorder.event(type, o);
 	}
 
 	public static void emit(String type, Object... kv) {
