@@ -366,6 +366,10 @@ final class BlazeFight {
         return fireWay.step(mod, to);
     }
 
+    // after the corner's leash let a blaze go: only one within BITE_RANGE is taken this long (ticks)
+    static final long LEASH_HOLD_TICKS = 40;
+    private long leashHoldUntil = Long.MIN_VALUE;
+
     // one line a second at most for a blaze let go, and why (the fight flipped between kill and camp each tick in corner17 run 1,
     // and nothing said which rule did it)
     private long letGoLoggedAt = Long.MIN_VALUE / 2;
@@ -488,6 +492,10 @@ final class BlazeFight {
             noteLetGo(String.format(java.util.Locale.ROOT, "we are %.1f from the corner", player.position().distanceTo(Vec3.atBottomCenterOf(held))), player);
             target = null;
             next = Mode.CAMP;
+            // (the buddy's fork: and no new one past the bite's reach for a while, so the camp walks back inside the leash.
+            // taken again the next tick, the same blaze was let go 126 to 555 times in three minutes, the buddy standing
+            // outside the leash all the while, rod-1 run 8 and piece2hold-3 run 10, the live watch's hits of 6 Nov 2026)
+            leashHoldUntil = now + LEASH_HOLD_TICKS;
         }
         running = next == Mode.RUN;
         mode = next;
@@ -925,8 +933,10 @@ final class BlazeFight {
         outOfReachSince = Long.MIN_VALUE;
         Blaze nearest = null;
         double best = Double.POSITIVE_INFINITY;
+        boolean leashHeld = now < leashHoldUntil && now >= leashHoldUntil - LEASH_HOLD_TICKS;
         for (Blaze blaze : candidates) {
             double d = player.distanceToSqr(blaze);
+            if (leashHeld && d > BITE_RANGE * BITE_RANGE) continue;
             if (d < best) {
                 best = d;
                 nearest = blaze;
