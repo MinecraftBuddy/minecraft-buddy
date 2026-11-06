@@ -61,9 +61,30 @@ final class Alto {
 
 	/** AltoClef keeps the buddy alive for the order under way, while the gate (Jobs.autopilot) is open. */
 	static boolean on() {
-		boolean on = present() && AfkConfig.get().obtainAltoSurvival && Obtain.on() && gateOpen;
+		boolean on = present() && AfkConfig.get().obtainAltoSurvival && Obtain.on() && gateOpen && !gone();
 		ObtainKit.sopranoBrews = on;
 		return on;
+	}
+
+	/** AltoClef's instance was there this session; and whether it is gone for the session. */
+	private static boolean seenUp, gone;
+
+	/**
+	 * AltoClef off for the session: its instance was up and is not any more (its bridge gives up after repeated errors and
+	 * discards it), or it never came up for a task (Run). Then the buddy's own defences and planner take over again: with
+	 * on() still true they stood down for good, and every Run waited for an AltoClef that never came.
+	 */
+	private static boolean gone() {
+		if (gone) return true;
+		if (instance() != null) { seenUp = true; return false; }
+		if (seenUp && adris.altoclef.AltoClef.getInstance() == null) giveUp("AltoClef was switched off for the session");
+		return gone;
+	}
+
+	private static void giveUp(String why) {
+		if (gone) return;
+		gone = true;
+		Exchange.emit("alto", "action", "gone", "why", why);
 	}
 
 	/** The gate of Jobs.autopilot: the mod on, a server it may play on, the panel's hands off. */
@@ -1056,7 +1077,7 @@ final class Alto {
 				if (mod == null) {
 					if (waitFrom < 0) Exchange.emit("alto", "action", "waits", "task", what, "why", "AltoClef is not up yet");
 					if (waitFrom < 0 || now < waitFrom) waitFrom = now;
-					if (now - waitFrom > WAIT_UP) return fail("AltoClef did not come up in two minutes");
+					if (now - waitFrom > WAIT_UP) { giveUp("AltoClef did not come up in two minutes"); return fail("AltoClef did not come up in two minutes"); }
 					Follow.stand();
 					return ObtainSteps.Result.WAIT;
 				}
