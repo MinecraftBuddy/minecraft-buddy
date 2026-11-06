@@ -194,12 +194,27 @@ if someone watched, and every minute of play becomes one file in `recordings/` w
 - a copy of the world around the buddy (at the start, after a change of dimension or a teleport, and every ten
   minutes) and every change of its blocks since;
 - where the buddy, the players and the mobs are, ten times a second;
-- a timeline: what the buddy is doing, the order's steps and plan, damage and deaths, and what the autopilot
-  considered ("No path found", "let the blaze go"), a line that repeats counted rather than written again.
+- a timeline: what the buddy is doing, the order's steps and plan, damage and deaths, the inventory and health when
+  they change (and again at the start of every file), and what the autopilot considered ("No path found", "let the
+  blaze go"), a line that repeats counted rather than written again.
 
-`recordings/index.jsonl` lists the finished files. The buddy never deletes a recording. `tools/recording.py` lists the
-files, shows what is in them and rebuilds the positions at a given moment. The format is described at the top of
-`RunRecorder.java`.
+A file is written out every second, so a run can be followed while it is recorded. When the folder cannot be written,
+the buddy tries again every ten seconds. `recordings/index.jsonl` lists the finished files. The buddy never deletes a
+recording. `tools/recording.py` lists the files, shows what is in them and rebuilds the positions at a given moment.
+The format is described at the top of `RunRecorder.java`.
+
+To play a recording back, a page starts the 3D view (`panel/3d/world3d.js`) with a source instead of the panel:
+`start3d({ canvas, ids, source })`. The source tells the moment to draw (`now()`, in game ticks × 50 ms) and how fast
+it plays (`speed()`, 0 while paused), and drives the view in `run(view)`:
+
+- `view.load(copy, changes, { seek })` builds the world from a copy (a C record) and the changes after it up to the
+  moment (L records), merged before anything is built, so a seek builds once;
+- `view.change(bytes)` adds the next change, and returns false when it does not follow (load again from the copy);
+- `view.frame(json)` shows a positions frame (a K record, or a K with its D records applied).
+
+The parsers take the records' bytes as they are once ungzipped (`parseWorld`, `parseChanges`). With a source, the view
+asks the panel for no world, changes or positions; it still reads `api/state`, `api/models`, `api/skin` and
+`api/containers` beside its page. Without a source, nothing changes.
 
 ## Who may open it
 

@@ -38,8 +38,9 @@ import net.minecraft.client.multiplayer.ClientLevel;
  * file and a positions frame every second tick (ten a second) to this class, on its writer thread.
  * <p>
  * <b>Segments</b>: {@code recordings/seg-<epoch ms of its start>.bin}, one gzip stream each, closed and the next one
- * begun at the first frame after 60 s (the last one of a game that stopped short may lack its gzip end: read what is
- * there; it is flushed every five seconds). A segment is records, one after the other, big-endian:
+ * begun at the first frame after 60 s. It is flushed every second, so that a player can follow a run while it is
+ * recorded; the last one of a game that stopped short may lack its gzip end: read what is there. A segment is records,
+ * one after the other, big-endian:
  * {@code u8 kind, i64 ms, i32 tk, u32 length, length bytes of payload}: {@code ms} the wall clock and {@code tk} the
  * game's tick count ({@code tk} in {@code world3d-ent.json}) when the record was made. The kinds, ASCII:
  * <ul>
@@ -54,7 +55,11 @@ import net.minecraft.client.multiplayer.ClientLevel;
  * <li>{@code D} a delta frame: UTF-8 JSON, what changed since the frame before it, K or D, in the same segment
  * ({@link FrameDelta} says how). K and then the Ds in order give every frame exactly.</li>
  * <li>{@code T} a line of the timeline: UTF-8 JSON {@code {t, type, ...}}, {@code t} when it happened: the lines of
- * events.jsonl of the types in {@link #EVENTS} as they are written there; {@code {"type":"plan", "tasks", "by",
+ * events.jsonl of the types in {@link #EVENTS} as they are written there; those of {@link #STATES} ({@code inventory}:
+ * {@code free_hotbar}, {@code free_backpack} and {@code things}, the slots as "0:iron_sword(246) 2:cobblestonex31
+ * armor0:iron_boots(190)"; {@code status}: hp, food, the hand and more) when they differ from the last one of their type
+ * (their {@code t} aside), and the last of each again right after every segment's first K (with its own, older
+ * {@code t}), so that a segment read alone knows them; {@code {"type":"plan", "tasks", "by",
  * "by_tasks"}}, the order's plan as the panel shows it (rows of {@code t} task and {@code s} state), when it changes
  * (only its numbers: at most every 10 s; without {@code tasks}, no plan); and {@code {"type":"think", "text", "n"}},
  * the autopilot's log lines ({@link ThinkLines}: n 1 for a new line, a count with {@code first} for its repeats).</li>
@@ -75,6 +80,10 @@ import net.minecraft.client.multiplayer.ClientLevel;
  * bytes} the file's size. To show a moment: that C, every L after it up to the moment (through the segments in
  * between), the segment's last K before the moment and the Ds after it. {@code tools/recording.py} reads it all.
  * <p>
+ * A segment that cannot be opened or written (a full disk, a folder that is not writable) ends where it is, with
+ * {@code "broken": true} in its index line when that can still be written, and its chain with it; at a frame at least
+ * {@link #RETRY_MS} later a new segment is tried, and once it opens, a new copy begins it.
+ * <p>
  * Nothing is written on the game's thread. When the writer falls behind (more than {@link #MAX_BACKLOG} jobs), frames
  * are dropped (never a C, an L or a T); the next one written is a D against the last one written. Once a minute the game
  * log gets {@code record: <KB> KB, <frames> frames, <µs> µs a tick spent building frames, <n> dropped}.
@@ -82,7 +91,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 public final class RunRecorder {
 	private RunRecorder() {}
 
-	static final long SEGMENT_MS = 60_000, KEY_MS = 10_000, COPY_MS = 600_000, CHECK_MS = 5_000, FLUSH_MS = 5_000;
+	static final long SEGMENT_MS = 60_000, KEY_MS = 10_000, COPY_MS = 600_000, CHECK_MS = 5_000, FLUSH_MS = 1_000, RETRY_MS = 10_000;
 	/** Change files (gzipped) since the copy past which the next round makes a new copy: about one copy's size. */
 	static final long CHAIN_BYTES = 8L << 20;
 	/** Farther than this between two frames is a teleport: a new copy. */
@@ -90,6 +99,9 @@ public final class RunRecorder {
 	static final int MAX_BACKLOG = 200;
 	/** The events that go on the timeline as they are. */
 	static final Set<String> EVENTS = Set.of("doing", "alto", "obtain", "damage", "death_cause");
+	/** The events that say how things stand (the inventory, the vitals): on the timeline when they differ from the last
+	 *  one of their type, and again after every segment's first K. */
+	static final Set<String> STATES = Set.of("inventory", "status");
 	private static final org.slf4j.Logger LOG = LogUtils.getLogger();
 	private static final Gson GSON = new Gson();
 	/** The index says null where it knows nothing (no frame, no copy). */
@@ -156,6 +168,11 @@ public final class RunRecorder {
 		on = true;
 		listen(true);
 		job(() -> { if (segs == null) segs = new Segments(dir()); segs.begin(); });
+		// the inventory and vitals as they stand, which the game only tells again when they change
+		synchronized (lastState) {
+			toldState.clear();
+			for (var e : List.copyOf(lastState.entrySet())) state(e.getKey(), e.getValue(), true);
+		}
 		if (!hooked) {
 			hooked = true;
 			// a game that quits ends its segment: whole and in the index
@@ -200,7 +217,9 @@ public final class RunRecorder {
 		boolean jump = placed && (x - lastX) * (x - lastX) + (y - lastY) * (y - lastY) + (z - lastZ) * (z - lastZ) > JUMP * JUMP;
 		lastX = x; lastY = y; lastZ = z;
 		placed = true;
-		return starting || jump || level != copyLevel || now - copyAt >= COPY_MS || chainFull && now - copyAt > 5_000;
+		Segments sg = segs;
+		boolean retry = sg != null && sg.wantsCopy && now - copyAt >= RETRY_MS;
+		return starting || jump || level != copyLevel || now - copyAt >= COPY_MS || chainFull && now - copyAt > 5_000 || retry;
 	}
 
 	/** World3d made a copy (the game's thread): the reasons for one start again. */
@@ -237,8 +256,28 @@ public final class RunRecorder {
 
 	/** A line of events.jsonl, as Exchange writes it (any thread). */
 	static void event(String type, JsonObject o) {
+		if (STATES.contains(type)) { state(type, o, false); return; }
 		if (!on || !EVENTS.contains(type)) return;
 		line(GSON.toJson(o));
+	}
+
+	/** The last line of each of {@link #STATES}, also while off (a recording begins with them), and the last one told
+	 *  of each without its time. */
+	private static final Map<String, JsonObject> lastState = new java.util.HashMap<>();
+	private static final Map<String, String> toldState = new java.util.HashMap<>();
+
+	/** A line of one of {@link #STATES}: on the timeline when it differs from the last one told, or always at the start. */
+	private static void state(String type, JsonObject o, boolean always) {
+		synchronized (lastState) {
+			lastState.put(type, o);
+			if (!on) return;
+			JsonObject k = o.deepCopy();
+			k.remove("t");
+			String key = GSON.toJson(k);
+			if (!always && key.equals(toldState.get(type))) return;
+			toldState.put(type, key);
+		}
+		line(GSON.toJson(o), type);
 	}
 
 	/** A line of the autopilot's log (any thread). */
@@ -275,10 +314,12 @@ public final class RunRecorder {
 		line(GSON.toJson(o));
 	}
 
-	private static void line(String json) {
+	private static void line(String json) { line(json, null); }
+
+	private static void line(String json, String state) {
 		byte[] b = json.getBytes(StandardCharsets.UTF_8);
 		long ms = System.currentTimeMillis(), tk = ticks;
-		job(() -> { if (segs != null) segs.line(ms, tk, b); });
+		job(() -> { if (segs != null) segs.line(ms, tk, b, state); });
 	}
 
 	/** The writer's: when the last failure was told, and how many since. */
@@ -321,33 +362,43 @@ public final class RunRecorder {
 		private Counting file;
 		private String name, dim, copyFile, startFile;
 		private long opened, offset, lastName, lastFlush, keyAt, chain, seen;
-		private long copyOffset = -1, startOffset = -1;
+		private long copyOffset = -1, startOffset = -1, failedAt = Long.MIN_VALUE / 2;
 		private long fromMs, toMs, fromTk, toTk;
 		private JsonObject prev;
 		private boolean keyNext = true, ended;
 		/** Timeline lines made while no frame could go before them: written after the next K. */
 		private final List<Object[]> held = new ArrayList<>();
+		/** The last line written of each of {@link #STATES}, repeated after every segment's first K. */
+		private final Map<String, Object[]> states = new LinkedHashMap<>();
 		final AtomicLong bytes = new AtomicLong();
 		final AtomicInteger frames = new AtomicInteger();
+		/** A segment is open again after a failure, but the chain is gone: the next frame on the game's thread makes a copy. */
+		volatile boolean wantsCopy;
 
 		Segments(Path dir) { this.dir = dir; }
 
 		/** A recording begins (again). */
 		void begin() {
 			ended = false;
+			states.clear();
 			bytes.set(0);
 			frames.set(0);
 		}
 
 		/** A copy: a new chain. A segment past its minute ends first, so that the next one begins with this. */
 		void copy(long ms, long tk, World3d.Body body) throws IOException {
-			if (out == null || ms - opened >= SEGMENT_MS) { close(); open(ms); }
+			if (out != null && ms - opened >= SEGMENT_MS) close();
+			// the chain before ends here, whatever becomes of this copy
+			copyFile = null;
+			copyOffset = -1;
+			if (out == null) open(ms);
 			long at = offset;
 			record('C', ms, tk, body);
 			copyFile = name;
 			copyOffset = at;
 			chain = 0;
 			keyNext = true;
+			wantsCopy = false;
 		}
 
 		/** A change of the chain; whether the chain's changes now pass {@link #CHAIN_BYTES}. Without its copy, nothing. */
@@ -358,33 +409,52 @@ public final class RunRecorder {
 			return chain > CHAIN_BYTES;
 		}
 
-		/** A frame: a K at a segment's start, after a copy and every {@link #KEY_MS}, else a D. Nothing before a copy. */
+		/**
+		 * A frame: a K at a segment's start, after a copy and every {@link #KEY_MS}, else a D. Nothing before a copy. With no
+		 * segment open (one failed), a new one is tried at most every {@link #RETRY_MS}, and a copy asked for.
+		 */
 		void frame(long ms, long tk, JsonObject cur) throws IOException {
-			if (copyFile == null) return;
-			if (out == null || ms - opened >= SEGMENT_MS) { close(); open(ms); }
+			if (out != null && ms - opened >= SEGMENT_MS) close();
+			if (out == null) {
+				if (ms - failedAt < RETRY_MS) return;
+				open(ms);
+			}
+			if (copyFile == null) { wantsCopy = true; return; }
 			if (keyNext || prev == null || ms - keyAt >= KEY_MS) {
-				if (startFile == null) { startFile = copyFile; startOffset = copyOffset; }
+				boolean first = startFile == null;
+				if (first) { startFile = copyFile; startOffset = copyOffset; }
 				if (dim == null && cur.has("dim")) dim = cur.get("dim").getAsString();
 				record('K', ms, tk, GSON.toJson(cur).getBytes(StandardCharsets.UTF_8));
 				keyAt = ms;
 				keyNext = false;
+				// a segment read alone knows the inventory and the vitals
+				if (first) for (Object[] st : List.copyOf(states.values())) record('T', ms, tk, (byte[]) st[2]);
 			} else {
 				record('D', ms, tk, GSON.toJson(FrameDelta.encode(prev, cur)).getBytes(StandardCharsets.UTF_8));
 			}
 			prev = cur;
 			frames.incrementAndGet();
-			for (Object[] h : held) record('T', (long) h[0], (long) h[1], (byte[]) h[2]);
+			for (Object[] h : List.copyOf(held)) written(h);
 			held.clear();
 		}
 
 		/** A line of the timeline; held while a K is due (at most a few thousand, before the first frame). */
-		void line(long ms, long tk, byte[] json) throws IOException {
+		void line(long ms, long tk, byte[] json) throws IOException { line(ms, tk, json, null); }
+
+		/** The same, of one of {@link #STATES} when {@code state} names it. */
+		void line(long ms, long tk, byte[] json, String state) throws IOException {
 			if (ended) return;
+			Object[] h = { ms, tk, json, state };
 			if (out == null || keyNext) {
-				if (held.size() < 5000) held.add(new Object[] { ms, tk, json });
+				if (held.size() < 5000) held.add(h);
 				return;
 			}
-			record('T', ms, tk, json);
+			written(h);
+		}
+
+		private void written(Object[] h) throws IOException {
+			record('T', (long) h[0], (long) h[1], (byte[]) h[2]);
+			if (h[3] != null) states.put((String) h[3], h);
 		}
 
 		/** The recording ends: the segment closes and the chain with it (the next one begins with a copy). */
@@ -400,13 +470,25 @@ public final class RunRecorder {
 		}
 
 		private void open(long ms) throws IOException {
-			Files.createDirectories(dir);
-			long n = Math.max(ms, lastName + 1);
-			lastName = n;
-			name = "seg-" + n + ".bin";
-			file = new Counting(Files.newOutputStream(dir.resolve(name), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE));
-			// syncFlush: what was flushed can be read while the segment is still open, or after the game stopped short
-			out = new DataOutputStream(new BufferedOutputStream(new GZIPOutputStream(file, 1 << 16, true), 1 << 16));
+			OutputStream f = null;
+			try {
+				Files.createDirectories(dir);
+				long n = Math.max(ms, lastName + 1);
+				lastName = n;
+				name = "seg-" + n + ".bin";
+				f = Files.newOutputStream(dir.resolve(name), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+				file = new Counting(f);
+				// syncFlush: what was flushed can be read while the segment is still open, or after the game stopped short
+				out = new DataOutputStream(new BufferedOutputStream(new GZIPOutputStream(file, 1 << 16, true), 1 << 16));
+			} catch (IOException | RuntimeException e) {
+				// no segment: the next try at a frame after RETRY_MS, and the chain begins again with a copy then
+				if (f != null) try { f.close(); } catch (IOException ignored) { }
+				out = null;
+				failedAt = ms;
+				copyFile = null;
+				copyOffset = -1;
+				throw e;
+			}
 			opened = lastFlush = ms;
 			offset = seen = 0;
 			fromMs = fromTk = Long.MAX_VALUE;
@@ -427,6 +509,24 @@ public final class RunRecorder {
 				prev = null;
 				tally();
 			}
+			index(false);
+		}
+
+		/** A write failed: the segment ends as it is (its index line says so) and the chain with it; a new segment and a
+		 *  copy follow at a frame after {@link #RETRY_MS}. */
+		private void broke(long ms) {
+			failedAt = ms;
+			copyFile = null;
+			copyOffset = -1;
+			if (out == null) return;
+			try { out.close(); } catch (IOException | RuntimeException ignored) { }
+			out = null;
+			prev = null;
+			tally();
+			try { index(true); } catch (IOException | RuntimeException ignored) { }
+		}
+
+		private void index(boolean broken) throws IOException {
 			Map<String, Object> m = new LinkedHashMap<>();
 			m.put("file", name);
 			m.put("from_ms", fromMs == Long.MAX_VALUE ? opened : fromMs);
@@ -438,6 +538,7 @@ public final class RunRecorder {
 			m.put("copy", cf == null ? null : Map.of("file", cf, "offset", co));
 			m.put("dim", dim);
 			m.put("bytes", file.count);
+			if (broken) m.put("broken", true);
 			Files.writeString(dir.resolve("index.jsonl"), INDEX.toJson(m) + "\n", StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
 		}
 
@@ -454,33 +555,36 @@ public final class RunRecorder {
 		}
 
 		private void record(char kind, long ms, long tk, byte[] payload) throws IOException {
-			header(kind, ms, tk, payload.length);
-			out.write(payload);
-			flushed(ms);
+			try {
+				header(kind, ms, tk, payload.length);
+				out.write(payload);
+				flushed(ms);
+			} catch (IOException | RuntimeException e) {
+				broke(ms);
+				throw e;
+			}
 		}
 
 		/** A record whose payload the body writes: once to know its length, once into the segment. */
 		private void record(char kind, long ms, long tk, World3d.Body body) throws IOException {
-			Counting size = new Counting(OutputStream.nullOutputStream());
-			try (DataOutputStream d = new DataOutputStream(new BufferedOutputStream(size, 1 << 16))) { body.write(d); }
-			header(kind, ms, tk, size.count);
-			// into the segment's stream, which stays open and unflushed
-			DataOutputStream seg = out;
-			Counting into = new Counting(new OutputStream() {
-				@Override public void write(int b) throws IOException { seg.write(b); }
-				@Override public void write(byte[] b, int off, int len) throws IOException { seg.write(b, off, len); }
-			});
 			try {
+				Counting size = new Counting(OutputStream.nullOutputStream());
+				try (DataOutputStream d = new DataOutputStream(new BufferedOutputStream(size, 1 << 16))) { body.write(d); }
+				header(kind, ms, tk, size.count);
+				// into the segment's stream, which stays open and unflushed
+				DataOutputStream seg = out;
+				Counting into = new Counting(new OutputStream() {
+					@Override public void write(int b) throws IOException { seg.write(b); }
+					@Override public void write(byte[] b, int off, int len) throws IOException { seg.write(b, off, len); }
+				});
 				try (DataOutputStream d = new DataOutputStream(new BufferedOutputStream(into, 1 << 16))) { body.write(d); }
 				if (into.count != size.count) throw new IOException(kind + " record wrote " + into.count + " bytes of " + size.count);
+				flushed(ms);
 			} catch (IOException | RuntimeException e) {
-				// a record cut short spoils the rest of the segment: it ends here, and the next frame waits for a new copy
-				try { close(); } catch (IOException ignored) { }
-				copyFile = null;
-				chainFull = true;
+				// a record cut short spoils the rest of the segment, and a change left out the chain
+				broke(ms);
 				throw e;
 			}
-			flushed(ms);
 		}
 
 		/** After a record: flushed every {@link #FLUSH_MS}, and what reached the file counted for the minute's line. */

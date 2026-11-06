@@ -2,6 +2,7 @@ package net.milenco.buddy.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
@@ -195,6 +196,73 @@ class RunRecorderTest {
 		Rec c2 = b.get(3);
 		assertEquals('C', c2.kind());
 		assertEquals(17 + b.get(0).payload().length + 17 + b.get(1).payload().length + 17 + b.get(2).payload().length, c2.offset());
+	}
+
+	@Test
+	void theInventoryAndVitalsBeginEverySegment(@TempDir Path tmp) throws IOException {
+		RunRecorder.Segments s = new RunRecorder.Segments(tmp);
+		byte[] inv1 = "{\"t\":1,\"type\":\"inventory\",\"things\":\"0:iron_sword(246)\"}".getBytes(StandardCharsets.UTF_8);
+		byte[] inv2 = "{\"t\":5,\"type\":\"inventory\",\"things\":\"0:iron_sword(245)\"}".getBytes(StandardCharsets.UTF_8);
+		byte[] vit = "{\"t\":2,\"type\":\"status\",\"hp\":20.0}".getBytes(StandardCharsets.UTF_8);
+		byte[] other = "{\"t\":3,\"type\":\"doing\",\"action\":\"obtain\"}".getBytes(StandardCharsets.UTF_8);
+		long t0 = 1_000_000;
+		s.copy(t0, 1, body("MQ3D", "{'base':1,'seq':1}", 10));
+		s.line(t0 + 10, 1, inv1, "inventory");
+		s.frame(t0 + 100, 2, FRAMES.get(0));
+		s.line(t0 + 150, 3, vit, "status");
+		s.line(t0 + 160, 3, other);
+		s.frame(t0 + 61_000, 100, FRAMES.get(1));
+		s.line(t0 + 61_050, 101, inv2, "inventory");
+		s.frame(t0 + 122_000, 200, FRAMES.get(2));
+		s.end();
+		List<String> files = new ArrayList<>();
+		for (String l : Files.readAllLines(tmp.resolve("index.jsonl"))) files.add(json(l).get("file").getAsString());
+		assertEquals(3, files.size());
+		List<Rec> a = read(tmp.resolve(files.get(0))), b = read(tmp.resolve(files.get(1))), c = read(tmp.resolve(files.get(2)));
+		// the first: the inventory held for the first K; the next ones begin with the last of each again
+		assertEquals("CKTTT", kinds(a));
+		assertEquals(new String(inv1, StandardCharsets.UTF_8), a.get(2).text());
+		assertEquals("KTTT", kinds(b));
+		assertEquals(new String(inv1, StandardCharsets.UTF_8), b.get(1).text());
+		assertEquals(new String(vit, StandardCharsets.UTF_8), b.get(2).text());
+		assertEquals(new String(inv2, StandardCharsets.UTF_8), b.get(3).text());
+		assertEquals("KTT", kinds(c));
+		assertEquals(new String(inv2, StandardCharsets.UTF_8), c.get(1).text());
+		assertEquals(new String(vit, StandardCharsets.UTF_8), c.get(2).text());
+	}
+
+	@Test
+	void aSegmentThatCannotBeOpenedIsTriedAgain(@TempDir Path tmp) throws IOException {
+		// a file where the folder should be: no segment can be opened
+		Path dir = tmp.resolve("recordings");
+		Files.writeString(dir, "not a folder");
+		RunRecorder.Segments s = new RunRecorder.Segments(dir);
+		long t0 = 1_000_000;
+		assertThrows(IOException.class, () -> s.copy(t0, 1, body("MQ3D", "{'base':1,'seq':1}", 10)));
+		s.frame(t0 + 5_000, 100, FRAMES.get(0));
+		// ten seconds on it is tried again, and fails again
+		assertThrows(IOException.class, () -> s.frame(t0 + 10_000, 200, FRAMES.get(0)));
+		Files.delete(dir);
+		s.frame(t0 + 15_000, 300, FRAMES.get(0));
+		assertFalse(Files.exists(dir));
+		assertFalse(s.wantsCopy);
+		// open at last: no frame without a copy, which is asked for
+		s.frame(t0 + 20_000, 400, FRAMES.get(0));
+		assertTrue(s.wantsCopy);
+		s.line(t0 + 20_050, 401, "{\"t\":9,\"type\":\"doing\"}".getBytes(StandardCharsets.UTF_8));
+		s.copy(t0 + 20_100, 402, body("MQ3D", "{'base':2,'seq':2}", 10));
+		assertFalse(s.wantsCopy);
+		s.frame(t0 + 20_200, 404, FRAMES.get(1));
+		s.end();
+		List<String> index = Files.readAllLines(dir.resolve("index.jsonl"));
+		assertEquals(1, index.size());
+		assertEquals("CKT", kinds(read(dir.resolve(json(index.get(0)).get("file").getAsString()))));
+	}
+
+	private static String kinds(List<Rec> recs) {
+		StringBuilder b = new StringBuilder();
+		for (Rec r : recs) b.append(r.kind());
+		return b.toString();
 	}
 
 	@Test
