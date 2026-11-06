@@ -1187,6 +1187,9 @@ final class Obtain {
 
 	static boolean badStation(BlockPos at) { Long u = badStations.get(at); return u != null && u > System.currentTimeMillis(); }
 
+	/** The order's own step builds or lights a nether portal. */
+	static boolean buildingPortal() { return exec instanceof ObtainSteps.Portal; }
+
 	/** A furnace with something in it that is not this order's: on a server another player's work, passed by as well. */
 	static void stationInUse(BlockPos at) {
 		badStations.put(at.immutable(), System.currentTimeMillis() + 600_000);
