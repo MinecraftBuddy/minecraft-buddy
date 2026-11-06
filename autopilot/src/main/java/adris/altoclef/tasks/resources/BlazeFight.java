@@ -352,6 +352,21 @@ final class BlazeFight {
         corner = c;
     }
 
+    // the buddy's fork, Tuning far_box (off by default, steering 89): a far pillbox's spawn trip can go farther from the box
+    // than CORNER_RUN, and a run from out there is into the box all the same: the plain run from a trip would lead away from
+    // the only cover. the trip's steps from the look out and some, 0 with no far box (the rods task sets it)
+    private double farRun;
+
+    void farRun(double steps) {
+        farRun = steps;
+    }
+
+    // how far from the corner a run is into it (Tuning corner_run), at least the far box's trip
+    private double cornerRun() {
+        double run = adris.altoclef.util.helpers.Tuning.get("corner_run", CORNER_RUN);
+        return farRun > 0 ? Math.max(run, farRun) : run;
+    }
+
     // a pillbox going up (BlazePillboxTask): only a blaze that bites is fought meanwhile. every blaze in reach broke into its
     // placing, so each block ran out of its time and five of six were left out (corner23b, the straight room)
     private boolean building;
@@ -541,7 +556,7 @@ final class BlazeFight {
             // (a shot that landed lately keeps the thrower in that crowd, see runCrowd, and a blaze with a line on us from far out
             // is in it too, see underFireCrowd. out of their sight is where a run gets to stop)
             case RUN -> {
-                boolean nearCorner = held != null && player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= adris.altoclef.util.helpers.Tuning.get("corner_run", CORNER_RUN);
+                boolean nearCorner = held != null && player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= cornerRun();
                 // (a pillbox going up: anywhere in the box is in, its roof row is placed from the front cell, and the rods
                 // task goes on building through the heal wait)
                 if (nearCorner && building && pillboxPlanned && adris.altoclef.util.helpers.Tuning.get("pillbox_heal_build", 1) > 0

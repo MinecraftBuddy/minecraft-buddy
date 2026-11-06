@@ -168,6 +168,154 @@ public final class BlazePillbox {
 
     static final int RING_TRIES = 60;
 
+    // ---- the far box (the buddy's fork, Tuning far_box, off by default, steering 89): the bent box planned outside the
+    // spawner's range, so nothing spawns while the buddy is in it or builds it. the spawner spawns only with a player's feet
+    // within SPAWN_RANGE of its middle, so the blazes come by spawn trips (FarTrip): a walk into range to the trip's cell
+    // until one has spawned and seen the buddy, then back into the box, where the lure (BlazeLureTask) draws them to the
+    // opening as from the near box. planBent and the near box's numbers are untouched: with the switch off nothing here runs
+
+    // BaseSpawner's requiredPlayerRange, measured from the spawner's middle to the player's feet
+    public static final double SPAWN_RANGE = 16;
+
+    // min and max: how far B, F and the look out stand from the spawner (all three at min or more, B at max or less); seenMin:
+    // the share of the spawn eyes that must see the look out once the box stands (a line to where the blazes fly); depth:
+    // the trip's cell within this of the spawner; tripWalk: the trip's cell within this many steps of the look out
+    public record FarRule(double min, double max, double seenMin, double depth, int tripWalk) {
+        public static final FarRule DEFAULT = new FarRule(17, 30, 0.3, 14, 32);
+    }
+
+    // the block under a cell's floor is the fortress's own (nether bricks), not netherrack or a block the buddy placed. given
+    // the cell's own coordinates; the block asked about is (x, y - 1, z)
+    public interface Floor {
+        boolean fortress(int x, int y, int z);
+    }
+
+    // the far plan: the box, B's distance from the spawner, the trip's cell {x, y, z} and the walk's steps to it from the look out
+    public record Far(Plan plan, double distance, int[] trip, int tripSteps) {
+    }
+
+    // from the feet in cell (x, y, z) to the spawner's middle, as the spawner measures it
+    public static double spawnerDistance(int x, int y, int z, int sx, int sy, int sz) {
+        double dx = x - sx, dy = y - (sy + 0.5), dz = z - sz;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    // a block farther out than min costs this much: every block of it is walked twice on each spawn trip
+    static final double FAR_WEIGHT = 3;
+
+    // why the far sites of the last planFar were turned down, for the log
+    static final String[] FAR_WHY = {"out of range", "floor", "look out unseen", "box", "look out's share", "ring", "no trip"};
+    static final int[] farWhy = new int[FAR_WHY.length];
+
+    public static String whyNotFar() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < FAR_WHY.length; i++) if (farWhy[i] > 0) sb.append(sb.length() == 0 ? "" : ", ").append(FAR_WHY[i]).append(' ').append(farWhy[i]);
+        return sb.length() == 0 ? "no site" : sb.toString();
+    }
+
+    // the cheapest bent box (planBentAt, always with its wing) whose three cells stand rule.min to rule.max from the spawner on
+    // the fortress's floor (floor null: any floor), its look out seen by rule.seenMin of the eyes once it stands, its back cell
+    // hidden from the ring (ringHidden), and a trip's cell within reach of its look out (tripCell); null with none. start and
+    // eyes as for planBent
+    public static Far planFar(Cells cells, int[] start, int sx, int sy, int sz, List<Vec3> eyes, FarRule rule, Floor floor) {
+        java.util.Arrays.fill(farWhy, 0);
+        List<Plan> found = new ArrayList<>();
+        List<Double> scores = new ArrayList<>(), dists = new ArrayList<>();
+        // (the look out's sight before the box, once per cell: the box's blocks only take lines away, so a cell no eye sees now
+        // is no look out, and the far ring is four times the near one's cells)
+        java.util.Map<Long, Double> sight = new java.util.HashMap<>();
+        for (int[] c : candidates(cells, start, sx, sz, rule.max(), WALK + (int) Math.ceil(rule.max()))) {
+            int x = c[0], y = c[1], z = c[2];
+            double d = spawnerDistance(x, y, z, sx, sy, sz);
+            if (d < rule.min() || d > rule.max()) {
+                farWhy[0]++;
+                continue;
+            }
+            if (floor != null && !floor.fortress(x, y, z)) {
+                farWhy[1]++;
+                continue;
+            }
+            for (int[] a : SIDES) {
+                for (int[] p : SIDES) {
+                    if (a[0] * p[0] + a[1] * p[1] != 0) continue;
+                    int fx = x + a[0], fz = z + a[1], ox = fx + p[0], oz = fz + p[1];
+                    if (spawnerDistance(fx, y, fz, sx, sy, sz) < rule.min() || spawnerDistance(ox, y, oz, sx, sy, sz) < rule.min()) {
+                        farWhy[0]++;
+                        continue;
+                    }
+                    if (floor != null && (!floor.fortress(fx, y, fz) || !floor.fortress(ox, y, oz))) {
+                        farWhy[1]++;
+                        continue;
+                    }
+                    double before = sight.computeIfAbsent(BlazeCover.key(ox, y, oz), k -> seenAt(cells, eyes, ox, y, oz));
+                    if (before < rule.seenMin()) {
+                        farWhy[2]++;
+                        continue;
+                    }
+                    Plan plan = planBentAt(cells, x, y, z, a, p, true, eyes, sx, sz);
+                    if (plan == null) {
+                        farWhy[3]++;
+                        continue;
+                    }
+                    double seen = seenShare(cells, plan, eyes);
+                    if (seen < rule.seenMin()) {
+                        farWhy[4]++;
+                        continue;
+                    }
+                    found.add(plan);
+                    dists.add(d);
+                    // (as planBent's score, but nearer is better here: the trips are the open ground)
+                    scores.add(plan.blocks().size() * 10 + (1 - seen) * SEEN_WEIGHT + buildSeen(cells, plan, eyes) * BUILD_WEIGHT
+                            + (d - rule.min()) * FAR_WEIGHT);
+                }
+            }
+        }
+        Integer[] order = new Integer[found.size()];
+        for (int i = 0; i < order.length; i++) order[i] = i;
+        java.util.Arrays.sort(order, java.util.Comparator.comparingDouble(scores::get));
+        int tried = 0;
+        for (int i : order) {
+            if (tried++ >= RING_TRIES) break;
+            Plan plan = found.get(i);
+            Cells after = after(cells, plan.blocks());
+            if (!ringHidden(after, plan.cell()[0], plan.cell()[1], plan.cell()[2])) {
+                farWhy[5]++;
+                continue;
+            }
+            int[] trip = tripCell(after, plan.lookout(), sx, sy, sz, eyes, rule);
+            if (trip == null) {
+                farWhy[6]++;
+                continue;
+            }
+            return new Far(plan, dists.get(i), new int[]{trip[0], trip[1], trip[2]}, trip[3]);
+        }
+        return null;
+    }
+
+    // the spawn trip's cell: walked out from the look out on the cells with the box standing, the first cell within rule.depth
+    // of the spawner that a spawn eye sees (the blazes must see the buddy there to come after it), else the first within
+    // rule.depth; {x, y, z, steps}, null with none within rule.tripWalk steps
+    static int[] tripCell(Cells after, int[] from, int sx, int sy, int sz, List<Vec3> eyes, FarRule rule) {
+        int[] first = null;
+        java.util.ArrayDeque<int[]> queue = new java.util.ArrayDeque<>();
+        Set<Long> seen = new HashSet<>();
+        queue.add(new int[]{from[0], from[1], from[2], 0});
+        seen.add(BlazeCover.key(from[0], from[1], from[2]));
+        while (!queue.isEmpty()) {
+            int[] c = queue.poll();
+            if (spawnerDistance(c[0], c[1], c[2], sx, sy, sz) <= rule.depth()) {
+                if (seenAt(after, eyes, c[0], c[1], c[2]) > 0) return c;
+                if (first == null) first = c;
+            }
+            if (c[3] >= rule.tripWalk()) continue;
+            for (int[] n : BlazeCover.steps(after, c[0], c[1], c[2], from[1])) {
+                if (!seen.add(BlazeCover.key(n[0], n[1], n[2]))) continue;
+                queue.add(new int[]{n[0], n[1], n[2], c[3] + 1});
+            }
+        }
+        return first;
+    }
+
     // what a plan scores, for the log: the look out's sight, the build's, how far and how far down from the spawner
     public static String describe(Cells cells, Plan plan, List<Vec3> eyes, int sx, int sy, int sz) {
         int[] c = plan.cell();
