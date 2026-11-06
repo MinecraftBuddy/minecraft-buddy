@@ -548,7 +548,9 @@ public class FoodChain extends SingleTaskChain {
         // key, and that is the shield gone
         if (mod.getMobDefenseChain().projectileDodging(mod)) return true;
         // do NOT eat while in lava if we are escaping it (spaghetti code dependencies go brrrr)
-        if (mod.getPlayer().isInLava()) return true;
+        // (the buddy's fork: but a fire resistance drink goes down in lava too. sinking in a lava column under the potion, the
+        // third potion stayed in the bag and the buddy died in the lava as the second ran out, realfort-ab-fpreach-1 run 8)
+        if (mod.getPlayer().isInLava() && !wantsFireRes(mod)) return true;
         // We're in danger, don't eat now!!
         return !mod.getMLGBucketChain().doneMLG() || mod.getMLGBucketChain().isFallingOhNo(mod) || shouldStop;
     }

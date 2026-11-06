@@ -749,9 +749,13 @@ public class WorldSurvivalChain extends SingleTaskChain {
     }
 
     private boolean isInLavaOhShit(AltoClef mod) {
-        // (the buddy's fork: under the potion too once it is about to end, FireRes.endingSoon)
+        // (the buddy's fork: under the potion too once it is about to end, FireRes.endingSoon, or with the eyes under the lava.
+        // knocked off a bridge into a lava column under the potion, the walk to the spawner tunnelled sideways from inside it
+        // for three and a half minutes, each hole filling with lava, sinking from y 59 to 20, and the escape began only as the
+        // potion ran out: dead in four seconds, realfort-ab-fpreach-1 run 8)
         if (mod.getPlayer().isInLava() && (!adris.altoclef.util.helpers.FireRes.has(mod.getPlayer())
-                || adris.altoclef.util.helpers.FireRes.endingSoon(mod.getPlayer()))) {
+                || adris.altoclef.util.helpers.FireRes.endingSoon(mod.getPlayer())
+                || mod.getPlayer().isEyeInFluid(net.minecraft.tags.FluidTags.LAVA))) {
             _wasInLavaTimer.reset();
             return true;
         }
