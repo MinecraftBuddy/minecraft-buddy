@@ -34,6 +34,9 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
     private static final int OPEN_BESIDE_TICKS = 10;
     private BlockPos _openBesideFeet;
     private int _openBesideTicks;
+    // box_no_wander (BoxGuard): the goal one cell off that a step by input walks to instead of the wander, and its ticks left
+    private BlockPos _boxStep;
+    private int _boxStepTicks;
 
     // This happens all the time in mineshafts and swamps/jungles
 
@@ -208,13 +211,46 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
             if (isFinished(mod)) {
                 // Don't wander if we've reached our goal.
                 _checker.reset();
+                _boxStepTicks = 0;
             } else {
+                if (_boxStepTicks > 0) {
+                    // (box_no_wander: the step to the goal one cell off, the forward key held while the feet are not in it)
+                    _boxStepTicks--;
+                    _checker.reset();
+                    if (!mod.getPlayer().blockPosition().equals(_boxStep)) {
+                        setDebugState("In the box: a step to the goal");
+                        adris.altoclef.util.helpers.LookHelper.lookAt(mod, new net.minecraft.world.phys.Vec3(_boxStep.getX() + 0.5, mod.getPlayer().getEyeY(), _boxStep.getZ() + 0.5));
+                        mod.getInputControls().tryPress(Input.MOVE_FORWARD);
+                        return null;
+                    }
+                    _boxStepTicks = 0;
+                }
                 if (_wanderTask.isActive() && !_wanderTask.isFinished(mod)) {
                     setDebugState("Wandering...");
                     _checker.reset();
                     return _wanderTask;
                 }
-                if (!_checker.check(mod)) {
+                boolean noProgress = !_checker.check(mod);
+                if (noProgress && adris.altoclef.util.helpers.BoxGuard.holds(mod) != null) {
+                    // (box_no_wander: in the blaze camp's box the wander took the buddy over the wall and locked it out, six
+                    // of ten brew deaths before the second rod, 6 Nov 2026. a goal one cell off is stepped to by input; any
+                    // other goal gets its path asked again)
+                    _checker.reset();
+                    BlockPos goal = _cachedGoal instanceof baritone.api.pathing.goals.GoalBlock g ? new BlockPos(g.x, g.y, g.z) : null;
+                    if (goal != null && adris.altoclef.util.helpers.BoxGuard.stepTo(mod.getPlayer().position(), goal)) {
+                        Debug.logInternal("box: no progress in the box, a step by input to " + goal.toShortString() + " instead of the wander");
+                        _boxStep = goal;
+                        _boxStepTicks = adris.altoclef.util.helpers.BoxGuard.STEP_TICKS;
+                        // (baritone lets go of the keys for the step; the goal is handed back once it is done)
+                        mod.getClientBaritone().getCustomGoalProcess().onLostControl();
+                        mod.getClientBaritone().getPathingBehavior().forceCancel();
+                    } else {
+                        Debug.logInternal("box: no progress in the box, the path asked again instead of the wander" + (goal != null ? " (" + goal.toShortString() + ")" : ""));
+                        mod.getClientBaritone().getPathingBehavior().forceCancel();
+                    }
+                    return null;
+                }
+                if (noProgress) {
                     Debug.logMessage("Failed to make progress on goal, wandering.");
                     onWander(mod);
                     return _wanderTask;

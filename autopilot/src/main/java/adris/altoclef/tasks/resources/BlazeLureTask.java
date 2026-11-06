@@ -137,6 +137,8 @@ final class BlazeLureTask extends Task {
     protected Task onTick(AltoClef mod) {
         long now = mod.getWorld().getGameTime();
         if (now < since) since = now;
+        // (box_no_wander: a walk inside the box never wanders while this mark is fresh, BoxGuard)
+        adris.altoclef.util.helpers.BoxGuard.mark(corner, now);
         Vec3 at = mod.getPlayer().position();
         adris.altoclef.util.helpers.BlazeShelter.lookingOut = stage == Stage.OUT || stage == Stage.PEEK || stage == Stage.FETCH;
         switch (stage) {
