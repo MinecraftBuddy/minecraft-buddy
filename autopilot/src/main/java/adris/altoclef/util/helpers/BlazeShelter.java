@@ -141,6 +141,20 @@ public final class BlazeShelter {
         return now >= buildingAt && now - buildingAt <= 5;
     }
 
+    // the brew box holds (BrewBoxTask.holds, Tuning brew_box), the last tick it did (set by the rods task): the mob defense stands
+    // down meanwhile. fresh for a few ticks only, so a mob inside, fire in a cell or the box broken (the rods task stops setting
+    // it) gives the fight back at once
+    static final long BREW_BOX_FRESH = 5;
+    private static volatile long brewBoxAt = Long.MIN_VALUE / 2;
+
+    public static void brewBox(long now) {
+        brewBoxAt = now;
+    }
+
+    public static boolean brewBoxHolds(long now) {
+        return now >= brewBoxAt && now - brewBoxAt <= BREW_BOX_FRESH;
+    }
+
     // standing in a cell: within 0.8 of its middle across (BlazeLureTask.in)
     public static boolean in(Vec3 at, BlockPos cell) {
         double dx = at.x - (cell.getX() + 0.5), dz = at.z - (cell.getZ() + 0.5);

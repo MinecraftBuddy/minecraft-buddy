@@ -14,4 +14,17 @@ public final class FireRes {
     public static boolean has(LivingEntity e) {
         return e.hasEffect(MobEffects.FIRE_RESISTANCE) && Tuning.get("ignore_fire_resistance", 0) <= 0;
     }
+
+    // a drink asked for by a task, the last game tick it was (the brew box drinks its potion inside before it opens, with no
+    // blaze near or fire on the buddy, BrewBoxTask): the food chain drinks as if on fire while it is fresh
+    static final long ASK_FRESH = 5;
+    private static volatile long askedAt = Long.MIN_VALUE / 2;
+
+    public static void ask(long now) {
+        askedAt = now;
+    }
+
+    public static boolean asked(long now) {
+        return now >= askedAt && now - askedAt <= ASK_FRESH;
+    }
 }

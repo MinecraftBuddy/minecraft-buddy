@@ -65,6 +65,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private static final int BREW_BUDGET_TICKS = 8 * 60 * 20;
     private int _brewSince = -1;
     private boolean _brewGaveUp;
+    // the buddy's fork, Tuning brew_box: the brew walled in (BrewBoxTask), made when a brew begins; null with the tuning off
+    private BrewBoxTask _brewBox;
     // a fight has the brew's ticks now (logged once per take over)
     private boolean _brewCutOff;
 
@@ -207,6 +209,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     @Override
     protected Task onTick(AltoClef mod) {
         _rodWatch.tick(mod);
+        if (_brewBox != null) _brewBox.noteHits(mod);
         return super.onTick(mod);
     }
 
@@ -239,6 +242,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _fight.pillboxPlanned(false);
             _fight.pillboxLookout(null);
         }
+        // (the buddy's fork, Tuning brew_box: shut in the brew box with nothing hostile inside, no fire and the health at
+        // BrewBox.LOW_HP or more, the fight sits out and the brew goes on (BrewBoxTask.holds); the stamp stands the mob defense
+        // down too. the open brew was cut off by a fight five times in ten runs and never finished)
+        if (_brewBox != null && _brewBox.holds(mod)) {
+            adris.altoclef.util.helpers.BlazeShelter.brewBox(mod.getWorld().getGameTime());
+            Task boxed = brewStep(mod);
+            if (boxed != null) return boxed;
+        }
         // blazes first: kill the one we picked, run when it goes badly. null is "nobody to fight"
         boolean building = _pillbox != null && !_pillbox.isFinished(mod);
         // (the cell is the fight's corner from its first block on, the wall nearest the spawner: a run then goes into it, not out
@@ -253,8 +264,15 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         if (building) adris.altoclef.util.helpers.BlazeShelter.building(mod.getWorld().getGameTime());
         if (_pillbox != null && _pillboxCornered) adris.altoclef.util.helpers.BlazeShelter.boxStands(mod.getWorld().getGameTime());
-        _fight.building(building);
-        _fight.pillboxBlocks(building ? _pillbox.blocks() : java.util.Set.of());
+        // (a brew box going up is built as a pillbox is: only a blaze that bites is fought meanwhile, its blocks may be placed)
+        boolean brewBuilding = _brewBox != null && _brewBox.building();
+        _fight.building(building || brewBuilding);
+        java.util.Set<BlockPos> exempt = building ? _pillbox.blocks() : java.util.Set.of();
+        if (brewBuilding) {
+            exempt = new java.util.HashSet<>(exempt);
+            exempt.addAll(_brewBox.blocks());
+        }
+        _fight.pillboxBlocks(exempt);
         Task fight = _fight.tick(mod);
         if (_fight.mode() != BlazeFightRules.Mode.CAMP) {
             // the fight moves us, the next camp spot is a new question
@@ -449,6 +467,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // between fights: the brew that is under way, a magma cube or a nether wart close by while the bottles want them, and the
     // brew itself once the bag holds both and two rods (the stand and its powder). null is nothing of the brew's to do now
     private Task brewStep(AltoClef mod) {
+        // (the buddy's fork: a brew box being opened, after its brew or with the brew given up inside it, is seen through first)
+        if (_brewBox != null && _brewBox.opening()) {
+            setDebugState("Opening the brew box");
+            return _brewBox;
+        }
         if (_brewGaveUp) {
             return null;
         }
@@ -457,14 +480,24 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _brewSince = WorldHelper.getTicks();
         }
         if (_brewSince >= 0) {
-            if (_brew.isFinished(mod)) {
+            // (a brew box still to do keeps the brew's turn after the potions are in: the drink and the door. one that failed
+            // leaves the open brew below, as before)
+            boolean boxed = _brewBox != null && _brewBox.active();
+            if (_brew.isFinished(mod) && !boxed) {
                 _brewSince = -1;
             } else if (WorldHelper.getTicks() - _brewSince > BREW_BUDGET_TICKS) {
                 Debug.logMessage("Brewing fire resistance took too long, back to the blazes");
                 Debug.logInternal("brew: given up, too long");
                 _brewSince = -1;
                 _brewGaveUp = true;
+                if (boxed) {
+                    _brewBox.giveUp("the brew given up inside");
+                    if (_brewBox.opening()) return _brewBox;
+                }
                 return null;
+            } else if (boxed) {
+                setDebugState("Brewing fire resistance walled in");
+                return _brewBox;
             } else {
                 setDebugState(BrewFireResistanceTask.pending() ? "Back to the brewing stand" : "Brewing fire resistance");
                 return _brew;
@@ -514,7 +547,25 @@ public class CollectBlazeRodsTask extends ResourceTask {
         setDebugState("Brewing fire resistance");
         _brewSince = WorldHelper.getTicks();
         Debug.logInternal("brew: begun, rods " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
+        // (the buddy's fork, Tuning brew_box: the brew walled in, BrewBoxTask; off, the open brew as before)
+        if (adris.altoclef.util.helpers.BrewBox.on(adris.altoclef.util.helpers.Tuning.get("brew_box", 0))) {
+            _brewBox = new BrewBoxTask(_brew, _foundBlazeSpawner, this::brewBoxKeepClear);
+            return _brewBox;
+        }
         return _brew;
+    }
+
+    // the cells a brew box may not take: the fight's pillbox, its blocks and its cells
+    private java.util.Set<BlockPos> brewBoxKeepClear() {
+        java.util.Set<BlockPos> out = new java.util.HashSet<>();
+        if (_pillbox == null) return out;
+        out.addAll(_pillbox.blocks());
+        for (BlockPos c : new BlockPos[]{_pillbox.cell(), _pillbox.front(), _pillbox.lookout()}) {
+            if (c == null) continue;
+            out.add(c);
+            out.add(c.above());
+        }
+        return out;
     }
 
     private static boolean dropNear(AltoClef mod, net.minecraft.world.item.Item item, double range) {
@@ -763,6 +814,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (a rod a step or two off is taken whatever is about: two lay 2.4 off in the door for six game minutes, the corner holding
         // the pickup back and the fight never giving the lure its turn, corner19 run 6)
         var me = mod.getPlayer();
+        // (the buddy's fork: none while shut in the brew box, a walk to a rod is a way out through its wall)
+        if (_brewBox != null && _brewBox.holds(mod)) return true;
         // (from a standing pillbox: a rod in the box always, one outside it only with no blaze within PILLBOX_QUIET. six walks out
         // for rods in one run, the last two 25 hp, straight-bent-g run 4)
         if (me != null && _pillbox != null && _pillboxCornered) {

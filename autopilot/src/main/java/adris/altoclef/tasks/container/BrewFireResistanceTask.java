@@ -68,6 +68,14 @@ public class BrewFireResistanceTask extends ResourceTask {
         return pending() ? _stand : null;
     }
 
+    // the buddy's fork: the stand the brew box put in its front cell (BrewBoxTask, Tuning brew_box), used before any other stand
+    // about until our bottles are in it; null with none (always with the tuning off)
+    private static BlockPos _boxStand;
+
+    public static void pinBoxStand(BlockPos at) {
+        _boxStand = at;
+    }
+
     private static void forget(String why) {
         if (_stand != null) Debug.logInternal("brew: stand at " + _stand.toShortString() + " forgotten, " + why);
         _stand = null;
@@ -165,7 +173,8 @@ public class BrewFireResistanceTask extends ResourceTask {
 
         @Override
         protected BlockPos pinnedStation(AltoClef mod) {
-            return pendingStand();
+            BlockPos pending = pendingStand();
+            return pending != null ? pending : _boxStand;
         }
 
         @Override

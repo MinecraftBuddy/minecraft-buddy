@@ -47,3 +47,6 @@ mapping
 
 # mojang textures, extracted locally for the gui mock
 gui-mock/assets/
+
+# written by the chain tests
+/baritone/

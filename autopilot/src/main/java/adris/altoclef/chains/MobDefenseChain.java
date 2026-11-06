@@ -336,6 +336,16 @@ public class MobDefenseChain extends SingleTaskChain {
             _lavaGuard.release(mod);
             return Float.NEGATIVE_INFINITY;
         }
+        // (the buddy's fork, Tuning brew_box: walled in for the brew, with nothing hostile inside and no fire, the rods task's
+        // stamp: the same stand down. nothing outside can reach the buddy, and a run or a fight would break the box open. low
+        // health hands the wheel back at once, a mob inside or the box broken within a few ticks, see BrewBoxTask.holds)
+        if (!_creeperStep.active() && adris.altoclef.util.helpers.BlazeShelter.brewBoxHolds(mod.getWorld().getGameTime())
+                && self.getHealth() >= adris.altoclef.util.helpers.BrewBox.LOW_HP) {
+            _killAura.stopShielding(mod);
+            stopShielding(mod);
+            _lavaGuard.release(mod);
+            return Float.NEGATIVE_INFINITY;
+        }
 
         // Force field
         doForceField(mod);

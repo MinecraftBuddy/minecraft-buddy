@@ -39,9 +39,22 @@ final class BlazePillboxTask extends Task {
     private int left;
 
     BlazePillboxTask(BlazePillbox.Plan plan) {
+        this(plan, true);
+    }
+
+    // hides false: a box that is not the fight's corner (the brew box, BrewBoxTask) leaves the fight's hiding place in its own
+    // pillbox where it is (hideAway is one for all)
+    BlazePillboxTask(BlazePillbox.Plan plan, boolean hides) {
         this.plan = plan;
-        hideAway(plan);
+        if (hides) hideAway(plan);
         this.cell = new BlockPos(plan.cell()[0], plan.cell()[1], plan.cell()[2]);
+    }
+
+    // the blocks in the bag a box is built of (BLOCKS), all kinds together
+    static int blocksInBag(AltoClef mod) {
+        int n = 0;
+        for (Block b : BLOCKS) n += mod.getItemStorage().getItemCount(b.asItem());
+        return n;
     }
 
     BlockPos cell() {
@@ -71,6 +84,11 @@ final class BlazePillboxTask extends Task {
 
     BlockPos lookout() {
         return new BlockPos(plan.lookout()[0], plan.lookout()[1], plan.lookout()[2]);
+    }
+
+    // the bent box's front cell, null for the one-cell box
+    BlockPos front() {
+        return plan.front() == null ? null : new BlockPos(plan.front()[0], plan.front()[1], plan.front()[2]);
     }
 
     boolean built() {
