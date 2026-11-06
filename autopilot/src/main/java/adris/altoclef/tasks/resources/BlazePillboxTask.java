@@ -498,6 +498,7 @@ final class BlazePillboxTask extends Task {
             int[] c = adris.altoclef.util.helpers.BlazeCover.pick(cells, at.getX(), at.getY(), at.getZ(), java.util.List.of(), new java.util.HashSet<>(),
                     (x, y, z) -> adris.altoclef.util.helpers.BlazeCover.hidden(mod.getWorld(), eyes, x, y, z, mod.getPlayer()));
             BlockPos h = c == null ? null : new BlockPos(c[0], c[1], c[2]);
+            if (h != null && !h.equals(hideAt)) adris.altoclef.util.snapshot.Snapshots.chose("pillbox.hide", c);
             if (h == null || !h.equals(hideAt)) hideWalk = h == null ? null : new GetToBlockTask(h);
             hideAt = h;
         }

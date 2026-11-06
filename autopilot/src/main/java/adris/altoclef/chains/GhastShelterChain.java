@@ -181,6 +181,7 @@ public class GhastShelterChain extends SingleTaskChain {
     // the walk to a cover cell, its own clock (WALK_TICKS); the stay's clock (STAY_TICKS) goes on
     private void walkTo(BlockPos cover, boolean fightCorner, long now) {
         _cover = cover;
+        adris.altoclef.util.snapshot.Snapshots.chose(fightCorner ? "ghast.corner" : "ghast.cover", cover);
         _fightCorner = fightCorner;
         _way.reset();
         _go = new GetToBlockTask(cover);

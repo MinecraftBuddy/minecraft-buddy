@@ -147,6 +147,7 @@ public class PlayerExtraController {
             combat().clicker().clicked(now);
         }
         _swings++;
+        adris.altoclef.util.snapshot.Snapshots.hit(_mod.getPlayer(), entity);
         return true;
     }
 

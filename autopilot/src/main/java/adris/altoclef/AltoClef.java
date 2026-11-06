@@ -238,6 +238,8 @@ public class AltoClef {
         // (an idle command counts: that can be a whole #gamer game and its ledges are just as tall. a human on the keys still
         // wins, realMoveKey reads the real key)
         _edgeBrake.tick(this, _userTaskChain.isActive());
+        // (the buddy's fork: the snapshots of the nether fights, after every chain had its say this tick; off unless tuned on)
+        adris.altoclef.util.snapshot.Snapshots.tick(this);
 
         _inputControls.onTickPost();
     }

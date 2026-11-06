@@ -177,6 +177,11 @@ public class MobDefenseChain extends SingleTaskChain {
         return _brain.fightName();
     }
 
+    // the entity id the fight is after, -1 for none (the snapshots, Snapshots)
+    public int combatTargetId() {
+        return _brain.fightTarget();
+    }
+
     public double combatRunOriginX() {
         return _brain.commit().originX();
     }

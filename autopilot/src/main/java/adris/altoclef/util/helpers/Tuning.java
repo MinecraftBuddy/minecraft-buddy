@@ -50,4 +50,12 @@ public final class Tuning {
             return fallback;
         }
     }
+
+    // every key the file sets now, sorted (the snapshots' header, Snapshots)
+    public static synchronized java.util.Map<String, String> all() {
+        get("", 0);
+        java.util.Map<String, String> out = new java.util.TreeMap<>();
+        for (String k : props.stringPropertyNames()) out.put(k, props.getProperty(k));
+        return out;
+    }
 }

@@ -336,6 +336,7 @@ final class BlazeFight {
         }
         int enclosed = BlazeCover.enclosure(mod.getWorld(), c[0], c[1], c[2], player);
         hide = new BlockPos(c[0], c[1], c[2]);
+        adris.altoclef.util.snapshot.Snapshots.chose(corner != null ? "blaze.corner.hide" : "blaze.hide", c);
         hideArrived = false;
         hideSince = now;
         calmSince = Long.MIN_VALUE;
@@ -649,6 +650,7 @@ final class BlazeFight {
                 return null;
             }
             cover = new BlockPos(c[0], c[1], c[2]);
+            adris.altoclef.util.snapshot.Snapshots.chose("blaze.cover", c);
             coverSince = now;
             coverCheckAt = now + COVER_CHECK_TICKS;
             coverArrived = false;
