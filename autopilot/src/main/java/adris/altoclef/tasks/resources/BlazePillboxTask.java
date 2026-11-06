@@ -28,6 +28,7 @@ final class BlazePillboxTask extends Task {
     private final BlockPos cell;
     private int next;
     private long startedAt = Long.MIN_VALUE;
+    private long runTicks;
     private Task walk;
     private BlockPos walkTo;
     private Task placing;
@@ -242,7 +243,11 @@ final class BlazePillboxTask extends Task {
     protected Task onTick(AltoClef mod) {
         long now = mod.getWorld().getGameTime();
         if (now < startedAt) startedAt = now;
-        if (now - startedAt > GIVE_UP_TICKS) {
+        // (the buddy's fork, Tuning pillbox_clock_run, off by default: the give-up counts only the ticks this task runs. counted
+        // from its first start in game time, the clock ran on through a ghast shelter, kills and runs, and the box was given up
+        // with not one block placed, the camp then the open one, realfort-ab-leash-3 run 4)
+        boolean runClock = adris.altoclef.util.helpers.Tuning.get("pillbox_clock_run", 0) > 0;
+        if (runClock ? ++runTicks > GIVE_UP_TICKS : now - startedAt > GIVE_UP_TICKS) {
             gaveUp = true;
             Debug.logInternal("pillbox: not built in " + GIVE_UP_TICKS + " ticks, " + (plan.blocks().size() - next) + " blocks short");
             return null;

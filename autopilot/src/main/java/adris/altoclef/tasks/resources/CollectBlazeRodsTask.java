@@ -341,7 +341,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (the buddy's fork: with a pillbox going up, the heal wait in its cell may go on building, Tuning pillbox_heal_build: in
         // the drill room the wait stood in the bare cell under fire and the box was never finished, bent-f; in real fortresses
         // realfort-a-bent-h without it got 10 rods against bent-g's 22, so on by default)
-        if (_fight.mode() == BlazeFightRules.Mode.RUN && !(building && adris.altoclef.util.helpers.Tuning.get("pillbox_heal_build", 1) > 0)) {
+        // (Tuning heal_build_near, off by default: that only within the leash of the box's cell. in a cover elsewhere the build's
+        // walk left it and the run's walked back, every half second, on fire, realfort-ab-leash-3 run 4)
+        boolean healBuild = building && adris.altoclef.util.helpers.Tuning.get("pillbox_heal_build", 1) > 0
+                && (adris.altoclef.util.helpers.Tuning.get("heal_build_near", 0) <= 0 || (_pillbox != null
+                && mod.getPlayer().position().distanceTo(Vec3.atBottomCenterOf(_pillbox.cell())) <= BlazeFight.PILLBOX_LEASH));
+        if (_fight.mode() == BlazeFightRules.Mode.RUN && !healBuild) {
             // out of their sight and healing, the spawner can wait. standing here is the plan so it counts as camping, unless
             // there are blazes we could go get, then it is just a breather and not a dud spawner
             setDebugState("Recovering away from the blazes");
@@ -439,8 +444,13 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Optional<BlockPos> nearestFire = mod.getBlockTracker().getNearestWithinRange(_foundBlazeSpawner, 5, Blocks.FIRE);
             // (not out of a standing pillbox for a fire by the spawner: the walk to it was out in every blaze's sight, bent-e
             // run 1; one in the box is still put out)
+            // (Tuning fire_in_box, off by default: in the box means on its own cells. a fire outside the wall, 2.45 from the
+            // cell's middle, was "in the box", its walk found no path, the wander put the buddy on the wall and out, and the box
+            // was never got back into: dead outside it, realfort-ab-leash-3 run 1)
+            boolean fireInBox = adris.altoclef.util.helpers.Tuning.get("fire_in_box", 0) > 0;
             if (nearestFire.isPresent() && _pillbox != null && _pillboxCornered
-                    && !nearestFire.get().closerToCenterThan(Vec3.atCenterOf(_pillbox.cell()), PILLBOX_RADIUS)) nearestFire = Optional.empty();
+                    && (fireInBox ? !_pillbox.holds(nearestFire.get())
+                    : !nearestFire.get().closerToCenterThan(Vec3.atCenterOf(_pillbox.cell()), PILLBOX_RADIUS))) nearestFire = Optional.empty();
             // (the buddy's fork: a fire not put out after FIRE_TICKS spent on it is left for good. one out of reach was picked
             // again every tick, "No path found" over and over, and the camp's wait never came: three minutes at the spawner with
             // no rod, piece2side-2 run 2. ticks spent on it, not since it was first picked: a fight in between does not count)
