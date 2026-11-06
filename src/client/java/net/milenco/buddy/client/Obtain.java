@@ -317,10 +317,39 @@ final class Obtain {
 	// ---------- the tick ----------
 
 	static void startTick(Minecraft mc) {
+		if (mc.player != null) newLife(mc.player);
 		throwJunk(mc);
 		if (exec != null) exec.startTick(mc);
 		// the shelter of an order given up at night places its walls by the same click
 		else if (resting && rest != null) rest.startTick(mc);
+	}
+
+	/** The player object and the dimension of the last tick: a step outlives neither (newLife). */
+	private static LocalPlayer lastPlayer;
+	private static net.minecraft.resources.ResourceKey<Level> lastDim;
+
+	/**
+	 * A death, a respawn, a reconnect or another dimension: the step under way and what it held (a shelter shut round the
+	 * cell it stood in, a block to break, a walk) were of the place before, and a roof broken over the respawn point could
+	 * be anyone's build. Stopped and cleared, and the next tick plans from where the buddy is. A step whose end is the
+	 * other dimension (a portal, the walk through one) ends by its own tick; the autopilot's runs go on, it respawns into
+	 * them itself.
+	 */
+	private static void newLife(LocalPlayer p) {
+		var dim = p.level().dimension();
+		boolean other = lastPlayer != null && lastPlayer != p, moved = lastDim != null && !lastDim.equals(dim);
+		lastPlayer = p;
+		lastDim = dim;
+		if (!other && !moved && p.isAlive()) return;
+		if (rest != null) { rest.stop(); rest = null; }
+		boolean crossing = moved && (exec instanceof ObtainSteps.Portal || exec instanceof ObtainSteps.Through || exec instanceof ObtainSteps.EndPortal);
+		if (exec == null || exec instanceof Alto.Run || crossing) return;
+		Exchange.emit("obtain", "action", "step dropped", "step", step == null ? null : step.toString(),
+			"why", !p.isAlive() ? "died" : moved ? "another dimension" : "respawned");
+		exec.stop();
+		exec = null;
+		step = null;
+		HeldKeys.releaseAll();
 	}
 
 	// ---------- junk out of a nearly full bag ----------
