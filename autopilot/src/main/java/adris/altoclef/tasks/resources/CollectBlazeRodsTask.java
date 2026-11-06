@@ -70,6 +70,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private BrewBoxTask _brewBox;
     // a fight has the brew's ticks now (logged once per take over)
     private boolean _brewCutOff;
+    // the buddy's fork, Tuning fr_trade: the barter for the first fire resistance, one per order (kept through interruptions);
+    // null with the tuning off
+    private FireResTrade _frTrade;
 
     private BlockPos _foundBlazeSpawner = null;
     // where we camp: a cell out past the spawn area (LavaShore.campSpot), picked once per spawner. null = the room had none, so
@@ -235,6 +238,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (again: the goal the walk is judged against is the spawner we just picked, not last tick's)
         noteZoneInputs(mod);
         fireproofFallback(mod);
+        // (the buddy's fork, Tuning fr_trade, off by default, steering 89: the first fire resistance bartered from piglins before
+        // the fortress, FireResTrade. a splash potion of it is thrown at the feet when the drink would go down, a drinkable one
+        // the food chain drinks as it does the brewed one)
+        if (adris.altoclef.util.helpers.Tuning.get("fr_trade", 0) > 0) {
+            if (_frTrade == null) _frTrade = new FireResTrade();
+            Task splash = _frTrade.throwStep(mod);
+            if (splash != null) {
+                setDebugState("Throwing fire resistance at the feet");
+                return splash;
+            }
+            Task trade = _frTrade.tick(mod, _foundBlazeSpawner);
+            if (trade != null) {
+                setDebugState(_frTrade.hud());
+                return trade;
+            }
+        }
         // (the buddy's fork: the camp was picked with or without fire resistance; a potion brewed and drunk here, or one run
         // out, is a camp of the other kind, so the pick goes again and a box under way is dropped)
         if (_campSpotFor != null && BlazeFight.fireproofCamp(mod.getPlayer()) != _campFireproof) {
