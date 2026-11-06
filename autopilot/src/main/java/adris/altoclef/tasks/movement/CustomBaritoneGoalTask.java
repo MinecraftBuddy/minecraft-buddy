@@ -29,6 +29,11 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
     protected MovementProgressChecker _checker = new MovementProgressChecker();
     protected Goal _cachedGoal = null;
     private Task _unstuckTask = null;
+    // the step out of a fence's cell gets this many ticks in one cell, then the normal pathing (and its stuck and wander
+    // checks) takes over: an open cell beside that the step can't reach would otherwise hold the forward key for ever
+    private static final int OPEN_BESIDE_TICKS = 10;
+    private BlockPos _openBesideFeet;
+    private int _openBesideTicks;
 
     // This happens all the time in mineshafts and swamps/jungles
 
@@ -89,12 +94,13 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
         return null;
     }
 
-    // with our feet in a cell that has a collision shape (a fence, a wall), the nearest of the eight beside it with room for the
-    // body, a floor and no fire or lava; null when the feet's cell is open or none is
+    // with our feet in a cell whose collision shape reaches above them (a fence, a wall, a pane), the nearest of the eight beside
+    // it with room for the body, a floor and no fire or lava; null when the feet's cell is open or none is
     private static BlockPos openBeside(AltoClef mod) {
         var level = mod.getWorld();
         BlockPos feet = mod.getPlayer().blockPosition();
-        if (level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()) return null;
+        var shape = level.getBlockState(feet).getCollisionShape(level, feet);
+        if (shape.isEmpty() || !reachesAboveFeet(shape.max(net.minecraft.core.Direction.Axis.Y), feet.getY(), mod.getPlayer().getY())) return null;
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
         for (int dx = -1; dx <= 1; dx++) {
@@ -117,6 +123,12 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
         return best;
     }
 
+    // a shape that only lifts the feet (a slab, stairs, soul sand, farmland, a carpet, a chest, a bed) is one we stand on, and
+    // the pathfinder starts from it fine; only one that reaches above the feet holds the body in a cell it can't start from
+    static boolean reachesAboveFeet(double shapeTop, int cellY, double feetY) {
+        return cellY + shapeTop > feetY + 0.01;
+    }
+
     private Task getFenceUnstuckTask() {
         return new SafeRandomShimmyTask();
     }
@@ -126,6 +138,8 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
         cancelPath(mod);
         _checker.reset();
         stuckCheck.reset();
+        _openBesideFeet = null;
+        _openBesideTicks = 0;
     }
 
     @Override
@@ -137,9 +151,15 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
         // (the buddy's fork: our feet in a cell that blocks, the edge of a fortress rim's fence: the pathfinder starts in that cell
         // and finds no way out of it, so first a step to the middle of the nearest open cell beside it. the blaze fight's run
         // stood so in the fire 59 ticks and more, twice in one drill block, corner19 runs 1 and 3, 4 Nov 2026)
-        if (!mod.getClientBaritone().getPathingBehavior().isPathing()) {
+        BlockPos feetNow = mod.getPlayer().blockPosition();
+        if (!feetNow.equals(_openBesideFeet)) {
+            _openBesideFeet = feetNow;
+            _openBesideTicks = 0;
+        }
+        if (!mod.getClientBaritone().getPathingBehavior().isPathing() && _openBesideTicks < OPEN_BESIDE_TICKS) {
             BlockPos open = openBeside(mod);
             if (open != null) {
+                _openBesideTicks++;
                 setDebugState("Out of the fence's cell first");
                 adris.altoclef.util.helpers.LookHelper.lookAt(mod, new net.minecraft.world.phys.Vec3(open.getX() + 0.5, mod.getPlayer().getEyeY(), open.getZ() + 0.5));
                 mod.getInputControls().tryPress(Input.MOVE_FORWARD);
