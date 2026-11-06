@@ -274,6 +274,11 @@ final class BlazeFight {
     // (the buddy's fork, steering 37 and the 15:05 evaluation of 5 Nov 2026: with fire resistance and Tuning fireproof_camp the
     // camp is the spawner itself, with no corner, no pillbox and no hiding from a crowd: the fireballs do nothing then, and
     // with the box the ceiling's runs stalled locked out of the cell or sealed in it, 6 and 1 of 7 in realfort-ab-ceiling-2)
+    // the reach under fire resistance with fireproof_camp on (0: the usual one)
+    static double fireproofHold(net.minecraft.world.entity.LivingEntity player) {
+        return fireproofCamp(player) ? adris.altoclef.util.helpers.Tuning.get("fireproof_hold", 0) : 0;
+    }
+
     static boolean fireproofCamp(net.minecraft.world.entity.LivingEntity player) {
         return player != null && adris.altoclef.util.helpers.Tuning.get("fireproof_camp", 0) > 0
                 && adris.altoclef.util.helpers.FireRes.has(player);
@@ -882,6 +887,10 @@ final class BlazeFight {
                         // (from a pillbox only one the sword reaches from it: one "in reach" six from the corner was walked to
                         // and let go by the leash out of the box, again and again, bent-e run 1, dead on the bridge)
                         && (!pillboxPlanned || corner == null || distance <= adris.altoclef.util.helpers.Tuning.get("pillbox_reach", PILLBOX_REACH))
+                        // (the buddy's fork, Tuning fireproof_hold, blocks: under fire resistance only one that close, the rest
+                        // come to the camp. the fireballs do little then, and the chase to blaze after blaze ended "no path"
+                        // and a ban each, 54 in five minutes with blazes in sight and no rod, steering 67)
+                        && (fireproofHold(player) <= 0 || distance <= fireproofHold(player))
                         && (!cornerHold || blaze == target || distance <= BITE_RANGE || (blaze.getEyePosition().distanceTo(cornerEye) <= CORNER_REACH
                         && (!BlazeCover.hidden(mod.getWorld(), List.of(blaze.getEyePosition()), seeCell.getX(), seeCell.getY(), seeCell.getZ(), player)
                         || BlazeCover.bodySeen(mod.getWorld(), player.getEyePosition(), blaze, player))));
