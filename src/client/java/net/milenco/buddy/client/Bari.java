@@ -111,6 +111,15 @@ final class Bari {
 		return pb.isPathing() || pb.getInProgress().isPresent() || baritone().getCustomGoalProcess().isActive() || baritone().getMineProcess().isActive();
 	}
 
+	/**
+	 * Standing still for a click in the inventory, asked at the start of every tick it is wanted: Baritone holds its walk
+	 * for it the way it does for its own inventory moves (inventoryMoveOnlyIfStationary), and says yes once the buddy has
+	 * stood still for two ticks.
+	 */
+	static boolean stillForClick() {
+		return ((baritone.Baritone) baritone()).getInventoryPauserProcess().stationaryForInventoryMove();
+	}
+
 	/** Once a tick, after the jobs: a walk no longer asked for is stopped. */
 	static void tick() {
 		tick++;

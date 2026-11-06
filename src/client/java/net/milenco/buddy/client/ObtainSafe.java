@@ -620,13 +620,20 @@ final class ObtainSafe {
 	 * to build with, leaf litter, seeds, saplings beyond a few. Thrown out when the inventory is nearly full, one stack a
 	 * tick at most (AltoClef throws its junk the same way when it needs room).
 	 */
-	static int junkSlot(LocalPlayer p) {
+	static int junkSlot(LocalPlayer p) { return junkSlot(p, id -> false); }
+
+	/** The same, with kinds that are to stay in the bag for now ({@code held}) left where they are. */
+	static int junkSlot(LocalPlayer p, java.util.function.Predicate<String> held) {
 		var in = p.getInventory();
 		int blocks = 0;
 		for (int i = 0; i < 36; i++) {
 			var st = in.getItem(i);
 			if (st.isEmpty()) continue;
 			String id = AfkHelperClient.itemId(st);
+			if (held.test(id)) {
+				if (throwaway(st) && !id.equals(Obtain.item())) blocks += st.getCount();
+				continue;
+			}
 			if (id.equals("leaf_litter") || id.equals("wheat_seeds") || id.equals("poisonous_potato") || id.equals("rotten_flesh")
 					|| id.equals("short_grass") || id.equals("dead_bush") || id.equals("pointed_dripstone")) return i;
 			if (id.endsWith("_sapling") && st.getCount() > 4 && Obtain.item() != null && !Obtain.item().equals(id)) return i;
@@ -644,7 +651,7 @@ final class ObtainSafe {
 				var st = in.getItem(i);
 				if (!throwaway(st)) continue;
 				String id = AfkHelperClient.itemId(st);
-				if (id.equals(Obtain.item())) continue;
+				if (id.equals(Obtain.item()) || held.test(id)) continue;
 				if (!id.equals("cobblestone")) return i;
 				cobble += st.getCount();
 				cobbleSlot = i;

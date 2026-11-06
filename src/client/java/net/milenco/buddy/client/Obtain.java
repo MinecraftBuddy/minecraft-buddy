@@ -292,7 +292,76 @@ final class Obtain {
 	// ---------- the tick ----------
 
 	static void startTick(Minecraft mc) {
+		throwJunk(mc);
 		if (exec != null) exec.startTick(mc);
+	}
+
+	// ---------- junk out of a nearly full bag ----------
+
+	/** The slot of junk asked to go at the end of the last tick, -1 for none; since when it waits to go. */
+	private static int junkAsk = -1;
+	private static long junkAskTick, junkWaitFrom;
+	private static int stillTicks;
+	/** The junk thrown last, how much of it, and the bag's count of it since: a jump back up is the stack picked up again. */
+	private static String thrownId;
+	private static int thrownN, thrownPrev;
+	private static long thrownTick;
+	/** Kinds of junk that came back after a throw, with the game tick until which they are not thrown again. */
+	private static final Map<String, Long> junkHeld = new HashMap<>();
+
+	/**
+	 * The junk asked for at the end of the last tick, thrown at the start of this one where the buddy looks: no turn first,
+	 * for a look sent to the server by hand, round and back in an instant, is what anti-cheats look for, and so is a click
+	 * mid sprint: only standing still on the ground. Baritone holds its walk for the throw as for its own inventory moves;
+	 * a throw that gets no standing still within two seconds waits a while.
+	 */
+	private static void throwJunk(Minecraft mc) {
+		LocalPlayer p = mc.player;
+		if (junkAsk < 0 || p == null || mc.gameMode == null) return;
+		long tk = p.level().getGameTime();
+		if (tk - junkAskTick > 1 || item == null || p.containerMenu != p.inventoryMenu) { junkAsk = -1; stillTicks = 0; return; }
+		if (tk - junkWaitFrom > 40) {
+			junkAsk = -1;
+			stillTicks = 0;
+			nextThrow = System.currentTimeMillis() + 15_000;
+			return;
+		}
+		stillTicks = p.onGround() && p.getDeltaMovement().horizontalDistanceSqr() < 1e-6 ? stillTicks + 1 : 0;
+		boolean still = Bari.present() ? Bari.stillForClick() : stillTicks > 1;
+		if (!still || p.isSprinting() || !p.onGround()) return;
+		int j = junkAsk;
+		junkAsk = -1;
+		stillTicks = 0;
+		ItemStack st = p.getInventory().getItem(j);
+		if (st.isEmpty()) return;
+		String junk = AfkHelperClient.itemId(st);
+		int n = st.getCount();
+		nextThrow = System.currentTimeMillis() + 400;
+		Game.drop(mc.gameMode, p.inventoryMenu.containerId, j < 9 ? 36 + j : j, p);
+		ObtainSafe.threw(junk, p.position());
+		thrownId = junk;
+		thrownN = n;
+		thrownPrev = ObtainSteps.count(p, junk);
+		thrownTick = tk;
+		Exchange.emit("obtain", "action", "throws away", "item", junk);
+	}
+
+	/**
+	 * Thrown ahead, junk can lie where the buddy steps next and be picked up again once the game lets it (two seconds):
+	 * in a staircase it went round, thrown and picked up, for minutes. A stack back in the bag within ten seconds of its
+	 * throw keeps that kind in the bag for a game minute.
+	 */
+	private static void watchJunk(LocalPlayer p, long tk) {
+		if (thrownId == null) return;
+		int c = ObtainSteps.count(p, thrownId);
+		if (c - thrownPrev >= Math.max(1, (thrownN + 1) / 2)) {
+			junkHeld.put(thrownId, tk + 1200);
+			Exchange.emit("obtain", "action", "junk came back", "item", thrownId, "count", c - thrownPrev);
+			thrownId = null;
+			return;
+		}
+		thrownPrev = c;
+		if (tk - thrownTick > 200) thrownId = null;
 	}
 
 	static boolean inMenu(LocalPlayer p) { return exec != null && exec.inMenu(p); }
@@ -329,20 +398,16 @@ final class Obtain {
 		// practice server's five times the speed included, where the wall clock made them five times as slow in the game
 		// nearly full: what is worth nothing out first, between two of its clicks; for Soprano's order too (a staircase's
 		// cobblestone filled 29 slots, there was no room for iron or wood, and the kit went round for three hours). Over 96
-		// blocks of stone and the like go, the rest stays for steps, pillars and the night's hole
+		// blocks of stone and the like go, the rest stays for steps, pillars and the night's hole. Asked here, thrown at the
+		// start of the next tick (throwJunk)
+		long tk = p.level().getGameTime();
+		watchJunk(p, tk);
 		if (Work.freeSlots(p) <= 3 && p.containerMenu == p.inventoryMenu && now >= nextThrow) {
-			int j = ObtainSafe.junkSlot(p);
+			int j = ObtainSafe.junkSlot(p, id -> junkHeld.getOrDefault(id, Long.MIN_VALUE) > tk);
 			if (j >= 0) {
-				nextThrow = now + 400;
-				String junk = AfkHelperClient.itemId(p.getInventory().getItem(j));
-				// behind it and a little up, where it came from: thrown ahead into a staircase it lay on its next step, was picked
-				// up two seconds later and thrown again, for minutes
-				float yaw = p.getYRot(), pitch = p.getXRot();
-				Game.lookOnServer(p, yaw + 180f, -30f);
-				Game.drop(mc.gameMode, p.inventoryMenu.containerId, j < 9 ? 36 + j : j, p);
-				Game.lookOnServer(p, yaw, pitch);
-				ObtainSafe.threw(junk, p.position());
-				Exchange.emit("obtain", "action", "throws away", "item", junk);
+				if (junkAsk < 0) junkWaitFrom = tk;
+				junkAsk = j;
+				junkAskTick = tk;
 			}
 		}
 		if (Alto.knows(item)) return whole(mc, p, p.level().getGameTime() * 50);
