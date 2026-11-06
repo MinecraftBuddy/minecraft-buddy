@@ -231,6 +231,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         campDry(mod);
         // (again: the goal the walk is judged against is the spawner we just picked, not last tick's)
         noteZoneInputs(mod);
+        fireproofFallback(mod);
         // (the buddy's fork: the camp was picked with or without fire resistance; a potion brewed and drunk here, or one run
         // out, is a camp of the other kind, so the pick goes again and a box under way is dropped)
         if (_campSpotFor != null && BlazeFight.fireproofCamp(mod.getPlayer()) != _campFireproof) {
@@ -623,10 +624,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 _brewBox = new BrewBoxTask(_brew, _foundBlazeSpawner, () -> java.util.Set.of(), cells);
                 Debug.logInternal("brew: in the pillbox at " + _pillbox.cell().toShortString());
             } else {
-                // (steering 69: never the open brew at a fortress. with no standing bent box (a corner, a one-cell box) a box of
-                // its own near the buddy, the stand made inside it; the open brew at a one-cell box's camp killed Zuri)
+                // (steering 69: never the open brew at a fortress. with no standing pillbox (a corner camp) a box of its own
+                // near the buddy, the stand made inside it; the open brew at a one-cell box's camp killed Zuri)
                 _brewBox = new BrewBoxTask(_brew, _foundBlazeSpawner, this::brewBoxKeepClear);
-                Debug.logInternal("brew: no standing bent pillbox, a box of its own");
+                Debug.logInternal("brew: no standing pillbox, a box of its own");
             }
             _brewBox.waitOnFail = true;
             return _brewBox;
@@ -718,12 +719,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // where the blazes flew in and every kill under the potion came. by the spawner the walk aimed at the block on top
             // of it, behind the buddy's own tunnels, and the walk and the chase took turns for eleven minutes, piece2fix-4 run
             // 2. no box before (the rig's potion): by the spawner as before, fpcamp2's camp)
-            BlockPos spot = _fireproofSpot;
-            if (spot != null && Math.hypot(spot.getX() - sx, spot.getZ() - sz) <= FIREPROOF_SPOT_RANGE) {
-                _campSpot = spot;
-                Debug.logInternal("blaze camp: fire-proof, at the pillbox's open side " + spot.toShortString() + " (spawner " + _foundBlazeSpawner.toShortString() + ")");
-                return;
-            }
+            // (steering 71: the spawner's top first, where they spawn within reach, as fpcamp2's camp; the box's open side, eight
+            // off and three down, gave no blaze in reach for minutes, Makena. only a top not reached in FIREPROOF_WALK_TICKS
+            // falls back to that side, campStepFireproof)
             _campSpot = null;
             Debug.logInternal("blaze camp: fire-proof, by the spawner (" + _foundBlazeSpawner.toShortString() + ")");
             return;
@@ -970,6 +968,20 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private BlockPos _fireproofSpot;
     // a box's open side farther than this from the spawner (flat) is no camp of that spawner
     static final double FIREPROOF_SPOT_RANGE = 12;
+
+    // the fire-proof camp's walk to the spawner's top at most this long before the box's open side (ticks): the top behind the
+    // buddy's own tunnels kept the walk and the chase in turns for eleven minutes, Ari
+    static final long FIREPROOF_WALK_TICKS = 600;
+
+    private void fireproofFallback(AltoClef mod) {
+        if (!_campFireproof || _campSpot != null || _fireproofSpot == null || _foundBlazeSpawner == null || _campPickedAt < 0) return;
+        if (_foundBlazeSpawner.above().closerToCenterThan(mod.getPlayer().position(), CAMP_RADIUS)) return;
+        long now = mod.getWorld().getGameTime();
+        if (now - _campPickedAt < FIREPROOF_WALK_TICKS || now < _campPickedAt) return;
+        if (Math.hypot(_fireproofSpot.getX() - _foundBlazeSpawner.getX(), _fireproofSpot.getZ() - _foundBlazeSpawner.getZ()) > FIREPROOF_SPOT_RANGE) return;
+        _campSpot = _fireproofSpot;
+        Debug.logInternal("blaze camp: fire-proof, the spawner's top not reached in " + FIREPROOF_WALK_TICKS / 20 + " s, at the pillbox's open side " + _campSpot.toShortString());
+    }
 
     private void notePillboxSpot() {
         if (_pillbox == null) return;

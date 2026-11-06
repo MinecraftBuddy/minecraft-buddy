@@ -73,6 +73,23 @@ public class BrewBoxTest {
         assertShut(BlazePillbox.after(PILLBOX, box.blocks()), box);
     }
 
+    // a one-cell pillbox: B (10, 64, 0) walled west, north and south two high with a roof, the look out east of it open
+    static final Cells ONE_CELL = (x, y, z) -> {
+        int[][] walls = {{9, 0}, {10, 1}, {10, -1}};
+        for (int[] w : walls) if (x == w[0] && z == w[1] && (y == 64 || y == 65)) return Cell.SOLID;
+        if (y == 66 && z == 0 && (x == 9 || x == 10)) return Cell.SOLID;
+        return FLOOR.at(x, y, z);
+    };
+
+    @Test
+    public void aOneCellPillboxShutsWithItsLookOutWalledRound() {
+        BrewBox.Box box = BrewBox.planAt(ONE_CELL, 10, 64, 0, new int[]{1, 0}, Double.NaN, Double.NaN, null);
+        assertNotNull(box);
+        // the look out's three open sides two high, and its roof
+        assertEquals(describe(box), 7, box.blocks().size());
+        assertShut(BlazePillbox.after(ONE_CELL, box.blocks()), box);
+    }
+
     @Test
     public void anOpenFloorGetsTheWholeBox() {
         BrewBox.Box box = BrewBox.plan(FLOOR, new int[]{10, 64, 0}, List.of(), Double.NaN, Double.NaN, NONE);

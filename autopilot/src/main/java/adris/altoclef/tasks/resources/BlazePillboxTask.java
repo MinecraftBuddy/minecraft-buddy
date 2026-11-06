@@ -114,8 +114,17 @@ final class BlazePillboxTask extends Task {
     // the bent box on the ground as a brew box's two cells, {B, F - B as x and z}: null for the one-cell or raised box
     // (BrewBoxTask, brew_box 2)
     int[][] brewCells() {
-        if (plan.front() == null || plan.raise() > 0) return null;
-        int[] b = plan.cell(), f = plan.front();
+        if (plan.raise() > 0) return null;
+        int[] b = plan.cell();
+        // (the one-cell box: its cell is B and its look out F, whose open sides the brew box walls; no door then, the way in
+        // is F itself. with none, the box of its own found no floor at one-cell camps, seven tries in a run, piece2craft-3)
+        if (plan.front() == null) {
+            int[] o = plan.lookout();
+            int dx = o[0] - b[0], dz = o[2] - b[2];
+            if (Math.abs(dx) + Math.abs(dz) != 1 || o[1] != b[1]) return null;
+            return new int[][]{b.clone(), {dx, dz}, null};
+        }
+        int[] f = plan.front();
         int[] door = BlazePillbox.door(plan);
         return new int[][]{b.clone(), {f[0] - b[0], f[2] - b[2]}, door};
     }
