@@ -213,7 +213,19 @@ public class CollectBlazeRodsTask extends ResourceTask {
     protected Task onTick(AltoClef mod) {
         _rodWatch.tick(mod);
         if (_brewBox != null) _brewBox.noteHits(mod);
+        // (the buddy's fork, Tuning rod_snowball: the blazes' points for the lead, the kills and the strategy's two ends, on a
+        // pickup's ticks too)
+        if (RodSnowball.on()) RodSnowball.of(mod).watch(mod);
         return super.onTick(mod);
+    }
+
+    // the camp's point the snowballs are thrown from (RodSnowball): the crowd's hiding place, a standing pillbox's cell, the camp
+    // spot (a corner's cell among them), else the spawner's top
+    private BlockPos snowStand() {
+        if (_fight.hidePlace() != null) return _fight.hidePlace();
+        if (_pillbox != null && _pillboxCornered) return _pillbox.cell();
+        if (_campSpot != null) return _campSpot;
+        return _foundBlazeSpawner == null ? null : _foundBlazeSpawner.above();
     }
 
     @Override
@@ -327,6 +339,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // the fight moves us, the next camp spot is a new question
             _campStep = null;
             _campStepTicks = 0;
+        }
+        // (the buddy's fork, Tuning rod_snowball, off by default: the first two rods by snowballs thrown from the camp, RodSnowball.
+        // at the camp with a blaze to throw at, the throws; in KILL mode with nothing to throw at and the sword's blaze out past
+        // the melee's reach, no chase: the camp goes on and its looks bring the blaze into a line)
+        if (RodSnowball.on() && _foundBlazeSpawner != null) {
+            RodSnowball snow = RodSnowball.of(mod);
+            Task thrown = snow.step(mod, _fight, fight, snowStand(), building || brewBuilding);
+            if (thrown != null) {
+                setDebugState("Blaze fight: snowballs");
+                return thrown;
+            }
+            if (snow.holdsMelee()) fight = null;
         }
         if (fight != null) {
             // (a brew under way that a fight takes over, counted for steering 49: how often the open brew is cut off)
