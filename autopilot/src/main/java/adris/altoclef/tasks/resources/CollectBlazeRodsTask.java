@@ -787,8 +787,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // off and three down, gave no blaze in reach for minutes, Makena. only a top not reached in FIREPROOF_WALK_TICKS
             // falls back to that side, campStepFireproof. Tuning fireproof_side 1: the open side at once, dbec29a's camp: the
             // two measured as many rods a minute under the potion, each better at other fortresses, 6 Nov 2026 afternoon)
+            // (steering 78: the spawner's top first only with Tuning fireproof_top, piece2top-2 rejected it; off, the open side
+            // is the camp again, as fireproof_side asks)
             BlockPos side = _fireproofSpot;
-            if (adris.altoclef.util.helpers.Tuning.get("fireproof_side", 0) > 0 && side != null
+            boolean top = adris.altoclef.util.helpers.Tuning.get("fireproof_top", 0) > 0;
+            if ((!top || adris.altoclef.util.helpers.Tuning.get("fireproof_side", 0) > 0) && side != null
                     && Math.hypot(side.getX() - sx, side.getZ() - sz) <= FIREPROOF_SPOT_RANGE) {
                 _campSpot = side;
                 Debug.logInternal("blaze camp: fire-proof, at the pillbox's open side " + side.toShortString() + " (spawner " + _foundBlazeSpawner.toShortString() + ")");
@@ -1062,6 +1065,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     static final long FIREPROOF_WALK_TICKS = 600;
 
     private void fireproofFallback(AltoClef mod) {
+        if (adris.altoclef.util.helpers.Tuning.get("fireproof_top", 0) <= 0) return;
         if (!_campFireproof || _campSpot != null || _fireproofSpot == null || _foundBlazeSpawner == null || _campPickedAt < 0) return;
         if (_foundBlazeSpawner.above().closerToCenterThan(mod.getPlayer().position(), CAMP_RADIUS)) return;
         long now = mod.getWorld().getGameTime();
