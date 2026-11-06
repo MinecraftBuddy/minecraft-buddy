@@ -102,8 +102,7 @@ public final class GhastCover {
                     c.set(at.getX() + dx, at.getY() + dy, at.getZ() + dz);
                     if (!standable(level, c)) continue;
                     if (nearDrop(cells, c.getX(), c.getY(), c.getZ())) continue;
-                    Vec3 head = new Vec3(c.getX() + 0.5, c.getY() + 1.6, c.getZ() + 0.5);
-                    if (clear(level, eye, head, player)) continue;
+                    if (seesCell(level, eye, c, player)) continue;
                     best = c.immutable();
                     bestD = flat;
                 }
@@ -132,6 +131,11 @@ public final class GhastCover {
         return f.getCollisionShape(level, feet).isEmpty() && h.getCollisionShape(level, feet.above()).isEmpty()
                 && f.getFluidState().isEmpty() && h.getFluidState().isEmpty()
                 && !floor.getCollisionShape(level, feet.below()).isEmpty() && floor.getFluidState().isEmpty();
+    }
+
+    // a line from the eye to the head of one standing in the cell
+    public static boolean seesCell(Level level, Vec3 eye, BlockPos cell, net.minecraft.world.entity.Entity who) {
+        return clear(level, eye, new Vec3(cell.getX() + 0.5, cell.getY() + 1.6, cell.getZ() + 0.5), who);
     }
 
     // nothing solid between the two points
