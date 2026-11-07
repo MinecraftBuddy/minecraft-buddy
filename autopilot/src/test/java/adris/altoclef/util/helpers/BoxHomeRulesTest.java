@@ -144,4 +144,15 @@ public class BoxHomeRulesTest {
         assertFalse(BoxHomeRules.holdPotion(false, true, true, 20, 8, false, false));
         assertFalse(BoxHomeRules.holdPotion(true, false, false, 20, 8, false, false));
     }
+
+    @Test
+    public void aBoxGivenUpIsTriedTwiceMoreWhereTheBuddyStands() {
+        // (realfort-pair-home2 B:1: the box given up on the walk barred every box at that spawner; now two more tries)
+        assertEquals(1, BoxHomeRules.retry(false, 0));
+        assertEquals(2, BoxHomeRules.retry(false, 1));
+        // (the second retry given up too: no box there any more)
+        assertEquals(0, BoxHomeRules.retry(false, 2));
+        // (the far box given up leaves the near camp its turn, as before)
+        assertEquals(0, BoxHomeRules.retry(true, 0));
+    }
 }

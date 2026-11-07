@@ -370,6 +370,17 @@ public class CollectBlazeRodsTask extends ResourceTask {
             }
             Debug.logInternal("blaze camp: the pillbox at " + _pillbox.cell().toShortString() + " given up, the camp picked again without " + (farBox ? "the far box" : "one"));
             if (!farBox) _pillboxGaveUpFor = _foundBlazeSpawner;
+            // (the buddy's fork, Tuning box_home: a box given up is not the end of boxes at this spawner, the next goes up where
+            // the buddy stands, at most BoxHomeRules.RETRIES more here, homeRetry; the bar above keeps the same pick off)
+            if (adris.altoclef.util.helpers.BoxHomeRules.on() && !farBox && _foundBlazeSpawner != null) {
+                int k = adris.altoclef.util.helpers.BoxHomeRules.retry(false, _homeTries.getOrDefault(_foundBlazeSpawner, 0));
+                _homeRetryFor = k > 0 ? _foundBlazeSpawner : null;
+                _homeRetryWaitSaid = false;
+                Debug.logInternal("box home: the box at " + _pillbox.cell().toShortString() + " given up, "
+                        + (k > 0 ? "a new box where the buddy stands next, try " + k + " of " + adris.altoclef.util.helpers.BoxHomeRules.RETRIES
+                        : "no tries left at the spawner " + _foundBlazeSpawner.toShortString() + " (" + adris.altoclef.util.helpers.BoxHomeRules.RETRIES
+                        + " made), the camp as without one"));
+            }
             _campSpotFor = null;
             _campSpot = null;
             _pillbox = null;
@@ -411,6 +422,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (the buddy's fork, Tuning camp_reentry, off by default: shut out of the camp, a pillbox where the buddy stands, another
         // corner or none, campReentry. box_home turns it on: a box not got back into is replaced where the buddy stands)
         if (adris.altoclef.util.helpers.CampReentry.on()) campReentry(mod);
+        // (the buddy's fork, Tuning box_home: a try owed after a box given up, a box where the buddy stands, homeRetry)
+        if (_homeRetryFor != null) homeRetry(mod);
         // (the buddy's fork, Tuning box_home: at a known spawner the camp, so the box, is picked before anything else, the cream
         // hunt and the hiding place among them; the build below then comes first. a pack at the spawner is no reason to wait:
         // a wither skeleton does not fit the box)
@@ -419,7 +432,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             pickCampSpot(mod);
             if (_foundBlazeSpawner.equals(_campSpotFor)) {
                 Debug.logInternal("box home: the camp first at the spawner " + _foundBlazeSpawner.toShortString() + ", "
-                        + (_pillbox != null ? "a pillbox at " + _pillbox.cell().toShortString()
+                        + (_pillbox != null ? "a pillbox at " + _pillbox.cell().toShortString() + ", its clock from the cell"
                         : _campSpot != null ? "no box fits, the camp at " + _campSpot.toShortString() : "no box fits, by the spawner"));
             }
         }
@@ -1080,6 +1093,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
             adris.altoclef.util.helpers.BlazePillbox.Plan plan = pillboxPlan(mod, cells, sx, sy, sz);
             if (plan != null) {
                 _pillbox = new BlazePillboxTask(plan);
+                // (Tuning box_home: the box is picked on arrival at the spawner, maybe 120 blocks off; its clock starts at
+                // the cell, as the far box's, or the walk ate it, realfort-pair-home2 B:1)
+                if (homeFirst) _pillbox.clockAtCell();
                 _fight.pillboxPlanned(true);
                 _fight.pillboxLookout(_pillbox.lookout());
                 _campSpot = _pillbox.cell();
@@ -1540,6 +1556,68 @@ public class CollectBlazeRodsTask extends ResourceTask {
             if (level.getBlockState(BlockPos.containing(eye)).getCollisionShape(level, BlockPos.containing(eye)).isEmpty()) eyes.add(eye);
         }
         return eyes;
+    }
+
+    // ---- the buddy's fork, Tuning box_home: a box given up at a spawner leaves a try (BoxHomeRules.retry): the next box
+    // goes up where the buddy stands (camp_reentry's pillboxHere), looked for once a second till one fits, with its clock
+    // from the cell. it replaces the camp picked meanwhile (a corner, the open camp); neither the give-up's bar
+    // (_pillboxGaveUpFor) nor camp_reentry's "none" (_campsOffFor) stops it. realfort-pair-home2 B:1: the box given up on
+    // the walk barred every box at the spawner, and the buddy fought in the open and died
+
+    // the boxes tried again per spawner, and the spawner a try is owed at (null: none)
+    private final java.util.Map<BlockPos, Integer> _homeTries = new java.util.HashMap<>();
+    private BlockPos _homeRetryFor;
+    private long _homeRetryLookAt = Long.MIN_VALUE / 2;
+    private boolean _homeRetryWaitSaid;
+
+    private void homeRetry(AltoClef mod) {
+        var me = mod.getPlayer();
+        if (!adris.altoclef.util.helpers.BoxHomeRules.on()) {
+            _homeRetryFor = null;
+            return;
+        }
+        // (a box up or going up, a heal or brew box, the potion's camp, another spawner, in the air: not now)
+        if (me == null || !_homeRetryFor.equals(_foundBlazeSpawner) || _pillbox != null || _healBox != null
+                || (_brewBox != null && !_brewBox.isFinished(mod)) || _campFireproof || BlazeFight.fireproofCamp(me) || !me.onGround()
+                || mod.getClientBaritone().getPlayerContext() == null) return;
+        long now = mod.getWorld().getGameTime();
+        if (now - _homeRetryLookAt < adris.altoclef.util.helpers.BoxHomeRules.RETRY_LOOK_TICKS) return;
+        _homeRetryLookAt = now;
+        int k = _homeTries.getOrDefault(_foundBlazeSpawner, 0) + 1;
+        int sx = _foundBlazeSpawner.getX(), sy = _foundBlazeSpawner.getY(), sz = _foundBlazeSpawner.getZ();
+        BlockPos feet = me.blockPosition();
+        Cells cells = CliffAvoidance.of(new baritone.utils.BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
+        adris.altoclef.util.helpers.BlazePillbox.Plan here = adris.altoclef.util.helpers.Tuning.get("pillbox", 1) <= 0 ? null
+                : adris.altoclef.util.helpers.CampReentryRules.pillboxHere(cells, feet.getX(), feet.getY(), feet.getZ(), sx, sy, sz,
+                freeSpawnEyes(mod, sx, sy, sz), adris.altoclef.util.helpers.Tuning.get("pillbox_bent", 1) > 0, BlazePillboxTask.blocksInBag(mod));
+        if (here == null) {
+            if (!_homeRetryWaitSaid) {
+                _homeRetryWaitSaid = true;
+                Debug.logInternal(String.format(java.util.Locale.ROOT, "box home: no box fits where the buddy stands at %s (%.0f from the spawner, %d blocks in the bag), try %d of %d waits for a cell that takes one",
+                        feet.toShortString(), Math.sqrt(feet.distSqr(_foundBlazeSpawner)), BlazePillboxTask.blocksInBag(mod), k,
+                        adris.altoclef.util.helpers.BoxHomeRules.RETRIES));
+            }
+            return;
+        }
+        _homeTries.put(_foundBlazeSpawner, k);
+        _homeRetryFor = null;
+        _campPickedAt = now;
+        _doorWalkSince = -1;
+        _lure = null;
+        _pillbox = new BlazePillboxTask(here);
+        _pillbox.clockAtCell();
+        _pillboxCornered = false;
+        _fight.pillboxPlanned(true);
+        _fight.pillboxLookout(_pillbox.lookout());
+        _campSpot = _pillbox.cell();
+        _campSpotFor = _foundBlazeSpawner;
+        // (its cell the fight's corner at once, as camp_reentry's box)
+        _pillboxCornerSet = _pillbox.corner(mod);
+        _fight.corner(_pillboxCornerSet);
+        adris.altoclef.util.snapshot.Snapshots.chose("pillbox", here.cell()).with("lookout", here.lookout()).blocks(here.blocks()).spawner(sx, sy, sz);
+        Debug.logInternal("box home: a new box where the buddy stands at " + _campSpot.toShortString() + " (" + here.blocks().size() + " blocks"
+                + (here.front() != null ? ", bent" : "") + "), looking out from " + _pillbox.lookout().toShortString() + ", try " + k + " of "
+                + adris.altoclef.util.helpers.BoxHomeRules.RETRIES + " after a give-up, its clock from the cell (spawner " + _foundBlazeSpawner.toShortString() + ")");
     }
 
     private void campReentry(AltoClef mod) {
