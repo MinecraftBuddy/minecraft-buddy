@@ -8,7 +8,7 @@ gone.
 The game is HeadlessMC (a Minecraft launcher without a window) in one folder, game_dir, with Minecraft and its loader, the
 mods of setup/mods.json and the buddy's own jars, which come with the image (/opt/buddy/jars) and are put in the mods folder
 at every start of the game, so a new image is a new buddy; with BUDDY_JARS=folder (compose.yaml) the mods folder's
-own jars stay. The game is a child of setup/supervise.py, the container's own process, which runs it while
+own jars stay while they are not older than the image's. The game is a child of setup/supervise.py, the container's own process, which runs it while
 game-want.json in the state folder says so and writes what it does to game-runs.json; start, stop and restart here write
 the first and wait for the second. An update is asking Watchtower for the newest image (image_update). A job (install,
 login) is a process of its own that outlives the panel: its lines go to ~/.local/state/buddy/job.log and its state to
@@ -403,11 +403,7 @@ def status():
         pinned_all = {}
     pinned = pinned_all.get("mods", [])
     buddy = [f for f in mods if f.startswith("minecraft-buddy-")]
-    ver = None
-    for f in buddy:
-        m = re.match(r"^minecraft-buddy-(\d[\w.]*)\+mc", f)
-        if m:
-            ver = m.group(1)
+    ver = buddy_version(buddy)
     try:
         hmc_version = open(os.path.join(d, "headlessmc.version"), encoding="utf-8").read().strip()
     except OSError:
@@ -711,18 +707,36 @@ def image_jars(cfg):
 
 def own_jars():
     """BUDDY_JARS=folder (in compose.yaml): the buddy's jars are what lies in the mods folder, put there by hand or by a
-    script, and the image's are not copied in: for a machine where new versions are tried before they are released."""
+    script: for a machine where new versions are tried before they are released. Only while they are not older than the
+    image's: a newer image (an Update) puts its own in, so that an update never leaves the mod behind."""
     return os.environ.get("BUDDY_JARS") == "folder"
 
 
+def buddy_version(files):
+    """The version of the buddy's own jar among these file names (minecraft-buddy-0.5.18+mc26.3.jar: 0.5.18), or None;
+    a module's jar (minecraft-buddy-tweakcraft-...) is not it."""
+    for f in files:
+        m = re.match(r"^minecraft-buddy-(\d[\w.-]*)\+mc", f)
+        if m:
+            return m.group(1)
+    return None
+
+
 def install_buddy(cfg):
-    if own_jars():
-        say("  Minecraft Buddy's jars: those already in the mods folder (BUDDY_JARS=folder)")
-        return status()["buddy"] if os.path.isdir(mods_dir(cfg)) else ""
-    v, jars, missing = image_jars(cfg)
-    if missing:
-        raise RuntimeError("the image %s lacks %s" % (v, ", ".join(missing)))
     md = mods_dir(cfg)
+    v, jars, missing = image_jars(cfg)
+    if own_jars():
+        have = buddy_version(os.listdir(md)) if os.path.isdir(md) else None
+        # a jar of the same version with a suffix (0.5.22-obtain.3) counts as not older: it is built on that version
+        if not v or (have and version_key(have) >= version_key(v)):
+            say("  Minecraft Buddy's jars: those already in the mods folder (BUDDY_JARS=folder)")
+            return have or ""
+        if missing:
+            say("  Minecraft Buddy's jars: those already in the mods folder, as the image %s lacks %s" % (v, ", ".join(missing)))
+            return have or ""
+        say("  Minecraft Buddy's jars: the image's %s, newer than the mods folder's %s" % (v, have or "none"))
+    elif missing:
+        raise RuntimeError("the image %s lacks %s" % (v, ", ".join(missing)))
     os.makedirs(md, exist_ok=True)
     for name, src in jars.items():
         dest = os.path.join(md, name)

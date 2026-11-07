@@ -19,6 +19,10 @@ folder, not the image's. `docker compose exec <name> python3 /opt/buddy/panel/ga
 the jar there and restart the game with `... game.py restart`. Without `BUDDY_JARS: folder` the image's own jars are
 put back at the next start.
 
+The folder's jars stay only while they are not older than the image's. A newer image, such as after an Update, puts its
+own jars back at the game's next start, so an update never leaves the mod behind. A jar built on the image's version
+(`0.5.22-obtain.3` beside image 0.5.22) stays.
+
 Try behaviour on a server of your own first (offline mode lets a scripted player join): `game.py server <address>`
 takes the buddy there and back.
 

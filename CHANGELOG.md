@@ -3,6 +3,11 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.23
+
+- An Update now always brings the newest mod along. A buddy set up with jars of its own (`BUDDY_JARS: folder`) keeps
+  them only while they are not older than the update's.
+
 ## 0.5.22
 
 - The panel's colours now stay apart with red/green colour blindness: online, running and done are blue instead of

@@ -85,7 +85,7 @@ The first four are written out in `compose.yaml` as comments.
 | No domain: the machine's address and a port you choose | in the buddy's labels `caddy: https://203.0.113.5:20443` and `caddy.tls: internal`, and at `caddy` the label `caddy.default_sni: 203.0.113.5`; the certificate is Caddy's own, so the browser warns once |
 | Beside another web server that holds ports 80 and 443 (nginx, Apache) | four labels at `caddy`: [Beside another web server](#beside-another-web-server) |
 | A buddy that plays on a server on the same machine (`127.0.0.1`) | `network_mode: host`, the panel on a separate port of `127.0.0.1` (`BUDDY_LISTEN`, `BUDDY_PANEL_PORT`, `BUDDY_PROXY_HOST: localhost`), its Watchtower on a port of `127.0.0.1` too (`ports` at the Watchtower, `WATCHTOWER_URL` at the buddy, one port per such buddy), and `caddy.reverse_proxy: 127.0.0.1:<that port>` |
-| A machine where new versions of the buddy are tried | `BUDDY_JARS: folder` in the buddy's environment: the jars in the mods folder are used, not the image's |
+| A machine where new versions of the buddy are tried | `BUDDY_JARS: folder` in the buddy's environment: the jars in the mods folder are used, not the image's, until an Update brings a newer version |
 
 Let's Encrypt checks a domain over port 80, also when the panel is on another port, so keep port 80 reachable.
 
