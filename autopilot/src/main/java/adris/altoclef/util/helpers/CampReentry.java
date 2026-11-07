@@ -27,8 +27,9 @@ public final class CampReentry {
     private CampReentry() {
     }
 
+    // (box_home turns it on too: a box not got back into is replaced where the buddy stands, BoxHomeRules)
     public static boolean on() {
-        return Tuning.get("camp_reentry", 0) > 0;
+        return Tuning.get("camp_reentry", 0) > 0 || BoxHomeRules.on();
     }
 
     // the camp the rods task holds now (null: none, or a box still going up), the standing box's door (null: none), and

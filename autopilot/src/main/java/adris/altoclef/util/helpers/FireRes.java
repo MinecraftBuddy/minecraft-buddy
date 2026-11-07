@@ -54,6 +54,35 @@ public final class FireRes {
         tradedSpawner = spawner;
     }
 
+    // Tuning box_home (BoxHomeRules.holdPotion), off by default: any fire resistance potion, traded or brewed, waits for the first
+    // blaze while the buddy is in the standing box (BlazeShelter.inStandingBox); asked for by a task, in lava or on fire at
+    // fr_trade_hold_hp or less it goes down. a line per held episode and one when it goes down in the box
+    private static volatile long boxHeldAt = Long.MIN_VALUE / 2;
+    private static volatile long boxDrunkAt = Long.MIN_VALUE / 2;
+    // a drink in the box is said again only after this long (ticks): the drink's own 32 ticks ask every tick
+    static final long BOX_DRINK_GAP = 200;
+
+    public static boolean holdsForBox(LivingEntity e, double blaze, boolean asked, long now) {
+        if (!BoxHomeRules.on()) return false;
+        boolean inLava = e.isInLava() || e.isEyeInFluid(FluidTags.LAVA);
+        double hp = Tuning.get("fr_trade_hold_hp", FireResTradeRules.HOLD_HP);
+        boolean inBox = BlazeShelter.inStandingBox(e.blockPosition());
+        boolean near = blaze <= FireResRules.BLAZE_RANGE;
+        if (BoxHomeRules.holdPotion(asked, inLava, e.isOnFire(), e.getHealth(), hp, inBox, near)) {
+            if (FireResTradeRules.newEpisode(boxHeldAt, now)) {
+                Debug.logInternal(String.format(Locale.ROOT, "box home: fire resistance held for the box (%s, %.1f hp, nearest blaze %s, %s)",
+                        e.isOnFire() ? "on fire" : "a blaze near", e.getHealth(), FireResTradeRules.distance(blaze), inBox ? "in the box" : "out of it"));
+            }
+            boxHeldAt = now;
+            return true;
+        }
+        if (inBox && near && !asked && (now < boxDrunkAt || now - boxDrunkAt > BOX_DRINK_GAP)) {
+            Debug.logInternal(String.format(Locale.ROOT, "box home: fire resistance drunk in the box, the first blaze %s", FireResTradeRules.distance(blaze)));
+            boxDrunkAt = now;
+        }
+        return false;
+    }
+
     // whether a fire resistance potion that would go down now (FireResRules.wantsToDrink said yes) waits for the blazes, with
     // a line once per fire episode. always false with the switch off. blaze: the nearest one, infinite for none
     public static boolean holdsTraded(LivingEntity e, double blaze, boolean asked, long now) {

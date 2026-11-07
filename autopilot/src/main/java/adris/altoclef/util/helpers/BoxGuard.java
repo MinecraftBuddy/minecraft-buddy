@@ -30,8 +30,9 @@ public final class BoxGuard {
         tick = now;
     }
 
+    // (box_home turns it on too: the box as home, BoxHomeRules)
     public static boolean on() {
-        return Tuning.get("box_no_wander", 0) > 0;
+        return Tuning.get("box_no_wander", 0) > 0 || BoxHomeRules.on();
     }
 
     // the box's corner while the switch is on, the lure ran lately and the feet are within its reach; else null

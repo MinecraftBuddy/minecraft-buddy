@@ -67,6 +67,12 @@ public final class BlazeShelter {
         return b != null && b.cell().equals(corner) && b.holds() != null && b.holds().test(feet);
     }
 
+    // the feet in the standing box, whatever its cell (box_home's potion hold, FireRes.holdsForBox)
+    public static boolean inStandingBox(BlockPos feet) {
+        Box b = box;
+        return b != null && b.holds() != null && b.holds().test(feet);
+    }
+
     // the corner while fresh, else null (a clock that went backwards, a new world, is stale too)
     public static BlockPos fresh(long now) {
         BlockPos c = corner;
