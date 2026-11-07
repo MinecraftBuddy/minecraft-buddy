@@ -542,6 +542,14 @@ public class EntityTracker extends Tracker {
                         if (projEntity instanceof FishingHook || projEntity instanceof ThrownEnderpearl || projEntity instanceof ThrownExperienceBottle)
                             continue;
 
+                        // (the buddy's fork, Tuning rod_snowball, off by default: the buddy's own throws are no danger. its first
+                        // snowball raised the mob defense's shield, "up for Snowball, impact 0t, dist 1.2", the strategy trial's
+                        // lane t3)
+                        if (adris.altoclef.util.helpers.Tuning.get("rod_snowball", 0) > 0 && adris.altoclef.util.helpers.SnowballAim.ownThrow(
+                                projEntity.getOwner() == _mod.getPlayer(), projEntity instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball,
+                                _mod.getWorld().getGameTime(), adris.altoclef.util.helpers.SnowballAim.lastOwnThrow(), projEntity.distanceTo(_mod.getPlayer())))
+                            continue;
+
                         if (!inGround) {
                             proj.position = projEntity.position();
                             proj.velocity = projEntity.getDeltaMovement();

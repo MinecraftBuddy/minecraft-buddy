@@ -208,6 +208,8 @@ public class MobDefenseChain extends SingleTaskChain {
     private void startShielding(AltoClef mod, boolean standStill) {
         // (the buddy's fork: no shield while a pillbox goes up, see BlazeShelter.building)
         if (adris.altoclef.util.helpers.BlazeShelter.building(mod)) return;
+        // (the buddy's fork, Tuning rod_snowball: no held use key with a snowball in the main hand, ShieldRaise.handClear)
+        if (!adris.altoclef.util.helpers.ShieldRaise.handClear(mod)) return;
         _shielding = true;
         if (standStill) {
             mod.getInputControls().hold(Input.SNEAK, this);

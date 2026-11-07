@@ -18,9 +18,14 @@ import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.monster.Blaze;
+import net.minecraft.world.entity.monster.Enderman;
+import net.minecraft.world.entity.monster.piglin.AbstractPiglin;
+import net.minecraft.world.entity.monster.zombie.ZombifiedPiglin;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -57,6 +62,10 @@ final class RodSnowball {
     static final double LEAD_CAP = 0.5;
     // the crosshair's ray along the throw's look clear of blocks this far (the block reach is 4.5): the click is no use on a block
     static final double LOOK_CLEAR = 5;
+    // no throw with a zombified piglin, a piglin or an enderman this close to the ball's way, and the way checked this many
+    // ticks on past the blaze
+    static final double NEUTRAL_MARGIN = 1;
+    static final double PAST_TICKS = 15;
     // a line on why nothing is thrown at the camp with blazes in range, at most this often (game ticks)
     static final long STATUS_TICKS = 400;
 
@@ -188,11 +197,12 @@ final class RodSnowball {
         Vec3 eye = p.getEyePosition();
         Vec3 centre = b.getBoundingBox().getCenter();
         double distance = eye.distanceTo(centre);
-        if (distance > range()) return SnowballAim.whyNot(distance, MELEE_KEEP, range(), false, false, false);
+        if (distance > range()) return SnowballAim.whyNot(distance, MELEE_KEEP, range(), false, false, false, true);
         boolean sight = clear(mod, p, eye, centre);
         double[] origin = {p.getX(), p.getEyeY() - SnowballAim.ORIGIN_DROP, p.getZ()};
         double[] solution = null;
         boolean arc = false;
+        boolean neutralClear = true;
         if (sight) {
             java.util.ArrayDeque<double[]> t = trail.get(b.getId());
             double[] vel = new double[]{0, 0, 0};
@@ -203,18 +213,52 @@ final class RodSnowball {
             double[] move = ownMove(p);
             solution = SnowballAim.solve(origin, new double[]{centre.x, centre.y, centre.z}, vel, move);
             if (solution != null) {
-                double[][] path = SnowballAim.path(origin, SnowballAim.velocity((float) solution[0], (float) solution[1], move), solution[2]);
+                double[] v0 = SnowballAim.velocity((float) solution[0], (float) solution[1], move);
+                double[][] path = SnowballAim.path(origin, v0, solution[2]);
                 arc = true;
                 // (the last segment ends in the blaze; up to it, nothing solid)
                 for (int k = 0; k + 1 < path.length && arc; k++) {
                     arc = clear(mod, p, new Vec3(path[k][0], path[k][1], path[k][2]), new Vec3(path[k + 1][0], path[k + 1][1], path[k + 1][2]));
                 }
+                neutralClear = !arc || !neutralNear(mod, p, origin, v0, solution[2]);
             }
         }
-        String no = SnowballAim.whyNot(distance, MELEE_KEEP, range(), sight, solution != null, arc);
+        String no = SnowballAim.whyNot(distance, MELEE_KEEP, range(), sight, solution != null, arc, neutralClear);
         if (no != null) return no;
         shot = new Shot(b, (float) solution[0], (float) solution[1], solution[2], distance);
         return null;
+    }
+
+    // a zombified piglin, a piglin or an enderman within NEUTRAL_MARGIN of the ball's way: up to the blaze, and on past it for
+    // PAST_TICKS (a miss flies on) up to the first block. a ball that hits one turns it, and a zombified piglin its whole pack,
+    // on the buddy (the strategy trial's lane t3: three zombified piglins killed, the buddy dead to a piglin)
+    private static boolean neutralNear(AltoClef mod, LocalPlayer p, double[] origin, double[] v0, double flight) {
+        double[][] path = SnowballAim.path(origin, v0, flight + PAST_TICKS);
+        double[] lo = path[0].clone(), hi = path[0].clone();
+        for (double[] pt : path) {
+            for (int i = 0; i < 3; i++) {
+                lo[i] = Math.min(lo[i], pt[i]);
+                hi[i] = Math.max(hi[i], pt[i]);
+            }
+        }
+        AABB area = new AABB(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]).inflate(NEUTRAL_MARGIN + 1);
+        List<Entity> neutrals = mod.getWorld().getEntities(p, area, e -> e.isAlive()
+                && (e instanceof ZombifiedPiglin || e instanceof AbstractPiglin || e instanceof Enderman));
+        if (neutrals.isEmpty()) return false;
+        // (the way up to the blaze is clear of blocks already; past it, up to the segment that meets one)
+        int end = path.length - 1;
+        for (int k = (int) Math.floor(flight); k + 1 < path.length; k++) {
+            if (!clear(mod, p, new Vec3(path[k][0], path[k][1], path[k][2]), new Vec3(path[k + 1][0], path[k + 1][1], path[k + 1][2]))) {
+                end = k + 1;
+                break;
+            }
+        }
+        double[][] way = java.util.Arrays.copyOf(path, end + 1);
+        for (Entity e : neutrals) {
+            AABB bb = e.getBoundingBox();
+            if (SnowballAim.pathNearBox(way, new double[]{bb.minX, bb.minY, bb.minZ, bb.maxX, bb.maxY, bb.maxZ}, NEUTRAL_MARGIN)) return true;
+        }
+        return false;
     }
 
     // the thrower's own movement as the ball gets it (Projectile.shootFromRotation: its y only off the ground)
@@ -228,7 +272,6 @@ final class RodSnowball {
         Shot s = shot;
         LocalPlayer p = mod.getPlayer();
         if (s == null || p == null || !s.blaze().isAlive()) return;
-        if (!mod.getSlotHandler().forceEquipItem(Items.SNOWBALL)) return;
         // (the look the last tick ended on, which the server has; the wanted one the same way round, in whole mouse pixels from
         // there, through the look helper)
         float yawWas = p.getYRot();
@@ -239,6 +282,10 @@ final class RodSnowball {
         yaw = CombatAimMath.quantize(yawWas, yaw, sensitivity);
         pitch = CombatAimMath.quantize(pitchWas, pitch, sensitivity);
         LookHelper.lookAt(mod, new Rotation(yaw, pitch));
+        // (no snowball into the hand while the use key is held or an item is in use, the shield's above all: the held key would
+        // throw it and the shield would never go up, ShieldRaise.handClear. the look stays on the blaze, the shield toward it)
+        if (p.isUsingItem() || mod.getInputControls().isHeldDown(Input.CLICK_RIGHT)) return;
+        if (!mod.getSlotHandler().forceEquipItem(Items.SNOWBALL)) return;
         long now = mod.getWorld().getGameTime();
         if (!SnowballAim.settled(yawWas, pitchWas, yaw, pitch, SETTLE_DEG)) return;
         // (the shield up, or anything else in use: no throw over it)
@@ -253,6 +300,8 @@ final class RodSnowball {
         double[] d = CombatAimMath.direction(yaw, pitch);
         if (!clear(mod, p, eye, eye.add(d[0] * LOOK_CLEAR, d[1] * LOOK_CLEAR, d[2] * LOOK_CLEAR))) return;
         mod.getInputControls().tryPress(Input.CLICK_RIGHT);
+        // (the mob defense leaves this ball alone, SnowballAim.ownThrow)
+        SnowballAim.noteOwnThrow(now);
         lastThrow = now;
         throwsAt.merge(id, 1, Integer::sum);
         thrownAt.put(id, now);

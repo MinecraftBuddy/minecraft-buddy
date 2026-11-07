@@ -341,6 +341,8 @@ public class KillAura {
     public void startShielding(AltoClef mod) {
         // (the buddy's fork: no shield while a pillbox goes up, see BlazeShelter.building)
         if (adris.altoclef.util.helpers.BlazeShelter.building(mod)) return;
+        // (the buddy's fork, Tuning rod_snowball: no held use key with a snowball in the main hand, ShieldRaise.handClear)
+        if (!adris.altoclef.util.helpers.ShieldRaise.handClear(mod)) return;
         _shielding = true;
         boolean standStill = CombatRules.auraShieldStandsStill(_fighting);
         // the rim guard handed over to a fight with its sneak still down. the magma pin has its own owner, so this only lifts ours
