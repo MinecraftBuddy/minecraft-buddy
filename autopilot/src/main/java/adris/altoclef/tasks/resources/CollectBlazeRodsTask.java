@@ -1082,7 +1082,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // (Tuning far_box_floor, on by default: only on the fortress's own floor)
             adris.altoclef.util.helpers.BlazePillbox.Floor floor = adris.altoclef.util.helpers.Tuning.get("far_box_floor", 1) > 0
                     ? (x, y, z) -> FORTRESS_FLOOR.contains(level.getBlockState(new BlockPos(x, y - 1, z)).getBlock()) : null;
-            far = adris.altoclef.util.helpers.BlazePillbox.planFar(cells, start, sx, sy, sz, eyes, rule, floor);
+            // (the plan checked against the blocks themselves, BlazePillbox.Sound: the first live far box stood on a wall cell that
+            // was no block, two of its blocks found nothing to go against, and it was given up two short)
+            adris.altoclef.util.helpers.BlazePillbox.Sound sound = new adris.altoclef.util.helpers.BlazePillbox.Sound() {
+                @Override
+                public boolean wall(int x, int y, int z) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    return !level.getBlockState(p).getCollisionShape(level, p).isEmpty();
+                }
+
+                @Override
+                public boolean face(int x, int y, int z) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    return level.getBlockState(p).isCollisionShapeFullBlock(level, p);
+                }
+            };
+            far = adris.altoclef.util.helpers.BlazePillbox.planFar(cells, start, sx, sy, sz, eyes, rule, floor, sound);
             if (far != null) {
                 adris.altoclef.util.helpers.BlazePillbox.Plan plan = far.plan();
                 _far = far;

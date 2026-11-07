@@ -190,6 +190,41 @@ public final class BlazePillbox {
         boolean fortress(int x, int y, int z);
     }
 
+    // what the world says of a cell that Cells calls SOLID. Cells is Baritone's walk rule, under which a fire, a cobweb or a
+    // slab is no way through and reads SOLID as a wall does (the first far box live, 7 Nov 2026: a wall cell the plan stood
+    // on was no block, so the high block over it had no face to go against and the box was left two blocks open). wall: a
+    // block the blazes' fire does not pass (any collision); face: a whole block, whose top a click puts a block on
+    public interface Sound {
+        boolean wall(int x, int y, int z);
+
+        boolean face(int x, int y, int z);
+    }
+
+    // the plan as the world has it, not only as Cells has it: each cell of its walls and roof that it places nothing in is a
+    // wall (sound.wall); each block it places in a wall stands on a whole block (sound.face: the floor under a low one, the
+    // wall's low cell under a high one it does not place), and so does the block on top of B's back wall that B's roof goes
+    // against when the plan does not place it. sound null: Cells alone (true)
+    static boolean sound(Plan plan, Sound sound) {
+        if (sound == null) return true;
+        int[] b = plan.cell(), f = plan.front(), o = plan.lookout();
+        int y = b[1];
+        int ax = f[0] - b[0], az = f[2] - b[2], px = o[0] - f[0], pz = o[2] - f[2];
+        Set<Long> placed = new HashSet<>();
+        for (int[] k : plan.blocks()) placed.add(BlazeCover.key(k[0], k[1], k[2]));
+        int[][] walls = {{b[0] - ax, b[2] - az}, {b[0] + px, b[2] + pz}, {b[0] - px, b[2] - pz}, {f[0] + ax, f[2] + az}, {f[0] - px, f[2] - pz},
+                {o[0] + ax, o[2] + az}};
+        for (int[] w : walls) {
+            boolean low = placed.contains(BlazeCover.key(w[0], y, w[1])), high = placed.contains(BlazeCover.key(w[0], y + 1, w[1]));
+            if (low ? !sound.face(w[0], y - 1, w[1]) : !sound.wall(w[0], y, w[1])) return false;
+            if (high ? !low && !sound.face(w[0], y, w[1]) : !sound.wall(w[0], y + 1, w[1])) return false;
+        }
+        for (int[] r : new int[][]{{b[0], b[2]}, {f[0], f[2]}}) {
+            if (!placed.contains(BlazeCover.key(r[0], y + 2, r[1])) && !sound.wall(r[0], y + 2, r[1])) return false;
+        }
+        int bx = b[0] - ax, bz = b[2] - az;
+        return !placed.contains(BlazeCover.key(b[0], y + 2, b[2])) || placed.contains(BlazeCover.key(bx, y + 2, bz)) || sound.face(bx, y + 2, bz);
+    }
+
     // the far plan: the box, B's distance from the spawner, the trip's cell {x, y, z} and the walk's steps to it from the look out
     public record Far(Plan plan, double distance, int[] trip, int tripSteps) {
     }
@@ -204,7 +239,7 @@ public final class BlazePillbox {
     static final double FAR_WEIGHT = 3;
 
     // why the far sites of the last planFar were turned down, for the log
-    static final String[] FAR_WHY = {"out of range", "floor", "look out unseen", "box", "look out's share", "ring", "no trip"};
+    static final String[] FAR_WHY = {"out of range", "floor", "look out unseen", "box", "look out's share", "ring", "no trip", "not sound"};
     static final int[] farWhy = new int[FAR_WHY.length];
 
     public static String whyNotFar() {
@@ -218,6 +253,11 @@ public final class BlazePillbox {
     // hidden from the ring (ringHidden), and a trip's cell within reach of its look out (tripCell); null with none. start and
     // eyes as for planBent
     public static Far planFar(Cells cells, int[] start, int sx, int sy, int sz, List<Vec3> eyes, FarRule rule, Floor floor) {
+        return planFar(cells, start, sx, sy, sz, eyes, rule, floor, null);
+    }
+
+    // sound: the plan checked against the world's blocks (sound), null for Cells alone
+    public static Far planFar(Cells cells, int[] start, int sx, int sy, int sz, List<Vec3> eyes, FarRule rule, Floor floor, Sound sound) {
         java.util.Arrays.fill(farWhy, 0);
         List<Plan> found = new ArrayList<>();
         List<Double> scores = new ArrayList<>(), dists = new ArrayList<>();
@@ -255,6 +295,10 @@ public final class BlazePillbox {
                     Plan plan = planBentAt(cells, x, y, z, a, p, true, eyes, sx, sz);
                     if (plan == null) {
                         farWhy[3]++;
+                        continue;
+                    }
+                    if (!sound(plan, sound)) {
+                        farWhy[7]++;
                         continue;
                     }
                     double seen = seenShare(cells, plan, eyes);
