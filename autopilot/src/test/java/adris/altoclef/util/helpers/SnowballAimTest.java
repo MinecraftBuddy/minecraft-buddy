@@ -130,13 +130,14 @@ public class SnowballAimTest {
 
     @Test
     public void theGateTakesRangeSightAndArc() {
-        assertNull(SnowballAim.whyNot(12, 3.5, 24, true, true, true));
-        assertEquals("close", SnowballAim.whyNot(3, 3.5, 24, true, true, true));
-        assertEquals("far", SnowballAim.whyNot(24.5, 3.5, 24, true, true, true));
-        assertNull(SnowballAim.whyNot(24, 3.5, 24, true, true, true));
-        assertEquals("no line", SnowballAim.whyNot(12, 3.5, 24, false, true, true));
-        assertEquals("no throw", SnowballAim.whyNot(12, 3.5, 24, true, false, false));
-        assertEquals("arc blocked", SnowballAim.whyNot(12, 3.5, 24, true, true, false));
+        assertNull(SnowballAim.whyNot(12, 3.5, 24, true, true, true, true));
+        assertEquals("close", SnowballAim.whyNot(3, 3.5, 24, true, true, true, true));
+        assertEquals("far", SnowballAim.whyNot(24.5, 3.5, 24, true, true, true, true));
+        assertNull(SnowballAim.whyNot(24, 3.5, 24, true, true, true, true));
+        assertEquals("no line", SnowballAim.whyNot(12, 3.5, 24, false, true, true, true));
+        assertEquals("no throw", SnowballAim.whyNot(12, 3.5, 24, true, false, false, true));
+        assertEquals("arc blocked", SnowballAim.whyNot(12, 3.5, 24, true, true, false, true));
+        assertEquals("neutral near", SnowballAim.whyNot(12, 3.5, 24, true, true, true, false));
     }
 
     @Test
@@ -190,5 +191,56 @@ public class SnowballAimTest {
         double[] none = SnowballAim.targetVelocity(new double[]{0, 64, 0}, new double[]{1, 64, 0}, 1, 0.5);
         assertEquals(0, none[0], 0);
         assertEquals(0, SnowballAim.targetVelocity(null, new double[]{1, 2, 3}, 4, 0.5)[0], 0);
+    }
+
+    @Test
+    public void theDefenseLeavesTheBuddysOwnBallsAlone() {
+        // the owner known: always the buddy's
+        assertTrue(SnowballAim.ownThrow(true, false, 500, Long.MIN_VALUE / 2, 30));
+        // a snowball just thrown, close by, owner not known yet
+        assertTrue(SnowballAim.ownThrow(false, true, 102, 100, 1.2));
+        assertTrue(SnowballAim.ownThrow(false, true, 100 + SnowballAim.OWN_TICKS, 100, 7.5));
+        // later, farther, or not a snowball: the defense's as before
+        assertFalse(SnowballAim.ownThrow(false, true, 100 + SnowballAim.OWN_TICKS + 1, 100, 1.5));
+        assertFalse(SnowballAim.ownThrow(false, true, 102, 100, SnowballAim.OWN_DISTANCE + 1));
+        assertFalse(SnowballAim.ownThrow(false, false, 102, 100, 1.5));
+        // none thrown (a clock gone back)
+        assertFalse(SnowballAim.ownThrow(false, true, 50, 100, 1.5));
+    }
+
+    @Test
+    public void aMobNearTheBallsWayIsSeen() {
+        // a zombified piglin's box (0.6 wide, 1.95 high) at x 10, beside the way along z
+        double[] piglin = {9.7, 64, 4.7, 10.3, 65.95, 5.3};
+        double[] a = {10.5, 65.5, 0};
+        double[] b = {10.5, 65.5, 10};
+        // the way passes 0.2 beside its box: within the margin of 1
+        assertTrue(SnowballAim.segmentNearBox(a, b, piglin, 1));
+        // two blocks off to the side: clear
+        double[] a2 = {12.5, 65.5, 0}, b2 = {12.5, 65.5, 10};
+        assertFalse(SnowballAim.segmentNearBox(a2, b2, piglin, 1));
+        // a segment that stops short of it
+        assertFalse(SnowballAim.segmentNearBox(a, new double[]{10.5, 65.5, 3}, piglin, 1));
+        // over its head by more than the margin
+        assertFalse(SnowballAim.segmentNearBox(new double[]{10, 68, 0}, new double[]{10, 68, 10}, piglin, 1));
+        // a thrown arc: the path's segments, one of them through it
+        double[] eye = {0.5, 65.42, 0.5};
+        double[] s = SnowballAim.solve(eye, new double[]{0.5, 65.4, 20.5}, new double[]{0, 0, 0}, new double[]{0, 0, 0});
+        double[][] path = SnowballAim.path(eye, SnowballAim.velocity((float) s[0], (float) s[1], new double[]{0, 0, 0}), s[2]);
+        double[] mid = SnowballAim.at(eye, SnowballAim.velocity((float) s[0], (float) s[1], new double[]{0, 0, 0}), s[2] / 2);
+        double[] onTheWay = {mid[0] - 0.3, mid[1] - 1, mid[2] - 0.3, mid[0] + 0.3, mid[1] + 0.95, mid[2] + 0.3};
+        assertTrue(SnowballAim.pathNearBox(path, onTheWay, 1));
+        double[] aside = {mid[0] + 3, mid[1] - 1, mid[2] - 0.3, mid[0] + 3.6, mid[1] + 0.95, mid[2] + 0.3};
+        assertFalse(SnowballAim.pathNearBox(path, aside, 1));
+    }
+
+    @Test
+    public void theShieldsHandIsASwordAPickaxeOrAnEmptySlot() {
+        int o = SnowballAim.KIND_OTHER, sw = SnowballAim.KIND_SWORD, pk = SnowballAim.KIND_PICKAXE, e = SnowballAim.KIND_EMPTY;
+        assertEquals(4, SnowballAim.shieldSlot(new int[]{o, pk, e, o, sw, o, o, o, o}));
+        assertEquals(1, SnowballAim.shieldSlot(new int[]{o, pk, e, o, o, o, o, o, o}));
+        assertEquals(2, SnowballAim.shieldSlot(new int[]{o, o, e, o, o, o, o, o, o}));
+        // the hotbar all snowballs, blocks and food: no slot, no shield
+        assertEquals(-1, SnowballAim.shieldSlot(new int[]{o, o, o, o, o, o, o, o, o}));
     }
 }

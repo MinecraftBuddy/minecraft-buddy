@@ -40,4 +40,32 @@ public final class ShieldRaise {
 
     private static long _told;
     private static int _raises;
+
+    // the buddy's fork, Tuning rod_snowball, off by default: a snowball in the main hand is thrown by a held use key, so the
+    // shield never goes up and the balls fly wherever the look is (zombified piglins hit by them killed the buddy, the strategy
+    // trial's lane t3). before a shield's held key: a sword, else a pickaxe, else an empty hotbar slot in the hand, chosen as a
+    // player picks a slot. false while the hand still holds a snowball: the caller holds no key this tick
+    public static boolean handClear(AltoClef mod) {
+        if (Tuning.get("rod_snowball", 0) <= 0) return true;
+        LocalPlayer p = mod.getPlayer();
+        if (p == null || !p.getMainHandItem().is(Items.SNOWBALL)) return true;
+        var inventory = p.getInventory();
+        int[] kinds = new int[9];
+        for (int i = 0; i < 9; i++) {
+            ItemStack s = inventory.getItem(i);
+            kinds[i] = s.isEmpty() ? SnowballAim.KIND_EMPTY : s.is(net.minecraft.tags.ItemTags.SWORDS) ? SnowballAim.KIND_SWORD
+                    : s.is(net.minecraft.tags.ItemTags.PICKAXES) ? SnowballAim.KIND_PICKAXE : SnowballAim.KIND_OTHER;
+        }
+        int slot = SnowballAim.shieldSlot(kinds);
+        if (slot >= 0) inventory.setSelectedSlot(slot);
+        boolean clear = !p.getMainHandItem().is(Items.SNOWBALL);
+        long now = System.currentTimeMillis();
+        if (now - _handTold > 1000) {
+            _handTold = now;
+            adris.altoclef.Debug.logInternal("strategy snowball: the snowball out of the hand for the shield, " + (clear ? "slot " + (slot + 1) : "no slot, no shield"));
+        }
+        return clear;
+    }
+
+    private static long _handTold;
 }

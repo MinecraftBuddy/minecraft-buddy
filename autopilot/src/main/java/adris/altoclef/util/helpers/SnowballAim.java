@@ -108,13 +108,15 @@ public final class SnowballAim {
     // ---- the gate of a throw
 
     // why a blaze is no target from here, null when it is: within its distance (from minDist, the melee's, to range), a line from
-    // the eye to it, a throw that gets there, and its arc clear of blocks
-    public static String whyNot(double distance, double minDist, double range, boolean sight, boolean solved, boolean arcClear) {
+    // the eye to it, a throw that gets there, its arc clear of blocks, and no zombified piglin, piglin or enderman near the ball's
+    // way (neutralClear)
+    public static String whyNot(double distance, double minDist, double range, boolean sight, boolean solved, boolean arcClear, boolean neutralClear) {
         if (distance < minDist) return "close";
         if (distance > range) return "far";
         if (!sight) return "no line";
         if (!solved) return "no throw";
         if (!arcClear) return "arc blocked";
+        if (!neutralClear) return "neutral near";
         return null;
     }
 
@@ -138,5 +140,77 @@ public final class SnowballAim {
     // settled on the blaze, not out of a turn
     public static boolean settled(float yawWas, float pitchWas, float yaw, float pitch, double max) {
         return Math.abs(CombatAimMath.wrap(yaw - yawWas)) <= max && Math.abs(pitch - pitchWas) <= max;
+    }
+
+    // ---- the buddy's own balls and the mobs they must not hit (the strategy trial's lane t3, 7 Nov 2026: the mob defense took
+    // the buddy's first snowball for a ball coming at it and raised the shield, the held use key with the snowball in hand threw
+    // more of them wherever the buddy looked, zombified piglins were hit, and their pack killed the buddy)
+
+    // a ball of the buddy's own within this long of its throw, and this close, is the buddy's even with no owner known yet
+    public static final int OWN_TICKS = 5;
+    public static final double OWN_DISTANCE = 8;
+
+    // the game tick of the buddy's last throw (RodSnowball), read by the entity tracker on its own thread
+    private static volatile long lastOwnThrow = Long.MIN_VALUE / 2;
+
+    public static void noteOwnThrow(long now) {
+        lastOwnThrow = now;
+    }
+
+    public static long lastOwnThrow() {
+        return lastOwnThrow;
+    }
+
+    // a projectile the defense leaves alone: the buddy's own (its owner the buddy), or a snowball within OWN_TICKS of the buddy's
+    // last throw and within OWN_DISTANCE of it (the owner comes with the ball's spawn packet, but a missed one is no reason for a
+    // shield)
+    public static boolean ownThrow(boolean ownerIsUs, boolean snowball, long now, long lastThrow, double distance) {
+        if (ownerIsUs) return true;
+        return snowball && now >= lastThrow && now - lastThrow <= OWN_TICKS && distance <= OWN_DISTANCE;
+    }
+
+    // the segment from a to b passes through box ({minX, minY, minZ, maxX, maxY, maxZ}) grown by margin on every side
+    public static boolean segmentNearBox(double[] a, double[] b, double[] box, double margin) {
+        double near = 0;
+        double far = 1;
+        for (int i = 0; i < 3; i++) {
+            double lo = box[i] - margin;
+            double hi = box[i + 3] + margin;
+            double d = b[i] - a[i];
+            if (Math.abs(d) < 1e-12) {
+                if (a[i] < lo || a[i] > hi) return false;
+                continue;
+            }
+            double t1 = (lo - a[i]) / d;
+            double t2 = (hi - a[i]) / d;
+            near = Math.max(near, Math.min(t1, t2));
+            far = Math.min(far, Math.max(t1, t2));
+            if (near > far) return false;
+        }
+        return true;
+    }
+
+    // the path's segments (path's points in order) pass within margin of box
+    public static boolean pathNearBox(double[][] path, double[] box, double margin) {
+        for (int k = 0; k + 1 < path.length; k++) {
+            if (segmentNearBox(path[k], path[k + 1], box, margin)) return true;
+        }
+        return false;
+    }
+
+    // the hotbar slot for the main hand before a shield's held use key, from what each slot holds (KIND_*): a sword first, then a
+    // pickaxe (neither has a use of its own), then an empty slot; -1 when there is none of them
+    public static final int KIND_OTHER = 0;
+    public static final int KIND_SWORD = 1;
+    public static final int KIND_PICKAXE = 2;
+    public static final int KIND_EMPTY = 3;
+
+    public static int shieldSlot(int[] kinds) {
+        for (int want : new int[]{KIND_SWORD, KIND_PICKAXE, KIND_EMPTY}) {
+            for (int i = 0; i < kinds.length; i++) {
+                if (kinds[i] == want) return i;
+            }
+        }
+        return -1;
     }
 }
