@@ -54,7 +54,8 @@ import net.minecraft.world.phys.Vec3;
 // piglins it meets until a fire resistance potion is in the bag (drinkable or splash), then goes on to the fortress; at the
 // blazes the potion goes down before the fight, a drinkable one by the food chain as the brewed one does, a splash one thrown at
 // the feet here. given up, with the reason, on running out of gold, on no piglin in sight for Tuning fr_trade_search seconds,
-// at the fortress with none in sight, or past Tuning fr_trade_max seconds; the rods and the brew then go as before.
+// at the fortress with none in sight, or past Tuning fr_trade_max seconds; the rods and the brew then go as before. with Tuning
+// fr_trade_hold the traded potion is kept for the blazes: on the way, merely on fire, it waits (FireRes.holdsTraded).
 // CollectBlazeRodsTask owns one of these per order and asks it every tick with the switch on. the giving reuses the rules of
 // TradeWithPiglinsTask's PerformTradeWithPiglin (the nearest adult piglin not already admiring, none with a hoglin near, one
 // that never takes gold left alone), aimed and paced: that task clicks every tick without a look, fetches gold when it has
@@ -62,7 +63,7 @@ import net.minecraft.world.phys.Vec3;
 final class FireResTrade {
 
     // by the spawner: the trade is for before the fortress
-    static final double FORTRESS_NEAR = 32;
+    static final double FORTRESS_NEAR = FireResTradeRules.FORTRESS_NEAR;
     // a piglin this close holding gold is admiring an ingot (ours, as a rule): its throw is still to come
     static final double PENDING_RANGE = 16;
     // a fire resistance potion on the ground this close is picked up
@@ -128,7 +129,11 @@ final class FireResTrade {
         boolean blazeNear = blaze <= FireResRules.BLAZE_RANGE;
         boolean atFortress = spawner != null && player.position().distanceTo(Vec3.atCenterOf(spawner)) <= FORTRESS_NEAR;
         if (_state == State.ENDED) {
-            if (_succeeded) watchAfter(mod, now, drink, thrown, blaze, blazeNear || atFortress);
+            if (_succeeded) {
+                // (Tuning fr_trade_hold: the potion is kept for the blazes, FireRes.holdsTraded)
+                FireRes.traded(now, spawner);
+                watchAfter(mod, now, drink, thrown, blaze, blazeNear || atFortress);
+            }
             return null;
         }
         int gold = mod.getItemStorage().getItemCount(Items.GOLD_INGOT);
@@ -185,6 +190,7 @@ final class FireResTrade {
                 Debug.logInternal("strategy trade: done, a potion after " + given + " ingots in " + FireResTradeRules.seconds(now - _begunAt)
                         + " seconds (" + form + ", " + gold + " gold left)");
                 end(player, now, true, drink, thrown);
+                FireRes.traded(now, spawner);
                 return null;
             }
             case GIVE_UP -> {
@@ -283,8 +289,11 @@ final class FireResTrade {
         if (count(mod, Form.DRINK) > 0 || count(mod, Form.THROW) == 0 || player.isBlocking()) return null;
         MobEffectInstance fx = player.getEffect(MobEffects.FIRE_RESISTANCE);
         double blaze = nearestBlaze(mod);
-        boolean asked = FireRes.asked(mod.getWorld().getGameTime());
+        long now = mod.getWorld().getGameTime();
+        boolean asked = FireRes.asked(now);
         if (!FireResRules.wantsToDrink(true, fx == null ? 0 : fx.getDuration(), player.isOnFire() || asked, blaze)) return null;
+        // (Tuning fr_trade_hold, off by default: merely on fire on the way, the potion waits for the blazes)
+        if (FireRes.holdsTraded(player, blaze, asked, now)) return null;
         _throw = new ThrowAtFeetTask(blaze);
         return _throw;
     }
@@ -308,7 +317,7 @@ final class FireResTrade {
     }
 
     private static String distance(double d) {
-        return Double.isInfinite(d) ? "none in sight" : String.format(Locale.ROOT, "%.0f blocks off", d);
+        return FireResTradeRules.distance(d);
     }
 
     private static boolean admiringNear(AltoClef mod) {

@@ -134,6 +134,63 @@ public class FireResTradeRulesTest {
         assertFalse(FireResTradeRules.piglinNear(true, Double.POSITIVE_INFINITY));
     }
 
+    private static boolean held(boolean traded, boolean blazeNear, boolean atFortress, boolean asked, boolean inLava, boolean onFire,
+                                double health) {
+        return FireResTradeRules.held(traded, blazeNear, atFortress, asked, inLava, onFire, health, FireResTradeRules.HOLD_HP);
+    }
+
+    // on the way, merely on fire with health to spare: the traded potion waits for the blazes
+    @Test
+    public void merelyOnFireOnTheWayThePotionWaits() {
+        assertTrue(held(true, false, false, false, false, true, 15));
+        assertTrue(held(true, false, false, false, false, true, 8.5));
+    }
+
+    // on fire at the health line or below, or in lava: it goes down
+    @Test
+    public void lowOnHealthOrInLavaItGoesDown() {
+        assertFalse(held(true, false, false, false, false, true, 8));
+        assertFalse(held(true, false, false, false, false, true, 3));
+        assertFalse(held(true, false, false, false, true, true, 20));
+        assertFalse(held(true, false, false, false, true, false, 20));
+        assertFalse(FireResTradeRules.held(true, false, false, false, false, true, 11, 12));
+        assertTrue(FireResTradeRules.held(true, false, false, false, false, true, 11, 4));
+    }
+
+    // a blaze in range, the fortress, a task asking, or no traded potion: as before
+    @Test
+    public void atTheBlazesOrUntradedNothingWaits() {
+        assertFalse(held(true, true, false, false, false, true, 20));
+        assertFalse(held(true, false, true, false, false, true, 20));
+        assertFalse(held(true, false, false, true, false, true, 20));
+        assertFalse(held(false, false, false, false, false, true, 20));
+    }
+
+    @Test
+    public void theTradesSayCountsForAMinute() {
+        assertTrue(FireResTradeRules.tradedFresh(1000, 1000));
+        assertTrue(FireResTradeRules.tradedFresh(1000, 1000 + FireResTradeRules.HOLD_FRESH));
+        assertFalse(FireResTradeRules.tradedFresh(1000, 1001 + FireResTradeRules.HOLD_FRESH));
+        assertFalse(FireResTradeRules.tradedFresh(1000, 999));
+        assertFalse(FireResTradeRules.tradedFresh(Long.MIN_VALUE / 2, 0));
+    }
+
+    // one line per fire episode: a hold right after the last one is the same episode
+    @Test
+    public void aHoldAfterAGapIsANewEpisode() {
+        assertFalse(FireResTradeRules.newEpisode(1000, 1001));
+        assertFalse(FireResTradeRules.newEpisode(1000, 1000 + FireResTradeRules.HOLD_EPISODE_GAP));
+        assertTrue(FireResTradeRules.newEpisode(1000, 1001 + FireResTradeRules.HOLD_EPISODE_GAP));
+        assertTrue(FireResTradeRules.newEpisode(1000, 999));
+        assertTrue(FireResTradeRules.newEpisode(Long.MIN_VALUE / 2, 0));
+    }
+
+    @Test
+    public void theNearestBlazeAsTheLinesWriteIt() {
+        assertEquals("none in sight", FireResTradeRules.distance(Double.POSITIVE_INFINITY));
+        assertEquals("23 blocks off", FireResTradeRules.distance(22.6));
+    }
+
     // 16 in 469 per ingot: about one potion in 29 ingots, and the kit's 96 gets one 96 times in a hundred
     @Test
     public void theOddsOfAPotionByTheNthIngot() {
