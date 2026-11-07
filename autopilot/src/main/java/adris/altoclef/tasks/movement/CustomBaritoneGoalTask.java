@@ -206,6 +206,8 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
         if (_cachedGoal == null) {
             _cachedGoal = makeGoal(mod);
         }
+        // (camp_reentry: a walk back into the blaze camp is counted, CampReentry; false with the switch off)
+        boolean campWalk = adris.altoclef.util.helpers.CampReentry.walking(mod, _cachedGoal);
 
         if (_wander) {
             if (isFinished(mod)) {
@@ -248,6 +250,15 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
                         Debug.logInternal("box: no progress in the box, the path asked again instead of the wander" + (goal != null ? " (" + goal.toShortString() + ")" : ""));
                         mod.getClientBaritone().getPathingBehavior().forceCancel();
                     }
+                    return null;
+                }
+                if (noProgress && (campWalk || adris.altoclef.util.helpers.CampReentry.noWander(mod))) {
+                    // (camp_reentry: the wander from a walk back into the blaze camp took the buddy off into the blazes' fire,
+                    // and the way back was never found; the path is asked again, and the rods task replaces a camp it stays
+                    // shut out of)
+                    _checker.reset();
+                    adris.altoclef.util.helpers.CampReentry.sayNoWander(mod, _cachedGoal);
+                    mod.getClientBaritone().getPathingBehavior().forceCancel();
                     return null;
                 }
                 if (noProgress) {

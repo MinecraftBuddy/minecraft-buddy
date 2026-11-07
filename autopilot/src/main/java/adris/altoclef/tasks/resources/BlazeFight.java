@@ -331,7 +331,7 @@ final class BlazeFight {
         } else {
             List<Vec3> eyes = blazeEyes(mod, player);
             c = BlazeCover.pick(cells, at.getX(), at.getY(), at.getZ(), witherSkeletonSpots(mod, player.position(), HIDE_WALK + BlazeCover.WITHER_CLEAR),
-                    new java.util.HashSet<>(), (x, y, z) -> BlazeCover.hidden(mod.getWorld(), eyes, x, y, z, player),
+                    new java.util.HashSet<>(hideBarred), (x, y, z) -> BlazeCover.hidden(mod.getWorld(), eyes, x, y, z, player),
                     (x, y, z) -> BlazeCover.pocket(mod.getWorld(), x, y, z, player), HIDE_WALK);
             how = "a pocket";
         }
@@ -355,6 +355,21 @@ final class BlazeFight {
 
     void corner(BlockPos c) {
         corner = c;
+    }
+
+    // (the buddy's fork, Tuning camp_reentry, off by default: a camp the buddy is shut out of (CampReentry) is never the
+    // crowd's hiding place again; the hiding there now and the run into it are let go. empty with the switch off)
+    private final java.util.Set<Long> hideBarred = new java.util.HashSet<>();
+
+    void campShutOut(BlockPos c) {
+        hideBarred.add(BlazeCover.key(c.getX(), c.getY(), c.getZ()));
+        if (c.equals(hide)) {
+            hide = null;
+            hideLure = null;
+            hideWalk = null;
+        }
+        cornerWay.reset();
+        cornerRunTo = null;
     }
 
     // the buddy's fork, Tuning far_box (off by default, steering 89): a far pillbox's spawn trip can go farther from the box
