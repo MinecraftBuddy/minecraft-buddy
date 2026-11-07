@@ -196,4 +196,19 @@ public class BlazePillboxFarTest {
         // (no world, no check: as before)
         assertTrue(BlazePillbox.sound(plain, null));
     }
+    // the bag: no plan with more blocks than the buddy carries; the full bag gives the plan as before, too few none
+    @Test
+    public void noMoreBlocksThanTheBag() {
+        List<Vec3> eyes = eyes(FORT);
+        BlazePillbox.Far full = BlazePillbox.planFar(FORT, START, 0, 64, 0, eyes, BlazePillbox.FarRule.DEFAULT, BRICKS);
+        assertNotNull(full);
+        int n = full.plan().blocks().size();
+        BlazePillbox.Far enough = BlazePillbox.planFar(FORT, START, 0, 64, 0, eyes, BlazePillbox.FarRule.DEFAULT, BRICKS, null, n);
+        assertNotNull(enough);
+        assertArrayEquals(full.plan().cell(), enough.plan().cell());
+        BlazePillbox.Far fewer = BlazePillbox.planFar(FORT, START, 0, 64, 0, eyes, BlazePillbox.FarRule.DEFAULT, BRICKS, null, n - 1);
+        if (fewer != null) assertTrue(fewer.plan().blocks().size() <= n - 1);
+        assertNull(BlazePillbox.planFar(FORT, START, 0, 64, 0, eyes, BlazePillbox.FarRule.DEFAULT, BRICKS, null, 0));
+        assertTrue(BlazePillbox.whyNotFar(), BlazePillbox.whyNotFar().contains("more blocks than the bag"));
+    }
 }
