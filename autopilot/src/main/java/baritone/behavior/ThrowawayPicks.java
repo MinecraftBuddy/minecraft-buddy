@@ -71,11 +71,16 @@ final class ThrowawayPicks {
     // unprotected first, so a path burns dirt it was going to throw out anyway before it touches the cobble a recipe is
     // waiting on. protected ones only show up at all when the caller is a movement that needs the block right now, and
     // then only if there's something above their reserve (spare says how much): a failed path costs more than a cobble
-    // that can be mined again, but a recipe short of its last cobble costs more than a path that can dig instead
-    static <T> List<T> order(Collection<T> acceptable, Predicate<? super T> isProtected, ToIntFunction<? super T> spare, boolean allowProtected) {
+    // that can be mined again, but a recipe short of its last cobble costs more than a path that can dig instead.
+    // anything that is no block never shows up (placeable): a click with it in hand places nothing, and counted as a
+    // throwaway it had the planner plan bridges and the sneak bridge hang over the drop until its stall bail
+    static <T> List<T> order(Collection<T> acceptable, Predicate<? super T> placeable, Predicate<? super T> isProtected, ToIntFunction<? super T> spare, boolean allowProtected) {
         List<T> out = new ArrayList<>();
         List<T> held = new ArrayList<>();
         for (T item : acceptable) {
+            if (!placeable.test(item)) {
+                continue;
+            }
             (isProtected.test(item) ? held : out).add(item);
         }
         if (allowProtected) {

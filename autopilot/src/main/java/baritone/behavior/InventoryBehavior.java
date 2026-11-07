@@ -351,7 +351,8 @@ public final class InventoryBehavior extends Behavior implements Helper {
 
     private List<Item> movementThrowaways(boolean allowProtected) {
         AltoClefSettings alto = AltoClefSettings.getInstance();
-        return ThrowawayPicks.order(Baritone.settings().acceptableThrowawayItems.value, alto::isItemProtected, item -> ThrowawayPicks.spare(heldCount(item), alto.reservedCount(item)), allowProtected);
+        // blocks only: every pick of a block to place, the hotbar's throwaway slot and the planner's "can we bridge" come from here
+        return ThrowawayPicks.order(Baritone.settings().acceptableThrowawayItems.value, BlockItem.class::isInstance, alto::isItemProtected, item -> ThrowawayPicks.spare(heldCount(item), alto.reservedCount(item)), allowProtected);
     }
 
     // the same spare-above-the-reserve rule movementThrowaways applies, for the lookups that match a stack by what the builder
@@ -388,7 +389,7 @@ public final class InventoryBehavior extends Behavior implements Helper {
         for (int i = 0; i <= inv.size(); i++) {
             boolean offhand = i == inv.size();
             Item item = (offhand ? ctx.player().getItemBySlot(EquipmentSlot.OFFHAND) : inv.get(i)).getItem();
-            haveAny |= acceptable.contains(item);
+            haveAny |= acceptable.contains(item) && item instanceof BlockItem; // a non-block on the list is not a throwaway we have
             if (usable.contains(item)) {
                 haveUsable = true;
                 usableOnHotbar |= i < 9 || offhand;

@@ -19,8 +19,10 @@ package baritone.altoclef;
 
 import adris.altoclef.AltoSettings;
 import adris.altoclef.AltoClef;
+import adris.altoclef.Debug;
 import baritone.Baritone;
 import baritone.api.Settings;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
@@ -47,11 +49,20 @@ public final class BaritoneSettingsScope {
         this.mod = mod;
     }
 
-    // what of our throwaways the walker may build its pillars and bridges with: no soul sand, magma, sand or gravel, and no
-    // blackstone, which the stone gather mines for tools (CollectStoneMaterialTask): a pillar of it would be dug away
+    // what of our throwaways the walker may build its pillars and bridges with: blocks only (see placeable), no soul sand,
+    // magma, sand or gravel, and no blackstone, which the stone gather mines for tools (CollectStoneMaterialTask): a pillar
+    // of it would be dug away
     static boolean walkerPlaces(Item item) {
-        return item != Items.SOUL_SAND && item != Items.MAGMA_BLOCK && item != Items.SAND && item != Items.GRAVEL
+        return placeable(item) && item != Items.SOUL_SAND && item != Items.MAGMA_BLOCK && item != Items.SAND && item != Items.GRAVEL
                 && item != Items.BLACKSTONE;
+    }
+
+    // the alto list is junk to throw out as well as blocks to build with, and some of the junk is no block at all (the
+    // nether brick ingot bartering hands out). on baritone's list the walker picked it for a bridge like a block, the
+    // click with it in hand placed nothing, and the sneak bridge hung over the drop until its stall bail, edge after
+    // edge. the user's own list gets the same rule
+    static boolean placeable(Item item) {
+        return item instanceof BlockItem;
     }
 
     // safe to call again while applied (a settings reload does), it only refreshes the throwaway list then
@@ -116,10 +127,15 @@ public final class BaritoneSettingsScope {
             savedThrowaway = s.acceptableThrowawayItems.value;
         }
         mergedFrom = s.altoThrowawayItems.value;
-        List<Item> baritoneCanPlace = Arrays.stream(AltoSettings.getThrowawayItems(mod, true))
-                .filter(BaritoneSettingsScope::walkerPlaces).toList();
+        List<Item> alto = Arrays.asList(AltoSettings.getThrowawayItems(mod, true));
+        List<Item> baritoneCanPlace = alto.stream().filter(BaritoneSettingsScope::walkerPlaces).toList();
         // the user's list first, then ours, each item once (a doubled entry doubles every count made from the list)
-        List<Item> merged = mergeUnique(savedThrowaway, baritoneCanPlace);
+        List<Item> merged = mergeUnique(savedThrowaway.stream().filter(BaritoneSettingsScope::placeable).toList(), baritoneCanPlace);
+        List<Item> notBlocks = mergeUnique(savedThrowaway, alto).stream().filter(item -> !placeable(item)).toList();
+        if (!notBlocks.isEmpty()) {
+            // once per apply (a task start, a #set of the list), so a run's log says the walker never bridges with these
+            Debug.logInternal("throwaways: " + notBlocks + " left off the walker's list, not blocks (a click with one places nothing)");
+        }
         // the registry keeps the user's list from the first put, so a second apply only swaps what we hand baritone
         set(s.acceptableThrowawayItems, merged);
         lastMerged = merged;
