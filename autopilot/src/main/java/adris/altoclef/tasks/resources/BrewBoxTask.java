@@ -42,7 +42,7 @@ import net.minecraft.world.phys.Vec3;
 // order goes on. no box (no floor, no blocks, three tries): the open brew as before. no stand in F or the bag at the stand's
 // step: opened at once
 final class BrewBoxTask extends Task {
-    enum Stage { PREP, BUILD, STEP_IN, CRAFT, STAND, BREW, DRINK, OPEN, LEAVE, DONE }
+    enum Stage { PREP, BUILD, STEP_IN, CRAFT, STAND, BREW, DRINK, HEAL, OPEN, LEAVE, DONE }
 
     // a box not whole after this many builds is given up
     static final int TRIES = 3;
@@ -109,11 +109,44 @@ final class BrewBoxTask extends Task {
     // brew_box 2: a failed box is no open brew, the rods task waits and tries again (steering 69)
     boolean waitOnFail;
 
+    // Tuning box_home's sealed heal (BoxHomeRules): the same box in the fight's standing pillbox with no stand and no brew.
+    // the look out walled, the buddy in B waits while the food chain eats (HEAL) till BoxHomeRules.healDone, then the wall is
+    // broken (one of the blocks placed here first) and the box is done with the buddy still in the pillbox: no walk out
+    private final boolean heal;
+    private long sealedAt;
+    private long riseAt;
+    private float bestHp;
+    private String healWhy = "";
+
+    static BrewBoxTask heal(BlockPos spawner, int[][] pillbox) {
+        return new BrewBoxTask(null, spawner, java.util.Set::of, pillbox, true);
+    }
+
+    // the log lines' name: the brew's box or the heal's
+    private String what() {
+        return heal ? "heal box" : "brew box";
+    }
+
+    // still planning (no box yet)
+    boolean preparing() {
+        return stage == Stage.PREP;
+    }
+
+    // why the sealed heal ended (BoxHomeRules.healDone), empty before
+    String healWhy() {
+        return healWhy;
+    }
+
     BrewBoxTask(BrewFireResistanceTask brew, BlockPos spawner, Supplier<Set<BlockPos>> keepClear) {
         this(brew, spawner, keepClear, null);
     }
 
     BrewBoxTask(BrewFireResistanceTask brew, BlockPos spawner, Supplier<Set<BlockPos>> keepClear, int[][] pillbox) {
+        this(brew, spawner, keepClear, pillbox, false);
+    }
+
+    private BrewBoxTask(BrewFireResistanceTask brew, BlockPos spawner, Supplier<Set<BlockPos>> keepClear, int[][] pillbox, boolean heal) {
+        this.heal = heal;
         this.brew = brew;
         this.spawner = spawner;
         this.keepClear = keepClear;
@@ -165,14 +198,15 @@ final class BrewBoxTask extends Task {
     }
 
     private boolean shutIn() {
-        return stage == Stage.STEP_IN || stage == Stage.CRAFT || stage == Stage.STAND || stage == Stage.BREW || stage == Stage.DRINK;
+        return stage == Stage.STEP_IN || stage == Stage.CRAFT || stage == Stage.STAND || stage == Stage.BREW || stage == Stage.DRINK
+                || stage == Stage.HEAL;
     }
 
     // the brew was given up (its budget, BREW_BUDGET_TICKS): a shut box opens, one not yet shut is dropped
     void giveUp(String why) {
         BrewFireResistanceTask.pinBoxStand(null);
         if (shutIn()) {
-            Debug.logInternal("brew box: " + why + ", opening");
+            Debug.logInternal(what() + ": " + why + ", opening");
             stage = Stage.OPEN;
         } else if (!opening()) {
             stage = Stage.DONE;
@@ -204,7 +238,7 @@ final class BrewBoxTask extends Task {
         String why = !whole ? "the box is broken" : !inside ? "the buddy is out of it" : hostile ? "a mob inside" : fire ? "fire inside"
                 : !holdsWas ? String.format(java.util.Locale.ROOT, "%.1f hp", me.getHealth()) : "";
         // (once per change: how often the box let the fight back in, and why)
-        if (was && !holdsWas && !why.equals(holdsWhy)) Debug.logInternal("brew box: open to the fight (" + why + ")");
+        if (was && !holdsWas && !why.equals(holdsWhy)) Debug.logInternal(what() + ": open to the fight (" + why + ")");
         holdsWhy = why;
         return holdsWas;
     }
@@ -217,7 +251,7 @@ final class BrewBoxTask extends Task {
         boolean in = (shutIn() || opening()) && inside(me.position());
         if (in && s != null && s != lastHit && me.hurtTime > 0) {
             var by = s.getEntity();
-            Debug.logInternal("brew box: hit (" + s.getMsgId() + (by == null ? "" : " by " + BuiltInRegistries.ENTITY_TYPE.getKey(by.getType()).getPath()) + ")");
+            Debug.logInternal(what() + ": hit (" + s.getMsgId() + (by == null ? "" : " by " + BuiltInRegistries.ENTITY_TYPE.getKey(by.getType()).getPath()) + ")");
         }
         if (s != null) lastHit = s;
     }
@@ -248,7 +282,7 @@ final class BrewBoxTask extends Task {
                 if (!enoughBlocks(mod, plan)) return fail("no blocks: " + plan.blocks().size() + " to place, " + BlazePillboxTask.blocksInBag(mod) + " in the bag");
                 buildStartedAt = now;
                 startTry(plan);
-                Debug.logInternal("brew box: planned, the buddy's cell " + pos(plan.back()).toShortString() + ", the stand's "
+                Debug.logInternal(what() + ": planned, the buddy's cell " + pos(plan.back()).toShortString() + ", the stand's "
                         + pos(plan.front()).toShortString() + ", " + plan.blocks().size() + " blocks" + (pillboxBack != null ? ", in the pillbox" : "")
                         + (spawner == null ? "" : String.format(java.util.Locale.ROOT, ", %.1f from the spawner", Math.hypot(plan.back()[0] - spawner.getX(), plan.back()[2] - spawner.getZ()))));
                 return null;
@@ -262,7 +296,7 @@ final class BrewBoxTask extends Task {
                         stage = Stage.STEP_IN;
                         stepTicks = 0;
                         lastHit = mod.getPlayer().getLastDamageSource();
-                        Debug.logInternal("brew box: built (" + placed.size() + " blocks, " + (now - buildStartedAt) + " ticks)");
+                        Debug.logInternal(what() + ": built (" + placed.size() + " blocks, " + (now - buildStartedAt) + " ticks)");
                         return null;
                     }
                     String why = over ? "not whole in " + TRY_TICKS + " ticks" : builder.gaveUp() ? "its build gave up" : open(level) + " cells still open";
@@ -279,7 +313,7 @@ final class BrewBoxTask extends Task {
                     }
                     if (again == null) return fail("no floor for try " + (tries + 1) + ", " + why);
                     if (!enoughBlocks(mod, again)) return fail("no blocks for try " + (tries + 1) + ": " + again.blocks().size() + " to place, " + BlazePillboxTask.blocksInBag(mod) + " in the bag");
-                    Debug.logInternal("brew box: try " + (tries + 1) + " (" + why + "), " + again.blocks().size() + " blocks to place");
+                    Debug.logInternal(what() + ": try " + (tries + 1) + " (" + why + "), " + again.blocks().size() + " blocks to place");
                     startTry(again);
                     return null;
                 }
@@ -300,6 +334,16 @@ final class BrewBoxTask extends Task {
                     setDebugState("Into the brew box's back cell");
                     return null;
                 }
+                // (the sealed heal: the wait in B, HEAL)
+                if (heal) {
+                    stage = Stage.HEAL;
+                    sealedAt = now;
+                    riseAt = now;
+                    bestHp = mod.getPlayer().getHealth();
+                    Debug.logInternal(String.format(java.util.Locale.ROOT, "heal box: sealed, the buddy in the back cell %s at %.1f hp",
+                            pos(box.back()).toShortString(), bestHp));
+                    return null;
+                }
                 // (brew_box 2 with no stand yet: made in here, CRAFT)
                 // (steering 69: the stand made in here for every box, never at a table outside it)
                 stage = !mod.getItemStorage().hasItem(Items.BREWING_STAND) ? Stage.CRAFT : Stage.STAND;
@@ -317,7 +361,7 @@ final class BrewBoxTask extends Task {
                 BlockPos f = pos(box.front());
                 boolean tableInF = level.getBlockState(f).is(Blocks.CRAFTING_TABLE);
                 if (++craftTicks > CRAFT_TICKS) {
-                    Debug.logInternal("brew box: the stand not made inside in " + CRAFT_TICKS / 20 + " s, opening");
+                    Debug.logInternal(what() + ": the stand not made inside in " + CRAFT_TICKS / 20 + " s, opening");
                     stage = Stage.OPEN;
                     return null;
                 }
@@ -327,7 +371,7 @@ final class BrewBoxTask extends Task {
                         setDebugState("Taking the crafting table back");
                         return takeTable;
                     }
-                    Debug.logInternal("brew box: the stand made inside (" + craftTicks + " ticks)");
+                    Debug.logInternal(what() + ": the stand made inside (" + craftTicks + " ticks)");
                     stage = Stage.STAND;
                     return null;
                 }
@@ -355,13 +399,13 @@ final class BrewBoxTask extends Task {
                 // (no stand in F and none in the bag: the brew would make one shut in, a rod for it from inside the box, no path
                 // and bans until its budget ran out. so open now; the brew goes on outside, or the order does)
                 if (!mod.getItemStorage().hasItem(Items.BREWING_STAND)) {
-                    Debug.logInternal("brew box: no stand, opening");
+                    Debug.logInternal(what() + ": no stand, opening");
                     BrewFireResistanceTask.pinBoxStand(null);
                     stage = Stage.OPEN;
                     return null;
                 }
                 if (++standTicks > STAND_TICKS) {
-                    Debug.logInternal("brew box: the stand did not go in at " + f.toShortString() + ", the brew places its own");
+                    Debug.logInternal(what() + ": the stand did not go in at " + f.toShortString() + ", the brew places its own");
                     stage = Stage.BREW;
                     return null;
                 }
@@ -391,13 +435,32 @@ final class BrewBoxTask extends Task {
                     return null;
                 }
                 if (now - drinkSince > DRINK_TICKS || now < drinkSince) {
-                    Debug.logInternal("brew box: the potion not drunk in " + DRINK_TICKS / 20 + " s, opening");
+                    Debug.logInternal(what() + ": the potion not drunk in " + DRINK_TICKS / 20 + " s, opening");
                     stage = Stage.OPEN;
                     return null;
                 }
                 // (the food chain drinks with no blaze near or fire on us too while this is fresh, FireRes.ask)
                 FireRes.ask(now);
                 setDebugState("Drinking fire resistance in the box");
+                return null;
+            }
+            case HEAL -> {
+                var me = mod.getPlayer();
+                float hp = me.getHealth();
+                if (hp > bestHp + 0.01f) {
+                    bestHp = hp;
+                    riseAt = now;
+                }
+                String why = adris.altoclef.util.helpers.BoxHomeRules.healDone(hp, me.getMaxHealth(), now - sealedAt, now - riseAt);
+                if (why != null || now < sealedAt) {
+                    healWhy = why == null ? "a new world" : why;
+                    Debug.logInternal(String.format(java.util.Locale.ROOT, "heal box: %s, %.1f hp after %d s, opening", healWhy, hp, Math.max(0, now - sealedAt) / 20));
+                    stage = Stage.OPEN;
+                    return null;
+                }
+                // (in B's middle, out of the look out's line)
+                if (BlazePillboxTask.centreIn(mod, pos(box.back()), BlazePillboxTask.HIDE_SLACK)) return null;
+                setDebugState("Healing sealed in the box");
                 return null;
             }
             case OPEN -> {
@@ -407,6 +470,16 @@ final class BrewBoxTask extends Task {
                     CliffAvoidance.Cells world = worldCells(level);
                     CliffAvoidance.Cells walk = cells(mod);
                     doors = BrewBox.doors(world, walk == null ? world : walk, box, placed, !standInF, sx(), sz());
+                    // (the sealed heal opens its own wall again, the look out: a door all of whose blocks were placed here)
+                    if (heal) {
+                        List<BrewBox.Door> ours = new ArrayList<>();
+                        for (BrewBox.Door d : doors) {
+                            boolean all = true;
+                            for (int[] c : d.cells()) all &= placed.contains(BlazeCover.key(c[0], c[1], c[2]));
+                            if (all) ours.add(d);
+                        }
+                        if (!ours.isEmpty()) doors = ours;
+                    }
                     doorAt = 0;
                     openSince = now;
                 }
@@ -415,7 +488,7 @@ final class BrewBoxTask extends Task {
                     BlockPos p = pos(d);
                     if (!solid(level, p)) continue;
                     if (now - openSince > OPEN_TICKS || now < openSince) {
-                        Debug.logInternal("brew box: not opened in " + OPEN_TICKS / 20 + " s, the walk on digs out");
+                        Debug.logInternal(what() + ": not opened in " + OPEN_TICKS / 20 + " s, the walk on digs out");
                         stage = Stage.DONE;
                         return null;
                     }
@@ -426,13 +499,19 @@ final class BrewBoxTask extends Task {
                     setDebugState("Opening the brew box");
                     return breaking;
                 }
-                // (a door with no walk out read beyond it, none with one left: the order's own walk takes it from here)
-                if (!door.out()) {
-                    Debug.logInternal("brew box: opened at " + pos(door.cells().get(0)).toShortString() + ", no walk out seen beyond it");
+                // (the sealed heal: open, and the buddy stays in the pillbox)
+                if (heal) {
+                    Debug.logInternal("heal box: opened at " + pos(door.cells().get(0)).toShortString());
                     stage = Stage.DONE;
                     return null;
                 }
-                Debug.logInternal("brew box: opened at " + pos(door.cells().get(0)).toShortString());
+                // (a door with no walk out read beyond it, none with one left: the order's own walk takes it from here)
+                if (!door.out()) {
+                    Debug.logInternal(what() + ": opened at " + pos(door.cells().get(0)).toShortString() + ", no walk out seen beyond it");
+                    stage = Stage.DONE;
+                    return null;
+                }
+                Debug.logInternal(what() + ": opened at " + pos(door.cells().get(0)).toShortString());
                 stage = Stage.LEAVE;
                 leaveTicks = 0;
                 noPathTicks = 0;
@@ -442,7 +521,7 @@ final class BrewBoxTask extends Task {
             case LEAVE -> {
                 BrewBox.Door door = doors.get(doorAt);
                 if (!inRoom(mod.getPlayer().position())) {
-                    Debug.logInternal("brew box: out at " + mod.getPlayer().blockPosition().toShortString());
+                    Debug.logInternal(what() + ": out at " + mod.getPlayer().blockPosition().toShortString());
                     stage = Stage.DONE;
                     return null;
                 }
@@ -452,12 +531,12 @@ final class BrewBoxTask extends Task {
                 if (++leaveTicks > LEAVE_TICKS || noPathTicks > NO_PATH_TICKS) {
                     String why = noPathTicks > NO_PATH_TICKS ? "no path in " + NO_PATH_TICKS / 20 + " s" : "still inside after " + LEAVE_TICKS / 20 + " s";
                     if (doorAt + 1 >= doors.size()) {
-                        Debug.logInternal("brew box: no way out at " + pos(door.cells().get(0)).toShortString() + " (" + why + "), every wall tried, the walk on digs out");
+                        Debug.logInternal(what() + ": no way out at " + pos(door.cells().get(0)).toShortString() + " (" + why + "), every wall tried, the walk on digs out");
                         stage = Stage.DONE;
                         return null;
                     }
                     doorAt++;
-                    Debug.logInternal("brew box: no way out at " + pos(door.cells().get(0)).toShortString() + " (" + why + "), the next wall at "
+                    Debug.logInternal(what() + ": no way out at " + pos(door.cells().get(0)).toShortString() + " (" + why + "), the next wall at "
                             + pos(doors.get(doorAt).cells().get(0)).toShortString());
                     stage = Stage.OPEN;
                     openSince = now;
@@ -479,7 +558,7 @@ final class BrewBoxTask extends Task {
         failed = true;
         stage = Stage.DONE;
         BrewFireResistanceTask.pinBoxStand(null);
-        Debug.logInternal("brew box: failed (" + why + ")" + (pillboxBack != null || waitOnFail ? ", the brew waits" : ", the open brew"));
+        Debug.logInternal(what() + ": failed (" + why + ")" + (heal ? ", no seal" : pillboxBack != null || waitOnFail ? ", the brew waits" : ", the open brew"));
         return null;
     }
 

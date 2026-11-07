@@ -70,6 +70,24 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private BrewBoxTask _brewBox;
     // a fight has the brew's ticks now (logged once per take over)
     private boolean _brewCutOff;
+    // the buddy's fork, Tuning box_home (BoxHomeRules): the standing box holds the buddy this tick (it stands and the order's
+    // rods are not all in), the sealed heal under way (a BrewBoxTask in heal mode: the look out walled, the wait in the back
+    // cell, the wall broken), the tick a failed seal may be tried again, the errands said skipped for this box, the spawner
+    // whose pack was said not waited for, and a rod fetch under way (the tick it went out, -1 for none)
+    private boolean _homeHolds;
+    private BrewBoxTask _healBox;
+    private long _healRetryAt = Long.MIN_VALUE;
+    private float _healBeganHp;
+    private final java.util.Set<String> _homeSaid = new java.util.HashSet<>();
+    private BlazePillboxTask _homeSaidFor;
+    private BlockPos _homePackSaidFor;
+    private long _rodTripAt = -1;
+    private boolean _rodTripOut;
+    // a fetch never seen out of the box is forgotten after this long (ticks)
+    static final long ROD_TRIP_QUIET = 200;
+    private int _rodTripId = Integer.MIN_VALUE;
+    // a seal that failed waits this long before the next (ticks)
+    static final long HEAL_RETRY_TICKS = 600;
     // the buddy's fork, Tuning fr_trade: the barter for the first fire resistance, one per order (kept through interruptions);
     // null with the tuning off
     private FireResTrade _frTrade;
@@ -249,6 +267,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     protected Task onTick(AltoClef mod) {
         _rodWatch.tick(mod);
         if (_brewBox != null) _brewBox.noteHits(mod);
+        if (_healBox != null) _healBox.noteHits(mod);
         // (the buddy's fork, Tuning rod_snowball: the blazes' points for the lead, the kills and the strategy's two ends, on a
         // pickup's ticks too)
         if (RodSnowball.on()) _snow.watch(mod);
@@ -303,9 +322,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 return trade;
             }
         }
+        // (the buddy's fork, Tuning box_home, off by default: whether the standing box holds the buddy this tick, BoxHomeRules)
+        homeTick(mod);
         // (the buddy's fork: the camp was picked with or without fire resistance; a potion brewed and drunk here, or one run
         // out, is a camp of the other kind, so the pick goes again and a box under way is dropped)
-        if (_campSpotFor != null && BlazeFight.fireproofCamp(mod.getPlayer()) != _campFireproof) {
+        // (box_home: not while the box holds; the camp of the potion is the box's open side, a step out of it)
+        if (_campSpotFor != null && BlazeFight.fireproofCamp(mod.getPlayer()) != _campFireproof && homeHolds()) {
+            homeSkip("the fire-proof camp at the box's open side");
+        } else if (_campSpotFor != null && BlazeFight.fireproofCamp(mod.getPlayer()) != _campFireproof) {
             Debug.logInternal("blaze camp: fire resistance " + (_campFireproof ? "gone" : "on") + ", the camp picked again");
             notePillboxSpot();
             _campSpotFor = null;
@@ -371,9 +395,26 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 return in;
             }
         }
+        // (the buddy's fork, Tuning box_home: a heal sealed in the box, before the fight while the wall holds)
+        if (_healBox != null) {
+            Task heal = healStep(mod);
+            if (heal != null) return heal;
+        }
         // (the buddy's fork, Tuning camp_reentry, off by default: shut out of the camp, a pillbox where the buddy stands, another
-        // corner or none, campReentry)
+        // corner or none, campReentry. box_home turns it on: a box not got back into is replaced where the buddy stands)
         if (adris.altoclef.util.helpers.CampReentry.on()) campReentry(mod);
+        // (the buddy's fork, Tuning box_home: at a known spawner the camp, so the box, is picked before anything else, the cream
+        // hunt and the hiding place among them; the build below then comes first. a pack at the spawner is no reason to wait:
+        // a wither skeleton does not fit the box)
+        if (adris.altoclef.util.helpers.BoxHomeRules.on() && _foundBlazeSpawner != null && !_foundBlazeSpawner.equals(_campSpotFor)
+                && mod.getClientBaritone().bsi != null) {
+            pickCampSpot(mod);
+            if (_foundBlazeSpawner.equals(_campSpotFor)) {
+                Debug.logInternal("box home: the camp first at the spawner " + _foundBlazeSpawner.toShortString() + ", "
+                        + (_pillbox != null ? "a pillbox at " + _pillbox.cell().toShortString()
+                        : _campSpot != null ? "no box fits, the camp at " + _campSpot.toShortString() : "no box fits, by the spawner"));
+            }
+        }
         // blazes first: kill the one we picked, run when it goes badly. null is "nobody to fight"
         boolean building = _pillbox != null && !_pillbox.isFinished(mod);
         // (the cell is the fight's corner from its first block on, the wall nearest the spawner: a run then goes into it, not out
@@ -393,12 +434,15 @@ public class CollectBlazeRodsTask extends ResourceTask {
         adris.altoclef.util.helpers.BlazeShelter.box(standing == null ? null : standing.cell(), standing == null ? null : standing.door(),
                 standing == null ? null : standing::holds);
         // (a brew box going up is built as a pillbox is: only a blaze that bites is fought meanwhile, its blocks may be placed)
-        boolean brewBuilding = _brewBox != null && _brewBox.building();
+        // (box_home's sealed heal walls the look out as the brew box does: the same)
+        boolean healBuilding = _healBox != null && _healBox.building();
+        boolean brewBuilding = (_brewBox != null && _brewBox.building()) || healBuilding;
         _fight.building(building || brewBuilding);
         java.util.Set<BlockPos> exempt = building ? _pillbox.blocks() : java.util.Set.of();
         if (brewBuilding) {
             exempt = new java.util.HashSet<>(exempt);
-            exempt.addAll(_brewBox.blocks());
+            if (_brewBox != null) exempt.addAll(_brewBox.blocks());
+            if (healBuilding) exempt.addAll(_healBox.blocks());
         }
         _fight.pillboxBlocks(exempt);
         Task fight = _fight.tick(mod);
@@ -442,6 +486,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
             setDebugState("Recovering away from the blazes");
             // a run that stopped healing is dead time just like a dud spawner, the rods watch clocks have to see it
             _camping = _fight.reachable() == 0 || _fight.runGaveUp();
+            // (the buddy's fork, Tuning box_home: the heal wait in the box is sealed, BoxHomeRules.sealHeal)
+            Task seal = sealHealStart(mod);
+            if (seal != null) return seal;
             return null;
         }
 
@@ -486,6 +533,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (the buddy's fork, Tuning lure_cap, off by default: a hide that drew no blaze into reach for the cap is over, its
         // pocket barred, BlazeFight.hideCapped; the camp's own corner as the hiding place is dropped too, and the tick goes on
         // as with no hide)
+        // (the buddy's fork, Tuning box_home: no hiding place elsewhere while the box holds; one in the box is the box)
+        if (hide != null && homeHolds() && _fight.hidePlace() != null && !_pillbox.holds(_fight.hidePlace())) {
+            homeSkip("the hiding place at " + _fight.hidePlace().toShortString());
+            hide = null;
+        }
         if (hide != null) {
             BlockPos hidAt = _fight.hidePlace();
             if (_fight.hideCapped(mod)) {
@@ -511,7 +563,15 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // wherever it stood, out on a spawn trip too. the trips stay home while the pack is there, farTripStep)
             boolean farStands = _far != null && _pillbox == _farBox && _pillboxCornered;
             int pack = farStands ? 0 : BlazeFight.witherSkeletonsNear(mod, Vec3.atCenterOf(_foundBlazeSpawner), BlazeFightRules.PACK_SPAWNER_RADIUS);
-            if (!farStands && BlazeFightRules.packNear(pack) && packWaits(mod, pack)) {
+            // (the buddy's fork, Tuning box_home: no wait for the pack; a wither skeleton is 2.4 high and does not fit the box, it is
+            // fought one at a time at the opening)
+            if (!farStands && BlazeFightRules.packNear(pack) && adris.altoclef.util.helpers.BoxHomeRules.on()) {
+                if (!_foundBlazeSpawner.equals(_homePackSaidFor)) {
+                    _homePackSaidFor = _foundBlazeSpawner;
+                    Debug.logInternal("box home: " + pack + " wither skeletons within " + (int) BlazeFightRules.PACK_SPAWNER_RADIUS + " of the spawner "
+                            + _foundBlazeSpawner.toShortString() + ", no wait, the box is home");
+                }
+            } else if (!farStands && BlazeFightRules.packNear(pack) && packWaits(mod, pack)) {
                 setDebugState("wither skeletons at the spawner, waiting");
                 _camping = true;
                 return null;
@@ -574,7 +634,15 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // cell's middle, was "in the box", its walk found no path, the wander put the buddy on the wall and out, and the box
             // was never got back into: dead outside it, realfort-ab-leash-3 run 1)
             boolean fireInBox = adris.altoclef.util.helpers.Tuning.get("fire_in_box", 0) > 0;
-            if (nearestFire.isPresent() && _pillbox != null && _pillboxCornered
+            // (the buddy's fork, Tuning box_home: while the box holds only a fire in its cells or its door is put out, from
+            // inside; any other is left)
+            if (homeHolds()) {
+                BlockPos boxDoor = _pillbox.door();
+                Optional<BlockPos> inBox = mod.getBlockTracker().getNearestWithinRange(_pillbox.cell(), 3, Blocks.FIRE)
+                        .filter(f -> adris.altoclef.util.helpers.BoxHomeRules.fireOut(_pillbox.holds(f), f.equals(boxDoor)));
+                if (inBox.isEmpty() && nearestFire.isPresent()) homeSkip("the fire walk");
+                nearestFire = inBox;
+            } else if (nearestFire.isPresent() && _pillbox != null && _pillboxCornered
                     && (fireInBox ? !_pillbox.holds(nearestFire.get())
                     : !nearestFire.get().closerToCenterThan(Vec3.atCenterOf(_pillbox.cell()), PILLBOX_RADIUS))) nearestFire = Optional.empty();
             // (the buddy's fork: a fire not put out after FIRE_TICKS spent on it is left for good. one out of reach was picked
@@ -613,6 +681,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 // with none)
                 long cap = adris.altoclef.util.helpers.BlazeCapRules.lureCapTicks();
                 BlockPos at = _fight.corner();
+                // (box_home: the box is home while it holds, no lure cap drops it)
+                if (cap > 0 && homeHolds() && _fight.corner().equals(_pillbox.cell())) cap = 0;
                 if (cap > 0 && _campLureWatch.tick(BlazeCover.key(at.getX(), at.getY(), at.getZ()), mod.getWorld().getGameTime(), _fight.killAt(), cap)) {
                     dropEmptyCamp(mod, at, _lure.looks(), "looking out from it");
                     setDebugState("Waiting near blaze spawner for blazes to spawn");
@@ -748,6 +818,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_brewGaveUp) {
             return null;
         }
+        // (box_home: no brew while a heal is sealed in the box; the two wall the same look out)
+        if (_healBox != null) {
+            return null;
+        }
         // (a stand with our bottles in it from an earlier order is the same brew, on its own clock from now)
         if (BrewFireResistanceTask.pending() && _brewSince < 0) {
             _brewSince = WorldHelper.getTicks();
@@ -796,6 +870,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         boolean wart = water == 0 || mod.getItemStorage().hasItem(Items.NETHER_WART);
         boolean cream = mod.getItemStorage().hasItem(Items.MAGMA_CREAM);
+        // (the buddy's fork, Tuning box_home: no cream hunt and no wart errand while the box holds: each is a walk out of it,
+        // and the cream hunt was the leave never undone in 18 of 43 boxes left before the end since 6 Nov 2026)
         if (!cream) {
             logCreamCubes(mod);
             // a tiny one drops nothing
@@ -803,12 +879,20 @@ public class CollectBlazeRodsTask extends ResourceTask {
             double range = creamRange();
             if (mod.getEntityTracker().getClosestEntity(us.position(), e -> e instanceof MagmaCube c && c.isAlive() && c.getSize() > 1
                     && c.distanceTo(us) <= range && creamCube(mod, c), MagmaCube.class).isPresent()) {
+                if (homeHolds()) {
+                    homeSkip("the cream hunt");
+                    return null;
+                }
                 setDebugState("A magma cube for its cream");
                 return new KillAndLootTask(MagmaCube.class, e -> e instanceof MagmaCube c && c.getSize() > 1 && c.distanceTo(us) <= range
                         && creamCube(mod, c), new ItemTarget(Items.MAGMA_CREAM, 1));
             }
             // the last cube dead and its cream on the floor: the gate above no longer holds, the drop is picked up all the same
             if (dropNear(mod, Items.MAGMA_CREAM, range)) {
+                if (homeHolds()) {
+                    homeSkip("the cream pickup");
+                    return null;
+                }
                 setDebugState("Picking up the magma cream");
                 return new PickupDroppedItemTask(new ItemTarget(Items.MAGMA_CREAM, 1), true);
             }
@@ -819,6 +903,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // wart was looked for 7 to 60 times an order while no cream ever came, attempts 224 to 229, 4 Nov 2026)
         if (!wart && cream && (dropNear(mod, Items.NETHER_WART, WART_RANGE)
                 || mod.getBlockTracker().getNearestWithinRange(mod.getPlayer().position(), WART_RANGE, Blocks.NETHER_WART).isPresent())) {
+            if (homeHolds()) {
+                homeSkip("the wart errand");
+                return null;
+            }
             setDebugState("A nether wart for the brew");
             return TaskCatalogue.getItemTask("nether_wart", 1);
         }
@@ -964,7 +1052,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
         boolean campsOff = _foundBlazeSpawner.equals(_campsOffFor);
         if (farOn() && !_foundBlazeSpawner.equals(_farGaveUpFor) && !_foundBlazeSpawner.equals(_pillboxGaveUpFor) && !campsOff
                 && farPick(mod, cells, sx, sy, sz)) return;
-        int[][] corner = _noCorner || campsOff ? null : cornerSpot(mod, cells, sx, sy, sz, _shutOut.isEmpty() ? null : notShut(), true);
+        // (Tuning box_home: the box before a corner, the corner only when no box fits, below)
+        boolean homeFirst = adris.altoclef.util.helpers.BoxHomeRules.on();
+        int[][] corner = _noCorner || campsOff || homeFirst ? null : cornerSpot(mod, cells, sx, sy, sz, _shutOut.isEmpty() ? null : notShut(), true);
         if (corner != null) {
             _campSpot = new BlockPos(corner[0][0], corner[0][1], corner[0][2]);
             BlockPos peek = new BlockPos(corner[1][0], corner[1][1], corner[1][2]);
@@ -992,6 +1082,19 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 return;
             }
             Debug.logInternal("blaze camp: no corner and no pillbox (spawner " + _foundBlazeSpawner.toShortString() + ")");
+        }
+        // (Tuning box_home: no box fits, so a corner after all)
+        corner = homeFirst && !_noCorner && !campsOff ? cornerSpot(mod, cells, sx, sy, sz, _shutOut.isEmpty() ? null : notShut(), true) : null;
+        if (corner != null) {
+            _campSpot = new BlockPos(corner[0][0], corner[0][1], corner[0][2]);
+            BlockPos peek = new BlockPos(corner[1][0], corner[1][1], corner[1][2]);
+            adris.altoclef.util.snapshot.Snapshots.chose("blaze.corner", corner[0]).with("peek", corner[1]).spawner(sx, sy, sz);
+            _fight.corner(_campSpot);
+            _lure = BlazeLureTask.of(cells, _campSpot, peek);
+            Debug.logInternal("blaze camp: no pillbox fits, a corner at " + _campSpot.toShortString() + " (closed in "
+                    + BlazeCover.enclosure(mod.getWorld(), corner[0][0], corner[0][1], corner[0][2], mod.getPlayer()) + " of 24), looking out from " + peek.toShortString()
+                    + " (spawner " + _foundBlazeSpawner.toShortString() + ")");
+            return;
         }
         int[] spot = LavaShore.campSpot(cells, sx, sy, sz, us.getX(), us.getZ());
         String how = "six to eight out";
@@ -1457,7 +1560,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
                     adris.altoclef.util.helpers.CampReentryRules.REACH_STEPS);
             java.util.Set<Long> shut = new java.util.HashSet<>();
             for (BlockPos p : _shutOut) shut.add(BlazeCover.key(p.getX(), p.getY(), p.getZ()));
-            other = _noCorner ? null : cornerSpot(mod, cells, sx, sy, sz,
+            // (Tuning box_home: a box where the buddy stands or none, never a walk round to another corner)
+            other = _noCorner || adris.altoclef.util.helpers.BoxHomeRules.on() ? null : cornerSpot(mod, cells, sx, sy, sz,
                     p -> adris.altoclef.util.helpers.CampReentryRules.cornerAllowed(p.getX(), p.getY(), p.getZ(), shut, reach), false);
             if (other != null) {
                 otherLure = BlazeLureTask.of(cells, new BlockPos(other[0][0], other[0][1], other[0][2]), new BlockPos(other[1][0], other[1][1], other[1][2]));
@@ -1568,6 +1672,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         var me = mod.getPlayer();
         // (the buddy's fork: none while shut in the brew box, a walk to a rod is a way out through its wall)
         if (_brewBox != null && _brewBox.holds(mod)) return true;
+        if (_healBox != null && _healBox.holds(mod)) return true;
+        // (the buddy's fork, Tuning box_home: while the box holds, a rod in it always, one outside only within
+        // BoxHomeRules.ROD_RANGE of its cell with no blaze in sight; the camp's walk takes the buddy straight back)
+        if (me != null && homeHolds()) return !homeRodFetch(mod, me);
         // (from a standing pillbox: a rod in the box always, one outside it only with no blaze within PILLBOX_QUIET. six walks out
         // for rods in one run, the last two 25 hp, straight-bent-g run 4)
         if (me != null && _pillbox != null && _pillboxCornered) {
@@ -1654,6 +1762,151 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (Math.hypot(_fireproofSpot.getX() - _foundBlazeSpawner.getX(), _fireproofSpot.getZ() - _foundBlazeSpawner.getZ()) > FIREPROOF_SPOT_RANGE) return;
         _campSpot = _fireproofSpot;
         Debug.logInternal("blaze camp: fire-proof, the spawner's top not reached in " + FIREPROOF_WALK_TICKS / 20 + " s, at the pillbox's open side " + _campSpot.toShortString());
+    }
+
+    // ---- the buddy's fork, Tuning box_home (BoxHomeRules): the box as home
+
+    // each tick: whether the standing box holds the buddy; while it does its cell is marked for the wander guard (BoxGuard, on
+    // with box_home) and a rod fetch that is back in the box is said
+    private void homeTick(AltoClef mod) {
+        boolean stands = _pillbox != null && _pillboxCornered;
+        _homeHolds = adris.altoclef.util.helpers.BoxHomeRules.on()
+                && adris.altoclef.util.helpers.BoxHomeRules.holds(stands, mod.getItemStorage().getItemCount(Items.BLAZE_ROD), _count);
+        BlazePillboxTask box = stands ? _pillbox : null;
+        if (_homeSaidFor != box) {
+            _homeSaidFor = box;
+            _homeSaid.clear();
+        }
+        if (!homeHolds() || mod.getPlayer() == null) {
+            _rodTripAt = -1;
+            _rodTripOut = false;
+            return;
+        }
+        long now = mod.getWorld().getGameTime();
+        adris.altoclef.util.helpers.BoxGuard.mark(_pillbox.cell(), now);
+        // (said only once the buddy was seen out of the box after the fetch began: the pickup's own ticks skip this one)
+        boolean in = _pillbox.holds(mod.getPlayer().blockPosition());
+        if (_rodTripAt >= 0 && !in) _rodTripOut = true;
+        if (_rodTripAt >= 0 && in && (_rodTripOut || now - _rodTripAt > ROD_TRIP_QUIET || now < _rodTripAt)) {
+            if (_rodTripOut) Debug.logInternal("box home: back in the box after the rod, " + Math.max(0, now - _rodTripAt) / 20 + " s out");
+            _rodTripAt = -1;
+            _rodTripOut = false;
+        }
+    }
+
+    // the box holds the buddy: as of this tick's homeTick, and the box still standing (a box given up or replaced later in the
+    // tick, or since the last one, holds nothing)
+    private boolean homeHolds() {
+        return _homeHolds && _pillbox != null && _pillboxCornered;
+    }
+
+    // an errand of the camp skipped while the box holds, said once per box and errand (the words before " at ")
+    private void homeSkip(String what) {
+        if (_pillbox == null) return;
+        int at = what.indexOf(" at ");
+        if (_homeSaid.add(at < 0 ? what : what.substring(0, at))) {
+            Debug.logInternal("box home: " + what + " skipped, the box at " + _pillbox.cell().toShortString() + " holds");
+        }
+    }
+
+    // the pickup's rods while the box holds: one in the box always, one outside only close to it with no blaze in sight
+    // (BoxHomeRules.rodFetch). the pickup walks to the closest rod worth the walk, so it runs only while every rod lying within
+    // HOME_ROD_SCAN may be fetched; a fetch out of the box is said once per rod, the way back by homeTick
+    static final double HOME_ROD_SCAN = 48;
+
+    private boolean homeRodFetch(AltoClef mod, net.minecraft.world.entity.LivingEntity me) {
+        BlockPos cell = _pillbox.cell();
+        boolean sight = blazeInSight(mod, me);
+        java.util.function.Predicate<net.minecraft.world.entity.item.ItemEntity> fetchable = d -> {
+            Vec3 at = d.position();
+            boolean inBox = at.distanceTo(Vec3.atBottomCenterOf(cell)) <= PILLBOX_RADIUS;
+            double flat = Math.hypot(at.x - (cell.getX() + 0.5), at.z - (cell.getZ() + 0.5));
+            // (a rod on a ledge above or down a drop is no step out: as far as one out of range)
+            boolean level = at.y >= cell.getY() - 2 && at.y <= cell.getY() + 1.5;
+            return adris.altoclef.util.helpers.BoxHomeRules.rodFetch(inBox, level ? flat : Double.POSITIVE_INFINITY, sight);
+        };
+        Optional<net.minecraft.world.entity.item.ItemEntity> left = mod.getEntityTracker().getClosestItemDrop(me.position(),
+                d -> d.distanceTo(me) <= HOME_ROD_SCAN && !fetchable.test(d), Items.BLAZE_ROD);
+        if (left.isPresent()) {
+            Vec3 at = left.get().position();
+            homeSkip(String.format(java.util.Locale.ROOT, "the rod walk at %s (%.1f from the box%s)", BlockPos.containing(at).toShortString(),
+                    Math.hypot(at.x - (cell.getX() + 0.5), at.z - (cell.getZ() + 0.5)), sight ? ", a blaze in sight" : ""));
+            return false;
+        }
+        Optional<net.minecraft.world.entity.item.ItemEntity> out = mod.getEntityTracker().getClosestItemDrop(me.position(),
+                d -> !_pillbox.holds(BlockPos.containing(d.position())), Items.BLAZE_ROD);
+        if (out.isPresent() && out.get().getId() != _rodTripId) {
+            Vec3 at = out.get().position();
+            _rodTripId = out.get().getId();
+            _rodTripAt = mod.getWorld().getGameTime();
+            Debug.logInternal(String.format(java.util.Locale.ROOT, "box home: out for a rod at %s, %.1f from the box, no blaze in sight",
+                    BlockPos.containing(at).toShortString(), Math.hypot(at.x - (cell.getX() + 0.5), at.z - (cell.getZ() + 0.5))));
+        }
+        return true;
+    }
+
+    // a blaze within BoxHomeRules.SIGHT_RANGE with a line to the buddy
+    private static boolean blazeInSight(AltoClef mod, net.minecraft.world.entity.LivingEntity me) {
+        for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+            if (b.isAlive() && b.distanceTo(me) <= adris.altoclef.util.helpers.BoxHomeRules.SIGHT_RANGE && b.hasLineOfSight(me)) return true;
+        }
+        return false;
+    }
+
+    // the heal wait in the box sealed (BoxHomeRules.sealHeal): a BrewBoxTask in heal mode walls the look out from inside, the
+    // buddy waits in the back cell while the food chain eats, and the wall is broken again (BrewBoxTask.Stage.HEAL)
+    private Task sealHealStart(AltoClef mod) {
+        if (_healBox != null || !homeHolds()) return null;
+        var me = mod.getPlayer();
+        long now = mod.getWorld().getGameTime();
+        if (me == null || (now < _healRetryAt && _healRetryAt - now <= HEAL_RETRY_TICKS)) return null;
+        boolean brewBusy = _brewBox != null && _brewBox.active();
+        int[][] cells = _pillbox.brewCells();
+        if (cells == null) return null;
+        // (the look out's column, two blocks at least; the plan's own count is checked as it is made)
+        if (!adris.altoclef.util.helpers.BoxHomeRules.sealHeal(true, true, _pillbox.holds(me.blockPosition()), brewBusy,
+                BlazePillboxTask.blocksInBag(mod), 2)) return null;
+        _healBox = BrewBoxTask.heal(_foundBlazeSpawner, cells);
+        _healBeganHp = me.getHealth();
+        Debug.logInternal(String.format(java.util.Locale.ROOT, "box home: sealed heal begun at %s, %.1f hp", _pillbox.cell().toShortString(), me.getHealth()));
+        setDebugState("Sealing the box to heal");
+        return _healBox;
+    }
+
+    // the sealed heal's turn, before the fight: its plan, its wall and its wait while the box holds, its wall broken while
+    // the buddy is still inside; null gives the tick to the fight (a mob inside, the box broken, low health)
+    private Task healStep(AltoClef mod) {
+        long now = mod.getWorld().getGameTime();
+        var me = mod.getPlayer();
+        if (_healBox.isFinished(mod)) {
+            Debug.logInternal(String.format(java.util.Locale.ROOT, "box home: sealed heal done (%s), %.1f hp from %.1f",
+                    _healBox.failed() ? "no seal" : _healBox.healWhy(), me == null ? 0 : me.getHealth(), _healBeganHp));
+            if (_healBox.failed()) _healRetryAt = now + HEAL_RETRY_TICKS;
+            _healBox = null;
+            return null;
+        }
+        // (the box given up or replaced meanwhile: the seal was its look out's)
+        if (!(_pillbox != null && _pillboxCornered) && !_healBox.opening()) {
+            _healBox.giveUp("the box gone");
+            if (!_healBox.opening()) {
+                _healBox = null;
+                return null;
+            }
+        }
+        if (_healBox.preparing()) {
+            setDebugState("Sealing the box to heal");
+            return _healBox;
+        }
+        if (_healBox.holds(mod)) {
+            adris.altoclef.util.helpers.BlazeShelter.brewBox(now);
+            setDebugState("Healing sealed in the box");
+            return _healBox;
+        }
+        if (_healBox.breakingOut(mod)) {
+            setDebugState("Opening the box after the heal");
+            return _healBox;
+        }
+        return null;
     }
 
     private void notePillboxSpot() {

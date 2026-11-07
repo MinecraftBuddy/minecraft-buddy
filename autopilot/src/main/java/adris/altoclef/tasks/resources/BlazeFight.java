@@ -189,7 +189,9 @@ final class BlazeFight {
     private List<Blaze> seenLast = List.of();
 
     // the corner the fight holds to now: the crowd's hiding place, else the camp's
+    // (Tuning box_home: the box once planned, never a hiding place elsewhere; the rods task skips the hide's walk too)
     private BlockPos activeCorner() {
+        if (pillboxPlanned && corner != null && adris.altoclef.util.helpers.BoxHomeRules.on()) return corner;
         return hide != null ? hide : corner;
     }
 
@@ -590,8 +592,11 @@ final class BlazeFight {
             pocketHeld = false;
         }
         BlockPos held = cornerHold ? activeCorner() : null;
-        if (next == Mode.KILL && held != null && target != null && player.distanceTo(target) > BITE_RANGE
-                && player.position().distanceTo(Vec3.atBottomCenterOf(held)) > leash()) {
+        // (the buddy's fork, Tuning box_home: the box is home, a blaze is fought from inside it, at the opening: past the leash
+        // every blaze is let go, one in the bite's reach too, BoxHomeRules.letGo)
+        boolean home = pillboxPlanned && adris.altoclef.util.helpers.BoxHomeRules.on();
+        if (next == Mode.KILL && held != null && target != null && adris.altoclef.util.helpers.BoxHomeRules.letGo(home,
+                player.position().distanceTo(Vec3.atBottomCenterOf(held)), leash(), player.distanceTo(target) > BITE_RANGE)) {
             noteLetGo(String.format(java.util.Locale.ROOT, "we are %.1f from the corner", player.position().distanceTo(Vec3.atBottomCenterOf(held))), player);
             target = null;
             next = Mode.CAMP;
@@ -638,7 +643,9 @@ final class BlazeFight {
             // (a shot that landed lately keeps the thrower in that crowd, see runCrowd, and a blaze with a line on us from far out
             // is in it too, see underFireCrowd. out of their sight is where a run gets to stop)
             case RUN -> {
-                boolean nearCorner = held != null && player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= cornerRun();
+                // (Tuning box_home: a heal run goes into the box from anywhere, BoxHomeRules.runHome)
+                boolean nearCorner = held != null && adris.altoclef.util.helpers.BoxHomeRules.runHome(home, true,
+                        player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= cornerRun());
                 // (Tuning recover_leave: a corner this run left is out for the rest of it, the run goes on as with none near)
                 if (nearCorner && held.equals(leftSpot)) nearCorner = false;
                 // (a pillbox going up: anywhere in the box is in, its roof row is placed from the front cell, and the rods
@@ -650,11 +657,12 @@ final class BlazeFight {
                 }
                 // (the buddy's fork, stand_model on: the corner, a cover or the plain run is the model's pick, the corner one cell
                 // among the rest and every mob about weighed, so no coverFits; with no cell from it the rules below)
-                BlockPos stand = adris.altoclef.util.helpers.StandPick.on() ? standCell(mod, nearCorner ? held : null) : null;
+                BlockPos stand = adris.altoclef.util.helpers.StandPick.on() && !(home && nearCorner) ? standCell(mod, nearCorner ? held : null) : null;
                 boolean intoCorner = stand != null ? stand.equals(held) : nearCorner;
                 // (Tuning recover_leave: hits still landing in the corner and the hp going down faster than it comes back:
                 // the corner left for cover from the blazes' sight, else the plain run, below)
-                if (intoCorner && leaveOn && leaveSpot(player, held, now, health, hitNow)) {
+                // (not out of the box with box_home: its heal is sealed instead, the rods task's sealHealStart)
+                if (intoCorner && leaveOn && !home && leaveSpot(player, held, now, health, hitNow)) {
                     intoCorner = false;
                     stand = null;
                 }
