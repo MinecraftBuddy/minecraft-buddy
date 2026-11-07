@@ -6,10 +6,10 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.BlazeFightRules;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.SnowballAim;
+import adris.altoclef.util.helpers.SnowballRun;
 import baritone.api.utils.Rotation;
 import baritone.api.utils.input.Input;
 import baritone.behavior.look.CombatAimMath;
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,8 +57,6 @@ final class RodSnowball {
     static final double LEAD_CAP = 0.5;
     // the crosshair's ray along the throw's look clear of blocks this far (the block reach is 4.5): the click is no use on a block
     static final double LOOK_CLEAR = 5;
-    // the snowballs counted at 0 this many ticks in a row before they are out (a slot being moved reads as none for a tick)
-    static final int OUT_TICKS = 10;
     // a line on why nothing is thrown at the camp with blazes in range, at most this often (game ticks)
     static final long STATUS_TICKS = 400;
 
@@ -70,33 +68,13 @@ final class RodSnowball {
         return adris.altoclef.util.helpers.Tuning.get("rod_snowball_range", RANGE);
     }
 
-    // one per world: the rods task is made anew by its callers now and then, the strategy's clock and counts go on. a new world
-    // (the nether's from the overworld, a respawn) starts it over
-    private static RodSnowball instance;
-    private static WeakReference<Object> instanceWorld = new WeakReference<>(null);
-
-    static RodSnowball of(AltoClef mod) {
-        Object world = mod.getWorld();
-        if (instance == null || instanceWorld.get() != world) {
-            instance = new RodSnowball();
-            instanceWorld = new WeakReference<>(world);
-        }
-        return instance;
-    }
-
     private record Shot(Blaze blaze, float yaw, float pitch, double flight, double distance) {
     }
 
     private final ThrowTask task = new ThrowTask(this);
-    private boolean begun;
-    private boolean noKitLogged;
-    private long begunAt;
-    private boolean firstThrown;
-    private boolean twoRods;
-    private boolean out;
-    private int outTicks;
-    private int throwsAll;
-    private int kills;
+    // (one per rods task, CollectBlazeRodsTask's field: each rods order runs its own course. one per world, the rig's orders
+    // in one game shared it, and every order after one that got its two rods never began, the strategy trial's lane t3)
+    private final SnowballRun run = new SnowballRun();
     private long lastThrow = Long.MIN_VALUE / 2;
     private long statusAt = Long.MIN_VALUE / 2;
     private boolean holdsMelee;
@@ -141,29 +119,14 @@ final class RodSnowball {
                 it.remove();
                 Long at = thrownAt.get(e.getKey());
                 if (at != null && now - at <= KILL_WINDOW && now >= at) {
-                    kills++;
-                    Debug.logInternal("strategy snowball: kill " + kills + " by snowball, " + throwsAt.getOrDefault(e.getKey(), 0) + " snowballs for it, "
-                            + throwsAll + " thrown in all (rods " + rods(mod) + ", " + snowballs(mod) + " snowballs left)");
+                    Debug.logInternal("strategy snowball: kill " + run.kill() + " by snowball, " + throwsAt.getOrDefault(e.getKey(), 0) + " snowballs for it, "
+                            + run.throwsAll() + " thrown in all (rods " + rods(mod) + ", " + snowballs(mod) + " snowballs left)");
                 }
             } else if (b.isRemoved()) {
                 it.remove();
             }
         }
-        if (!begun) return;
-        int rods = rods(mod);
-        if (!twoRods && rods >= 2) {
-            twoRods = true;
-            Debug.logInternal("strategy snowball: two rods after " + throwsAll + " throws in " + seconds(now) + " seconds (" + kills + " kills by snowball, "
-                    + snowballs(mod) + " snowballs left)");
-            Debug.logInternal("strategy snowball: back to melee, two rods");
-        }
-        outTicks = snowballs(mod) <= 0 ? outTicks + 1 : 0;
-        if (!twoRods && !out && outTicks >= OUT_TICKS) {
-            out = true;
-            Debug.logInternal("strategy snowball: out of snowballs after " + throwsAll + " throws in " + seconds(now) + " seconds, rods " + rods + " (" + kills
-                    + " kills by snowball)");
-            Debug.logInternal("strategy snowball: back to melee, out of snowballs");
-        }
+        for (String line : run.ends(snowballs(mod), rods(mod), now)) Debug.logInternal(line);
     }
 
     // the throw task while there is a blaze to throw at from the camp, null when the fight goes on as without the strategy (and
@@ -176,19 +139,9 @@ final class RodSnowball {
         long now = mod.getWorld().getGameTime();
         int snow = snowballs(mod);
         int rods = rods(mod);
-        if (rods >= 2 || twoRods || out) return null;
-        if (snow <= 0) {
-            if (!begun && !noKitLogged) {
-                noKitLogged = true;
-                Debug.logInternal("strategy snowball: not begun, no snowballs in the bag");
-            }
-            return null;
-        }
-        if (!begun) {
-            begun = true;
-            begunAt = now;
-            Debug.logInternal("strategy snowball: begun, " + snow + " snowballs (rods " + rods + ", range " + fmt(range()) + ")");
-        }
+        String start = run.start(snow, rods, now, range());
+        if (start != null) Debug.logInternal(start);
+        if (!run.active(snow, rods)) return null;
         // (the run is the heal and the cover; the box first while it goes up; the pack's back off as it is)
         if (fight.mode() == BlazeFightRules.Mode.RUN || building || (fight.mode() == BlazeFightRules.Mode.CAMP && fightTask != null)) return null;
         if (stand == null || p.position().distanceTo(Vec3.atBottomCenterOf(stand)) > THROW_STAND) return null;
@@ -221,7 +174,7 @@ final class RodSnowball {
         if (shot == null) {
             if (inRange > 0 && now - statusAt >= STATUS_TICKS) {
                 statusAt = now;
-                Debug.logInternal("strategy snowball: at the camp, no throw: " + inRange + " blazes within " + fmt(range()) + " " + why + ", " + throwsAll + " thrown");
+                Debug.logInternal("strategy snowball: at the camp, no throw: " + inRange + " blazes within " + fmt(range()) + " " + why + ", " + run.throwsAll() + " thrown");
             }
             return null;
         }
@@ -301,16 +254,12 @@ final class RodSnowball {
         if (!clear(mod, p, eye, eye.add(d[0] * LOOK_CLEAR, d[1] * LOOK_CLEAR, d[2] * LOOK_CLEAR))) return;
         mod.getInputControls().tryPress(Input.CLICK_RIGHT);
         lastThrow = now;
-        throwsAll++;
         throwsAt.merge(id, 1, Integer::sum);
         thrownAt.put(id, now);
         landsAt.put(id, now + (long) Math.ceil(s.flight()));
         watched.put(id, s.blaze());
-        if (!firstThrown) {
-            firstThrown = true;
-            Debug.logInternal("strategy snowball: first throw " + seconds(now) + " seconds after begun, at a blaze " + fmt(s.distance()) + " off, flight "
-                    + Math.round(s.flight()) + " ticks");
-        }
+        String first = run.thrown(now, s.distance(), s.flight());
+        if (first != null) Debug.logInternal(first);
     }
 
     private static boolean clear(AltoClef mod, LocalPlayer p, Vec3 from, Vec3 to) {
@@ -332,10 +281,6 @@ final class RodSnowball {
 
     private static int rods(AltoClef mod) {
         return mod.getItemStorage().getItemCount(Items.BLAZE_ROD);
-    }
-
-    private long seconds(long now) {
-        return Math.max(0, now - begunAt) / 20;
     }
 
     private static String fmt(double v) {

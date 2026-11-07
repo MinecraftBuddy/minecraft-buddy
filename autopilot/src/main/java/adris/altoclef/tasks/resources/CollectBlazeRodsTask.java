@@ -239,6 +239,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
 
     // the buddy's fork: the rods lost on the ground, counted every tick (a pickup's ticks skip onResourceTick)
     private final RodWatch _rodWatch = new RodWatch();
+    // the buddy's fork, Tuning rod_snowball, off by default: the snowball strategy's state, one per rods task, so each rods order
+    // begins it anew (not in onResourceStart: the task starts again after every interruption, a meal or a mob defense's run)
+    private final RodSnowball _snow = new RodSnowball();
 
     @Override
     protected Task onTick(AltoClef mod) {
@@ -246,7 +249,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_brewBox != null) _brewBox.noteHits(mod);
         // (the buddy's fork, Tuning rod_snowball: the blazes' points for the lead, the kills and the strategy's two ends, on a
         // pickup's ticks too)
-        if (RodSnowball.on()) RodSnowball.of(mod).watch(mod);
+        if (RodSnowball.on()) _snow.watch(mod);
         return super.onTick(mod);
     }
 
@@ -399,13 +402,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // at the camp with a blaze to throw at, the throws; in KILL mode with nothing to throw at and the sword's blaze out past
         // the melee's reach, no chase: the camp goes on and its looks bring the blaze into a line)
         if (RodSnowball.on() && _foundBlazeSpawner != null) {
-            RodSnowball snow = RodSnowball.of(mod);
-            Task thrown = snow.step(mod, _fight, fight, snowStand(), building || brewBuilding);
+            Task thrown = _snow.step(mod, _fight, fight, snowStand(), building || brewBuilding);
             if (thrown != null) {
                 setDebugState("Blaze fight: snowballs");
                 return thrown;
             }
-            if (snow.holdsMelee()) fight = null;
+            if (_snow.holdsMelee()) fight = null;
         }
         if (fight != null) {
             // (a brew under way that a fight takes over, counted for steering 49: how often the open brew is cut off)
