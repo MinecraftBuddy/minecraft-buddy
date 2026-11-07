@@ -101,6 +101,44 @@ public final class FireResTradeRules {
         return distance <= (wasNear ? KEEP_RANGE : ENTER_RANGE);
     }
 
+    // by the spawner, blocks: the trade is for before the fortress, and the hold below ends here
+    public static final double FORTRESS_NEAR = 32;
+
+    // Tuning fr_trade_hold, off by default: the traded potion kept for the blazes. on the way it went down whenever the buddy
+    // caught fire with no blaze in sight (13 of 31 runs that got one; those reached two rods safe in 7 of 13, against 13 of 14
+    // with the effect coming on at the blazes): a few seconds of burning cost a few hp, and the potion's 180 s were spent by
+    // the fight. the default of Tuning fr_trade_hold_hp: on fire at this health or below, the potion goes down after all
+    public static final double HOLD_HP = 8;
+    // the trade says every tick it runs that it ended with its potion; the food chain also runs while the rods task is
+    // interrupted (a mob defense's run or fight, a meal), so the say counts this long (game ticks)
+    public static final long HOLD_FRESH = 1200;
+    // a hold this long after the last one is a new fire episode, with its own line (game ticks)
+    public static final long HOLD_EPISODE_GAP = 40;
+
+    // whether a fire resistance drink (or throw) that would go down now waits for the blazes. traded: the trade ended with its
+    // potion. it waits only on the way: no blaze in drinking range, not at the fortress, and no task asked for it (the brew
+    // box). there it goes down in lava (feet or eyes), or on fire with health at or below holdHp; merely on fire it waits
+    public static boolean held(boolean traded, boolean blazeNear, boolean atFortress, boolean asked, boolean inLava, boolean onFire,
+                               double health, double holdHp) {
+        if (!traded || blazeNear || atFortress || asked || inLava) return false;
+        return !onFire || health > holdHp;
+    }
+
+    // the trade's say still counts: said at saidAt, now is the game tick (a new world's clock below it does not count)
+    public static boolean tradedFresh(long saidAt, long now) {
+        return now >= saidAt && now - saidAt <= HOLD_FRESH;
+    }
+
+    // a hold at now begins a new fire episode, the last hold having been at lastHeld
+    public static boolean newEpisode(long lastHeld, long now) {
+        return now < lastHeld || now - lastHeld > HOLD_EPISODE_GAP;
+    }
+
+    // the nearest blaze as the trade's lines write it
+    public static String distance(double d) {
+        return Double.isInfinite(d) ? "none in sight" : String.format(Locale.ROOT, "%.0f blocks off", d);
+    }
+
     // the chance a potion has come by the n-th ingot (the kit's size: 64 gives 89%, 96 gives 96%, 128 gives 99%)
     public static double chanceWithin(int ingots) {
         if (ingots <= 0) return 0;

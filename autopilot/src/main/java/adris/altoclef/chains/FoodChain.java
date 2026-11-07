@@ -250,8 +250,12 @@ public class FoodChain extends SingleTaskChain {
         double blaze = mod.getEntityTracker().getClosestEntity(player.position(), Blaze.class)
                 .map(b -> (double) b.distanceTo(player)).orElse(Double.POSITIVE_INFINITY);
         // (the buddy's fork: a drink a task asked for counts as the fire, FireRes.ask: the brew box's potion goes down inside)
-        boolean asked = adris.altoclef.util.helpers.FireRes.asked(mod.getWorld().getGameTime());
-        return FireResRules.wantsToDrink(true, effect == null ? 0 : effect.getDuration(), player.isOnFire() || asked, blaze);
+        long now = mod.getWorld().getGameTime();
+        boolean asked = adris.altoclef.util.helpers.FireRes.asked(now);
+        if (!FireResRules.wantsToDrink(true, effect == null ? 0 : effect.getDuration(), player.isOnFire() || asked, blaze)) return false;
+        // (the buddy's fork, Tuning fr_trade_hold, off by default: the traded potion, merely on fire on the way, waits for the
+        // blazes; in lava or low on health it goes down)
+        return !adris.altoclef.util.helpers.FireRes.holdsTraded(player, blaze, asked, now);
     }
 
     // the drink: no stop asked for and no hit rules, the same press and watch as a bite. a screen still keeps the use key from

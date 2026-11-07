@@ -1,7 +1,12 @@
 package adris.altoclef.util.helpers;
 
+import adris.altoclef.Debug;
+import java.util.Locale;
+import net.minecraft.core.BlockPos;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 
 // the buddy's fork: whether the decisions take fire resistance into account. with ignore_fire_resistance they act as without
 // it (the douse, the run when burning, the lava escape, the gapple), so a drill with the effect given by the rig measures the
@@ -36,5 +41,36 @@ public final class FireRes {
 
     public static boolean asked(long now) {
         return now >= askedAt && now - askedAt <= ASK_FRESH;
+    }
+
+    // Tuning fr_trade_hold, off by default: the traded potion kept for the blazes (FireResTradeRules.held). FireResTrade says
+    // every tick it runs that it ended with its potion, and by which spawner; the splash throw and the food chain's drink ask
+    private static volatile long tradedAt = Long.MIN_VALUE / 2;
+    private static volatile BlockPos tradedSpawner;
+    private static volatile long heldAt = Long.MIN_VALUE / 2;
+
+    public static void traded(long now, BlockPos spawner) {
+        tradedAt = now;
+        tradedSpawner = spawner;
+    }
+
+    // whether a fire resistance potion that would go down now (FireResRules.wantsToDrink said yes) waits for the blazes, with
+    // a line once per fire episode. always false with the switch off. blaze: the nearest one, infinite for none
+    public static boolean holdsTraded(LivingEntity e, double blaze, boolean asked, long now) {
+        if (Tuning.get("fr_trade_hold", 0) <= 0) return false;
+        if (!FireResTradeRules.tradedFresh(tradedAt, now)) return false;
+        BlockPos spawner = tradedSpawner;
+        boolean atFortress = spawner != null && e.position().distanceTo(Vec3.atCenterOf(spawner)) <= FireResTradeRules.FORTRESS_NEAR;
+        boolean inLava = e.isInLava() || e.isEyeInFluid(FluidTags.LAVA);
+        double hp = Tuning.get("fr_trade_hold_hp", FireResTradeRules.HOLD_HP);
+        if (!FireResTradeRules.held(true, blaze <= FireResRules.BLAZE_RANGE, atFortress, asked, inLava, e.isOnFire(), e.getHealth(), hp)) {
+            return false;
+        }
+        if (FireResTradeRules.newEpisode(heldAt, now)) {
+            Debug.logInternal(String.format(Locale.ROOT, "strategy trade: the potion held for the blazes (on fire, %.1f hp, nearest blaze %s)",
+                    e.getHealth(), FireResTradeRules.distance(blaze)));
+        }
+        heldAt = now;
+        return true;
     }
 }
