@@ -59,6 +59,11 @@ final class BlazeFight {
     private DamageSource shotSeen;
     private Mob shooter;
     private long shotAt = Long.MIN_VALUE / 2;
+    // (the buddy's fork, Tuning recover_leave, off by default: the run's heal wait in a corner watched, RecoverLeave. leftSpot
+    // is the corner the run left, out for the rest of that run; hitSeen the last damage source looked at for a mob's hit)
+    private final adris.altoclef.util.helpers.RecoverLeave spotWatch = new adris.altoclef.util.helpers.RecoverLeave();
+    private BlockPos leftSpot;
+    private DamageSource hitSeen;
     // blazes with a line on us, and blazes we could walk under and hit, as of the last scan
     private final List<Blaze> threats = new ArrayList<>();
     private final List<Blaze> candidates = new ArrayList<>();
@@ -488,6 +493,8 @@ final class BlazeFight {
         long now = mod.getWorld().getGameTime();
         scan(mod, player, now);
         noteShot(player, now);
+        boolean leaveOn = adris.altoclef.util.helpers.Tuning.get("recover_leave", 0) > 0;
+        boolean hitNow = leaveOn && noteHit(player);
         updateTarget(player, now);
         float health = player.getHealth();
         // hp going up is what the run waits for, so any rise means it is working again
@@ -541,6 +548,8 @@ final class BlazeFight {
             coverRetryAt = Long.MIN_VALUE;
             cornerWay.reset();
             cornerRunTo = null;
+            leftSpot = null;
+            spotWatch.reset();
         }
         noPlacing = mode != Mode.CAMP;
         seaBan = cornerHold;
@@ -563,6 +572,8 @@ final class BlazeFight {
             // is in it too, see underFireCrowd. out of their sight is where a run gets to stop)
             case RUN -> {
                 boolean nearCorner = held != null && player.position().distanceTo(Vec3.atBottomCenterOf(held)) <= cornerRun();
+                // (Tuning recover_leave: a corner this run left is out for the rest of it, the run goes on as with none near)
+                if (nearCorner && held.equals(leftSpot)) nearCorner = false;
                 // (a pillbox going up: anywhere in the box is in, its roof row is placed from the front cell, and the rods
                 // task goes on building through the heal wait)
                 if (nearCorner && building && pillboxPlanned && adris.altoclef.util.helpers.Tuning.get("pillbox_heal_build", 1) > 0
@@ -574,6 +585,12 @@ final class BlazeFight {
                 // among the rest and every mob about weighed, so no coverFits; with no cell from it the rules below)
                 BlockPos stand = adris.altoclef.util.helpers.StandPick.on() ? standCell(mod, nearCorner ? held : null) : null;
                 boolean intoCorner = stand != null ? stand.equals(held) : nearCorner;
+                // (Tuning recover_leave: hits still landing in the corner and the hp going down faster than it comes back:
+                // the corner left for cover from the blazes' sight, else the plain run, below)
+                if (intoCorner && leaveOn && leaveSpot(player, held, now, health, hitNow)) {
+                    intoCorner = false;
+                    stand = null;
+                }
                 // (with a corner near, the run is into it: standing in it is the heal wait, null)
                 if (intoCorner) {
                     if (BlazeLureTask.in(player.position(), held)) {
@@ -754,6 +771,29 @@ final class BlazeFight {
             shooter = mob;
             shotAt = now;
         }
+    }
+
+    // a mob's hit landed this tick (Tuning recover_leave): a fresh damage source from a mob, thrown (a fireball, an arrow) or
+    // by hand. fire and wither ticking have no mob behind them
+    private boolean noteHit(LocalPlayer player) {
+        DamageSource source = player.getLastDamageSource();
+        if (source == null || source == hitSeen) return false;
+        hitSeen = source;
+        return source.getEntity() instanceof Mob;
+    }
+
+    // the heal wait's corner watched for this tick (RecoverLeave); true: it is left, barred for the rest of this run
+    private boolean leaveSpot(LocalPlayer player, BlockPos spot, long now, float health, boolean hit) {
+        if (!spotWatch.tick(now, spot.asLong(), BlazeLureTask.in(player.position(), spot), health, hit)) return false;
+        leftSpot = spot;
+        coverBanned.add(BlazeCover.key(spot.getX(), spot.getY(), spot.getZ()));
+        cornerWay.reset();
+        cornerRunTo = null;
+        Debug.logInternal(String.format(java.util.Locale.ROOT, "recover: leaving %d %d %d, %.1f hp, lost %.1f gained %.1f in %d s, %d hits",
+                spot.getX(), spot.getY(), spot.getZ(), health, spotWatch.lost(), spotWatch.gained(), Math.round(spotWatch.span() / 20.0),
+                spotWatch.hits()));
+        spotWatch.reset();
+        return true;
     }
 
     // blazes close enough to matter plus whatever else is after us
