@@ -2266,33 +2266,48 @@ function playChat(lines) {
   }
   while (box.children.length > 10) box.firstElementChild.remove();
 }
-let after = -1, oldest = null, loadingOld = false, logBusy = false;
+/* oldest: where each feed's lines start in the panel's history, as each scrolls back on its own (0: nothing older) */
+let after = -1, oldest = {chat: null, act: null}, loadingOld = {}, logBusy = false;
 async function log() {
   // one ask at a time: two at once showed a line twice
   if (logBusy) return;
   logBusy = true;
   try {
     const j = await (await fetch('/api/log?after=' + after)).json();
-    if (j.after < after) { for (const id of ['feed-chat', 'feed-act']) { const b = $(id); b.replaceChildren(b.firstElementChild); b.dataset.first = ''; } PROBS.clear(); oldest = null; }
+    if (j.after < after) { for (const id of ['feed-chat', 'feed-act']) { const b = $(id); b.replaceChildren(b.firstElementChild); b.dataset.first = ''; } PROBS.clear(); oldest = {chat: null, act: null}; }
     const fresh = after >= 0 && j.start === undefined;
-    if (after < 0 || j.start !== undefined) oldest = j.start;
+    if (after < 0 || j.start !== undefined) oldest = {chat: j.start, act: j.start};
     after = j.after;
     if (j.lines.length) take(j.lines, 'end', fresh);
+    if (j.start !== undefined) fill();
   } catch (e) {} finally { logBusy = false; }
 }
-/* scrolled to the top: the 200 lines before what is shown, from the panel's own history */
-async function older() {
-  if (loadingOld || !oldest) return;
-  loadingOld = true;
-  try { const j = await (await fetch('/api/log?before=' + oldest)).json(); take(j.lines, 'start'); oldest = j.start; } catch (e) {}
-  loadingOld = false;
+/* a feed shown with too few lines to scroll (the last 200 of the history were nearly all the other kind): its older
+   lines at once, as no scroll asks for them */
+function fill() {
+  for (const f of ['chat', 'act']) if (!$('feed-' + f).hidden && $('feed-' + f).scrollTop < 40) older(f);
 }
-for (const id of ['feed-chat', 'feed-act']) $(id).addEventListener('scroll', () => { if ($(id).scrollTop < 40) older(); });
+/* scrolled to the top: the 200 lines of that feed before what is shown, from the panel's own history; still at the top
+   after them (the server stops after 5 MB of the other feed's lines), the next 200 at once */
+async function older(feed) {
+  if (loadingOld[feed] || !oldest[feed]) return;
+  loadingOld[feed] = true;
+  let more = false;
+  try {
+    const j = await (await fetch('/api/log?before=' + oldest[feed] + '&feed=' + feed)).json();
+    more = j.start > 0 && j.start < oldest[feed];
+    take(j.lines, 'start'); oldest[feed] = j.start;
+  } catch (e) {}
+  loadingOld[feed] = false;
+  if (more && !$('feed-' + feed).hidden && $('feed-' + feed).scrollTop < 40) older(feed);
+}
+for (const f of ['chat', 'act']) $('feed-' + f).addEventListener('scroll', () => { if ($('feed-' + f).scrollTop < 40) older(f); });
 for (const b of document.querySelectorAll('[data-feed]')) b.addEventListener('click', () => {
   for (const x of document.querySelectorAll('[data-feed]')) x.setAttribute('aria-selected', String(x === b));
   for (const f of ['chat', 'act', 'prob', 'players']) $('feed-' + f).hidden = f !== b.dataset.feed;
   if (b.dataset.feed === 'players') players();
   const box = $('feed-' + b.dataset.feed); box.scrollTop = b.dataset.feed === 'prob' ? 0 : box.scrollHeight;
+  fill();
 });
 /* who is online, and since when (the server's list as the buddy sees it) */
 function ago(ms) {

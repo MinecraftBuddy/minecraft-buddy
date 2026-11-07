@@ -202,6 +202,14 @@ def parsed(raw):
     return out
 
 
+CHAT_FEED = {"chat", "chat_sent", "sent", "telegram"}
+
+
+def in_feed(e):
+    """Which of the page's two feeds a line of the history goes to, as the page sorts them (take() in index.html)."""
+    return "chat" if e.get("type") in CHAT_FEED else "act"
+
+
 def shown(line):
     """A line of events.jsonl the log shows."""
     try:
@@ -527,7 +535,9 @@ class Panel(BaseHTTPRequestHandler):
             return self.answer(200, self.file("map.json") or {"empty": True})
         if path == "/api/log":
             q = dict(p.split("=", 1) for p in self.path.split("?", 1)[1].split("&") if "=" in p) if "?" in self.path else {}
-            return self.answer(200, self.read_before(int(q["before"] or 0)) if "before" in q else self.read_log(int(q.get("after", "-1") or -1)))
+            if "before" in q:
+                return self.answer(200, self.read_before(int(q["before"] or 0), q.get("feed") if q.get("feed") in ("chat", "act") else None))
+            return self.answer(200, self.read_log(int(q.get("after", "-1") or -1)))
         if path == "/api/schematics":
             return self.answer(200, self.list_schematics())
         if path == "/api/materials":
@@ -1149,23 +1159,42 @@ class Panel(BaseHTTPRequestHandler):
             raw = fh.read(size - after)
         return {"after": size, "lines": parsed(raw)}
 
-    def read_before(self, before):
-        """Up to 200 lines that end at this byte offset of the history, and where they start (0: nothing older)."""
-        f = self.history
-        start = max(0, before - 200_000)
+    def read_before(self, before, feed=None):
+        """Up to 200 lines that end at this byte offset of the history, and where they start (0: nothing older). With a
+        feed (chat, act), 200 lines of that feed: the page's chat and activity scroll back each on their own, and a long
+        stretch of the other kind (hours of one report while the chat was quiet) is read past, 200 KB at a time and 5 MB
+        a question at most; the page asks again from where this stopped."""
+        f, need, out, end, budget = self.history, 200, [], before, 5_000_000
         try:
             with open(f, "rb") as fh:
-                fh.seek(start)
-                if start:
-                    start += len(fh.readline())
-                raw = fh.read(max(0, before - start))
+                while end > 0 and len(out) < need and budget > 0:
+                    start = max(0, end - 200_000)
+                    fh.seek(start)
+                    if start:
+                        start += len(fh.readline())
+                    if start >= end:            # one line longer than the piece (a report is a few hundred bytes)
+                        break
+                    raw = fh.read(end - start)
+                    budget -= len(raw)
+                    got, pos = [], start
+                    for l in raw.split(b"\n"):
+                        if l.strip():
+                            try:
+                                e = json.loads(l)
+                            except ValueError:
+                                e = None
+                            if isinstance(e, dict) and (feed is None or in_feed(e) == feed):
+                                got.append((pos, e))
+                        pos += len(l) + 1
+                    if len(got) > need - len(out):
+                        got = got[len(got) - (need - len(out)):]
+                        end = got[0][0]
+                    else:
+                        end = start
+                    out = got + out
         except OSError:
             return {"start": 0, "lines": []}
-        lines = raw.decode("utf-8", "replace").splitlines()
-        if len(lines) > 200:
-            start += sum(len(l.encode("utf-8")) + 1 for l in lines[:-200])
-            lines = lines[-200:]
-        return {"start": start, "lines": parsed("\n".join(lines).encode("utf-8"))}
+        return {"start": end, "lines": [e for _, e in out]}
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]

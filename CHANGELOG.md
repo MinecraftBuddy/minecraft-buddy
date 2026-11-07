@@ -3,6 +3,11 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.24
+
+- Scrolling up in the panel's chat now loads 200 older messages at a time, also when the buddy's activity filled the
+  hours between them. Chat and Activity each scroll back on their own.
+
 ## 0.5.23
 
 - An Update now always brings the newest mod along. A buddy set up with jars of its own (`BUDDY_JARS: folder`) keeps
