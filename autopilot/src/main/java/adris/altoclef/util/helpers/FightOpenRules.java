@@ -27,8 +27,12 @@ public final class FightOpenRules {
     // fewer live blazes than this within OPEN_RADIUS of the buddy: the open attack
     public static final int OPEN_FEW = 3;
     public static final double OPEN_RADIUS = 16;
-    // at the spawner: the buddy this close to the known spawner (the fight's pick range)
+    // at the spawner: the buddy this close to the known spawner (the fight's pick range), and kept while within
+    // OPEN_KEEP_RANGE, or wherever the chase of a blaze picked under the open attack leads. with one edge the walk to the
+    // corner put the buddy in, the chase out, and the leash let the blaze go each time: 555 picks and let-gos and no hit in
+    // 180 s at a spawner 24.25 off (realfort-pair-open B:1, 7 Nov 2026)
     public static final double OPEN_SPAWNER_RANGE = BlazeFightRules.PICK_RANGE;
+    public static final double OPEN_KEEP_RANGE = 32;
     // a change of the count's side holds this long before it counts (ticks): blazes bob in and out at 16
     public static final long OPEN_HOLD_TICKS = 20;
 
@@ -44,21 +48,27 @@ public final class FightOpenRules {
         return blazesWithin < OPEN_FEW;
     }
 
-    // the open attack's state at the spawner, a change held OPEN_HOLD_TICKS before it counts. away from the spawner (or with the
-    // switch off) no state; the first tick back takes the count's side at once
+    // the open attack's state at the spawner, a change of the count's side held OPEN_HOLD_TICKS before it counts. away from the
+    // spawner (or with the switch off) it does not hold, and the side is remembered: back at the spawner it holds again with
+    // no line, so a line is said once per change of side (and once on the first arrival)
     public static final class OpenLatch {
         private Boolean state;
+        private boolean near;
         private long since = Long.MIN_VALUE;
         private boolean changed;
 
-        // atSpawner: the switch on and the buddy at the spawner. want: the count's side this tick (open). the state after
-        public boolean update(long now, boolean atSpawner, boolean want) {
+        // on: the switch (no fire-proof camp, no box_home). distance: the buddy from the known spawner (infinite with none).
+        // chasing: the fight's target was picked under the open attack and is still alive and held. within: live blazes within
+        // OPEN_RADIUS of the buddy. whether the open attack holds this tick
+        public boolean update(long now, boolean on, double distance, boolean chasing, int within) {
             changed = false;
-            if (!atSpawner) {
-                state = null;
+            boolean wasOpen = open();
+            near = on && ((chasing && wasOpen) || distance <= (near ? OPEN_KEEP_RANGE : OPEN_SPAWNER_RANGE));
+            if (!near) {
                 since = Long.MIN_VALUE;
                 return false;
             }
+            boolean want = FightOpenRules.open(within);
             if (state == null) {
                 state = want;
                 since = Long.MIN_VALUE;
@@ -84,8 +94,15 @@ public final class FightOpenRules {
         }
 
         public boolean open() {
-            return state != null && state;
+            return near && state != null && state;
         }
+    }
+
+    // whether the corner's leash and let-go rules (the buddy's leash, the corner leash on the target, the hold after a let-go,
+    // the pocket's view) apply to the target: not while the open attack or the rush holds, and never to a blaze picked under
+    // either, till it is dead, gone or out of reach (BlazeFightRules.keepTarget)
+    public static boolean leashed(boolean open, boolean rush, boolean targetPickedFree) {
+        return !open && !rush && !targetPickedFree;
     }
 
     // the line of a change

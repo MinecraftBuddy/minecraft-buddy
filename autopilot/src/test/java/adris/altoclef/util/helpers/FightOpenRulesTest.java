@@ -28,47 +28,119 @@ public class FightOpenRulesTest {
         assertEquals(16, FightOpenRules.OPEN_RADIUS, 0);
     }
 
+    // at the spawner: 10 off, nothing chased
+    private static boolean at(FightOpenRules.OpenLatch l, long now, int within) {
+        return l.update(now, true, 10, false, within);
+    }
+
     @Test
     public void theFirstTickAtTheSpawnerTakesTheCountsSideAtOnce() {
         FightOpenRules.OpenLatch l = new FightOpenRules.OpenLatch();
-        assertFalse(l.update(100, false, true));
+        assertFalse(l.update(100, true, 40, false, 1));
         assertFalse(l.changed());
-        assertTrue(l.update(101, true, true));
+        assertFalse(l.update(100, false, 10, false, 1));
+        assertFalse(l.changed());
+        assertTrue(at(l, 101, 1));
         assertTrue(l.changed());
-        assertTrue(l.update(102, true, true));
+        assertTrue(at(l, 102, 1));
         assertFalse(l.changed());
     }
 
     @Test
     public void aChangeHoldsASecondBeforeItCounts() {
         FightOpenRules.OpenLatch l = new FightOpenRules.OpenLatch();
-        l.update(0, true, true);
+        at(l, 0, 1);
         // a third blaze in and out again within the second: no change, no line
-        assertTrue(l.update(10, true, false));
-        assertTrue(l.update(25, true, false));
-        assertTrue(l.update(26, true, true));
+        assertTrue(at(l, 10, 3));
+        assertTrue(at(l, 25, 3));
+        assertTrue(at(l, 26, 2));
         assertFalse(l.changed());
         // three or more for a whole second: the lure again, one line
-        assertTrue(l.update(40, true, false));
-        assertTrue(l.update(59, true, false));
+        assertTrue(at(l, 40, 3));
+        assertTrue(at(l, 59, 3));
         assertFalse(l.changed());
-        assertFalse(l.update(60, true, false));
+        assertFalse(at(l, 60, 3));
         assertTrue(l.changed());
-        assertFalse(l.update(61, true, false));
+        assertFalse(at(l, 61, 4));
         assertFalse(l.changed());
     }
 
     @Test
-    public void awayFromTheSpawnerTheStateIsForgotten() {
+    public void awayFromTheSpawnerItDoesNotHoldAndBackItSaysNothingNew() {
         FightOpenRules.OpenLatch l = new FightOpenRules.OpenLatch();
-        l.update(0, true, false);
-        assertFalse(l.update(1, false, true));
+        assertTrue(at(l, 0, 1));
+        assertTrue(l.changed());
+        // past the keep range: not open, no line
+        assertFalse(l.update(1, true, 33, false, 1));
         assertFalse(l.changed());
         assertFalse(l.open());
-        // back at it: the count's side at once, with its line
-        assertTrue(l.update(2, true, true));
-        assertTrue(l.changed());
-        assertTrue(l.open());
+        // in again, the same side: open, no second line
+        assertTrue(l.update(2, true, 20, false, 1));
+        assertFalse(l.changed());
+        // the switch off (the potion's camp): not open, no line
+        assertFalse(l.update(3, false, 20, false, 1));
+        assertFalse(l.changed());
+    }
+
+    @Test
+    public void inAtTwentyFourOutAtThirtyTwo() {
+        FightOpenRules.OpenLatch l = new FightOpenRules.OpenLatch();
+        assertFalse(l.update(0, true, 24.25, false, 1));
+        assertTrue(l.update(1, true, 23.9, false, 1));
+        assertTrue(l.update(2, true, 31.9, false, 1));
+        assertFalse(l.update(3, true, 32.1, false, 1));
+        assertFalse(l.update(4, true, 24.25, false, 1));
+        assertTrue(l.update(5, true, 24, false, 1));
+    }
+
+    @Test
+    public void aChaseKeepsItWhereverItLeads() {
+        FightOpenRules.OpenLatch l = new FightOpenRules.OpenLatch();
+        assertTrue(at(l, 0, 1));
+        assertTrue(l.update(1, true, 45, true, 1));
+        assertFalse(l.changed());
+        // the chase over (the blaze dead or let go by its reach): out there it no longer holds
+        assertFalse(l.update(2, true, 45, false, 1));
+    }
+
+    // realfort-pair-open B:1 (7 Nov 2026): the spawner 24.25 from where the buddy stood. the camp's walk to the corner took it
+    // a step in, the chase a step out; a56beef's latch held only within 24 and forgot its side outside, and outside the corner's
+    // leash let the blaze go: 556 "open attack" lines, 555 picks and let-gos in 180 s, not one hit. here a tick is the latch,
+    // the leash (the buddy 25 from the corner, so it lets go whatever it may), the pick, and a step: out on a chase, in on the
+    // walk back
+    @Test
+    public void theWalkInAndTheChaseOutDoNotFlipThePick() {
+        FightOpenRules.OpenLatch l = new FightOpenRules.OpenLatch();
+        double d = 24.1;
+        boolean target = false;
+        boolean free = false;
+        int picks = 0, letGos = 0, lines = 0;
+        for (long t = 0; t < 400; t++) {
+            boolean open = l.update(t, true, d, target && free, 1);
+            if (l.changed()) lines++;
+            if (target && FightOpenRules.leashed(open, false, free)) {
+                target = false;
+                letGos++;
+            }
+            if (!target && open) {
+                target = true;
+                free = true;
+                picks++;
+            }
+            d += target ? 0.3 : -0.3;
+        }
+        assertEquals(1, picks);
+        assertEquals(0, letGos);
+        assertEquals(1, lines);
+    }
+
+    @Test
+    public void theLeashIsOffUnderTheOpenAttackTheRushAndForABlazePickedUnderThem() {
+        assertTrue(FightOpenRules.leashed(false, false, false));
+        assertFalse(FightOpenRules.leashed(true, false, false));
+        assertFalse(FightOpenRules.leashed(false, true, false));
+        // three or more came meanwhile: the one picked before is still not let go by the leash
+        assertFalse(FightOpenRules.leashed(false, false, true));
     }
 
     @Test
