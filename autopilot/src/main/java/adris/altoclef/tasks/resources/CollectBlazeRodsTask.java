@@ -803,6 +803,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
         var cells = baritone.pathing.movement.CliffAvoidance.of(new baritone.utils.BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
         if (baritone.pathing.movement.CliffAvoidance.overSea(cells, at.getX(), at.getY(), at.getZ())) return "sea";
         if (baritone.pathing.movement.CliffAvoidance.dropNear(cells, at.getX(), at.getY(), at.getZ())) return "drop";
+        // the kill task's own lava check (lava by us, by the cube, or on the line between): without it a cube passed here, the
+        // kill held 8 s and banned it, and the ban's end picked it again, eleven times in three minutes (live watch, 7 Nov 2026)
+        if (adris.altoclef.util.helpers.LavaShore.approachBlocked(cells, us.getX(), us.getY(), us.getZ(), cube.getX(), cube.getY(), cube.getZ())) return "shore";
         return null;
     }
 
