@@ -83,6 +83,36 @@ public final class FireRes {
         return false;
     }
 
+    // Tuning fr_hold (FightOpenRules.holdPotion), off by default: any fire resistance potion, the kit's among them, waits for the
+    // blazes as fr_trade_hold's traded one does. fr_trade_hold holds only a potion FireResTrade says it traded, so a kit's
+    // potion went down at the first fire on the way. "at the fortress" is within FORTRESS_NEAR of the spawner the rods task
+    // last said (spawnerSeen, fresh for HOLD_FRESH)
+    private static volatile long spawnerAt = Long.MIN_VALUE / 2;
+    private static volatile BlockPos spawnerSeen;
+    private static volatile long anyHeldAt = Long.MIN_VALUE / 2;
+
+    public static void spawnerSeen(long now, BlockPos spawner) {
+        spawnerAt = now;
+        spawnerSeen = spawner;
+    }
+
+    public static boolean holdsAny(LivingEntity e, double blaze, boolean asked, long now) {
+        if (!FightOpenRules.holdOn()) return false;
+        BlockPos spawner = FireResTradeRules.tradedFresh(spawnerAt, now) ? spawnerSeen : null;
+        boolean atFortress = spawner != null && e.position().distanceTo(Vec3.atCenterOf(spawner)) <= FireResTradeRules.FORTRESS_NEAR;
+        boolean inLava = e.isInLava() || e.isEyeInFluid(FluidTags.LAVA);
+        double hp = Tuning.get("fr_trade_hold_hp", FireResTradeRules.HOLD_HP);
+        if (!FightOpenRules.holdPotion(true, blaze <= FireResRules.BLAZE_RANGE, atFortress, asked, inLava, e.isOnFire(), e.getHealth(), hp)) {
+            return false;
+        }
+        if (FireResTradeRules.newEpisode(anyHeldAt, now)) {
+            Debug.logInternal(String.format(Locale.ROOT, "fr hold: the potion held for the blazes (%s, %.1f hp, nearest blaze %s)",
+                    e.isOnFire() ? "on fire" : "not on fire", e.getHealth(), FireResTradeRules.distance(blaze)));
+        }
+        anyHeldAt = now;
+        return true;
+    }
+
     // whether a fire resistance potion that would go down now (FireResRules.wantsToDrink said yes) waits for the blazes, with
     // a line once per fire episode. always false with the switch off. blaze: the nearest one, infinite for none
     public static boolean holdsTraded(LivingEntity e, double blaze, boolean asked, long now) {

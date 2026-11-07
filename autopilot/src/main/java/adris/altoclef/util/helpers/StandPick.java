@@ -82,7 +82,11 @@ public final class StandPick {
         List<int[]> more = new ArrayList<>();
         for (BlockPos e : extras) if (e != null) more.add(new int[]{e.getX(), e.getY(), e.getZ()});
         StandModel.View view = view(mod, level);
-        StandModel.Buddy buddy = new StandModel.Buddy(player.getX(), player.getY(), player.getZ(), FireRes.has(player));
+        // (Tuning fr_free_shots, on by default, steering 94: under fire resistance a blaze's fireballs cost nothing, and their
+        // push neither; 0 is the model as before, which kept the shot)
+        boolean fireRes = FireRes.has(player);
+        StandModel.Buddy buddy = new StandModel.Buddy(player.getX(), player.getY(), player.getZ(), fireRes,
+                fireRes && Tuning.get("fr_free_shots", 1) > 0);
         List<StandModel.Mob> mobs = mobs(mod, player);
         StandModel.Target t = target == null || !target.isAlive() ? null
                 : new StandModel.Target(target.getX(), target.getY(), target.getZ(), target.getBbWidth(), target.getBbHeight());

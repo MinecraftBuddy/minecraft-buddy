@@ -256,8 +256,10 @@ public class FoodChain extends SingleTaskChain {
         // (the buddy's fork, Tuning fr_trade_hold, off by default: the traded potion, merely on fire on the way, waits for the
         // blazes; in lava or low on health it goes down)
         // (Tuning box_home, off by default: any potion waits for the first blaze in the box, FireRes.holdsForBox)
+        // (Tuning fr_hold, off by default: any potion, the kit's too, waits as the traded one, FireRes.holdsAny)
         return !adris.altoclef.util.helpers.FireRes.holdsTraded(player, blaze, asked, now)
-                && !adris.altoclef.util.helpers.FireRes.holdsForBox(player, blaze, asked, now);
+                && !adris.altoclef.util.helpers.FireRes.holdsForBox(player, blaze, asked, now)
+                && !adris.altoclef.util.helpers.FireRes.holdsAny(player, blaze, asked, now);
     }
 
     // the drink: no stop asked for and no hit rules, the same press and watch as a bite. a screen still keeps the use key from

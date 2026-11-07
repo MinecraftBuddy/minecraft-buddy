@@ -70,6 +70,11 @@ public class AltoClefSettings {
     // combat keeps this ahead of the clock every tick it wants no jump moves planned. it runs out by itself on purpose, so a
     // clear that never comes (mob defense off, a disconnect) can't leave the bot walking without jumps forever
     private volatile long jumpsOffUntilTick = Long.MIN_VALUE;
+    // fire walkable for the pathfinder until this System.nanoTime() (the buddy's fork, Tuning fireproof_rush: the rods task keeps
+    // it ahead every tick while fire resistance has more than ten seconds left). it runs out by itself on purpose, so a rush
+    // that stops being ticked (a mob defense run, another task) never leaves the walks going into fire without the potion
+    private volatile long fireWalkUntilNanos;
+    private volatile boolean fireWalkSet;
     private volatile boolean canWalkOnEndPortal;
     // the end portal frame rules (walkable, never broken, never walked into, nothing mined out from under) are altoclef's,
     // stock soprano treats a frame like any other odd block. only on while altoclef has the bot, see BaritoneSettingsScope
@@ -469,6 +474,22 @@ public class AltoClefSettings {
         allowSwimThroughLava = allow;
     }
 
+    // how long one keep-ahead of the fire walk lasts (a second and a half: thirty ticks of the rods task)
+    public static final long FIRE_WALK_NANOS = 1_500_000_000L;
+
+    public boolean canWalkThroughFire() {
+        return fireWalkSet && System.nanoTime() - fireWalkUntilNanos < 0;
+    }
+
+    public void walkThroughFire(boolean allow) {
+        if (allow) {
+            fireWalkUntilNanos = System.nanoTime() + FIRE_WALK_NANOS;
+            fireWalkSet = true;
+        } else {
+            fireWalkSet = false;
+        }
+    }
+
     public void noJumpsFor(long now) {
         jumpsOffUntilTick = now + ExperimentalMovement.JUMPS_OFF_TICKS;
     }
@@ -528,10 +549,12 @@ public class AltoClefSettings {
     public static final int TOGGLE_END_PORTAL = 1;
     public static final int TOGGLE_LAVA = 2;
     public static final int TOGGLE_FRAMES = 4;
+    public static final int TOGGLE_FIRE = 8;
 
     // the block type toggles bake into PrecomputedData's table, so it needs to know when to rebuild
     public int blockToggleBits() {
-        return (canWalkOnEndPortal ? TOGGLE_END_PORTAL : 0) | (allowSwimThroughLava ? TOGGLE_LAVA : 0) | (endPortalFrameRules ? TOGGLE_FRAMES : 0);
+        return (canWalkOnEndPortal ? TOGGLE_END_PORTAL : 0) | (allowSwimThroughLava ? TOGGLE_LAVA : 0) | (endPortalFrameRules ? TOGGLE_FRAMES : 0)
+                | (canWalkThroughFire() ? TOGGLE_FIRE : 0);
     }
 
     // back to what an idle soprano looks like: no rules, no toggles, nothing paused. altoclef calls this when it gives
@@ -553,6 +576,7 @@ public class AltoClefSettings {
         pauseInteractions = false;
         dontPlaceBucketButStillFall = false;
         allowSwimThroughLava = false;
+        fireWalkSet = false;
         jumpsOffUntilTick = Long.MIN_VALUE;
         canWalkOnEndPortal = false;
         endPortalFrameRules = false;

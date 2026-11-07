@@ -51,7 +51,8 @@ public final class FireOnTheWay {
             task = null;
             return null;
         }
-        double skipSwitch = Tuning.get("fr_skip_fires", 0);
+        // (Tuning fireproof_rush, FightOpenRules: the rush leaves fire burning under the potion as this switch does)
+        double skipSwitch = Math.max(Tuning.get("fr_skip_fires", 0), FightOpenRules.rushOn() ? 1 : 0);
         if (skipSwitch > 0) {
             int left = fireResTicksLeft(mod);
             if (skipFires(skipSwitch, left)) {

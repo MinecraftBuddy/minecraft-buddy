@@ -85,8 +85,13 @@ public final class StandModel {
     public record Target(double x, double y, double z, double width, double height) {
     }
 
-    // the buddy: its feet, and fire resistance on (fire does nothing, lava is a swim)
-    public record Buddy(double x, double y, double z, boolean fireRes) {
+    // the buddy: its feet, and fire resistance on (fire does nothing, lava is a swim). fireShotsFree: under it a shot that is
+    // fire damage alone (a blaze's small fireball, MobThreat.fireShot) costs nothing, its push neither: the effect refuses the
+    // hit before any knock (steering 94; a ghast's blast is no fire damage and stays). on with fireRes unless told otherwise
+    public record Buddy(double x, double y, double z, boolean fireRes, boolean fireShotsFree) {
+        public Buddy(double x, double y, double z, boolean fireRes) {
+            this(x, y, z, fireRes, fireRes);
+        }
     }
 
     // a fire block at a cell (the cells world has no fire: it is open to walk through)
@@ -187,7 +192,7 @@ public final class StandModel {
         }
         for (Node n : nodes) {
             n.each = new double[foes.size()];
-            n.rate = rate(w, foes, n.x, n.y, n.z, buddy.fireRes(), n.each);
+            n.rate = rate(w, foes, n.x, n.y, n.z, buddy.fireRes(), buddy.fireRes() && buddy.fireShotsFree(), n.each);
         }
         // (the walk's cells after the cell they are reached from; the others by the straight line)
         Node origin = nodes.get(0);
@@ -429,28 +434,31 @@ public final class StandModel {
     // ---- the cost of a cell
 
     // the harm a second at a cell from every foe (each foe's share into perFoe when given)
-    static double rate(World w, List<Foe> foes, int x, int y, int z, boolean fireRes, double[] perFoe) {
+    static double rate(World w, List<Foe> foes, int x, int y, int z, boolean fireRes, boolean fireShotsFree, double[] perFoe) {
         double sum = 0;
         for (int i = 0; i < foes.size(); i++) {
-            double h = harm(w, foes.get(i), x, y, z, fireRes);
+            double h = harm(w, foes.get(i), x, y, z, fireRes, fireShotsFree);
             if (perFoe != null) perFoe[i] = h;
             sum += h;
         }
         return sum;
     }
 
-    // one foe's harm a second, on average over the horizon, at a cell
-    static double harm(World w, Foe f, int x, int y, int z, boolean fireRes) {
+    // one foe's harm a second, on average over the horizon, at a cell. fireShotsFree: a shot of fire damage alone is nothing
+    // (its burn is nothing under fireRes anyway), so a blaze counts for its bite alone. its push goes with it: cost() counts
+    // a foe's hits from this harm, and the bite's hits keep theirs
+    static double harm(World w, Foe f, int x, int y, int z, boolean fireRes, boolean fireShotsFree) {
         MobThreat t = f.t;
         double ex = x + 0.5, ey = y + EYE, ez = z + 0.5;
         double out = 0;
-        if (t.shot() > 0 || t.burn() > 0) {
+        double shot = shot(t, fireShotsFree);
+        if (shot > 0 || (t.burn() > 0 && !fireRes)) {
             double d = Math.sqrt(sq(f.ex - ex) + sq(f.ey - ey) + sq(f.ez - ez));
             if (d <= t.range() && d <= t.follow()) {
                 double seen = seen(w, f, ex, ey, ez);
                 if (seen > 0) {
                     double a = t.aimShare(d);
-                    out += seen * (t.shot() * a + (fireRes ? 0 : t.burn() * Math.min(1, 3 * a)));
+                    out += seen * (shot * a + (fireRes ? 0 : t.burn() * Math.min(1, 3 * a)));
                 }
             }
         }
@@ -459,6 +467,11 @@ public final class StandModel {
             if (arrive < HORIZON) out += t.melee() * (HORIZON - arrive) / HORIZON;
         }
         return out * f.weight;
+    }
+
+    // a foe's shot hp a second: nothing for a shot of fire damage alone under fire resistance
+    static double shot(MobThreat t, boolean fireShotsFree) {
+        return fireShotsFree && t.fireShot() ? 0 : t.shot();
     }
 
     // the share of the lines from a foe's eye (and, for a flyer, a drift to each side) to our eye at a cell that no block stops
