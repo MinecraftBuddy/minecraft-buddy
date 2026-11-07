@@ -483,6 +483,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
 
         // (the buddy's fork: a crowd about, so into a hiding place of the fight's and the looks from it, see BlazeFight.noteCrowd)
         Task hide = _fight.hideTask(mod);
+        // (the buddy's fork, Tuning lure_cap, off by default: a hide that drew no blaze into reach for the cap is over, its
+        // pocket barred, BlazeFight.hideCapped; the camp's own corner as the hiding place is dropped too, and the tick goes on
+        // as with no hide)
+        if (hide != null) {
+            BlockPos hidAt = _fight.hidePlace();
+            if (_fight.hideCapped(mod)) {
+                if (hidAt != null && hidAt.equals(_fight.corner())) dropEmptyCamp(mod, hidAt, -1, "hiding there");
+                hide = null;
+            }
+        }
         if (hide != null) {
             setDebugState("Hiding from the blazes");
             _camping = true;
@@ -500,7 +510,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // (the buddy's fork, Tuning far_box: not with a far box standing, out of the pack's way: the hold would keep the buddy
             // wherever it stood, out on a spawn trip too. the trips stay home while the pack is there, farTripStep)
             boolean farStands = _far != null && _pillbox == _farBox && _pillboxCornered;
-            if (!farStands && BlazeFightRules.packNear(BlazeFight.witherSkeletonsNear(mod, Vec3.atCenterOf(_foundBlazeSpawner), BlazeFightRules.PACK_SPAWNER_RADIUS))) {
+            int pack = farStands ? 0 : BlazeFight.witherSkeletonsNear(mod, Vec3.atCenterOf(_foundBlazeSpawner), BlazeFightRules.PACK_SPAWNER_RADIUS);
+            if (!farStands && BlazeFightRules.packNear(pack) && packWaits(mod, pack)) {
                 setDebugState("wither skeletons at the spawner, waiting");
                 _camping = true;
                 return null;
@@ -597,6 +608,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // nothing is in reach or we would be fighting it, so this is a dud spawner as far as the relocate timer goes
             _camping = true;
             if (_lure != null && _fight.corner() != null) {
+                // (the buddy's fork, Tuning lure_cap, off by default: looks that drew no blaze into reach for the cap drop this
+                // corner (or standing pillbox), the camp picked again without it on the next tick: another corner, else as
+                // with none)
+                long cap = adris.altoclef.util.helpers.BlazeCapRules.lureCapTicks();
+                BlockPos at = _fight.corner();
+                if (cap > 0 && _campLureWatch.tick(BlazeCover.key(at.getX(), at.getY(), at.getZ()), mod.getWorld().getGameTime(), _fight.killAt(), cap)) {
+                    dropEmptyCamp(mod, at, _lure.looks(), "looking out from it");
+                    setDebugState("Waiting near blaze spawner for blazes to spawn");
+                    return null;
+                }
                 setDebugState("Luring the blazes round the corner");
                 return _lure;
             }
@@ -1328,8 +1349,67 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // watch says shut out, the camp is replaced: a pillbox round the cell the buddy stands on, else another corner a walk
     // from there reaches, else none at this spawner (the camp as without one). one line per decision, "camp: shut out of"
 
-    // the camps the buddy was shut out of: never a corner again. empty with the switch off
+    // the camps the buddy was shut out of (camp_reentry), or whose looks drew nothing for lure_cap: never a corner again.
+    // empty with both switches off
     private final java.util.Set<BlockPos> _shutOut = new java.util.HashSet<>();
+
+    // (the buddy's fork, Tuning spawner_wait_cap, off by default, row L12: the hold for a wither skeleton pack at the spawner
+    // had no end, and in a fortress they keep spawning: twelve game minutes below the spawner at 20 hp, 11 blazes within 16,
+    // realfort-pair-trade A:7. the ticks waited at one spawner are capped, in all; after that the camp goes on there as with
+    // no pack, the fight's own back off from a pack within eight still on. true: wait this tick)
+    private final adris.altoclef.util.helpers.BlazeCapRules.SpawnerWait _packWait = new adris.altoclef.util.helpers.BlazeCapRules.SpawnerWait();
+
+    private boolean packWaits(AltoClef mod, int pack) {
+        long cap = adris.altoclef.util.helpers.BlazeCapRules.spawnerWaitCapTicks();
+        if (cap <= 0) return true;
+        long key = BlazeCover.key(_foundBlazeSpawner.getX(), _foundBlazeSpawner.getY(), _foundBlazeSpawner.getZ());
+        adris.altoclef.util.helpers.BlazeCapRules.Wait wait = _packWait.tick(key, mod.getWorld().getGameTime(), cap);
+        if (_packWait.firstLine(key)) {
+            Debug.logInternal("spawner wait: " + pack + " wither skeletons within " + (int) BlazeFightRules.PACK_SPAWNER_RADIUS + " of the spawner "
+                    + _foundBlazeSpawner.toShortString() + ", waiting (at most " + cap / 20 + " s here)");
+        }
+        if (wait == adris.altoclef.util.helpers.BlazeCapRules.Wait.CAP) {
+            Debug.logInternal("spawner wait: " + _packWait.ticks(key) / 20 + " s waited at the spawner " + _foundBlazeSpawner.toShortString() + ", "
+                    + pack + " wither skeletons still within " + (int) BlazeFightRules.PACK_SPAWNER_RADIUS + ", the camp goes on without waiting");
+        }
+        return wait == adris.altoclef.util.helpers.BlazeCapRules.Wait.HOLD;
+    }
+
+    // (Tuning lure_cap) the camp lure's clock: the ticks its looks had the wheel at the camp's corner since a blaze last came
+    // within reach (BlazeCapRules.LureWatch)
+    private final adris.altoclef.util.helpers.BlazeCapRules.LureWatch _campLureWatch = new adris.altoclef.util.helpers.BlazeCapRules.LureWatch();
+
+    // (Tuning lure_cap) the camp's corner, or a standing pillbox's cell, that drew no blaze into reach: never a corner or a
+    // hiding place again (_shutOut, campShutOut), a box given up at this spawner, and the camp picked again without it on the
+    // next tick (pickCampSpot: another corner, else as with none). looks below 0: the hide's cap, which said its own line
+    private void dropEmptyCamp(AltoClef mod, BlockPos camp, int looks, String how) {
+        boolean box = _pillbox != null && _pillboxCornered && camp.equals(_pillbox.cell());
+        if (looks >= 0) {
+            Debug.logInternal("lure cap: " + _campLureWatch.ticks() / 20 + " s with no blaze in reach, " + how + " (" + looks + " looks), the "
+                    + (box ? "pillbox at " : "camp's corner at ") + camp.toShortString() + " dropped, the camp picked again without it");
+        } else {
+            Debug.logInternal("lure cap: the " + (box ? "pillbox at " : "camp's corner at ") + camp.toShortString() + " dropped (" + how
+                    + "), the camp picked again without it");
+        }
+        _campLureWatch.reset();
+        _shutOut.add(camp);
+        _fight.campShutOut(camp);
+        notePillboxSpot();
+        // (a far box (far_box) given up leaves the near pillbox its turn, as when it is not built)
+        if (box && _far != null && _pillbox == _farBox) _farGaveUpFor = _foundBlazeSpawner;
+        else if (box) _pillboxGaveUpFor = _foundBlazeSpawner;
+        _doorWalkSince = -1;
+        _pillbox = null;
+        _pillboxCornered = false;
+        _pillboxCornerSet = null;
+        _lure = null;
+        _fight.corner(null);
+        _fight.pillboxPlanned(false);
+        _fight.pillboxLookout(null);
+        _campSpotFor = null;
+        _campSpot = null;
+    }
+
     // the spawner whose camp was left with nothing to take its place: no corner and no box there any more
     private BlockPos _campsOffFor;
 

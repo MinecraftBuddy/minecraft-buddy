@@ -304,6 +304,7 @@ final class BlazeFight {
         // 1.5 and out, and three blazes on us a second later, the look outs see the room through a door one wide)
         double score = hide != null ? crowdScore(mod, player, null) : crowdScore(mod, player, List.of(player.getEyePosition()));
         String near = String.format(java.util.Locale.ROOT, "danger %.1f", score);
+        hideDanger = score;
         if (hide != null) {
             if (score > HIDE_DONE) calmSince = Long.MIN_VALUE;
             else if (calmSince == Long.MIN_VALUE) calmSince = now;
@@ -370,6 +371,55 @@ final class BlazeFight {
         }
         cornerWay.reset();
         cornerRunTo = null;
+    }
+
+    // (the buddy's fork, Tuning lure_cap, off by default, row L15: the hiding place ends only at a danger of 2 or less, every
+    // blaze within SIGHT_RANGE counted seen or not, so two blazes idling by the spawner kept the buddy in a closed pocket for
+    // good, the looks drawing nothing, 7 to 11 game minutes and 123 to 272 looks in three runs. the ticks the hide has the
+    // wheel (its walk, its looks) since a blaze last came within reach are capped: then out of hiding, the pocket barred as a
+    // hiding place for the rest of the task)
+    // the game time the fight last went after a blaze in reach; the danger as of the last scan (in hiding: every blaze about)
+    private long killAt = Long.MIN_VALUE;
+    private double hideDanger;
+    private final adris.altoclef.util.helpers.BlazeCapRules.LureWatch hideWatch = new adris.altoclef.util.helpers.BlazeCapRules.LureWatch();
+
+    long killAt() {
+        return killAt;
+    }
+
+    // one tick the rods task hands the wheel to the hide (hideTask gave a task); true when the cap ran out this tick: the hide
+    // is over, its pocket barred, the line said. the caller drops the camp's corner when that was the hiding place
+    boolean hideCapped(AltoClef mod) {
+        long cap = adris.altoclef.util.helpers.BlazeCapRules.lureCapTicks();
+        if (cap <= 0 || hide == null) return false;
+        long now = mod.getWorld().getGameTime();
+        if (!hideWatch.tick(BlazeCover.key(hide.getX(), hide.getY(), hide.getZ()), now, killAt, cap)) return false;
+        int looks = hideLure != null ? hideLure.looks() : 0;
+        boolean camp = hide.equals(corner);
+        Debug.logInternal("lure cap: " + hideWatch.ticks() / 20 + " s with no blaze in reach, hiding at " + hide.toShortString() + " ("
+                + looks + " looks, " + (hideArrived ? "in it" : "never in it") + ", " + String.format(java.util.Locale.ROOT, "danger %.1f", hideDanger)
+                + ", " + blazesWithin(mod, BlazeFightRules.SIGHT_RANGE) + " blazes within " + (int) BlazeFightRules.SIGHT_RANGE + "), out of hiding"
+                + (camp ? " (the camp's corner)" : ", the pocket barred"));
+        hideBarred.add(BlazeCover.key(hide.getX(), hide.getY(), hide.getZ()));
+        hideWatch.reset();
+        hide = null;
+        hideLure = null;
+        hideWalk = null;
+        calmSince = Long.MIN_VALUE;
+        hideRetryAt = now + HIDE_RETRY_TICKS;
+        return true;
+    }
+
+    private static int blazesWithin(AltoClef mod, double radius) {
+        int n = 0;
+        try {
+            for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+                if (b.isAlive() && b.distanceTo(mod.getPlayer()) <= radius) n++;
+            }
+        } catch (java.util.ConcurrentModificationException ignored) {
+            // the tracker rebuilds on another thread sometimes
+        }
+        return n;
     }
 
     // the buddy's fork, Tuning far_box (off by default, steering 89): a far pillbox's spawn trip can go farther from the box
@@ -552,6 +602,8 @@ final class BlazeFight {
         }
         running = next == Mode.RUN;
         mode = next;
+        // (Tuning lure_cap: a blaze in reach is what a lure is for, its clock starts again, BlazeCapRules.LureWatch)
+        if (mode == Mode.KILL) killAt = now;
         // (in the pocket with a blaze in the sword's reach: the aura's shield between swings, BlazeFightRules.pocketShieldUntil)
         // (only while hitting one: the shield up slowed the looks' step out so much that 9260 ticks of stepping out made 8 looks)
         if (mode == Mode.KILL && inPocket(player) && nearest <= BlazeFightRules.POCKET_SHIELD_RANGE) BlazeFightRules.pocketShieldUntil = now + 10;
@@ -762,7 +814,13 @@ final class BlazeFight {
         return eyes;
     }
 
-    // one line and one zone per time the pack check trips, not per tick. the zone is what the next spawner walk routes round
+    // one zone per time the pack check trips, not per tick. the zone is what the next spawner walk routes round
+    // (the line only on a change, BlazeCapRules.packLine: the check trips each time the count crosses three, and three
+    // skeletons milling about one spot said the same line 98 times in twelve minutes, realfort-pair-trade A:7)
+    private int packSaidSize = -1;
+    private boolean packSaidClose;
+    private Vec3 packSaidAt;
+
     private void notePack(AltoClef mod, long now) {
         if (!packHere) {
             packLogged = false;
@@ -772,6 +830,11 @@ final class BlazeFight {
         packLogged = true;
         if (packCenter != null) RunZones.INSTANCE.add(packCenter[0], packCenter[1], now, RunZones.PACK_RADIUS);
         Vec3 at = mod.getPlayer().position();
+        double fromLast = packSaidAt == null ? Double.POSITIVE_INFINITY : at.distanceTo(packSaidAt);
+        if (!adris.altoclef.util.helpers.BlazeCapRules.packLine(packSize, packClose, fromLast, packSaidSize, packSaidClose, BlazeFightRules.PACK_PLAYER_RADIUS)) return;
+        packSaidSize = packSize;
+        packSaidClose = packClose;
+        packSaidAt = at;
         Debug.logInternal("pack: " + packSize + " wither skeletons within " + (int) BlazeFightRules.PACK_PLAYER_RADIUS + " at "
                 + Math.round(at.x) + "," + Math.round(at.y) + "," + Math.round(at.z) + ", " + (packClose ? "backing off" : "walking on"));
     }
