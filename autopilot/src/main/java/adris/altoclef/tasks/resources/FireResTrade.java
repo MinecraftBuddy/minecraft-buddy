@@ -32,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.IntSupplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -68,7 +69,10 @@ import net.minecraft.world.phys.Vec3;
 // that never takes gold left alone), aimed and paced: that task clicks every tick without a look, fetches gold when it has
 // none, and is a pearl and obsidian ResourceTask whose finish counts any potion, a water bottle too. with Tuning fr_trade_biome
 // (off by default) a search begun out of nether wastes first walks to the wastes the client has loaded (FireResTradeRules
-// .wastesTarget), and the fr_trade_search clock counts from the arrival there
+// .wastesTarget), and the fr_trade_search clock counts from the arrival there. with Tuning fr_trade_stay (off by default) the
+// piglin the gold went to keeps it: the buddy waits by it while it admires and takes another free one only within a few
+// blocks (FireResTradeRules.pick). the pickup takes a piglin's ender pearls too while the goal asks for more, or always with
+// Tuning fr_trade_pearls (off by default; FireResTradeRules.takesPearls). a line for every ingot handed and every pearl picked up
 final class FireResTrade {
 
     // by the spawner: the trade is for before the fortress
@@ -108,6 +112,12 @@ final class FireResTrade {
     private int _bagPotionsBefore;
     private final GiveGoldTask _give = new GiveGoldTask();
     private PickupDroppedItemTask _pickup;
+    // the pickup above takes ender pearls too (FireResTradeRules.takesPearls); built again when that changes
+    private boolean _pickupPearls;
+    // the pearls the goal still asks for (EyeMath.pearlsNeeded; 0 for an order of rods alone), and the bag's pearls as last
+    // seen during the trade (-1 before the first look)
+    private final IntSupplier _pearlsNeeded;
+    private int _pearlsSeen = -1;
     private TimeoutWanderTask _wander;
     private Task _equip;
     // where the trade began (the lines' distances), and Tuning fr_trade_biome's walk to the wastes: settled once in them, with
@@ -126,6 +136,14 @@ final class FireResTrade {
     private int _lastDrink;
     private int _lastThrow;
     private ThrowAtFeetTask _throw;
+
+    FireResTrade() {
+        this(() -> 0);
+    }
+
+    FireResTrade(IntSupplier pearlsNeeded) {
+        _pearlsNeeded = pearlsNeeded;
+    }
 
     String hud() {
         return _hud;
@@ -182,7 +200,13 @@ final class FireResTrade {
         int given = Math.max(0, _goldAtBegin - gold);
         if (gold <= 0 && _goldOutAt < 0) _goldOutAt = now;
         if (gold > 0) _goldOutAt = -1;
+        _give.watchHanded(gold, now);
+        int pearls = mod.getItemStorage().getItemCount(Items.ENDER_PEARL);
+        watchPearls(pearls);
+        boolean takesPearls = FireResTradeRules.takesPearls(Tuning.get("fr_trade_pearls", 0) > 0, _pearlsNeeded.getAsInt(), pearls);
+        // the potion first: it can burn in lava, and it is what the trade is for
         Optional<ItemEntity> drop = watchDrops(mod, given, drink + thrown);
+        if (drop.isEmpty() && takesPearls) drop = nearestPearl(mod);
         boolean admiring = admiringNear(mod);
         boolean pending = admiring || drop.isPresent();
         double piglin = _give.nearestTradeable(mod);
@@ -262,17 +286,21 @@ final class FireResTrade {
         _equip = null;
         // what a piglin threw first: a potion on the ground can burn in lava or be out of reach in a moment
         if (drop.isPresent()) {
-            if (_pickup == null) {
-                _pickup = new PickupDroppedItemTask(new ItemTarget[]{new ItemTarget(Items.POTION, 64), new ItemTarget(Items.SPLASH_POTION, 64),
-                        new ItemTarget(Items.LINGERING_POTION, 64)}, true);
+            boolean pearl = drop.get().getItem().is(Items.ENDER_PEARL);
+            if (_pickup == null || _pickupPearls != takesPearls) {
+                List<ItemTarget> targets = new ArrayList<>(List.of(new ItemTarget(Items.POTION, 64), new ItemTarget(Items.SPLASH_POTION, 64),
+                        new ItemTarget(Items.LINGERING_POTION, 64)));
+                if (takesPearls) targets.add(new ItemTarget(Items.ENDER_PEARL, 64));
+                _pickup = new PickupDroppedItemTask(targets.toArray(new ItemTarget[0]), true);
+                _pickupPearls = takesPearls;
             }
             if (_pickup.gaveUpReason() != null) {
-                Debug.logInternal("strategy trade: the potion on the ground given up (" + _pickup.gaveUpReason() + ")");
+                Debug.logInternal("strategy trade: the " + (pearl ? "ender pearl" : "potion") + " on the ground given up (" + _pickup.gaveUpReason() + ")");
                 _dropsGivenUp.add(drop.get().getId());
                 _pickup = null;
                 return null;
             }
-            _hud = "Picking up the piglin's fire resistance potion";
+            _hud = pearl ? "Picking up the piglin's ender pearls" : "Picking up the piglin's fire resistance potion";
             return _pickup;
         }
         _hud = gold > 0 ? "Trading gold with piglins for fire resistance" : "Waiting for the piglin's last throw";
@@ -398,6 +426,25 @@ final class FireResTrade {
         return Optional.ofNullable(nearest);
     }
 
+    // the nearest ender pearl on the ground within the potion's range that the pickup has not given up on
+    private Optional<ItemEntity> nearestPearl(AltoClef mod) {
+        LocalPlayer player = mod.getPlayer();
+        ItemEntity nearest = null;
+        for (ItemEntity item : mod.getWorld().getEntitiesOfClass(ItemEntity.class, player.getBoundingBox().inflate(PICKUP_RANGE))) {
+            if (!item.isAlive() || !item.getItem().is(Items.ENDER_PEARL) || _dropsGivenUp.contains(item.getId())) continue;
+            if (nearest == null || item.distanceTo(player) < nearest.distanceTo(player)) nearest = item;
+        }
+        return Optional.ofNullable(nearest);
+    }
+
+    // one line per ender pearl that came into the bag during the trade, whatever picked it up
+    private void watchPearls(int pearls) {
+        for (int n = _pearlsSeen + 1; _pearlsSeen >= 0 && n <= pearls; n++) {
+            Debug.logInternal(String.format(Locale.ROOT, "strategy trade: an ender pearl picked up, %d in the bag", n));
+        }
+        _pearlsSeen = pearls;
+    }
+
     private static boolean wander() {
         return Tuning.get("fr_trade_wander", 0) > 0;
     }
@@ -508,10 +555,19 @@ final class FireResTrade {
         // clicks a piglin may take without ever holding the gold before it is left alone
         static final int REFUSED_CLICKS = 3;
 
+        // a click's ingot shows as the bag's gold going down a few ticks later (the server's slot update); a click not
+        // answered within this many game ticks took nothing
+        static final long HAND_SEEN_TICKS = 40;
+
         private final Set<Integer> _blacklisted = new HashSet<>();
         private final Map<Integer, Integer> _clicks = new HashMap<>();
         private int _currentId = -1;
         private long _clickedAt = Long.MIN_VALUE / 2;
+        // the clicks not yet seen to take an ingot, oldest first ({piglin id, game tick}), the bag's gold as last seen, and the
+        // ingots handed so far: each ingot gone from the bag goes to the oldest click still waiting
+        private final java.util.ArrayDeque<long[]> _unanswered = new java.util.ArrayDeque<>();
+        private int _lastGold = -1;
+        private int _handed;
 
         GiveGoldTask() {
             super(KEEP_OFF);
@@ -542,8 +598,30 @@ final class FireResTrade {
                     || EntityHelper.isTradingPiglin(piglin) || piglin.getArmPose() == PiglinArmPose.ADMIRING_ITEM) {
                 return false;
             }
+            return !hoglinNear(mod, piglin);
+        }
+
+        private static boolean hoglinNear(AltoClef mod, Entity piglin) {
             Optional<Entity> hoglin = mod.getEntityTracker().getClosestEntity(piglin.position(), Hoglin.class);
-            return hoglin.isEmpty() || !hoglin.get().closerThan(piglin, HOGLIN_AVOID_TRADE_RADIUS);
+            return hoglin.isPresent() && hoglin.get().closerThan(piglin, HOGLIN_AVOID_TRADE_RADIUS);
+        }
+
+        private static boolean stayOn() {
+            return Tuning.get("fr_trade_stay", 0) > 0;
+        }
+
+        // every tick of the trade, with the bag's gold: one line per ingot gone from the bag since the last look, for the
+        // piglin of the oldest click still waiting. gold going down with no click waiting (none expected) is not counted
+        void watchHanded(int gold, long now) {
+            int gone = _lastGold < 0 ? 0 : _lastGold - gold;
+            _lastGold = gold;
+            while (gone > 0 && !_unanswered.isEmpty()) {
+                long[] click = _unanswered.poll();
+                _handed++;
+                gone--;
+                Debug.logInternal(String.format(Locale.ROOT, "strategy trade: ingot %d handed to piglin %d", _handed, click[0]));
+            }
+            _unanswered.removeIf(click -> now - click[1] > HAND_SEEN_TICKS || now < click[1]);
         }
 
         double nearestTradeable(AltoClef mod) {
@@ -569,6 +647,22 @@ final class FireResTrade {
             LocalPlayer player = mod.getPlayer();
             Entity current = _currentId < 0 ? null : mod.getWorld().getEntity(_currentId);
             boolean gold = mod.getItemStorage().getItemCount(Items.GOLD_INGOT) > 0;
+            if (gold && stayOn()) {
+                // (Tuning fr_trade_stay: the current piglin keeps the gold while it is there; another free one only close by,
+                // FireResTradeRules.pick)
+                Piglin held = current instanceof Piglin p && p.isAlive() ? p : null;
+                Optional<Entity> other = mod.getEntityTracker().getClosestEntity(player.position(), entity -> tradeable(mod, entity)
+                        && entity != current && entity.distanceTo(player) <= FireResTradeRules.KEEP_RANGE, Piglin.class);
+                FireResTradeRules.Pick pick = FireResTradeRules.pick(true, held != null,
+                        held != null && _blacklisted.contains(held.getId()), held != null && hoglinNear(mod, held),
+                        held == null ? Double.POSITIVE_INFINITY : held.distanceTo(player), held != null && tradeable(mod, held),
+                        other.map(entity -> (double) entity.distanceTo(player)).orElse(Double.POSITIVE_INFINITY));
+                if (pick == FireResTradeRules.Pick.STAY) return Optional.of(current);
+                if (pick == FireResTradeRules.Pick.OTHER) {
+                    _currentId = other.get().getId();
+                    return other;
+                }
+            }
             if (gold) {
                 // the nearest one free to take gold, near the last one first so the throws all land by us
                 Optional<Entity> found = mod.getEntityTracker().getClosestEntity(player.position(), entity -> tradeable(mod, entity)
@@ -597,6 +691,8 @@ final class FireResTrade {
             if (EntityHelper.isTradingPiglin(piglin) || piglin.getArmPose() == PiglinArmPose.ADMIRING_ITEM) {
                 // it took the gold: its count of refusals starts over
                 _clicks.remove(piglin.getId());
+                // (Tuning fr_trade_stay: the buddy waits by it looking at it, no click, so the next ingot goes the moment it is free)
+                if (stayOn()) mod.getControllerExtras().aimAt(piglin, CombatAim.Priority.KILL_TASK);
                 setDebugState("A piglin admiring the gold");
                 return null;
             }
@@ -619,6 +715,7 @@ final class FireResTrade {
             Vec3 at = box.contains(eye) ? eye : box.clip(eye, eye.add(dir.scale(mod.getControllerExtras().swingReach()))).orElse(null);
             if (at == null) return null;
             _clickedAt = now;
+            _unanswered.add(new long[]{piglin.getId(), now});
             InteractionResult result = mod.getController().interact(player, piglin, new EntityHitResult(piglin, at), InteractionHand.MAIN_HAND);
             // vanilla swings the hand for a click the client saw take (Minecraft.startUseItem)
             if (result instanceof InteractionResult.Success success && success.swingSource() == InteractionResult.SwingSource.PREDICTED) {

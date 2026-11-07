@@ -28,6 +28,7 @@ import adris.altoclef.util.helpers.RunZones;
 import adris.altoclef.util.helpers.WorldHelper;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -162,6 +163,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
 
     // nether death spots, asked on the main thread (the gamer hands in its death book, a bare task has none)
     private final Supplier<List<double[]>> _deathSpots;
+    // the ender pearls the goal still asks for (the gamer's EyeMath.pearlsNeeded; a bare order of rods asks none): the
+    // fire resistance trade picks up a piglin's pearls while the bag holds fewer (FireResTradeRules.takesPearls)
+    private final IntSupplier _pearlsNeeded;
     private final RunZones _deathZones = new RunZones();
     // what the path predicate sees, from baritone's thread: where we stand, the game clock and the spawner we walk to
     // (NaN = none). written every tick, same idea as FindNetherStructureTask
@@ -178,9 +182,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
     }
 
     public CollectBlazeRodsTask(int count, Supplier<List<double[]>> deathSpots) {
+        this(count, deathSpots, () -> 0);
+    }
+
+    public CollectBlazeRodsTask(int count, Supplier<List<double[]>> deathSpots, IntSupplier pearlsNeeded) {
         super(Items.BLAZE_ROD, count);
         _count = count;
         _deathSpots = deathSpots;
+        _pearlsNeeded = pearlsNeeded;
     }
 
     // the middle of the wither pack around a spot, null when there is no pack there
@@ -323,7 +332,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // the fortress, FireResTrade. a splash potion of it is thrown at the feet when the drink would go down, a drinkable one
         // the food chain drinks as it does the brewed one)
         if (adris.altoclef.util.helpers.Tuning.get("fr_trade", 0) > 0) {
-            if (_frTrade == null) _frTrade = new FireResTrade();
+            if (_frTrade == null) _frTrade = new FireResTrade(_pearlsNeeded);
             Task splash = _frTrade.throwStep(mod);
             if (splash != null) {
                 setDebugState("Throwing fire resistance at the feet");

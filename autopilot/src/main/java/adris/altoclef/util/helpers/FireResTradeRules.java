@@ -101,6 +101,38 @@ public final class FireResTradeRules {
         return distance <= (wasNear ? KEEP_RANGE : ENTER_RANGE);
     }
 
+    // Tuning fr_trade_stay, off by default, steering 98 and 101: one piglin found keeps the gold. a piglin admires an ingot for
+    // about 6 s and takes no other meanwhile; without the switch the buddy walks to the nearest other free one within
+    // KEEP_RANGE after every ingot. with it another free piglin is taken only within this many blocks of the buddy (who stands
+    // by the current one); otherwise the buddy waits by the current one and hands it the next ingot once it is free
+    public static final double STAY_OTHER_RANGE = 8;
+
+    // whose turn the next ingot is: today's search (the nearest free one within KEEP_RANGE), the current piglin (wait by it
+    // while it admires, give when it is free), or the other free one close by
+    public enum Pick {
+        SEARCH,
+        STAY,
+        OTHER
+    }
+
+    // stayOn: Tuning fr_trade_stay. present: the current piglin is alive and tracked by the client (dead or out of sight is
+    // gone); leftAlone: it refused gold REFUSED_CLICKS times; hoglinNear: a hoglin keeps us off it (GiveGoldTask.tradeable);
+    // currentDistance: from the buddy; currentFree: it takes gold now; nearestOtherFree: the nearest other free piglin from
+    // the buddy, infinite for none. off, or with the current one gone, today's search
+    public static Pick pick(boolean stayOn, boolean present, boolean leftAlone, boolean hoglinNear, double currentDistance,
+                            boolean currentFree, double nearestOtherFree) {
+        if (!stayOn || !present || leftAlone || hoglinNear || currentDistance > KEEP_RANGE) return Pick.SEARCH;
+        if (currentFree) return Pick.STAY;
+        return nearestOtherFree <= STAY_OTHER_RANGE ? Pick.OTHER : Pick.STAY;
+    }
+
+    // steering 99 and 102: the trade's pickup takes ender pearls a piglin threw as well as the potion. with Tuning
+    // fr_trade_pearls (off by default) always; without it only while the goal goes through the End and asks more pearls
+    // (EyeMath.pearlsNeeded, 0 for a rods order) than the bag holds
+    public static boolean takesPearls(boolean pearlsOn, int pearlsNeeded, int pearlsInBag) {
+        return pearlsOn || pearlsNeeded > pearlsInBag;
+    }
+
     // by the spawner, blocks: the trade is for before the fortress, and the hold below ends here
     public static final double FORTRESS_NEAR = 32;
 

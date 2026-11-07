@@ -1420,7 +1420,9 @@ public class NetherPhase implements PhaseHandler {
             return findStep(ctx, findFortress, "Looking for a fortress");
         }
         if (rodsTask == null || rodsTaskTarget != rodsNeed) {
-            rodsTask = new CollectBlazeRodsTask(rodsNeed, () -> DeathZones.spots(ctx.state().deaths, ctx.facts().gameTime()));
+            // (the pearls the goal still asks for: the fire resistance trade picks up a piglin's pearls while short of them)
+            rodsTask = new CollectBlazeRodsTask(rodsNeed, () -> DeathZones.spots(ctx.state().deaths, ctx.facts().gameTime()),
+                    () -> EyeMath.pearlsNeeded(EyeMath.targetGoal(ctx.cfg(), ctx.state()), EyeMath.eyes(ctx.facts())));
             rodsTaskTarget = rodsNeed;
         }
         boolean camping = rodsTask.isCampingSpawner();
