@@ -73,7 +73,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // the buddy's fork, Tuning box_home (BoxHomeRules): the standing box holds the buddy this tick (it stands and the order's
     // rods are not all in), the sealed heal under way (a BrewBoxTask in heal mode: the look out walled, the wait in the back
     // cell, the wall broken), the tick a failed seal may be tried again, the errands said skipped for this box, the spawner
-    // whose pack was said not waited for, and a rod fetch under way (the tick it went out, -1 for none)
+    // whose pack was said not waited for, and the rod trip (homeRodFetch)
     private boolean _homeHolds;
     private BrewBoxTask _healBox;
     private long _healRetryAt = Long.MIN_VALUE;
@@ -81,11 +81,19 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private final java.util.Set<String> _homeSaid = new java.util.HashSet<>();
     private BlazePillboxTask _homeSaidFor;
     private BlockPos _homePackSaidFor;
-    private long _rodTripAt = -1;
-    private boolean _rodTripOut;
-    // a fetch never seen out of the box is forgotten after this long (ticks)
-    static final long ROD_TRIP_QUIET = 200;
-    private int _rodTripId = Integer.MIN_VALUE;
+    // the rod a trip out is for (null with none), the tick it began, the buddy's best health on it and the rods in the bag
+    // then, whether the buddy was seen out of the box on it; a trip over whose way back is still to be said (the tick it
+    // began, -1 for none); the tick the last trip ended by a hit; the rods let go for this box and the rods said left (id
+    // and reason)
+    private net.minecraft.world.entity.item.ItemEntity _trip;
+    private long _tripAt = -1;
+    private float _tripBestHp;
+    private int _tripRods;
+    private boolean _tripOut;
+    private long _tripBackFrom = -1;
+    private long _tripHitAt = Long.MIN_VALUE / 2;
+    private final java.util.Set<Integer> _rodsLetGo = new java.util.HashSet<>();
+    private final java.util.Set<String> _rodLeftSaid = new java.util.HashSet<>();
     // a seal that failed waits this long before the next (ticks)
     static final long HEAL_RETRY_TICKS = 600;
     // the buddy's fork, Tuning fr_trade: the barter for the first fire resistance, one per order (kept through interruptions);
@@ -1677,8 +1685,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (the buddy's fork: none while shut in the brew box, a walk to a rod is a way out through its wall)
         if (_brewBox != null && _brewBox.holds(mod)) return true;
         if (_healBox != null && _healBox.holds(mod)) return true;
-        // (the buddy's fork, Tuning box_home: while the box holds, a rod in it always, one outside only within
-        // BoxHomeRules.ROD_RANGE of its cell with no blaze in sight; the camp's walk takes the buddy straight back)
+        // (the buddy's fork, Tuning box_home: while the box holds, a rod in it always, one outside by a trip out of it,
+        // BoxHomeRules.rodLeft and tripEnd; the camp's walk takes the buddy straight back)
         if (me != null && homeHolds()) return !homeRodFetch(mod, me);
         // (from a standing pillbox: a rod in the box always, one outside it only with no blaze within PILLBOX_QUIET. six walks out
         // for rods in one run, the last two 25 hp, straight-bent-g run 4)
@@ -1771,7 +1779,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // ---- the buddy's fork, Tuning box_home (BoxHomeRules): the box as home
 
     // each tick: whether the standing box holds the buddy; while it does its cell is marked for the wander guard (BoxGuard, on
-    // with box_home) and a rod fetch that is back in the box is said
+    // with box_home) and a rod trip that is back in the box is said
     private void homeTick(AltoClef mod) {
         boolean stands = _pillbox != null && _pillboxCornered;
         _homeHolds = adris.altoclef.util.helpers.BoxHomeRules.on()
@@ -1780,22 +1788,26 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_homeSaidFor != box) {
             _homeSaidFor = box;
             _homeSaid.clear();
+            _rodsLetGo.clear();
+            _rodLeftSaid.clear();
         }
         if (!homeHolds() || mod.getPlayer() == null) {
-            _rodTripAt = -1;
-            _rodTripOut = false;
+            _trip = null;
+            _tripAt = -1;
+            _tripBackFrom = -1;
             return;
         }
         long now = mod.getWorld().getGameTime();
         adris.altoclef.util.helpers.BoxGuard.mark(_pillbox.cell(), now);
-        // (said only once the buddy was seen out of the box after the fetch began: the pickup's own ticks skip this one)
-        boolean in = _pillbox.holds(mod.getPlayer().blockPosition());
-        if (_rodTripAt >= 0 && !in) _rodTripOut = true;
-        if (_rodTripAt >= 0 && in && (_rodTripOut || now - _rodTripAt > ROD_TRIP_QUIET || now < _rodTripAt)) {
-            if (_rodTripOut) Debug.logInternal("box home: back in the box after the rod, " + Math.max(0, now - _rodTripAt) / 20 + " s out");
-            _rodTripAt = -1;
-            _rodTripOut = false;
-        }
+        homeBack(mod, now);
+    }
+
+    // a trip over and the buddy in the box again: said once, when it was seen out of it
+    private void homeBack(AltoClef mod, long now) {
+        if (_tripBackFrom < 0 || _trip != null || mod.getPlayer() == null || !_pillbox.holds(mod.getPlayer().blockPosition())) return;
+        if (_tripOut) Debug.logInternal("box home: back in the box after the rod, " + Math.max(0, now - _tripBackFrom) / 20 + " s out");
+        _tripBackFrom = -1;
+        _tripOut = false;
     }
 
     // the box holds the buddy: as of this tick's homeTick, and the box still standing (a box given up or replaced later in the
@@ -1813,48 +1825,89 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
     }
 
-    // the pickup's rods while the box holds: one in the box always, one outside only close to it with no blaze in sight
-    // (BoxHomeRules.rodFetch). the pickup walks to the closest rod worth the walk, so it runs only while every rod lying within
-    // HOME_ROD_SCAN may be fetched; a fetch out of the box is said once per rod, the way back by homeTick
-    static final double HOME_ROD_SCAN = 48;
-
+    // the pickup's rods while the box holds (asked once a tick by shouldAvoidPickingUp, the pickup's ticks too): the pickup walks
+    // to the closest rod, so that one is judged. one in the box's cells is always taken; one outside by a trip out of the box
+    // (BoxHomeRules.rodLeft), which goes on till BoxHomeRules.tripEnd says over, whatever the next tick's gate says (B:2's
+    // pickup and lure took turns every tick). one rod per trip; a trip over leaves the camp's walk to take the buddy home
     private boolean homeRodFetch(AltoClef mod, net.minecraft.world.entity.LivingEntity me) {
+        long now = mod.getWorld().getGameTime();
+        int rods = mod.getItemStorage().getItemCount(Items.BLAZE_ROD);
+        boolean in = _pillbox.holds(me.blockPosition());
+        Optional<net.minecraft.world.entity.item.ItemEntity> closest = mod.getEntityTracker().getClosestItemDrop(me.position(), Items.BLAZE_ROD);
+        if (_trip != null) {
+            if (!in) _tripOut = true;
+            _tripBestHp = Math.max(_tripBestHp, me.getHealth());
+            boolean gone = !_trip.isAlive() || _trip.getItem().isEmpty();
+            String end = adris.altoclef.util.helpers.BoxHomeRules.tripEnd(gone, rods > _tripRods, !gone && rodBurning(mod, _trip),
+                    gone || mod.getEntityTracker().isEntityReachable(_trip),
+                    me.getHealth() < _tripBestHp - adris.altoclef.util.helpers.BoxHomeRules.HIT, now - _tripAt);
+            if (end == null) {
+                // (on to this rod, or to one in the box on the way; another closer rod outside waits this tick)
+                return closest.isEmpty() || closest.get().getId() == _trip.getId() || _pillbox.holds(BlockPos.containing(closest.get().position()));
+            }
+            Debug.logInternal(String.format(java.util.Locale.ROOT, "box home: the rod trip over (%s) after %.1f s at %.1f hp, %s",
+                    end, Math.max(0, now - _tripAt) / 20.0, me.getHealth(), in ? "in the box" : "back to the box"));
+            if (adris.altoclef.util.helpers.BoxHomeRules.letGoAfter(end)) _rodsLetGo.add(_trip.getId());
+            if (end.equals("hit")) _tripHitAt = now;
+            _tripBackFrom = _tripAt;
+            _trip = null;
+            _tripAt = -1;
+            homeBack(mod, now);
+        }
+        if (closest.isEmpty()) return true;
+        net.minecraft.world.entity.item.ItemEntity rod = closest.get();
+        Vec3 at = rod.position();
+        if (_pillbox.holds(BlockPos.containing(at))) return true;
         BlockPos cell = _pillbox.cell();
-        boolean sight = blazeInSight(mod, me);
-        java.util.function.Predicate<net.minecraft.world.entity.item.ItemEntity> fetchable = d -> {
-            Vec3 at = d.position();
-            boolean inBox = at.distanceTo(Vec3.atBottomCenterOf(cell)) <= PILLBOX_RADIUS;
-            double flat = Math.hypot(at.x - (cell.getX() + 0.5), at.z - (cell.getZ() + 0.5));
-            // (a rod on a ledge above or down a drop is no step out: as far as one out of range)
-            boolean level = at.y >= cell.getY() - 2 && at.y <= cell.getY() + 1.5;
-            return adris.altoclef.util.helpers.BoxHomeRules.rodFetch(inBox, level ? flat : Double.POSITIVE_INFINITY, sight);
-        };
-        Optional<net.minecraft.world.entity.item.ItemEntity> left = mod.getEntityTracker().getClosestItemDrop(me.position(),
-                d -> d.distanceTo(me) <= HOME_ROD_SCAN && !fetchable.test(d), Items.BLAZE_ROD);
-        if (left.isPresent()) {
-            Vec3 at = left.get().position();
-            homeSkip(String.format(java.util.Locale.ROOT, "the rod walk at %s (%.1f from the box%s)", BlockPos.containing(at).toShortString(),
-                    Math.hypot(at.x - (cell.getX() + 0.5), at.z - (cell.getZ() + 0.5)), sight ? ", a blaze in sight" : ""));
+        double flat = Math.hypot(at.x - (cell.getX() + 0.5), at.z - (cell.getZ() + 0.5));
+        double up = at.y - cell.getY();
+        double blaze = Double.POSITIVE_INFINITY;
+        for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+            if (b.isAlive()) blaze = Math.min(blaze, Math.min(b.distanceTo(me), b.distanceTo(rod)));
+        }
+        String why = adris.altoclef.util.helpers.BoxHomeRules.rodLeft(flat, up, rodBurning(mod, rod), _rodsLetGo.contains(rod.getId()), in,
+                me.getHealth(), blaze, adris.altoclef.util.helpers.FireRes.has(me), now - _tripHitAt);
+        if (why != null) {
+            homeRodLeft(rod, why, flat, up, me.getHealth(), blaze, now);
             return false;
         }
-        Optional<net.minecraft.world.entity.item.ItemEntity> out = mod.getEntityTracker().getClosestItemDrop(me.position(),
-                d -> !_pillbox.holds(BlockPos.containing(d.position())), Items.BLAZE_ROD);
-        if (out.isPresent() && out.get().getId() != _rodTripId) {
-            Vec3 at = out.get().position();
-            _rodTripId = out.get().getId();
-            _rodTripAt = mod.getWorld().getGameTime();
-            Debug.logInternal(String.format(java.util.Locale.ROOT, "box home: out for a rod at %s, %.1f from the box, no blaze in sight",
-                    BlockPos.containing(at).toShortString(), Math.hypot(at.x - (cell.getX() + 0.5), at.z - (cell.getZ() + 0.5))));
-        }
+        _trip = rod;
+        _tripAt = now;
+        // (the fight's ban on placing at the feet and up is its own: a rod two up is a pillar step, and the fight's last tick
+        // may have been a KILL)
+        _fight.idle();
+        _tripBestHp = me.getHealth();
+        _tripRods = rods;
+        _tripOut = false;
+        _tripBackFrom = -1;
+        Debug.logInternal(String.format(java.util.Locale.ROOT, "box home: out for a rod at %s, %.1f from the box, %.1f up, %.1f hp, the nearest blaze %s",
+                BlockPos.containing(at).toShortString(), flat, up, me.getHealth(), blaze == Double.POSITIVE_INFINITY ? "none" : String.format(java.util.Locale.ROOT, "%.1f off", blaze)));
         return true;
     }
 
-    // a blaze within BoxHomeRules.SIGHT_RANGE with a line to the buddy
-    private static boolean blazeInSight(AltoClef mod, net.minecraft.world.entity.LivingEntity me) {
-        for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
-            if (b.isAlive() && b.distanceTo(me) <= adris.altoclef.util.helpers.BoxHomeRules.SIGHT_RANGE && b.hasLineOfSight(me)) return true;
-        }
-        return false;
+    // why a rod outside the box is left, said once per rod and reason (the box's own state, out of it, is not said)
+    private void homeRodLeft(net.minecraft.world.entity.item.ItemEntity rod, String why, double flat, double up, float hp, double blaze, long now) {
+        if (why.equals("out of the box") || !_rodLeftSaid.add(rod.getId() + " " + why)) return;
+        String detail = switch (why) {
+            case "on fire" -> "on fire, it burns";
+            case "let go" -> "let go after its trip";
+            case "far" -> String.format(java.util.Locale.ROOT, "%.1f from the box", flat);
+            case "high" -> String.format(java.util.Locale.ROOT, "%.1f up", up);
+            case "low" -> String.format(java.util.Locale.ROOT, "%.1f down", -up);
+            case "hp" -> String.format(java.util.Locale.ROOT, "%.1f hp", hp);
+            case "blaze" -> String.format(java.util.Locale.ROOT, "a blaze %.1f off", blaze);
+            case "hit" -> "a hit " + Math.max(0, now - _tripHitAt) / 20 + " s ago";
+            default -> why;
+        };
+        Debug.logInternal("box home: a rod at " + BlockPos.containing(rod.position()).toShortString() + " left (" + detail + ")");
+    }
+
+    // a rod burning, or in fire or lava: it is gone within ticks
+    private static boolean rodBurning(AltoClef mod, net.minecraft.world.entity.item.ItemEntity rod) {
+        if (rod.isOnFire() || rod.isInLava()) return true;
+        BlockPos p = BlockPos.containing(rod.position());
+        var state = mod.getWorld().getBlockState(p);
+        return state.is(net.minecraft.tags.BlockTags.FIRE) || state.getFluidState().is(net.minecraft.tags.FluidTags.LAVA);
     }
 
     // the heal wait in the box sealed (BoxHomeRules.sealHeal): a BrewBoxTask in heal mode walls the look out from inside, the
@@ -1908,6 +1961,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         if (_healBox.breakingOut(mod)) {
             setDebugState("Opening the box after the heal");
+            return _healBox;
+        }
+        // (a failed seal breaks what it placed wherever the buddy is: its blocks left standing shut the look out, B:2)
+        if (_healBox.unsealing()) {
+            setDebugState("Opening the box after a failed seal");
             return _healBox;
         }
         return null;
