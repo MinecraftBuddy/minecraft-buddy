@@ -371,6 +371,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 return in;
             }
         }
+        // (the buddy's fork, Tuning camp_reentry, off by default: shut out of the camp, a pillbox where the buddy stands, another
+        // corner or none, campReentry)
+        if (adris.altoclef.util.helpers.CampReentry.on()) campReentry(mod);
         // blazes first: kill the one we picked, run when it goes badly. null is "nobody to fight"
         boolean building = _pillbox != null && !_pillbox.isFinished(mod);
         // (the cell is the fight's corner from its first block on, the wall nearest the spawner: a run then goes into it, not out
@@ -935,9 +938,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         // (the buddy's fork, Tuning far_box, off by default, steering 89: the far box first, outside the spawner's range and no
         // corner, the blazes drawn to it by spawn trips. none fits, or given up here: the camp as without the switch)
-        if (farOn() && !_foundBlazeSpawner.equals(_farGaveUpFor) && !_foundBlazeSpawner.equals(_pillboxGaveUpFor)
+        // (Tuning camp_reentry: no corner and no box at a spawner whose camp was left with none to take its place, and never a
+        // corner shut out of; both empty with the switch off)
+        boolean campsOff = _foundBlazeSpawner.equals(_campsOffFor);
+        if (farOn() && !_foundBlazeSpawner.equals(_farGaveUpFor) && !_foundBlazeSpawner.equals(_pillboxGaveUpFor) && !campsOff
                 && farPick(mod, cells, sx, sy, sz)) return;
-        int[][] corner = _noCorner ? null : cornerSpot(mod, cells, sx, sy, sz);
+        int[][] corner = _noCorner || campsOff ? null : cornerSpot(mod, cells, sx, sy, sz, _shutOut.isEmpty() ? null : notShut(), true);
         if (corner != null) {
             _campSpot = new BlockPos(corner[0][0], corner[0][1], corner[0][2]);
             BlockPos peek = new BlockPos(corner[1][0], corner[1][1], corner[1][2]);
@@ -951,7 +957,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         // (the buddy's fork: no corner, a pillbox built by the spawner, steering 21; its cell is the fight's corner once it
         // stands, and the looks start from it)
-        if (adris.altoclef.util.helpers.Tuning.get("pillbox", 1) > 0 && !_foundBlazeSpawner.equals(_pillboxGaveUpFor)) {
+        if (adris.altoclef.util.helpers.Tuning.get("pillbox", 1) > 0 && !_foundBlazeSpawner.equals(_pillboxGaveUpFor) && !campsOff) {
             adris.altoclef.util.helpers.BlazePillbox.Plan plan = pillboxPlan(mod, cells, sx, sy, sz);
             if (plan != null) {
                 _pillbox = new BlazePillboxTask(plan);
@@ -1279,8 +1285,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
     }
 
-    // a cell by the spawner to walk out from, then BlazeCover.corner with the spawn area's eyes (the ones inside a block left out)
-    private static int[][] cornerSpot(AltoClef mod, Cells cells, int sx, int sy, int sz) {
+    // a cell by the spawner to walk out from, then BlazeCover.corner with the spawn area's eyes (the ones inside a block left out).
+    // allow (Tuning camp_reentry): the corner cells that may be taken, null for all; say: the lines when there is none
+    private static int[][] cornerSpot(AltoClef mod, Cells cells, int sx, int sy, int sz, java.util.function.Predicate<BlockPos> allow, boolean say) {
         int[] start = null;
         double best = Double.MAX_VALUE;
         for (int dx = -3; dx <= 3; dx++) {
@@ -1296,7 +1303,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             }
         }
         if (start == null) {
-            Debug.logInternal("blaze camp: no corner, no cell to stand on by the spawner");
+            if (say) Debug.logInternal("blaze camp: no corner, no cell to stand on by the spawner");
             return null;
         }
         var level = mod.getWorld();
@@ -1305,10 +1312,121 @@ public class CollectBlazeRodsTask extends ResourceTask {
             if (level.getBlockState(BlockPos.containing(eye)).getCollisionShape(level, BlockPos.containing(eye)).isEmpty()) eyes.add(eye);
         }
         var us = mod.getPlayer();
+        // (a corner allow says no to is no pocket: BlazeCover.best passes over one below 0)
+        BlazeCover.Enclosure pocket = (x, y, z) -> BlazeCover.pocket(level, x, y, z, us);
+        BlazeCover.Enclosure enclosure = allow == null ? pocket : (x, y, z) -> allow.test(new BlockPos(x, y, z)) ? pocket.at(x, y, z) : -1;
         int[][] c = BlazeCover.corner(cells, start, sx, sz, BlazeFight.witherSkeletonSpots(mod, Vec3.atCenterOf(new BlockPos(sx, sy, sz)), BlazeCover.CORNER_MAX + BlazeCover.WITHER_CLEAR),
-                (x, y, z) -> BlazeCover.hidden(level, eyes, x, y, z, us), (x, y, z) -> BlazeCover.pocket(level, x, y, z, us));
-        if (c == null) Debug.logInternal("blaze camp: no corner within " + (int) BlazeCover.CORNER_MAX + " of the spawner (" + eyes.size() + " spawn eyes)");
+                (x, y, z) -> BlazeCover.hidden(level, eyes, x, y, z, us), enclosure);
+        if (c == null && say) Debug.logInternal("blaze camp: no corner within " + (int) BlazeCover.CORNER_MAX + " of the spawner (" + eyes.size() + " spawn eyes)");
         return c;
+    }
+
+    // ---- the buddy's fork, Tuning camp_reentry (off by default): shut out of the camp (CampReentry). most nether-start runs
+    // that died before the first rod stood for minutes a few blocks off their own camp in the blazes' fire: the walk back into
+    // the corner or to the standing pillbox's open side found no path again and again (the corner's protected walls, the
+    // corner a block lower, fire in the door), the goal task wandered off, and the fight still held to the camp. once the
+    // watch says shut out, the camp is replaced: a pillbox round the cell the buddy stands on, else another corner a walk
+    // from there reaches, else none at this spawner (the camp as without one). one line per decision, "camp: shut out of"
+
+    // the camps the buddy was shut out of: never a corner again. empty with the switch off
+    private final java.util.Set<BlockPos> _shutOut = new java.util.HashSet<>();
+    // the spawner whose camp was left with nothing to take its place: no corner and no box there any more
+    private BlockPos _campsOffFor;
+
+    private java.util.function.Predicate<BlockPos> notShut() {
+        return p -> !_shutOut.contains(p);
+    }
+
+    // the spawn eyes in an open cell, as the camp's pick reads them
+    private static java.util.List<Vec3> freeSpawnEyes(AltoClef mod, int sx, int sy, int sz) {
+        var level = mod.getWorld();
+        java.util.List<Vec3> eyes = new java.util.ArrayList<>();
+        for (Vec3 eye : BlazeCover.spawnEyes(sx, sy, sz)) {
+            if (level.getBlockState(BlockPos.containing(eye)).getCollisionShape(level, BlockPos.containing(eye)).isEmpty()) eyes.add(eye);
+        }
+        return eyes;
+    }
+
+    private void campReentry(AltoClef mod) {
+        long now = mod.getWorld().getGameTime();
+        var me = mod.getPlayer();
+        // (the camp to get back into: the fight's corner, a corner or a standing box's cell; not while a box goes up, whose own
+        // walk and clock decide, nor under the potion, whose camp has no corner)
+        boolean building = _pillbox != null && !_pillbox.isFinished(mod);
+        BlockPos camp = building || _campFireproof || _foundBlazeSpawner == null || me == null ? null : _fight.corner();
+        boolean standing = camp != null && _pillbox != null && _pillboxCornered && camp.equals(_pillbox.cell());
+        boolean in = camp != null && (BlazeLureTask.in(me.position(), camp) || (standing && _pillbox.holds(me.blockPosition())));
+        adris.altoclef.util.helpers.CampReentry.mark(camp, standing ? _pillbox.door() : null, in, now);
+        if (camp == null || mod.getClientBaritone().getPlayerContext() == null) return;
+        String why = adris.altoclef.util.helpers.CampReentry.shutOut(now);
+        if (why == null) return;
+        _shutOut.add(camp);
+        Cells cells = CliffAvoidance.of(new baritone.utils.BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
+        int sx = _foundBlazeSpawner.getX(), sy = _foundBlazeSpawner.getY(), sz = _foundBlazeSpawner.getZ();
+        BlockPos feet = me.blockPosition();
+        String head = "camp: shut out of " + camp.toShortString() + " (" + why + "), ";
+        // 1. a pillbox round the cell it stands on, with the blocks in the bag
+        adris.altoclef.util.helpers.BlazePillbox.Plan here = adris.altoclef.util.helpers.Tuning.get("pillbox", 1) <= 0 ? null
+                : adris.altoclef.util.helpers.CampReentryRules.pillboxHere(cells, feet.getX(), feet.getY(), feet.getZ(), sx, sy, sz,
+                freeSpawnEyes(mod, sx, sy, sz), adris.altoclef.util.helpers.Tuning.get("pillbox_bent", 1) > 0, BlazePillboxTask.blocksInBag(mod));
+        // 2. else another corner, not one shut out of, that a walk from here reaches
+        int[][] other = null;
+        BlazeLureTask otherLure = null;
+        if (here == null) {
+            java.util.Set<Long> reach = adris.altoclef.util.helpers.CampReentryRules.reachable(cells, feet.getX(), feet.getY(), feet.getZ(),
+                    adris.altoclef.util.helpers.CampReentryRules.REACH_STEPS);
+            java.util.Set<Long> shut = new java.util.HashSet<>();
+            for (BlockPos p : _shutOut) shut.add(BlazeCover.key(p.getX(), p.getY(), p.getZ()));
+            other = _noCorner ? null : cornerSpot(mod, cells, sx, sy, sz,
+                    p -> adris.altoclef.util.helpers.CampReentryRules.cornerAllowed(p.getX(), p.getY(), p.getZ(), shut, reach), false);
+            if (other != null) {
+                otherLure = BlazeLureTask.of(cells, new BlockPos(other[0][0], other[0][1], other[0][2]), new BlockPos(other[1][0], other[1][1], other[1][2]));
+                if (otherLure == null) other = null;
+            }
+        }
+        notePillboxSpot();
+        _fight.campShutOut(camp);
+        _doorWalkSince = -1;
+        _pillbox = null;
+        _pillboxCornered = false;
+        _pillboxCornerSet = null;
+        _lure = null;
+        _fight.pillboxPlanned(false);
+        _fight.pillboxLookout(null);
+        switch (adris.altoclef.util.helpers.CampReentryRules.choose(here != null, other != null)) {
+            case PILLBOX -> {
+                _campPickedAt = now;
+                _pillbox = new BlazePillboxTask(here);
+                _fight.pillboxPlanned(true);
+                _fight.pillboxLookout(_pillbox.lookout());
+                _campSpot = _pillbox.cell();
+                // (its cell the fight's corner at once, not from the first wall: a heal run then stays at it and builds, as
+                // pillbox_heal_build does, instead of a run off into the blazes' fire again)
+                _pillboxCornerSet = _pillbox.corner(mod);
+                _fight.corner(_pillboxCornerSet);
+                adris.altoclef.util.snapshot.Snapshots.chose("pillbox", here.cell()).with("lookout", here.lookout()).blocks(here.blocks()).spawner(sx, sy, sz);
+                Debug.logInternal(head + "a pillbox where it stands at " + _campSpot.toShortString() + " (" + here.blocks().size() + " blocks"
+                        + (here.front() != null ? ", bent" : "") + "), looking out from " + _pillbox.lookout().toShortString());
+            }
+            case CORNER -> {
+                _campPickedAt = now;
+                _campSpot = new BlockPos(other[0][0], other[0][1], other[0][2]);
+                _fight.corner(_campSpot);
+                _lure = otherLure;
+                adris.altoclef.util.snapshot.Snapshots.chose("blaze.corner", other[0]).with("peek", other[1]).spawner(sx, sy, sz);
+                Debug.logInternal(head + "another corner at " + _campSpot.toShortString() + " (closed in "
+                        + BlazeCover.enclosure(mod.getWorld(), other[0][0], other[0][1], other[0][2], me) + " of 24), looking out from "
+                        + new BlockPos(other[1][0], other[1][1], other[1][2]).toShortString());
+            }
+            case NONE -> {
+                _campsOffFor = _foundBlazeSpawner;
+                _campSpotFor = null;
+                _campSpot = null;
+                _fight.corner(null);
+                Debug.logInternal(head + "none, the run without one");
+            }
+        }
+        adris.altoclef.util.helpers.CampReentry.left(camp, now);
     }
 
     private void pickSpawner(AltoClef mod) {
