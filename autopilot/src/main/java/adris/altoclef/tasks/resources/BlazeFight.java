@@ -301,6 +301,7 @@ final class BlazeFight {
     }
 
     private void noteCrowd(AltoClef mod, LocalPlayer player, List<Blaze> blazes, long now) {
+        if (!nooks.isEmpty()) noteCapHit(player, now);
         if (pillboxPlanned || fireproofCamp(player)) return;
         // (in hiding, every one about counts, seen or not: whoever is out there sees us once we are. by the look outs' sight it was
         // 1.5 and out, and three blazes on us a second later, the look outs see the room through a door one wide)
@@ -321,20 +322,34 @@ final class BlazeFight {
             return;
         }
         if (now < hideRetryAt || score < HIDE_SCORE) return;
+        // (Tuning lure_cap: after a cap no new hide for a while, unless the danger is high, the hp low or a hit landed,
+        // BlazeCapRules.HideHold; the line at most once in five seconds)
+        float hp = player.getHealth();
+        if (hideHold.holds(now, score, hp)) {
+            if (hideHold.line(now)) Debug.logInternal("lure cap: " + near + " (" + lastSeen + " blazes on us), " + String.format(java.util.Locale.ROOT, "%.1f", hp)
+                    + " hp, no new hide for " + hideHold.secondsLeft(now) + " s more (a hide at danger "
+                    + String.format(java.util.Locale.ROOT, "%.0f", adris.altoclef.util.helpers.BlazeCapRules.HOLD_OFF_DANGER) + ", "
+                    + String.format(java.util.Locale.ROOT, "%.0f", adris.altoclef.util.helpers.BlazeCapRules.HOLD_OFF_HEALTH) + " hp or a hit)");
+            return;
+        }
+        String broke = hideHold.broken(now, score, hp);
         hideRetryAt = now + HIDE_RETRY_TICKS;
         if (mod.getClientBaritone().getPlayerContext() == null) return;
         CliffAvoidance.Cells cells = CliffAvoidance.of(new BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
         BlockPos at = player.blockPosition();
         int[] c;
         String how;
-        if (corner != null) {
+        // (a camp's corner in a nook a cap barred is no hiding place: the pick then, without the nooks)
+        if (corner != null && !nooks.barred(corner.getX(), corner.getY(), corner.getZ())) {
             // (the camp's own corner first: a pocket by the spawner, found when the camp was picked)
             c = new int[]{corner.getX(), corner.getY(), corner.getZ()};
             how = "the camp's corner";
         } else {
             List<Vec3> eyes = blazeEyes(mod, player);
+            java.util.Set<Long> banned = new java.util.HashSet<>(hideBarred);
+            banned.addAll(nooks.keys());
             c = BlazeCover.pick(cells, at.getX(), at.getY(), at.getZ(), witherSkeletonSpots(mod, player.position(), HIDE_WALK + BlazeCover.WITHER_CLEAR),
-                    new java.util.HashSet<>(hideBarred), (x, y, z) -> BlazeCover.hidden(mod.getWorld(), eyes, x, y, z, player),
+                    banned, (x, y, z) -> BlazeCover.hidden(mod.getWorld(), eyes, x, y, z, player),
                     (x, y, z) -> BlazeCover.pocket(mod.getWorld(), x, y, z, player), HIDE_WALK);
             how = "a pocket";
         }
@@ -353,7 +368,8 @@ final class BlazeFight {
         // (the blaze we were after stays ours only in the sword's reach: walking on at it kept the fight in the open)
         if (target != null && player.distanceTo(target) > 3) target = null;
         Debug.logInternal("rods: " + near + " (" + lastSeen + " blazes on us), into hiding at " + hide.toShortString() + ", " + how
-                + " (closed in " + enclosed + " of 24), " + Math.round(Math.sqrt(at.distSqr(hide))) + " blocks");
+                + " (closed in " + enclosed + " of 24), " + Math.round(Math.sqrt(at.distSqr(hide))) + " blocks"
+                + (broke != null ? ", the hold-off broken (" + broke + ")" : ""));
     }
 
     void corner(BlockPos c) {
@@ -378,7 +394,7 @@ final class BlazeFight {
     // (the buddy's fork, Tuning lure_cap, off by default, row L15: the hiding place ends only at a danger of 2 or less, every
     // blaze within SIGHT_RANGE counted seen or not, so two blazes idling by the spawner kept the buddy in a closed pocket for
     // good, the looks drawing nothing, 7 to 11 game minutes and 123 to 272 looks in three runs. the ticks the hide has the
-    // wheel (its walk, its looks) since a blaze last came within reach are capped: then out of hiding, the pocket barred as a
+    // wheel (its walk, its looks) since a blaze last came within reach are capped: then out of hiding, its nook barred as a
     // hiding place for the rest of the task)
     // the game time the fight last went after a blaze in reach; the danger as of the last scan (in hiding: every blaze about)
     private long killAt = Long.MIN_VALUE;
@@ -390,7 +406,7 @@ final class BlazeFight {
     }
 
     // one tick the rods task hands the wheel to the hide (hideTask gave a task); true when the cap ran out this tick: the hide
-    // is over, its pocket barred, the line said. the caller drops the camp's corner when that was the hiding place
+    // is over, its nook barred, a new hide held off, the line said. the caller drops the camp's corner when that was the hiding place
     boolean hideCapped(AltoClef mod) {
         long cap = adris.altoclef.util.helpers.BlazeCapRules.lureCapTicks();
         if (cap <= 0 || hide == null) return false;
@@ -401,8 +417,10 @@ final class BlazeFight {
         Debug.logInternal("lure cap: " + hideWatch.ticks() / 20 + " s with no blaze in reach, hiding at " + hide.toShortString() + " ("
                 + looks + " looks, " + (hideArrived ? "in it" : "never in it") + ", " + String.format(java.util.Locale.ROOT, "danger %.1f", hideDanger)
                 + ", " + blazesWithin(mod, BlazeFightRules.SIGHT_RANGE) + " blazes within " + (int) BlazeFightRules.SIGHT_RANGE + "), out of hiding"
-                + (camp ? " (the camp's corner)" : ", the pocket barred"));
+                + (camp ? " (the camp's corner)" : "") + ", the nook barred (cells within " + (int) adris.altoclef.util.helpers.BlazeCapRules.NOOK_RADIUS
+                + "), no new hide for " + adris.altoclef.util.helpers.BlazeCapRules.HOLD_OFF_TICKS / 20 + " s");
         hideBarred.add(BlazeCover.key(hide.getX(), hide.getY(), hide.getZ()));
+        capNook(mod.getPlayer(), hide, now);
         hideWatch.reset();
         hide = null;
         hideLure = null;
@@ -410,6 +428,44 @@ final class BlazeFight {
         calmSince = Long.MIN_VALUE;
         hideRetryAt = now + HIDE_RETRY_TICKS;
         return true;
+    }
+
+    // (Tuning lure_cap, 7 Nov 2026: one barred cell did nothing, the next hide was one block over in the same nook within 2 to
+    // 6 s, three times in realfort-pair-camp2 B:7.) the nooks a cap barred, as a hiding place and as the camp's corner, and
+    // the hold-off on a new hide after the last cap (BlazeCapRules.Nooks, HideHold); capHitSeen the last damage source looked
+    // at for a mob's hit, which ends the hold-off
+    private final adris.altoclef.util.helpers.BlazeCapRules.Nooks nooks = new adris.altoclef.util.helpers.BlazeCapRules.Nooks();
+    private final adris.altoclef.util.helpers.BlazeCapRules.HideHold hideHold = new adris.altoclef.util.helpers.BlazeCapRules.HideHold();
+    private DamageSource capHitSeen;
+
+    // a cap fired at the cell c (the hide's, or the camp's corner the rods task dropped): its nook barred, a new hide held off
+    void capNook(LocalPlayer player, BlockPos c, long now) {
+        nooks.bar(c.getX(), c.getY(), c.getZ());
+        // (a hit taken before the cap does not end the hold-off)
+        capHitSeen = player != null ? player.getLastDamageSource() : null;
+        hideHold.capped(now);
+    }
+
+    // the cell is in a nook a cap barred (never a hiding place or the camp's corner again)
+    boolean nookBarred(BlockPos p) {
+        return nooks.barred(p.getX(), p.getY(), p.getZ());
+    }
+
+    boolean nooksBarred() {
+        return !nooks.isEmpty();
+    }
+
+    // a mob's hit since the last look ends the hold-off (one line when it was still on)
+    private void noteCapHit(LocalPlayer player, long now) {
+        DamageSource source = player.getLastDamageSource();
+        if (source == null || source == capHitSeen) return;
+        capHitSeen = source;
+        if (!(source.getEntity() instanceof Mob mob)) return;
+        long left = hideHold.secondsLeft(now);
+        boolean on = left > 0 && hideHold.broken(now, 0, Float.MAX_VALUE) == null;
+        hideHold.hit();
+        if (on) Debug.logInternal("lure cap: hit by a " + BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).getPath() + ", the hold-off on hiding over ("
+                + left + " s early)");
     }
 
     private static int blazesWithin(AltoClef mod, double radius) {
