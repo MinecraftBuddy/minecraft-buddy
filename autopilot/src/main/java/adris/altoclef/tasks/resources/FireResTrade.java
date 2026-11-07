@@ -4,8 +4,11 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.tasks.entity.AbstractDoToEntityTask;
 import adris.altoclef.tasks.misc.EquipArmorTask;
+import adris.altoclef.tasks.movement.GetToXZTask;
 import adris.altoclef.tasks.movement.PickupDroppedItemTask;
 import adris.altoclef.tasks.movement.TimeoutWanderTask;
+import adris.altoclef.tasks.speedrun.gamer.RunState;
+import adris.altoclef.tasks.speedrun.gamer.phases.NetherPhase;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.EntityHelper;
@@ -13,6 +16,7 @@ import adris.altoclef.util.helpers.FireRes;
 import adris.altoclef.util.helpers.FireResRules;
 import adris.altoclef.util.helpers.FireResTradeRules;
 import adris.altoclef.util.helpers.FireResTradeRules.Form;
+import adris.altoclef.util.helpers.FireResTradeRules.Spot;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.Tuning;
@@ -20,6 +24,7 @@ import adris.altoclef.util.slots.Slot;
 import baritone.api.utils.Rotation;
 import baritone.api.utils.input.Input;
 import baritone.behavior.CombatAim;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -45,6 +50,8 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -59,7 +66,9 @@ import net.minecraft.world.phys.Vec3;
 // CollectBlazeRodsTask owns one of these per order and asks it every tick with the switch on. the giving reuses the rules of
 // TradeWithPiglinsTask's PerformTradeWithPiglin (the nearest adult piglin not already admiring, none with a hoglin near, one
 // that never takes gold left alone), aimed and paced: that task clicks every tick without a look, fetches gold when it has
-// none, and is a pearl and obsidian ResourceTask whose finish counts any potion, a water bottle too
+// none, and is a pearl and obsidian ResourceTask whose finish counts any potion, a water bottle too. with Tuning fr_trade_biome
+// (off by default) a search begun out of nether wastes first walks to the wastes the client has loaded (FireResTradeRules
+// .wastesTarget), and the fr_trade_search clock counts from the arrival there
 final class FireResTrade {
 
     // by the spawner: the trade is for before the fortress
@@ -72,6 +81,8 @@ final class FireResTrade {
     static final int PROGRESS_EVERY = 8;
     // the first look decides, a kit landing a moment late still counts (game ticks)
     static final long BEGIN_GRACE_TICKS = 100;
+    // the walk to the wastes ends this close to the middle of the chosen chunk, in them or not (blocks)
+    static final double WASTES_ARRIVE = 8;
 
     enum State {
         WAITING,
@@ -99,6 +110,13 @@ final class FireResTrade {
     private PickupDroppedItemTask _pickup;
     private TimeoutWanderTask _wander;
     private Task _equip;
+    // where the trade began (the lines' distances), and Tuning fr_trade_biome's walk to the wastes: settled once in them, with
+    // none loaded, or after the walk ended out of them
+    private double _startX;
+    private double _startZ;
+    private GetToXZTask _toWastes;
+    private long _walkTicks;
+    private boolean _wastesSettled;
     // after the trade: whether it got its potion, then the way to the blazes and the drink there
     private boolean _succeeded;
     private long _endedAt;
@@ -153,6 +171,9 @@ final class FireResTrade {
             _goldAtBegin = gold;
             _piglinSeenAt = now;
             _bagPotionsBefore = 0;
+            _startX = player.getX();
+            _startZ = player.getZ();
+            Debug.logInternal("strategy trade: biome at start " + biomeAt(mod, player.blockPosition()));
             Debug.logInternal(String.format(Locale.ROOT, "strategy trade: begun, %d gold (a potion by the last ingot %.0f%%), rods %d, search %s s, cap %s s, %s",
                     gold, 100 * FireResTradeRules.chanceWithin(gold), mod.getItemStorage().getItemCount(Items.BLAZE_ROD),
                     FireResTradeRules.seconds(searchTicks()), FireResTradeRules.seconds(maxTicks()), wander() ? "wandering for piglins" : "on the way to the fortress meanwhile"));
@@ -166,11 +187,15 @@ final class FireResTrade {
         boolean pending = admiring || drop.isPresent();
         double piglin = _give.nearestTradeable(mod);
         _piglinNear = FireResTradeRules.piglinNear(_piglinNear, piglin);
+        // (Tuning fr_trade_biome: the walk to the wastes does not count against the search)
+        if (walkingToWastes()) _piglinSeenAt = now;
         if (_piglinNear || admiring) {
             if (!_piglinLogged && _piglinNear) {
                 _piglinLogged = true;
                 Debug.logInternal(String.format(Locale.ROOT, "strategy trade: a piglin found after %s s, %.0f blocks off",
                         FireResTradeRules.seconds(now - _begunAt), piglin));
+                Debug.logInternal(String.format(Locale.ROOT, "strategy trade: piglin met in %s at %.0f blocks from the start",
+                        biomeAt(mod, player.blockPosition()), fromStart(player)));
             }
             _piglinSeenAt = now;
         }
@@ -211,6 +236,12 @@ final class FireResTrade {
                 if (!_searchLogged) {
                     _searchLogged = true;
                     Debug.logInternal("strategy trade: no piglin in sight, " + (wander() ? "wandering for one" : "on the way to the fortress meanwhile"));
+                }
+                // (Tuning fr_trade_biome: out of the wastes, first the walk to them)
+                Task walk = biomeWalk() ? toWastes(mod, now, spawner) : null;
+                if (walk != null) {
+                    _hud = "Walking to the nether wastes for piglins";
+                    return walk;
                 }
                 if (!wander()) return null;
                 if (_wander == null) _wander = new TimeoutWanderTask(false);
@@ -369,6 +400,89 @@ final class FireResTrade {
 
     private static boolean wander() {
         return Tuning.get("fr_trade_wander", 0) > 0;
+    }
+
+    private static boolean biomeWalk() {
+        return Tuning.get("fr_trade_biome", 0) > 0;
+    }
+
+    private boolean walkingToWastes() {
+        return biomeWalk() && _toWastes != null && !_wastesSettled;
+    }
+
+    // Tuning fr_trade_biome: the walk to the nether wastes while the search is out of them, null once settled (in them, none
+    // loaded, or the walk ended out of them): the search then goes as before, its clock counting from here. one walk a trade,
+    // to the target picked when it begins; a piglin met on the way is traded with, and the walk goes on after it. the walk
+    // itself gets fr_trade_search seconds, so one that gets nowhere does not hold the trade until fr_trade_max
+    private Task toWastes(AltoClef mod, long now, BlockPos spawner) {
+        if (_wastesSettled) return null;
+        LocalPlayer player = mod.getPlayer();
+        if (inWastes(mod, player.blockPosition())) {
+            settleWastes(now, _toWastes == null ? "strategy trade: in the wastes already, searching here"
+                    : String.format(Locale.ROOT, "strategy trade: in the wastes after %s s of walking, %.0f blocks from the start",
+                    FireResTradeRules.seconds(_walkTicks), fromStart(player)));
+            return null;
+        }
+        if (_toWastes == null) {
+            Spot to = spawner == null ? null : new Spot(spawner.getX(), spawner.getZ());
+            Spot target = FireResTradeRules.wastesTarget(wastesChunks(mod, player.getBlockY()), player.getX(), player.getZ(), to,
+                    knownBastions(mod));
+            if (target == null) {
+                settleWastes(now, "strategy trade: no wastes in the loaded chunks, searching here");
+                return null;
+            }
+            String extra = to == null ? "unknown" : String.valueOf(FireResTradeRules.extraOnTheWay(player.getX(), player.getZ(), target, to));
+            Debug.logInternal(String.format(Locale.ROOT, "strategy trade: to the wastes at %d %d, %.0f blocks, extra %s on the way",
+                    target.x(), target.z(), target.distanceTo(player.getX(), player.getZ()), extra));
+            _toWastes = new GetToXZTask(target.x(), target.z(), WASTES_ARRIVE);
+            // (from here the search clock waits for the arrival)
+            _piglinSeenAt = now;
+        }
+        if (_toWastes.isFinished(mod) || ++_walkTicks > searchTicks()) {
+            settleWastes(now, String.format(Locale.ROOT, "strategy trade: the walk to the wastes ended out of them (in %s) after %s s, searching here",
+                    biomeAt(mod, player.blockPosition()), FireResTradeRules.seconds(_walkTicks)));
+            return null;
+        }
+        return _toWastes;
+    }
+
+    private void settleWastes(long now, String line) {
+        _wastesSettled = true;
+        _piglinSeenAt = now;
+        Debug.logInternal(line);
+    }
+
+    private double fromStart(LocalPlayer player) {
+        return Math.hypot(player.getX() - _startX, player.getZ() - _startZ);
+    }
+
+    // the biome as the client has it at pos; nether biomes change with the height, so the buddy's own height is the one asked
+    private static String biomeAt(AltoClef mod, BlockPos pos) {
+        return mod.getWorld().getBiome(pos).getRegisteredName();
+    }
+
+    private static boolean inWastes(AltoClef mod, BlockPos pos) {
+        return mod.getWorld().getBiome(pos).is(Biomes.NETHER_WASTES);
+    }
+
+    // the middle of every loaded chunk with nether wastes at height y
+    private static List<Spot> wastesChunks(AltoClef mod, int y) {
+        List<Spot> out = new ArrayList<>();
+        for (ChunkPos chunk : mod.getChunkTracker().getLoadedChunks()) {
+            BlockPos middle = new BlockPos(chunk.getMiddleBlockX(), y, chunk.getMiddleBlockZ());
+            if (inWastes(mod, middle)) out.add(new Spot(middle.getX(), middle.getZ()));
+        }
+        return out;
+    }
+
+    // the bastion blocks the code knows of: the fortress sweep's memory, and what the block tracker holds while it tracks them
+    private static List<Spot> knownBastions(AltoClef mod) {
+        List<Spot> out = new ArrayList<>();
+        for (RunState.Pos p : ObtainSweep.knownBastions()) out.add(new Spot(p.x, p.z));
+        if (mod.getBlockTracker().isTracking(NetherPhase.BASTION[0])) {
+            for (BlockPos p : mod.getBlockTracker().getKnownLocations(NetherPhase.BASTION)) out.add(new Spot(p.getX(), p.getZ()));
+        }
+        return out;
     }
 
     private static long searchTicks() {

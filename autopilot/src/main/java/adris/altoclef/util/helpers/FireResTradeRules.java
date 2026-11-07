@@ -134,6 +134,53 @@ public final class FireResTradeRules {
         return now < lastHeld || now - lastHeld > HOLD_EPISODE_GAP;
     }
 
+    // Tuning fr_trade_biome, off by default: where the search for a piglin starts. by the mob seen first, a trade begun in nether
+    // wastes missed a piglin 13 times in 69, in a crimson forest 22 in 25, a soul sand valley 13 in 22, basalt deltas 7 in 13;
+    // so out of the wastes the search first walks to the wastes the client has loaded. a spot is a column, x and z in blocks
+    public record Spot(int x, int z) {
+        public double distanceTo(double fromX, double fromZ) {
+            return Math.hypot(x - fromX, z - fromZ);
+        }
+    }
+
+    // a candidate this near a known bastion block is never walked to (bastions hold piglin brutes)
+    public static final double BASTION_KEEP_OFF = 64;
+
+    // the blocks a stop at via adds to the straight way from the start to the spawner, whole blocks
+    public static long extraOnTheWay(double startX, double startZ, Spot via, Spot spawner) {
+        double way = via.distanceTo(startX, startZ) + Math.hypot(spawner.x() - via.x(), spawner.z() - via.z());
+        return Math.round(way - spawner.distanceTo(startX, startZ));
+    }
+
+    // the wastes the search walks to: candidates are the middles of the loaded chunks with nether wastes at the buddy's height.
+    // one within BASTION_KEEP_OFF of a known bastion block is skipped, and one by the spawner too (the trade gives up there).
+    // with the spawner known (else null) the one with the fewest extra blocks on the way to it, the nearer of equals (the
+    // buddy goes there after the trade anyway); without it the nearest. null when none is left
+    public static Spot wastesTarget(java.util.List<Spot> candidates, double startX, double startZ, Spot spawner, java.util.List<Spot> bastions) {
+        Spot best = null;
+        long bestExtra = Long.MAX_VALUE;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        for (Spot c : candidates) {
+            if (nearAny(c, bastions, BASTION_KEEP_OFF)) continue;
+            if (spawner != null && c.distanceTo(spawner.x(), spawner.z()) <= FORTRESS_NEAR) continue;
+            long extra = spawner == null ? 0 : extraOnTheWay(startX, startZ, c, spawner);
+            double distance = c.distanceTo(startX, startZ);
+            if (extra < bestExtra || (extra == bestExtra && distance < bestDistance)) {
+                best = c;
+                bestExtra = extra;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    private static boolean nearAny(Spot c, java.util.List<Spot> others, double range) {
+        for (Spot o : others) {
+            if (c.distanceTo(o.x(), o.z()) <= range) return true;
+        }
+        return false;
+    }
+
     // the nearest blaze as the trade's lines write it
     public static String distance(double d) {
         return Double.isInfinite(d) ? "none in sight" : String.format(Locale.ROOT, "%.0f blocks off", d);

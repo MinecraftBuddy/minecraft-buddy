@@ -69,6 +69,13 @@ final class ObtainSweep {
         return s;
     }
 
+    // the bastion blocks the sweep remembers for the world we are in, without making or loading its memory (none when the sweep
+    // never ran here)
+    static java.util.List<RunState.Pos> knownBastions() {
+        ObtainSweep s = BY_WORLD.get(RunStateStore.fingerprint() + "|" + WorldHelper.getCurrentDimension());
+        return s == null || s.state == null ? java.util.List.of() : java.util.List.copyOf(s.state.bastion);
+    }
+
     private void load(AltoClef mod) {
         RunStateStore.Loaded loaded = RunStateStore.load(file, key);
         build(mod, loaded.state());
