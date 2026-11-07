@@ -7,7 +7,8 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 // spawner_wait_cap's and lure_cap's rules (BlazeCapRules): when the wait for a wither skeleton pack at the spawner is over,
-// when a lure that draws no blaze into reach is given up, and when the pack line is said again
+// when a lure that draws no blaze into reach is given up, the nook and the hold-off on hiding after it, and when the pack
+// line is said again
 public class BlazeCapRulesTest {
     private static final long SPAWNER = 11L;
     private static final long OTHER = 12L;
@@ -124,5 +125,100 @@ public class BlazeCapRulesTest {
         assertTrue(BlazeCapRules.packLine(4, false, 1.0, 3, false, 12));
         assertTrue(BlazeCapRules.packLine(3, true, 1.0, 3, false, 12));
         assertTrue(BlazeCapRules.packLine(3, false, 12.5, 3, false, 12));
+    }
+
+    // ---- after a cap: the nook and the hold-off (realfort-pair-camp2 B:7: three caps, each followed within 2 to 6 s by a
+    // hide one block over, at danger 4.5 to 6 and 20 hp)
+
+    @Test
+    public void theHoldOffKeepsAModerateDangerAtFullHpOutOfHiding() {
+        long cap = 10000;
+        // (the three re-hides of B:7: 6.0 two seconds after, 4.5 six seconds after, at 20 hp)
+        assertTrue(BlazeCapRules.holdOff(cap + 40, cap, BlazeCapRules.HOLD_OFF_TICKS, false, 6.0, 20));
+        assertTrue(BlazeCapRules.holdOff(cap + 120, cap, BlazeCapRules.HOLD_OFF_TICKS, false, 4.5, 20));
+        assertTrue(BlazeCapRules.holdOff(cap + 40, cap, BlazeCapRules.HOLD_OFF_TICKS, false, 7.9, 14.5f));
+    }
+
+    @Test
+    public void aHighDangerOrLowHpBreaksTheHoldOff() {
+        long cap = 10000;
+        assertFalse(BlazeCapRules.holdOff(cap + 40, cap, BlazeCapRules.HOLD_OFF_TICKS, false, BlazeCapRules.HOLD_OFF_DANGER, 20));
+        assertEquals("danger", BlazeCapRules.holdBroken(cap + 40, cap, BlazeCapRules.HOLD_OFF_TICKS, false, 10.5, 20));
+        assertFalse(BlazeCapRules.holdOff(cap + 40, cap, BlazeCapRules.HOLD_OFF_TICKS, false, 4.5, BlazeCapRules.HOLD_OFF_HEALTH));
+        assertEquals("hp", BlazeCapRules.holdBroken(cap + 40, cap, BlazeCapRules.HOLD_OFF_TICKS, false, 4.5, 9));
+        assertFalse(BlazeCapRules.holdOff(cap + 40, cap, BlazeCapRules.HOLD_OFF_TICKS, true, 4.5, 20));
+        assertEquals("a hit", BlazeCapRules.holdBroken(cap + 40, cap, BlazeCapRules.HOLD_OFF_TICKS, true, 4.5, 20));
+        // (while it holds nothing broke it)
+        assertEquals(null, BlazeCapRules.holdBroken(cap + 40, cap, BlazeCapRules.HOLD_OFF_TICKS, false, 4.5, 20));
+    }
+
+    @Test
+    public void theHoldOffEndsAfterItsTimeAndIsNoneBeforeACap() {
+        long cap = 10000;
+        assertTrue(BlazeCapRules.holdOff(cap + BlazeCapRules.HOLD_OFF_TICKS - 1, cap, BlazeCapRules.HOLD_OFF_TICKS, false, 4.5, 20));
+        assertFalse(BlazeCapRules.holdOff(cap + BlazeCapRules.HOLD_OFF_TICKS, cap, BlazeCapRules.HOLD_OFF_TICKS, false, 4.5, 20));
+        assertEquals(null, BlazeCapRules.holdBroken(cap + BlazeCapRules.HOLD_OFF_TICKS, cap, BlazeCapRules.HOLD_OFF_TICKS, false, 10.5, 9));
+        assertFalse(BlazeCapRules.holdOff(cap, Long.MIN_VALUE, BlazeCapRules.HOLD_OFF_TICKS, false, 4.5, 20));
+        assertEquals(60 * 20, BlazeCapRules.HOLD_OFF_TICKS);
+    }
+
+    @Test
+    public void aHitAfterTheCapEndsTheHoldOffAndANewCapStartsItAgain() {
+        BlazeCapRules.HideHold h = new BlazeCapRules.HideHold();
+        assertFalse(h.holds(1000, 4.5, 20));
+        // (a hit before any cap counts for nothing)
+        h.hit();
+        h.capped(1000);
+        assertTrue(h.holds(1040, 4.5, 20));
+        assertEquals(58, h.secondsLeft(1040));
+        h.hit();
+        assertFalse(h.holds(1041, 4.5, 20));
+        assertEquals("a hit", h.broken(1041, 4.5, 20));
+        h.capped(5000);
+        assertTrue(h.holds(5001, 4.5, 20));
+        assertFalse(h.holds(5000 + BlazeCapRules.HOLD_OFF_TICKS, 4.5, 20));
+        assertEquals(0, h.secondsLeft(5000 + BlazeCapRules.HOLD_OFF_TICKS));
+    }
+
+    @Test
+    public void theHoldOffsLineAtMostOnceInFiveSeconds() {
+        BlazeCapRules.HideHold h = new BlazeCapRules.HideHold();
+        h.capped(1000);
+        assertTrue(h.line(1001));
+        assertFalse(h.line(1002));
+        assertFalse(h.line(1001 + BlazeCapRules.HOLD_LINE_TICKS - 1));
+        assertTrue(h.line(1001 + BlazeCapRules.HOLD_LINE_TICKS));
+        // (a new cap says it again at once)
+        h.capped(2000);
+        assertTrue(h.line(2001));
+    }
+
+    @Test
+    public void theNookIsEveryCellWithinFourOfTheBarredOne() {
+        BlazeCapRules.Nooks n = new BlazeCapRules.Nooks();
+        assertTrue(n.isEmpty());
+        assertFalse(n.barred(6187, 66, 811));
+        assertTrue(n.keys().isEmpty());
+        n.bar(6188, 66, 811);
+        assertFalse(n.isEmpty());
+        // (B:7's nook, 6186 to 6190 at 66 811, all of it)
+        for (int x = 6186; x <= 6190; x++) assertTrue(n.barred(x, 66, 811));
+        assertTrue(n.barred(6192, 66, 811));
+        assertFalse(n.barred(6193, 66, 811));
+        assertFalse(n.barred(6191, 69, 814));
+        // (the next hiding place B:7 found, 15 blocks off, stays allowed)
+        assertFalse(n.barred(6178, 66, 801));
+        assertTrue(n.keys().contains(BlazeCover.key(6186, 66, 811)));
+        assertTrue(n.keys().contains(BlazeCover.key(6188, 70, 811)));
+        assertFalse(n.keys().contains(BlazeCover.key(6178, 66, 801)));
+        assertFalse(n.keys().contains(BlazeCover.key(6193, 66, 811)));
+        // (a second nook adds its cells; the same one twice changes nothing)
+        int before = n.keys().size();
+        n.bar(6188, 66, 811);
+        assertEquals(before, n.keys().size());
+        n.bar(6178, 66, 801);
+        assertTrue(n.barred(6178, 66, 801));
+        assertTrue(n.keys().contains(BlazeCover.key(6178, 66, 801)));
+        assertEquals(2 * before, n.keys().size());
     }
 }

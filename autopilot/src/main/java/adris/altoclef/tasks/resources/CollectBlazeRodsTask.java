@@ -1054,7 +1054,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 && farPick(mod, cells, sx, sy, sz)) return;
         // (Tuning box_home: the box before a corner, the corner only when no box fits, below)
         boolean homeFirst = adris.altoclef.util.helpers.BoxHomeRules.on();
-        int[][] corner = _noCorner || campsOff || homeFirst ? null : cornerSpot(mod, cells, sx, sy, sz, _shutOut.isEmpty() ? null : notShut(), true);
+        int[][] corner = _noCorner || campsOff || homeFirst ? null : cornerSpot(mod, cells, sx, sy, sz, _shutOut.isEmpty() && !_fight.nooksBarred() ? null : notShut(), true);
         if (corner != null) {
             _campSpot = new BlockPos(corner[0][0], corner[0][1], corner[0][2]);
             BlockPos peek = new BlockPos(corner[1][0], corner[1][1], corner[1][2]);
@@ -1084,7 +1084,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Debug.logInternal("blaze camp: no corner and no pillbox (spawner " + _foundBlazeSpawner.toShortString() + ")");
         }
         // (Tuning box_home: no box fits, so a corner after all)
-        corner = homeFirst && !_noCorner && !campsOff ? cornerSpot(mod, cells, sx, sy, sz, _shutOut.isEmpty() ? null : notShut(), true) : null;
+        corner = homeFirst && !_noCorner && !campsOff ? cornerSpot(mod, cells, sx, sy, sz, _shutOut.isEmpty() && !_fight.nooksBarred() ? null : notShut(), true) : null;
         if (corner != null) {
             _campSpot = new BlockPos(corner[0][0], corner[0][1], corner[0][2]);
             BlockPos peek = new BlockPos(corner[1][0], corner[1][1], corner[1][2]);
@@ -1489,7 +1489,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         boolean box = _pillbox != null && _pillboxCornered && camp.equals(_pillbox.cell());
         if (looks >= 0) {
             Debug.logInternal("lure cap: " + _campLureWatch.ticks() / 20 + " s with no blaze in reach, " + how + " (" + looks + " looks), the "
-                    + (box ? "pillbox at " : "camp's corner at ") + camp.toShortString() + " dropped, the camp picked again without it");
+                    + (box ? "pillbox at " : "camp's corner at ") + camp.toShortString() + " dropped, the camp picked again without it, the nook barred, no new hide for "
+                    + adris.altoclef.util.helpers.BlazeCapRules.HOLD_OFF_TICKS / 20 + " s");
+            // (the hide's cap barred its nook and started the hold-off itself)
+            _fight.capNook(mod.getPlayer(), camp, mod.getWorld().getGameTime());
         } else {
             Debug.logInternal("lure cap: the " + (box ? "pillbox at " : "camp's corner at ") + camp.toShortString() + " dropped (" + how
                     + "), the camp picked again without it");
@@ -1516,8 +1519,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // the spawner whose camp was left with nothing to take its place: no corner and no box there any more
     private BlockPos _campsOffFor;
 
+    // (and Tuning lure_cap: never in a nook a cap barred, BlazeFight.nookBarred)
     private java.util.function.Predicate<BlockPos> notShut() {
-        return p -> !_shutOut.contains(p);
+        return p -> !_shutOut.contains(p) && !_fight.nookBarred(p);
     }
 
     // the spawn eyes in an open cell, as the camp's pick reads them
@@ -1562,7 +1566,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             for (BlockPos p : _shutOut) shut.add(BlazeCover.key(p.getX(), p.getY(), p.getZ()));
             // (Tuning box_home: a box where the buddy stands or none, never a walk round to another corner)
             other = _noCorner || adris.altoclef.util.helpers.BoxHomeRules.on() ? null : cornerSpot(mod, cells, sx, sy, sz,
-                    p -> adris.altoclef.util.helpers.CampReentryRules.cornerAllowed(p.getX(), p.getY(), p.getZ(), shut, reach), false);
+                    p -> adris.altoclef.util.helpers.CampReentryRules.cornerAllowed(p.getX(), p.getY(), p.getZ(), shut, reach) && !_fight.nookBarred(p), false);
             if (other != null) {
                 otherLure = BlazeLureTask.of(cells, new BlockPos(other[0][0], other[0][1], other[0][2]), new BlockPos(other[1][0], other[1][1], other[1][2]));
                 if (otherLure == null) other = null;
