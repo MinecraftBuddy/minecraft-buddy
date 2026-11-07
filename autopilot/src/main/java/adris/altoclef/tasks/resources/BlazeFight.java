@@ -117,6 +117,13 @@ final class BlazeFight {
     private boolean open;
     private boolean rushNow;
     private int rushKills;
+    // the target as picked while the open attack or the rush held: no leash or let-go rule of the corner's applies to it till
+    // it is dead, gone or out of reach (FightOpenRules.leashed)
+    private Blaze freeTarget;
+
+    private boolean leashed() {
+        return FightOpenRules.leashed(open, rushNow, target != null && target == freeTarget);
+    }
 
     void spawner(BlockPos s) {
         spawner = s;
@@ -132,9 +139,10 @@ final class BlazeFight {
     private void noteOpen(AltoClef mod, LocalPlayer player, long now) {
         // (not with box_home either: its box keeps its own rules, the fight from inside it at the opening)
         boolean on = FightOpenRules.openOn() && !fireproofCamp(player) && !adris.altoclef.util.helpers.BoxHomeRules.on();
-        boolean atSpawner = on && spawner != null && player.position().distanceTo(Vec3.atCenterOf(spawner)) <= FightOpenRules.OPEN_SPAWNER_RANGE;
-        int within = atSpawner ? blazesWithin(mod, FightOpenRules.OPEN_RADIUS) : 0;
-        open = openLatch.update(now, atSpawner, FightOpenRules.open(within));
+        double distance = spawner == null ? Double.POSITIVE_INFINITY : player.position().distanceTo(Vec3.atCenterOf(spawner));
+        boolean chasing = target != null && target == freeTarget && target.isAlive();
+        int within = on ? blazesWithin(mod, FightOpenRules.OPEN_RADIUS) : 0;
+        open = openLatch.update(now, on, distance, chasing, within);
         if (openLatch.changed()) Debug.logInternal(FightOpenRules.openLine(open, within));
     }
 
@@ -360,6 +368,11 @@ final class BlazeFight {
             if (form == adris.altoclef.util.helpers.FireResTradeRules.Form.DRINK
                     || (thrown && form == adris.altoclef.util.helpers.FireResTradeRules.Form.THROW)) n += inventory.getItem(i).getCount();
         }
+        // (and one on the cursor: a swap into the hand goes through it, and the rush must not end for that tick)
+        var carried = p.containerMenu == null ? null : p.containerMenu.getCarried();
+        var cform = adris.altoclef.util.helpers.FireResTradeRules.form(carried);
+        if (cform == adris.altoclef.util.helpers.FireResTradeRules.Form.DRINK
+                || (thrown && cform == adris.altoclef.util.helpers.FireResTradeRules.Form.THROW)) n += carried.getCount();
         return n;
     }
 
@@ -737,8 +750,8 @@ final class BlazeFight {
         // (the buddy's fork, Tuning box_home: the box is home, a blaze is fought from inside it, at the opening: past the leash
         // every blaze is let go, one in the bite's reach too, BoxHomeRules.letGo)
         boolean home = pillboxPlanned && adris.altoclef.util.helpers.BoxHomeRules.on();
-        // (Tuning open_attack: no leash while it holds)
-        if (next == Mode.KILL && held != null && target != null && !open && adris.altoclef.util.helpers.BoxHomeRules.letGo(home,
+        // (Tuning open_attack, fireproof_rush: no leash while either holds, nor for a blaze picked under them)
+        if (next == Mode.KILL && held != null && target != null && leashed() && adris.altoclef.util.helpers.BoxHomeRules.letGo(home,
                 player.position().distanceTo(Vec3.atBottomCenterOf(held)), leash(), player.distanceTo(target) > BITE_RANGE)) {
             noteLetGo(String.format(java.util.Locale.ROOT, "we are %.1f from the corner", player.position().distanceTo(Vec3.atBottomCenterOf(held))), player);
             target = null;
@@ -1170,8 +1183,8 @@ final class BlazeFight {
         wallOf = corner;
         // (in the pocket only a blaze in our view is ours: the walk at one behind its wall broke the wall. in view is any point of
         // its body from our eyes, or biting: by eye to eye only, one in the door at 1.7 blocks that bit was let go each tick)
-        // (Tuning open_attack: not while it holds, the blaze out there is the one to go after)
-        if (!open && target != null && corner != null && BlazeLureTask.in(player.position(), corner)
+        // (Tuning open_attack, fireproof_rush: not while either holds, nor for a blaze picked under them, FightOpenRules.leashed)
+        if (leashed() && target != null && corner != null && BlazeLureTask.in(player.position(), corner)
                 && player.distanceTo(target) > BITE_RANGE && !BlazeCover.bodySeen(mod.getWorld(), player.getEyePosition(), target, player)) {
             noteLetGo("out of our view in the pocket", player);
             target = null;
@@ -1201,8 +1214,8 @@ final class BlazeFight {
             tripSince = Long.MIN_VALUE;
         }
         // (on the leash: the one we are after is let go once it is CORNER_LEASH from the corner)
-        // (Tuning open_attack: no leash while it holds)
-        if (!open && cornerHold && target != null && target.position().distanceTo(Vec3.atBottomCenterOf(corner)) > adris.altoclef.util.helpers.Tuning.get("corner_leash", CORNER_LEASH)) {
+        // (Tuning open_attack, fireproof_rush: no leash while either holds, nor for a blaze picked under them)
+        if (leashed() && cornerHold && target != null && target.position().distanceTo(Vec3.atBottomCenterOf(corner)) > adris.altoclef.util.helpers.Tuning.get("corner_leash", CORNER_LEASH)) {
             noteLetGo("past the leash, " + Math.round(target.position().distanceTo(Vec3.atBottomCenterOf(corner))) + " from the corner", player);
             target = null;
         }
@@ -1231,13 +1244,13 @@ final class BlazeFight {
                         // (from a pillbox only one the sword reaches from it: one "in reach" six from the corner was walked to
                         // and let go by the leash out of the box, again and again, bent-e run 1, dead on the bridge)
                         // (Tuning open_attack: neither this nor the corner's sight below while it holds; the box's build stays)
-                        && (open || !pillboxPlanned || corner == null || distance <= adris.altoclef.util.helpers.Tuning.get("pillbox_reach", PILLBOX_REACH))
+                        && (open || rushNow || blaze == freeTarget || !pillboxPlanned || corner == null || distance <= adris.altoclef.util.helpers.Tuning.get("pillbox_reach", PILLBOX_REACH))
                         // (the buddy's fork, Tuning fireproof_hold, blocks: under fire resistance only one that close, the rest
                         // come to the camp. the fireballs do little then, and the chase to blaze after blaze ended "no path"
                         // and a ban each, 54 in five minutes with blazes in sight and no rod, steering 67)
                         && (fireproofHold(player) <= 0 || distance <= fireproofHold(player))
                         && (fireproofReach(player) <= 0 || blaze.getY() - player.getY() <= fireproofReach(player))
-                        && (open || !cornerHold || blaze == target || distance <= BITE_RANGE || (blaze.getEyePosition().distanceTo(cornerEye) <= CORNER_REACH
+                        && (open || rushNow || !cornerHold || blaze == target || distance <= BITE_RANGE || (blaze.getEyePosition().distanceTo(cornerEye) <= CORNER_REACH
                         && (!BlazeCover.hidden(mod.getWorld(), List.of(blaze.getEyePosition()), seeCell.getX(), seeCell.getY(), seeCell.getZ(), player)
                         || BlazeCover.bodySeen(mod.getWorld(), player.getEyePosition(), blaze, player))));
                 if (inReach) candidates.add(blaze);
@@ -1289,6 +1302,7 @@ final class BlazeFight {
             if (biter != null && FightOpenRules.biterFirst(was, close, BITE_RANGE)) {
                 Debug.logInternal(String.format(java.util.Locale.ROOT, "rush: a blaze bites at %.1f, that one first (the one at %.1f waits)", close, was));
                 target = biter;
+                freeTarget = biter;
                 targetTracked = true;
                 targetInReach = true;
                 outOfReachSince = Long.MIN_VALUE;
@@ -1298,8 +1312,8 @@ final class BlazeFight {
         outOfReachSince = Long.MIN_VALUE;
         Blaze nearest = null;
         double best = Double.POSITIVE_INFINITY;
-        // (Tuning open_attack: no leash while it holds)
-        boolean leashHeld = !open && now < leashHoldUntil && now >= leashHoldUntil - LEASH_HOLD_TICKS;
+        // (Tuning open_attack, fireproof_rush: no leash hold while either holds)
+        boolean leashHeld = !open && !rushNow && now < leashHoldUntil && now >= leashHoldUntil - LEASH_HOLD_TICKS;
         for (Blaze blaze : candidates) {
             double d = player.distanceToSqr(blaze);
             if (leashHeld && d > BITE_RANGE * BITE_RANGE) continue;
@@ -1311,6 +1325,7 @@ final class BlazeFight {
         target = nearest;
         targetTracked = nearest != null;
         targetInReach = nearest != null;
+        freeTarget = open || rushNow ? nearest : null;
     }
 
     // what is left of the effect, for the rush's lines
