@@ -875,11 +875,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 _brewWaitUntil = WorldHelper.getTicks() + BREW_WAIT_TICKS;
                 return null;
             }
+            // (a brew begun in the nether that has lost its cream: no far search for one, back to the blazes)
+            boolean creamGone = !_brew.isFinished(mod) && WorldHelper.getCurrentDimension() == Dimension.NETHER
+                    && BrewFireResistanceTask.wantsCream(mod);
             if (_brew.isFinished(mod) && !boxed) {
                 _brewSince = -1;
-            } else if (WorldHelper.getTicks() - _brewSince > BREW_BUDGET_TICKS) {
-                Debug.logMessage("Brewing fire resistance took too long, back to the blazes");
-                Debug.logInternal("brew: given up, too long");
+            } else if (WorldHelper.getTicks() - _brewSince > BREW_BUDGET_TICKS || creamGone) {
+                Debug.logMessage(creamGone ? "No magma cream left for the brew, back to the blazes" : "Brewing fire resistance took too long, back to the blazes");
+                Debug.logInternal(creamGone ? "brew: given up, no magma cream for the stand" : "brew: given up, too long");
                 _brewSince = -1;
                 _brewGaveUp = true;
                 if (boxed) {

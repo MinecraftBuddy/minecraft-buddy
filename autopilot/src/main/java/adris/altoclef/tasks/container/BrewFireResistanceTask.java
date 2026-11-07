@@ -98,6 +98,14 @@ public class BrewFireResistanceTask extends ResourceTask {
         return false;
     }
 
+    // a brew that wants a magma cream with none in the bag. the catalogue's fetch for it searches the basalt deltas chunk by
+    // chunk and walks hundreds of blocks from the fortress (live watch, 7 Nov 2026: 400 blocks in three minutes with the
+    // bottles left in the stand), so the caller gives the brew up instead of letting this fetch run
+    public static boolean wantsCream(AltoClef mod) {
+        BrewRules.Stage stage = pending() ? _standStage : bagStage(mod);
+        return BrewRules.needsCream(stage) && !mod.getItemStorage().hasItem(Items.MAGMA_CREAM);
+    }
+
     @Override
     protected void onResourceStart(AltoClef mod) {
     }
