@@ -140,7 +140,7 @@ updates.
 
 Every panel looks once an hour at the newest [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases) on
 GitHub, without a login. When the release is newer than the buddy's image, the version under the header's buttons gets
-an arrow, and Settings, Status says what is out, with a link to what changed.
+an arrow, and in Settings, Status the version gets an update link next to the release notes.
 
 A click on the version with the arrow, or the update button in Settings, Status, asks first. The buddy's own
 Watchtower then pulls the new image and starts that buddy again: the buddy is offline for a minute or two. Other buddies

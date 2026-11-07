@@ -198,6 +198,8 @@ label.pfrow select { flex: 1 1 auto; }
 .back { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 2; box-shadow: 0 6px 18px rgba(0,0,0,.45); }
 .at { font: 12px var(--mono); color: #e0a173; background: none; border: 0; padding: 0; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
 .at:hover { color: #f0bb92; }
+.lk { font: inherit; color: #e0a173; background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+.lk:hover { color: #f0bb92; } .lk:disabled { color: var(--muted); cursor: default; }
 .needs { background: #221d12; border-color: #5a4a22; gap: 8px; }
 .needs h2 { color: #ead48f; }
 .need { display: flex; gap: 10px; align-items: baseline; padding: 8px 10px; border-radius: 8px; background: #2a2416; color: #f1e6c4; font-size: 13.5px; }
@@ -3043,13 +3045,18 @@ function gRender() {
     if (!g.java) row('bad', 'No Java in the container: the image has Temurin 25');
     row(g.headlessmc && g.minecraft ? 'ok' : 'warn', g.headlessmc ? 'HeadlessMC ' + esc(g.headlessmc) + ' · Minecraft ' + esc(s.minecraft) + ' with ' + esc(s.loader) + (g.minecraft ? '' : ' (not installed)') : 'The game is not installed yet');
     if (g.headlessmc) row(g.mods_missing.length ? 'warn' : 'ok', g.mods_missing.length ? 'Mods missing: ' + esc(g.mods_missing.join(', ')) : 'Mods (' + g.mods.length + '): ' + esc(g.mods.map(f => f.replace(/\.jar$/, '')).join(', ')));
-    row(g.buddy ? 'ok' : 'warn', g.buddy ? 'The buddy ' + esc(g.buddy) : 'The buddy\'s mod is not installed');
+    if (!g.buddy) row('warn', 'The buddy\'s mod is not installed');
     if (g.docker.update && g.docker.update.done) row(g.docker.update.error || (g.docker.update.summary || {}).skipped || (g.docker.update.summary || {}).failed ? 'warn' : 'ok', 'Last update: ' + esc(imageUpdateText(g.docker.update)) + ' (' + new Date(g.docker.update.done * 1000).toLocaleString() + ')');
-    const rel = g.docker.release || {};
-    row(g.docker.updater ? (rel.newer ? 'warn' : 'ok') : 'warn', 'Image ' + esc(g.docker.version || '?') + (g.docker.updater ? ' · updates via Watchtower' : ' · no updater (start it with compose.yaml to enable updates)'));
-    if (rel.newer) row('warn', 'Version ' + esc(rel.latest) + ' is out' + (rel.url ? ': <a href="' + esc(rel.url) + '" target="_blank" rel="noopener noreferrer">what changed</a>' : ''));
-    else if (rel.latest) row('ok', 'Up to date: ' + esc(rel.latest) + ' is the newest release');
-    else if (rel.error) row('warn', 'Could not look for a newer version: ' + esc(rel.error));
+    // One line for the version: the image's, the mod's only where a jar put in by hand differs from it, an update when
+    // a newer release is out, and the notes of that release (or of this version when it is the newest).
+    const rel = g.docker.release || {}, up = g.docker.updater, v = g.docker.version || g.buddy || '?';
+    let t = 'Version ' + esc(v) + (g.buddy && g.buddy !== v ? ', mod ' + esc(g.buddy) : '');
+    if (rel.newer && up) t += ' (<button type="button" class="lk" data-g="image"' + (busy ? ' disabled' : '') + '>update</button>)';
+    if (rel.url && (rel.newer || rel.latest === v)) t += ' (<a href="' + esc(rel.url) + '" target="_blank" rel="noopener noreferrer">release notes</a>)';
+    if (rel.newer && !up) t += ' · ' + esc(rel.latest) + ' is out';
+    if (!up) t += ' · no updater: start it with compose.yaml to enable updates';
+    else if (!rel.newer && rel.error) t += ' · could not look for a newer version: ' + esc(rel.error);
+    row(up && !rel.newer && !rel.error ? 'ok' : 'warn', t);
     row(g.accounts.length ? 'ok' : 'warn', g.accounts.length ? 'Account: ' + esc(g.accounts.join(', ')) : 'No Minecraft account yet: log in');
     row(s.server ? 'ok' : 'warn', s.server ? 'Server: ' + esc(s.server) : 'No server yet');
     if (sv.error) row('bad', 'Service: ' + esc(sv.error));

@@ -3,6 +3,10 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.25
+
+- Settings, Status shows the version on one line: an update link when a newer one is out, and the release notes.
+
 ## 0.5.24
 
 - Scrolling up in the panel's chat now loads 200 older messages at a time, also when the buddy's activity filled the
