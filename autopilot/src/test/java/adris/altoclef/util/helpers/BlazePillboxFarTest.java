@@ -142,4 +142,58 @@ public class BlazePillboxFarTest {
         assertNotNull(s);
         assertTrue(BlazePillbox.spawnerDistance(s[0], s[1], s[2], 0, 64, 0) <= rule.depth());
     }
+
+    // the world's blocks where Cells says only SOLID (BlazePillbox.Sound): Cells everywhere, except the cells given
+    static BlazePillbox.Sound soundBut(int[] noWall, int[] noFace) {
+        return new BlazePillbox.Sound() {
+            @Override
+            public boolean wall(int x, int y, int z) {
+                return !(noWall != null && x == noWall[0] && y == noWall[1] && z == noWall[2]) && FORT.at(x, y, z) == Cell.SOLID;
+            }
+
+            @Override
+            public boolean face(int x, int y, int z) {
+                return !(noFace != null && x == noFace[0] && y == noFace[1] && z == noFace[2]) && FORT.at(x, y, z) == Cell.SOLID;
+            }
+        };
+    }
+
+    // the first live far box (7 Nov 2026): a cell of its walls read SOLID (Baritone's walk rule: a fire on the floor) but was
+    // no block, the high block over it had nothing to go against, and the box was given up two short. the world's own
+    // blocks agreeing with Cells, the box is the one Cells alone gives; a wall cell of it that is no block, another box
+    @Test
+    public void aWallCellThatIsNoBlockIsNoWall() {
+        List<Vec3> eyes = eyes(FORT);
+        BlazePillbox.Far plain = BlazePillbox.planFar(FORT, START, 0, 64, 0, eyes, BlazePillbox.FarRule.DEFAULT, BRICKS);
+        BlazePillbox.Far agreed = BlazePillbox.planFar(FORT, START, 0, 64, 0, eyes, BlazePillbox.FarRule.DEFAULT, BRICKS, soundBut(null, null));
+        assertArrayEquals(new int[]{19, 64, 2}, plain.plan().cell());
+        assertArrayEquals(plain.plan().cell(), agreed.plan().cell());
+        assertTrue(BlazePillbox.sound(plain.plan(), soundBut(null, null)));
+        // (F's far wall, the corridor's own wall at z 4, which the box places nothing in)
+        int[] fire = {19, 64, 4};
+        BlazePillbox.Sound s = soundBut(fire, null);
+        assertTrue(!BlazePillbox.sound(plain.plan(), s));
+        BlazePillbox.Far far = BlazePillbox.planFar(FORT, START, 0, 64, 0, eyes, BlazePillbox.FarRule.DEFAULT, BRICKS, s);
+        assertNotNull(far);
+        assertTrue(BlazePillbox.whyNotFar(), BlazePillbox.whyNotFar().contains("not sound"));
+        assertTrue(!Arrays.equals(far.plan().cell(), plain.plan().cell()));
+        assertTrue(BlazePillbox.sound(far.plan(), s));
+    }
+
+    // a low block the box places on what is no whole block (a slab, a stair: its top is no face at the block's top), and the
+    // block on B's back wall that B's roof goes against: the box is planned elsewhere
+    @Test
+    public void aLowBlockNeedsAWholeBlockUnderIt() {
+        List<Vec3> eyes = eyes(FORT);
+        BlazePillbox.Plan plain = BlazePillbox.planFar(FORT, START, 0, 64, 0, eyes, BlazePillbox.FarRule.DEFAULT, BRICKS).plan();
+        // (the box places the low block at 18 64 2, west of B, on the floor at 18 63 2)
+        assertTrue(plain.blocks().stream().anyMatch(b -> Arrays.equals(b, new int[]{18, 64, 2})));
+        BlazePillbox.Sound slab = soundBut(null, new int[]{18, 63, 2});
+        assertTrue(!BlazePillbox.sound(plain, slab));
+        BlazePillbox.Far far = BlazePillbox.planFar(FORT, START, 0, 64, 0, eyes, BlazePillbox.FarRule.DEFAULT, BRICKS, slab);
+        assertNotNull(far);
+        assertTrue(BlazePillbox.sound(far.plan(), slab));
+        // (no world, no check: as before)
+        assertTrue(BlazePillbox.sound(plain, null));
+    }
 }
