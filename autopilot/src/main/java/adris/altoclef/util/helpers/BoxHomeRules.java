@@ -125,6 +125,24 @@ public final class BoxHomeRules {
         return null;
     }
 
+    // ---- the box given up (realfort-pair-home2 B:1, 7 Nov 2026): the box was picked 120 blocks off the spawner and its
+    // 2400-tick clock ran out on the walk there (a hoglin, a wither skeleton, a blaze run, a stuck loop), not one block
+    // placed; the give-up barred boxes at that spawner, and the buddy fought in the open and died. so the box's clock starts
+    // at its cell, and a box given up is not the end: the next one goes up where the buddy stands (camp_reentry's
+    // pillboxHere), at most RETRIES more at one spawner. the far box (far_box) has its own way back, the near camp
+
+    // boxes tried again at one spawner after a give-up
+    public static final int RETRIES = 2;
+    // a box where the buddy stands is looked for this often while a try is owed (ticks): a cell's plans are not free
+    public static final long RETRY_LOOK_TICKS = 20;
+
+    // the try a give-up leaves at a spawner with made tries made there already: 1..RETRIES, or 0 for none (no box there any
+    // more, the camp as without one)
+    public static int retry(boolean farBox, int made) {
+        if (farBox || made >= RETRIES) return 0;
+        return made + 1;
+    }
+
     // a fire resistance potion (traded or brewed) that would go down now waits: it goes down in the box with a blaze near,
     // when a task asks for it (the brew box drinks its brew inside), in lava, or on fire at holdHp or less
     public static boolean holdPotion(boolean asked, boolean inLava, boolean onFire, double health, double holdHp, boolean inBox, boolean blazeNear) {
