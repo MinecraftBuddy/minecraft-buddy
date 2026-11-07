@@ -102,6 +102,17 @@ public class MobReachability {
         return isRanged(mob) && seesPlayer(mod, mob);
     }
 
+    // the shadow danger meter's question, with no side effects (no verdict, stall sample, sight or log line is made here, so
+    // asking changes nothing anyone else reads): the last verdict while it is fresh, else the plain geometry (a mob far above
+    // or below within a few blocks sideways has no way)
+    public boolean wayFor(Mob mob, LocalPlayer player, long now) {
+        if (isUngated(mob)) return true;
+        Cached cached = _verdicts.get(mob.getId());
+        if (cached != null && now >= cached.tick && now - cached.tick < FORGET_AFTER) return cached.verdict.reachable();
+        if (mob instanceof Spider) return true;
+        return !MobReachRules.isVerticallyOut(mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ());
+    }
+
     public void setFleeing(boolean fleeing) {
         _fleeing = fleeing;
     }

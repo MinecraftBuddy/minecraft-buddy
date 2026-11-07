@@ -240,6 +240,8 @@ public class AltoClef {
         _edgeBrake.tick(this, _userTaskChain.isActive());
         // (the buddy's fork: the snapshots of the nether fights, after every chain had its say this tick; off unless tuned on)
         adris.altoclef.util.snapshot.Snapshots.tick(this);
+        // (the buddy's fork: the danger meter in shadow, logged only; nothing reads it)
+        adris.altoclef.util.helpers.DangerShadow.tick(this);
 
         _inputControls.onTickPost();
     }
