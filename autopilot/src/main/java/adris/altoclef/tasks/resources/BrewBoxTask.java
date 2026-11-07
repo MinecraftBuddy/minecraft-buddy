@@ -72,8 +72,11 @@ final class BrewBoxTask extends Task {
     private int tries;
     private long tryTicks;
     private long buildStartedAt;
-    // every cell a plan put a block in, BlazeCover.key (the door is one of ours)
+    // every cell a plan put a block in, BlazeCover.key (the door is one of ours), and the same cells as positions
     private final Set<Long> placed = new HashSet<>();
+    private final Set<BlockPos> placedAt = new java.util.LinkedHashSet<>();
+    // the world of the last tick, for fail()
+    private Level tickLevel;
     private boolean failed;
     private long stepTicks;
     private long standTicks;
@@ -117,6 +120,10 @@ final class BrewBoxTask extends Task {
     private long riseAt;
     private float bestHp;
     private String healWhy = "";
+    // a sealed heal that failed with blocks of its own standing breaks them (OPEN) before it is over: why it failed, null
+    // before. realfort-pair-home B:2 (7 Nov 2026): two of three blocks went in, the third never, and the two walled the look
+    // out for the last twelve game minutes of the run; no blaze came to the opening and every trip out for a rod found no way
+    private String unsealWhy;
 
     static BrewBoxTask heal(BlockPos spawner, int[][] pillbox) {
         return new BrewBoxTask(null, spawner, java.util.Set::of, pillbox, true);
@@ -130,6 +137,11 @@ final class BrewBoxTask extends Task {
     // still planning (no box yet)
     boolean preparing() {
         return stage == Stage.PREP;
+    }
+
+    // a failed seal breaking the blocks it placed (the rods task gives it the tick wherever the buddy is: OPEN_TICKS at most)
+    boolean unsealing() {
+        return stage == Stage.OPEN && unsealWhy != null;
     }
 
     // why the sealed heal ended (BoxHomeRules.healDone), empty before
@@ -264,6 +276,7 @@ final class BrewBoxTask extends Task {
     protected Task onTick(AltoClef mod) {
         long now = mod.getWorld().getGameTime();
         Level level = mod.getWorld();
+        tickLevel = level;
         switch (stage) {
             case PREP -> {
                 // (no stand made out here: the box first, the stand at a table inside it, CRAFT. made before the box, its
@@ -489,6 +502,7 @@ final class BrewBoxTask extends Task {
                     if (!solid(level, p)) continue;
                     if (now - openSince > OPEN_TICKS || now < openSince) {
                         Debug.logInternal(what() + ": not opened in " + OPEN_TICKS / 20 + " s, the walk on digs out");
+                        if (unsealWhy != null) failed = true;
                         stage = Stage.DONE;
                         return null;
                     }
@@ -501,7 +515,8 @@ final class BrewBoxTask extends Task {
                 }
                 // (the sealed heal: open, and the buddy stays in the pillbox)
                 if (heal) {
-                    Debug.logInternal("heal box: opened at " + pos(door.cells().get(0)).toShortString());
+                    Debug.logInternal("heal box: opened at " + pos(door.cells().get(0)).toShortString() + (unsealWhy != null ? " after the failed seal" : ""));
+                    if (unsealWhy != null) failed = true;
                     stage = Stage.DONE;
                     return null;
                 }
@@ -555,9 +570,26 @@ final class BrewBoxTask extends Task {
     }
 
     private Task fail(String why) {
+        BrewFireResistanceTask.pinBoxStand(null);
+        // (the sealed heal: the blocks it placed that stand are broken first, so the look out is open again; the rods task
+        // retries the seal after its wait)
+        if (heal && unsealWhy == null && tickLevel != null) {
+            List<int[]> standing = new ArrayList<>();
+            for (BlockPos p : placedAt) if (solid(tickLevel, p)) standing.add(new int[]{p.getX(), p.getY(), p.getZ()});
+            if (!standing.isEmpty()) {
+                unsealWhy = why;
+                Debug.logInternal(what() + ": failed (" + why + "), opening the " + standing.size() + " blocks it placed");
+                doors = List.of(new BrewBox.Door(standing, null, false));
+                doorAt = 0;
+                openSince = tickLevel.getGameTime();
+                breaking = null;
+                breakingAt = null;
+                stage = Stage.OPEN;
+                return null;
+            }
+        }
         failed = true;
         stage = Stage.DONE;
-        BrewFireResistanceTask.pinBoxStand(null);
         Debug.logInternal(what() + ": failed (" + why + ")" + (heal ? ", no seal" : pillboxBack != null || waitOnFail ? ", the brew waits" : ", the open brew"));
         return null;
     }
@@ -565,7 +597,10 @@ final class BrewBoxTask extends Task {
     private void startTry(BrewBox.Box plan) {
         box = plan;
         adris.altoclef.util.snapshot.Snapshots.chose("brewbox", plan.back()).with("front", plan.front()).blocks(plan.blocks());
-        for (int[] b : plan.blocks()) placed.add(BlazeCover.key(b[0], b[1], b[2]));
+        for (int[] b : plan.blocks()) {
+            placed.add(BlazeCover.key(b[0], b[1], b[2]));
+            placedAt.add(pos(b));
+        }
         builder = new BlazePillboxTask(plan.build(), false);
         tries++;
         tryTicks = 0;
