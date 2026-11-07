@@ -277,4 +277,55 @@ public class StandModelTest {
             assertTrue("an evaluation took " + mean + " us", mean < 5000);
         }
     }
+
+    // ---- steering 94: under fire resistance a blaze counts for its bite alone (its fireballs are fire damage, refused before
+    // any knock); a ghast's blast is no fire damage and stays
+
+    private static Cost here(Cells cells, Buddy b, List<Mob> mobs) {
+        List<Cost> all = StandModel.costs(View.of(cells), b, mobs, null, Query.of().radius(0));
+        for (Cost c : all) {
+            if (c.x() == (int) Math.floor(b.x()) && c.z() == (int) Math.floor(b.z())) return c;
+        }
+        throw new AssertionError("no cost where the buddy stands: " + all);
+    }
+
+    @Test
+    public void underFireResistanceABlazesFireballsCostNothing() {
+        Room room = new Room();
+        List<Mob> blaze = List.of(mob("blaze", 10.5, 66, 0.5));
+        assertTrue("without the potion its shots count", here(room, at(0.5, 64, 0.5), blaze).rate() > 0);
+        assertEquals(0, here(room, new Buddy(0.5, 64, 0.5, true), blaze).rate(), 1e-9);
+        // (the model as before, fr_free_shots 0: the shot kept, the burn gone)
+        double kept = here(room, new Buddy(0.5, 64, 0.5, true, false), blaze).rate();
+        assertTrue("the old model kept the shot: " + kept, kept > 0);
+        assertTrue(kept < here(room, at(0.5, 64, 0.5), blaze).rate());
+    }
+
+    @Test
+    public void underFireResistanceABlazesBiteStillCounts() {
+        Room room = new Room();
+        List<Mob> biting = List.of(mob("blaze", 2.0, 64, 0.5));
+        assertTrue(here(room, new Buddy(0.5, 64, 0.5, true), biting).rate() > 0);
+    }
+
+    @Test
+    public void underFireResistanceAGhastStillCounts() {
+        Room room = new Room();
+        List<Mob> ghast = List.of(mob("ghast", 0.5, 70, 24.5));
+        double off = here(room, at(0.5, 64, 0.5), ghast).rate();
+        assertTrue(off > 0);
+        assertEquals(off, here(room, new Buddy(0.5, 64, 0.5, true), ghast).rate(), 1e-9);
+    }
+
+    @Test
+    public void underFireResistanceABlazesPushOffTheRimCostsNothing() {
+        // 1.5 from the rim (a drop of 23 onto lava), a blaze 11 south sees the buddy: its ball's knock north is a fall without
+        // the potion, and was one in the old model under it; the effect refuses the ball before the knock
+        Cells world = rim();
+        List<Mob> blaze = List.of(mob("blaze", 0.5, 66, 6.5));
+        assertTrue("the old model: " + here(world, new Buddy(0.5, 64, -4.5, true, false), blaze).breakdown(),
+                here(world, new Buddy(0.5, 64, -4.5, true, false), blaze).risk() > 0);
+        assertTrue(here(world, at(0.5, 64, -4.5), blaze).risk() > 0);
+        assertEquals(0, here(world, new Buddy(0.5, 64, -4.5, true), blaze).risk(), 1e-9);
+    }
 }

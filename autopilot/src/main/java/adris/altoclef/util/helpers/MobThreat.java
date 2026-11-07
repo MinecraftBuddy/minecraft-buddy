@@ -116,6 +116,12 @@ public record MobThreat(String kind, double width, double height, double eye, do
                 2 * hit, w / 2 + 0.83 + 0.3, false, 0, 0, 0, 0, hit, SafeStand.HIT, false);
     }
 
+    // its shots are fire damage alone, which fire resistance refuses before any knock: a blaze's small fireballs. a ghast's
+    // ball is fire damage too but its blast is not, so a ghast stays
+    boolean fireShot() {
+        return kind.equals("blaze");
+    }
+
     // the share of its shots that land at this distance (eyes to eyes)
     double aimShare(double distance) {
         if (aim <= 0) return 0;

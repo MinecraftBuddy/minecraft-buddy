@@ -10,6 +10,7 @@ import adris.altoclef.util.helpers.BlazeCover;
 import adris.altoclef.util.helpers.BlazeFightRules;
 import adris.altoclef.util.helpers.BlazeFightRules.Mode;
 import adris.altoclef.util.helpers.EntityHelper;
+import adris.altoclef.util.helpers.FightOpenRules;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.RecoverHold;
 import adris.altoclef.util.helpers.RunZones;
@@ -108,6 +109,35 @@ final class BlazeFight {
     // to corner20)
     static final double BUDDY_LEASH = 1.5;
     static final double CORNER_RUN = 12;
+    // ---- the buddy's fork, Tuning open_attack and fireproof_rush (FightOpenRules, both off by default, steering 94): the spawner
+    // the rods task knows (null with none), the open attack's state at it and whether it holds this tick; the rush this tick
+    // and its kills
+    private BlockPos spawner;
+    private final FightOpenRules.OpenLatch openLatch = new FightOpenRules.OpenLatch();
+    private boolean open;
+    private boolean rushNow;
+    private int rushKills;
+
+    void spawner(BlockPos s) {
+        spawner = s;
+    }
+
+    // the open attack holds this tick: no lure, no hiding place, no corner leash
+    boolean open() {
+        return open;
+    }
+
+    // open_attack: at the spawner (not under the fire-proof camp, which has no lure or hiding place) with fewer than
+    // FightOpenRules.OPEN_FEW live blazes within OPEN_RADIUS of the buddy; a line per change
+    private void noteOpen(AltoClef mod, LocalPlayer player, long now) {
+        // (not with box_home either: its box keeps its own rules, the fight from inside it at the opening)
+        boolean on = FightOpenRules.openOn() && !fireproofCamp(player) && !adris.altoclef.util.helpers.BoxHomeRules.on();
+        boolean atSpawner = on && spawner != null && player.position().distanceTo(Vec3.atCenterOf(spawner)) <= FightOpenRules.OPEN_SPAWNER_RANGE;
+        int within = atSpawner ? blazesWithin(mod, FightOpenRules.OPEN_RADIUS) : 0;
+        open = openLatch.update(now, atSpawner, FightOpenRules.open(within));
+        if (openLatch.changed()) Debug.logInternal(FightOpenRules.openLine(open, within));
+    }
+
     // the run into the corner: round by a standing pillbox's door, and the plain run or cover once it had BoxWay.RUN_TICKS
     private final adris.altoclef.util.helpers.BoxWay cornerWay = new adris.altoclef.util.helpers.BoxWay();
     private BlockPos cornerRunTo;
@@ -284,7 +314,7 @@ final class BlazeFight {
     // with the box the ceiling's runs stalled locked out of the cell or sealed in it, 6 and 1 of 7 in realfort-ab-ceiling-2)
     // the reach under fire resistance with fireproof_camp on (0: the usual one)
     static double fireproofHold(net.minecraft.world.entity.LivingEntity player) {
-        return fireproofCamp(player) ? adris.altoclef.util.helpers.Tuning.get("fireproof_hold", 0) : 0;
+        return fireproofCamp(player) && !FightOpenRules.rushOn() ? adris.altoclef.util.helpers.Tuning.get("fireproof_hold", 0) : 0;
     }
 
     // (the buddy's fork, Tuning fireproof_reach, blocks: under fire resistance with fireproof_camp only a blaze whose feet are at
@@ -292,17 +322,63 @@ final class BlazeFight {
     // minutes, as a fireball under the potion never lifts the ban, and the next one the same: 55 bans on 24 blazes and not one
     // swing in eight minutes, piece2in-1 run 3. with it on, a rod is fetched with no blaze within bite's reach. 0: off)
     static double fireproofReach(net.minecraft.world.entity.LivingEntity player) {
-        return fireproofCamp(player) ? adris.altoclef.util.helpers.Tuning.get("fireproof_reach", 0) : 0;
+        return fireproofCamp(player) && !FightOpenRules.rushOn() ? adris.altoclef.util.helpers.Tuning.get("fireproof_reach", 0) : 0;
     }
 
+    // (the buddy's fork, Tuning fireproof_rush, off by default, steering 94: with it on the fire-proof camp is the rush's, while
+    // FightOpenRules.rush says so, whatever fireproof_camp says: so with no potion left the camp goes back to the way without
+    // the potion ten seconds before the effect ends. the rush's own waits are none: fireproof_hold and fireproof_reach are off)
     static boolean fireproofCamp(net.minecraft.world.entity.LivingEntity player) {
-        return player != null && adris.altoclef.util.helpers.Tuning.get("fireproof_camp", 0) > 0
-                && adris.altoclef.util.helpers.FireRes.has(player);
+        if (player == null || !adris.altoclef.util.helpers.FireRes.has(player)) return false;
+        if (FightOpenRules.rushOn()) return rush(player) != FightOpenRules.Rush.OFF;
+        return adris.altoclef.util.helpers.Tuning.get("fireproof_camp", 0) > 0;
+    }
+
+    // the rush as of now (FightOpenRules.rush): the switch, what is left of the effect and the potions in the bag
+    static FightOpenRules.Rush rush(net.minecraft.world.entity.LivingEntity player) {
+        if (player == null || !FightOpenRules.rushOn()) return FightOpenRules.Rush.OFF;
+        return FightOpenRules.rush(true, fireResTicks(player), fireResPotions(player));
+    }
+
+    // the ticks left of fire resistance, 0 without it (or with ignore_fire_resistance), MAX_VALUE for an endless one
+    static int fireResTicks(net.minecraft.world.entity.LivingEntity player) {
+        if (player == null || !adris.altoclef.util.helpers.FireRes.has(player)) return 0;
+        net.minecraft.world.effect.MobEffectInstance fx = player.getEffect(MobEffects.FIRE_RESISTANCE);
+        if (fx == null) return 0;
+        return fx.isInfiniteDuration() ? Integer.MAX_VALUE : fx.getDuration();
+    }
+
+    // the fire resistance potions in the bag that can go down: the drinkable ones (the food chain), and with Tuning fr_trade the
+    // splash ones too (FireResTrade throws those)
+    static int fireResPotions(net.minecraft.world.entity.LivingEntity player) {
+        if (!(player instanceof net.minecraft.world.entity.player.Player p)) return 0;
+        boolean thrown = adris.altoclef.util.helpers.Tuning.get("fr_trade", 0) > 0;
+        var inventory = p.getInventory();
+        int n = 0;
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            var form = adris.altoclef.util.helpers.FireResTradeRules.form(inventory.getItem(i));
+            if (form == adris.altoclef.util.helpers.FireResTradeRules.Form.DRINK
+                    || (thrown && form == adris.altoclef.util.helpers.FireResTradeRules.Form.THROW)) n += inventory.getItem(i).getCount();
+        }
+        return n;
     }
 
     private void noteCrowd(AltoClef mod, LocalPlayer player, List<Blaze> blazes, long now) {
         if (!nooks.isEmpty()) noteCapHit(player, now);
+        // (Tuning fireproof_rush: no hiding place under the rush; one from before the potion is left at once)
+        if (rushNow && hide != null) {
+            Debug.logInternal("rush: out of hiding at " + hide.toShortString());
+            dropHide();
+        }
         if (pillboxPlanned || fireproofCamp(player)) return;
+        // (Tuning open_attack: no hiding place with fewer than three blazes about; one from before is left)
+        if (open) {
+            if (hide != null) {
+                Debug.logInternal("open attack: out of hiding at " + hide.toShortString());
+                dropHide();
+            }
+            return;
+        }
         // (in hiding, every one about counts, seen or not: whoever is out there sees us once we are. by the look outs' sight it was
         // 1.5 and out, and three blazes on us a second later, the look outs see the room through a door one wide)
         double score = hide != null ? crowdScore(mod, player, null) : crowdScore(mod, player, List.of(player.getEyePosition()));
@@ -374,6 +450,13 @@ final class BlazeFight {
 
     void corner(BlockPos c) {
         corner = c;
+    }
+
+    private void dropHide() {
+        hide = null;
+        hideLure = null;
+        hideWalk = null;
+        calmSince = Long.MIN_VALUE;
     }
 
     // (the buddy's fork, Tuning camp_reentry, off by default: a camp the buddy is shut out of (CampReentry) is never the
@@ -614,6 +697,8 @@ final class BlazeFight {
     Task tick(AltoClef mod) {
         LocalPlayer player = mod.getPlayer();
         long now = mod.getWorld().getGameTime();
+        rushNow = rush(player) != FightOpenRules.Rush.OFF;
+        noteOpen(mod, player, now);
         scan(mod, player, now);
         noteShot(player, now);
         boolean leaveOn = adris.altoclef.util.helpers.Tuning.get("recover_leave", 0) > 0;
@@ -633,7 +718,8 @@ final class BlazeFight {
         }
         boolean burning = player.isOnFire() && !adris.altoclef.util.helpers.FireRes.has(player);
         boolean withered = player.hasEffect(MobEffects.WITHER);
-        Mode next = BlazeFightRules.decide(health, running, runGaveUp, !threats.isEmpty(), target != null,
+        // (Tuning fireproof_rush: a blaze's sight is no threat under the rush, its fireballs do nothing; the run is at panic health)
+        Mode next = BlazeFightRules.decide(health, running, runGaveUp, FightOpenRules.sightIsThreat(rushNow, !threats.isEmpty()), target != null,
                 BlazeFightRules.stillHurting(burning, withered));
         // in the pocket with only blazes that came round on us: fight them there. the run found no cell they do not see (they
         // are in the pocket), and the old run dug out through its wall: the choke point gone, with a blaze in it the sword
@@ -651,7 +737,8 @@ final class BlazeFight {
         // (the buddy's fork, Tuning box_home: the box is home, a blaze is fought from inside it, at the opening: past the leash
         // every blaze is let go, one in the bite's reach too, BoxHomeRules.letGo)
         boolean home = pillboxPlanned && adris.altoclef.util.helpers.BoxHomeRules.on();
-        if (next == Mode.KILL && held != null && target != null && adris.altoclef.util.helpers.BoxHomeRules.letGo(home,
+        // (Tuning open_attack: no leash while it holds)
+        if (next == Mode.KILL && held != null && target != null && !open && adris.altoclef.util.helpers.BoxHomeRules.letGo(home,
                 player.position().distanceTo(Vec3.atBottomCenterOf(held)), leash(), player.distanceTo(target) > BITE_RANGE)) {
             noteLetGo(String.format(java.util.Locale.ROOT, "we are %.1f from the corner", player.position().distanceTo(Vec3.atBottomCenterOf(held))), player);
             target = null;
@@ -1083,7 +1170,8 @@ final class BlazeFight {
         wallOf = corner;
         // (in the pocket only a blaze in our view is ours: the walk at one behind its wall broke the wall. in view is any point of
         // its body from our eyes, or biting: by eye to eye only, one in the door at 1.7 blocks that bit was let go each tick)
-        if (target != null && corner != null && BlazeLureTask.in(player.position(), corner)
+        // (Tuning open_attack: not while it holds, the blaze out there is the one to go after)
+        if (!open && target != null && corner != null && BlazeLureTask.in(player.position(), corner)
                 && player.distanceTo(target) > BITE_RANGE && !BlazeCover.bodySeen(mod.getWorld(), player.getEyePosition(), target, player)) {
             noteLetGo("out of our view in the pocket", player);
             target = null;
@@ -1113,7 +1201,8 @@ final class BlazeFight {
             tripSince = Long.MIN_VALUE;
         }
         // (on the leash: the one we are after is let go once it is CORNER_LEASH from the corner)
-        if (cornerHold && target != null && target.position().distanceTo(Vec3.atBottomCenterOf(corner)) > adris.altoclef.util.helpers.Tuning.get("corner_leash", CORNER_LEASH)) {
+        // (Tuning open_attack: no leash while it holds)
+        if (!open && cornerHold && target != null && target.position().distanceTo(Vec3.atBottomCenterOf(corner)) > adris.altoclef.util.helpers.Tuning.get("corner_leash", CORNER_LEASH)) {
             noteLetGo("past the leash, " + Math.round(target.position().distanceTo(Vec3.atBottomCenterOf(corner))) + " from the corner", player);
             target = null;
         }
@@ -1141,13 +1230,14 @@ final class BlazeFight {
                         && (!building || distance <= BITE_RANGE)
                         // (from a pillbox only one the sword reaches from it: one "in reach" six from the corner was walked to
                         // and let go by the leash out of the box, again and again, bent-e run 1, dead on the bridge)
-                        && (!pillboxPlanned || corner == null || distance <= adris.altoclef.util.helpers.Tuning.get("pillbox_reach", PILLBOX_REACH))
+                        // (Tuning open_attack: neither this nor the corner's sight below while it holds; the box's build stays)
+                        && (open || !pillboxPlanned || corner == null || distance <= adris.altoclef.util.helpers.Tuning.get("pillbox_reach", PILLBOX_REACH))
                         // (the buddy's fork, Tuning fireproof_hold, blocks: under fire resistance only one that close, the rest
                         // come to the camp. the fireballs do little then, and the chase to blaze after blaze ended "no path"
                         // and a ban each, 54 in five minutes with blazes in sight and no rod, steering 67)
                         && (fireproofHold(player) <= 0 || distance <= fireproofHold(player))
                         && (fireproofReach(player) <= 0 || blaze.getY() - player.getY() <= fireproofReach(player))
-                        && (!cornerHold || blaze == target || distance <= BITE_RANGE || (blaze.getEyePosition().distanceTo(cornerEye) <= CORNER_REACH
+                        && (open || !cornerHold || blaze == target || distance <= BITE_RANGE || (blaze.getEyePosition().distanceTo(cornerEye) <= CORNER_REACH
                         && (!BlazeCover.hidden(mod.getWorld(), List.of(blaze.getEyePosition()), seeCell.getX(), seeCell.getY(), seeCell.getZ(), player)
                         || BlazeCover.bodySeen(mod.getWorld(), player.getEyePosition(), blaze, player))));
                 if (inReach) candidates.add(blaze);
@@ -1175,13 +1265,41 @@ final class BlazeFight {
                 outOfReachSince = now;
             }
             long outFor = outOfReachSince == Long.MIN_VALUE ? 0 : now - outOfReachSince;
-            if (packDrop || !BlazeFightRules.keepTarget(target.isAlive(), targetTracked, outFor)) target = null;
+            if (packDrop || !BlazeFightRules.keepTarget(target.isAlive(), targetTracked, outFor)) {
+                if (rushNow && target.isDeadOrDying()) {
+                    rushKills++;
+                    Debug.logInternal(String.format(java.util.Locale.ROOT, "rush: a kill at %.1f off, %d so far, %s of the effect left",
+                            player.distanceTo(target), rushKills, effectLeft(player)));
+                }
+                target = null;
+            }
+        }
+        // (Tuning fireproof_rush: a blaze in bite's reach first, the one we were after waits)
+        if (target != null && rushNow) {
+            Blaze biter = null;
+            double close = Double.POSITIVE_INFINITY;
+            for (Blaze blaze : candidates) {
+                double d = player.distanceTo(blaze);
+                if (blaze != target && d < close) {
+                    close = d;
+                    biter = blaze;
+                }
+            }
+            double was = player.distanceTo(target);
+            if (biter != null && FightOpenRules.biterFirst(was, close, BITE_RANGE)) {
+                Debug.logInternal(String.format(java.util.Locale.ROOT, "rush: a blaze bites at %.1f, that one first (the one at %.1f waits)", close, was));
+                target = biter;
+                targetTracked = true;
+                targetInReach = true;
+                outOfReachSince = Long.MIN_VALUE;
+            }
         }
         if (target != null) return;
         outOfReachSince = Long.MIN_VALUE;
         Blaze nearest = null;
         double best = Double.POSITIVE_INFINITY;
-        boolean leashHeld = now < leashHoldUntil && now >= leashHoldUntil - LEASH_HOLD_TICKS;
+        // (Tuning open_attack: no leash while it holds)
+        boolean leashHeld = !open && now < leashHoldUntil && now >= leashHoldUntil - LEASH_HOLD_TICKS;
         for (Blaze blaze : candidates) {
             double d = player.distanceToSqr(blaze);
             if (leashHeld && d > BITE_RANGE * BITE_RANGE) continue;
@@ -1193,6 +1311,12 @@ final class BlazeFight {
         target = nearest;
         targetTracked = nearest != null;
         targetInReach = nearest != null;
+    }
+
+    // what is left of the effect, for the rush's lines
+    static String effectLeft(net.minecraft.world.entity.LivingEntity player) {
+        int t = fireResTicks(player);
+        return t == Integer.MAX_VALUE ? "endless" : (t / 20) + " s";
     }
 
     private List<Entity> threatEntities() {

@@ -16,6 +16,7 @@ import adris.altoclef.ui.HudText;
 import adris.altoclef.tasks.speedrun.gamer.DeathZones;
 import adris.altoclef.util.helpers.BlazeCover;
 import adris.altoclef.util.helpers.BlazeFightRules;
+import adris.altoclef.util.helpers.FightOpenRules;
 import adris.altoclef.util.helpers.LavaShore;
 import adris.altoclef.util.helpers.SafeStand;
 import adris.altoclef.util.helpers.PotionHelper;
@@ -274,6 +275,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     @Override
     protected Task onTick(AltoClef mod) {
         _rodWatch.tick(mod);
+        rushTick(mod);
         if (_brewBox != null) _brewBox.noteHits(mod);
         if (_healBox != null) _healBox.noteHits(mod);
         // (the buddy's fork, Tuning rod_snowball: the blazes' points for the lead, the kills and the strategy's two ends, on a
@@ -307,6 +309,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_netherSince < 0 && farOn()) _netherSince = mod.getWorld().getGameTime();
         // the spawner is what starts the dry timer, finding one only between fights meant a long fight never found it
         pickSpawner(mod);
+        // (Tuning fr_hold: by this spawner the held potion goes down at the first fire; the open attack counts at it)
+        if (_foundBlazeSpawner != null) adris.altoclef.util.helpers.FireRes.spawnerSeen(mod.getWorld().getGameTime(), _foundBlazeSpawner);
+        _fight.spawner(_foundBlazeSpawner);
         noteRods(mod);
         campDry(mod);
         // (the buddy's fork, Tuning far_box: the far box's kills and the two rods, watched every tick, the fight's too)
@@ -642,6 +647,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
             } else {
                 _doorWalkSince = -1;
             }
+            if (_campStep == null && !camp.closerToCenterThan(mod.getPlayer().position(), campRadius) && rushWalk()) {
+                camp = _campSpot != null ? _campSpot : _foundBlazeSpawner.above();
+                campRadius = _campSpot != null ? CAMP_SPOT_RADIUS : CAMP_RADIUS;
+            }
+            if (_campStep == null && camp.closerToCenterThan(mod.getPlayer().position(), campRadius)) _rushWalkTicks = 0;
             if (_campStep == null && !camp.closerToCenterThan(mod.getPlayer().position(), campRadius)) {
                 setDebugState("Going to blaze spawner (" + (RunZones.INSTANCE.active(_zoneNow) + _deathZones.active(_zoneNow)) + " zones)");
                 _toSpawner = true;
@@ -672,6 +682,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // (behind Tuning fire_limit, off by default, steering 78, with roof_centre under the same suspicion)
             boolean fireLimit = adris.altoclef.util.helpers.Tuning.get("fire_limit", 0) > 0;
             if (fireLimit && nearestFire.isPresent() && _fireLeft.contains(nearestFire.get())) nearestFire = Optional.empty();
+            // (Tuning fireproof_rush: no fire put out while the effect has more than ten seconds left; the rods are picked up
+            // at once, and the blazes light fires faster than they go out)
+            if (nearestFire.isPresent() && FightOpenRules.fireWalkable(_rush)) nearestFire = Optional.empty();
             if (fireLimit && nearestFire.isPresent()) {
                 if (!nearestFire.get().equals(_fireAt)) {
                     _fireAt = nearestFire.get();
@@ -696,7 +709,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
             }
             // nothing is in reach or we would be fighting it, so this is a dud spawner as far as the relocate timer goes
             _camping = true;
-            if (_lure != null && _fight.corner() != null) {
+            // (Tuning open_attack: no lure with fewer than three blazes about, the wait as without one)
+            if (_lure != null && _fight.corner() != null && !_fight.open()) {
                 // (the buddy's fork, Tuning lure_cap, off by default: looks that drew no blaze into reach for the cap drop this
                 // corner (or standing pillbox), the camp picked again without it on the next tick: another corner, else as
                 // with none)
@@ -1043,6 +1057,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
         _pillboxCornered = false;
         _fight.pillboxPlanned(false);
         _fight.pillboxLookout(null);
+        _rushStands = null;
+        _rushStand = 0;
+        _rushWalkTicks = 0;
+        if (BlazeFight.fireproofCamp(us) && FightOpenRules.rushOn()) {
+            // (Tuning fireproof_rush: by the spawner, its top first, then beside it, FightOpenRules.stands; a stand not reached in
+            // RUSH_WALK_TICKS gives way to the next, rushWalk)
+            _rushStands = FightOpenRules.stands(cells, sx, sy, sz);
+            _campSpot = rushStandSpot();
+            Debug.logInternal("rush: the camp by the spawner " + _foundBlazeSpawner.toShortString() + ", at " + rushStandPos().toShortString()
+                    + " (stand 1 of " + _rushStands.size() + ")");
+            return;
+        }
         if (BlazeFight.fireproofCamp(us)) {
             // (the buddy's fork: with the potion drunk by the pillbox the brew stood in, the camp is that box's open side,
             // where the blazes flew in and every kill under the potion came. by the spawner the walk aimed at the block on top
@@ -1731,6 +1757,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
 
     @Override
     protected void onResourceStop(AltoClef mod, Task interruptTask) {
+        // (Tuning fireproof_rush: no fire walk outside the rods task; it runs out by itself in a second and a half anyway)
+        baritone.altoclef.AltoClefSettings.getInstance().walkThroughFire(false);
         mod.getBlockTracker().stopTracking(Blocks.SPAWNER);
         mod.getBlockTracker().stopTracking(Blocks.NETHER_WART);
         if (_sweepTracking) {
@@ -1766,6 +1794,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (the buddy's fork, Tuning box_home: while the box holds, a rod in it always, one outside by a trip out of it,
         // BoxHomeRules.rodLeft and tripEnd; the camp's walk takes the buddy straight back)
         if (me != null && homeHolds()) return !homeRodFetch(mod, me);
+        // (Tuning fireproof_rush: each rod at once under the rush, only a blaze in bite's reach or a run holds it. the nearest
+        // blaze read now: the fight does not scan while the pickup walks)
+        if (me != null && BlazeFight.rush(me) != FightOpenRules.Rush.OFF) {
+            return FightOpenRules.holdsPickup(_fight.mode() == BlazeFightRules.Mode.RUN, nearestBlazeNow(mod, me));
+        }
         // (from a standing pillbox: a rod in the box always, one outside it only with no blaze within PILLBOX_QUIET. six walks out
         // for rods in one run, the last two 25 hp, straight-bent-g run 4)
         if (me != null && _pillbox != null && _pillboxCornered) {
@@ -1788,7 +1821,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
             return _fight.nearestBlaze() <= BlazeFight.BITE_RANGE;
         }
         // (and while the corner holds: the lure fetches the rods near it on a leash; the pickup's walk has none)
-        return BlazeFightRules.holdPickup(_fight.mode() == BlazeFightRules.Mode.RUN, _fight.nearestBlaze()) || _fight.cornerHold();
+        // (Tuning open_attack: not while it holds, there is no lure to fetch them)
+        return BlazeFightRules.holdPickup(_fight.mode() == BlazeFightRules.Mode.RUN, _fight.nearestBlaze()) || (_fight.cornerHold() && !_fight.open());
     }
 
     // the buddy's fork, Tuning camp_dry (game minutes, 0 off): a corner camp with no rod in that long while a blaze is within
@@ -1852,6 +1886,92 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (Math.hypot(_fireproofSpot.getX() - _foundBlazeSpawner.getX(), _fireproofSpot.getZ() - _foundBlazeSpawner.getZ()) > FIREPROOF_SPOT_RANGE) return;
         _campSpot = _fireproofSpot;
         Debug.logInternal("blaze camp: fire-proof, the spawner's top not reached in " + FIREPROOF_WALK_TICKS / 20 + " s, at the pillbox's open side " + _campSpot.toShortString());
+    }
+
+    // ---- the buddy's fork, Tuning fireproof_rush (FightOpenRules, off by default, steering 94): the rush under fire resistance
+
+    // the rush as of the last tick, the rods in the bag then, and the stands by the spawner (null when the camp is not the
+    // rush's), the one taken and the ticks spent walking to it (a fight or a pickup in between does not count)
+    private FightOpenRules.Rush _rush = FightOpenRules.Rush.OFF;
+    private int _rushRods = -1;
+    private List<int[]> _rushStands;
+    private int _rushStand;
+    private long _rushWalkTicks;
+
+    // every tick of the task, a pickup's too: the rush's state and its lines, and fire walkable for the pathfinder while it is on
+    private void rushTick(AltoClef mod) {
+        var me = mod.getPlayer();
+        if (me == null || mod.getWorld() == null) return;
+        boolean on = FightOpenRules.rushOn();
+        FightOpenRules.Rush r = BlazeFight.rush(me);
+        baritone.altoclef.AltoClefSettings.getInstance().walkThroughFire(FightOpenRules.fireWalkable(r));
+        int rods = mod.getItemStorage().getItemCount(Items.BLAZE_ROD);
+        if (r != _rush) {
+            int left = BlazeFight.fireResTicks(me);
+            int potions = BlazeFight.fireResPotions(me);
+            if (r == FightOpenRules.Rush.OFF) {
+                Debug.logInternal("rush: off (" + FightOpenRules.offWhy(on, left, potions) + "), " + rods + " rods");
+            } else if (r == FightOpenRules.Rush.REDRINK) {
+                Debug.logInternal("rush: " + BlazeFight.effectLeft(me) + " of the effect left, the potion goes down again as before ("
+                        + potions + " left), fire not walked through meanwhile");
+            } else if (_rush == FightOpenRules.Rush.OFF) {
+                Debug.logInternal("rush: on, " + BlazeFight.effectLeft(me) + " of fire resistance, " + potions + " potions left, " + rods + " rods"
+                        + (_foundBlazeSpawner != null ? ", the spawner at " + _foundBlazeSpawner.toShortString() : ", no spawner known yet"));
+            } else {
+                Debug.logInternal("rush: on again, " + BlazeFight.effectLeft(me) + " of fire resistance, " + potions + " potions left");
+            }
+            _rush = r;
+        }
+        if (r != FightOpenRules.Rush.OFF && _rushRods >= 0 && rods > _rushRods) {
+            Debug.logInternal("rush: a rod, " + rods + " in the bag, " + BlazeFight.effectLeft(me) + " of the effect left");
+        }
+        _rushRods = rods;
+    }
+
+    // the nearest live blaze to the buddy as the tracker has it now (the fight's last scan when the tracker is being rebuilt)
+    private double nearestBlazeNow(AltoClef mod, net.minecraft.world.entity.player.Player me) {
+        double best = Double.POSITIVE_INFINITY;
+        try {
+            for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+                if (b.isAlive()) best = Math.min(best, b.distanceTo(me));
+            }
+        } catch (java.util.ConcurrentModificationException e) {
+            return _fight.nearestBlaze();
+        }
+        return best;
+    }
+
+    private int[] rushStandCell() {
+        return _rushStands.get(Math.min(_rushStand, _rushStands.size() - 1));
+    }
+
+    private BlockPos rushStandPos() {
+        int[] c = rushStandCell();
+        return new BlockPos(c[0], c[1], c[2]);
+    }
+
+    // the camp spot of the stand taken: null for the spawner's top (the camp by the spawner as fpcamp's), else the cell
+    private BlockPos rushStandSpot() {
+        BlockPos p = rushStandPos();
+        return p.equals(_foundBlazeSpawner.above()) ? null : p;
+    }
+
+    // the walk to the rush's stand, each tick it runs: true when it was given up this tick and the next stand taken
+    private boolean rushWalk() {
+        if (_rushStands == null || !_campFireproof || _foundBlazeSpawner == null || !_foundBlazeSpawner.equals(_campSpotFor)) return false;
+        if (++_rushWalkTicks < FightOpenRules.RUSH_WALK_TICKS) return false;
+        _rushWalkTicks = 0;
+        if (_rushStand + 1 >= _rushStands.size()) {
+            Debug.logInternal("rush: the stand at " + rushStandPos().toShortString() + " not reached in " + FightOpenRules.RUSH_WALK_TICKS / 20
+                    + " s, no other stand by the spawner, the walk goes on");
+            return false;
+        }
+        BlockPos was = rushStandPos();
+        _rushStand++;
+        _campSpot = rushStandSpot();
+        Debug.logInternal("rush: the stand at " + was.toShortString() + " not reached in " + FightOpenRules.RUSH_WALK_TICKS / 20 + " s, at "
+                + rushStandPos().toShortString() + " next (stand " + (_rushStand + 1) + " of " + _rushStands.size() + ")");
+        return true;
     }
 
     // ---- the buddy's fork, Tuning box_home (BoxHomeRules): the box as home

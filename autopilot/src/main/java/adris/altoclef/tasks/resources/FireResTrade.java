@@ -293,7 +293,8 @@ final class FireResTrade {
         boolean asked = FireRes.asked(now);
         if (!FireResRules.wantsToDrink(true, fx == null ? 0 : fx.getDuration(), player.isOnFire() || asked, blaze)) return null;
         // (Tuning fr_trade_hold, off by default: merely on fire on the way, the potion waits for the blazes)
-        if (FireRes.holdsTraded(player, blaze, asked, now) || FireRes.holdsForBox(player, blaze, asked, now)) return null;
+        if (FireRes.holdsTraded(player, blaze, asked, now) || FireRes.holdsForBox(player, blaze, asked, now)
+                || FireRes.holdsAny(player, blaze, asked, now)) return null;
         _throw = new ThrowAtFeetTask(blaze);
         return _throw;
     }
