@@ -119,6 +119,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     static final double FAR_KILL_NEAR = 8;
     // the fight's run is into the box from as far as the trip's walk and this many steps more (BlazeFight.farRun)
     static final int FAR_RUN_SLACK = 4;
+    // the far plan places no more than the bag's blocks less this many (Tuning far_box_slack): the walk to it may tower or bridge
+    static final double FAR_BAG_SLACK = 2;
     // the blocks a far box's floor may be: the fortress's own, never netherrack or a block the buddy placed
     private static final java.util.Set<Block> FORTRESS_FLOOR = java.util.Set.of(Blocks.NETHER_BRICKS, Blocks.CRACKED_NETHER_BRICKS,
             Blocks.CHISELED_NETHER_BRICKS, Blocks.RED_NETHER_BRICKS, Blocks.NETHER_BRICK_SLAB, Blocks.NETHER_BRICK_STAIRS);
@@ -326,12 +328,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // stayed the fight's corner and the camp, runs into it burned there, and nothing picked the camp again (the dry watch
         // passes over a camp with a box): the camp is picked again with no box at this spawner, the open camp as before the box)
         if (_pillbox != null && _pillbox.isFinished(mod) && !_pillbox.nearlyBuilt(mod)) {
-            if (_far != null && _pillbox == _farBox) {
-                Debug.logInternal("strategy far: given up, the box at " + _pillbox.cell().toShortString() + " was not built, the camp as without it");
+            // (the far box given up leaves the near pillbox its turn, the camp as without the switch: with _pillboxGaveUpFor set
+            // too, a far box whose walk never arrived left the open camp by the spawner, strat3 t1)
+            boolean farBox = _far != null && _pillbox == _farBox;
+            if (farBox) {
+                Debug.logInternal("strategy far: given up, the box at " + _pillbox.cell().toShortString() + " was not built"
+                        + (_pillbox.walkStuck() ? " (the walk to it came no closer)" : "") + ", the camp as without it");
                 _farGaveUpFor = _foundBlazeSpawner;
             }
-            Debug.logInternal("blaze camp: the pillbox at " + _pillbox.cell().toShortString() + " given up, the camp picked again without one");
-            _pillboxGaveUpFor = _foundBlazeSpawner;
+            Debug.logInternal("blaze camp: the pillbox at " + _pillbox.cell().toShortString() + " given up, the camp picked again without " + (farBox ? "the far box" : "one"));
+            if (!farBox) _pillboxGaveUpFor = _foundBlazeSpawner;
             _campSpotFor = null;
             _campSpot = null;
             _pillbox = null;
@@ -1099,11 +1105,15 @@ public class CollectBlazeRodsTask extends ResourceTask {
                     return level.getBlockState(p).isCollisionShapeFullBlock(level, p);
                 }
             };
-            far = adris.altoclef.util.helpers.BlazePillbox.planFar(cells, start, sx, sy, sz, eyes, rule, floor, sound);
+            // (no more blocks than the bag holds, less far_box_slack for the walk's own: a far box of 15 was built to 13 and given
+            // up, "Nothing to place with", strat4 t8)
+            int bag = BlazePillboxTask.blocksInBag(mod) - (int) Math.round(adris.altoclef.util.helpers.Tuning.get("far_box_slack", FAR_BAG_SLACK));
+            far = adris.altoclef.util.helpers.BlazePillbox.planFar(cells, start, sx, sy, sz, eyes, rule, floor, sound, bag);
             if (far != null) {
                 adris.altoclef.util.helpers.BlazePillbox.Plan plan = far.plan();
                 _far = far;
                 _pillbox = new BlazePillboxTask(plan);
+                _pillbox.clockAtCell();
                 _farBox = _pillbox;
                 _fight.pillboxPlanned(true);
                 _fight.pillboxLookout(_pillbox.lookout());

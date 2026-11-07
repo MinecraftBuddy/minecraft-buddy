@@ -239,7 +239,8 @@ public final class BlazePillbox {
     static final double FAR_WEIGHT = 3;
 
     // why the far sites of the last planFar were turned down, for the log
-    static final String[] FAR_WHY = {"out of range", "floor", "look out unseen", "box", "look out's share", "ring", "no trip", "not sound"};
+    static final String[] FAR_WHY = {"out of range", "floor", "look out unseen", "box", "look out's share", "ring", "no trip", "not sound",
+            "more blocks than the bag"};
     static final int[] farWhy = new int[FAR_WHY.length];
 
     public static String whyNotFar() {
@@ -258,6 +259,12 @@ public final class BlazePillbox {
 
     // sound: the plan checked against the world's blocks (sound), null for Cells alone
     public static Far planFar(Cells cells, int[] start, int sx, int sy, int sz, List<Vec3> eyes, FarRule rule, Floor floor, Sound sound) {
+        return planFar(cells, start, sx, sy, sz, eyes, rule, floor, sound, Integer.MAX_VALUE);
+    }
+
+    // bag: the most blocks a plan may place (the blocks the buddy carries). a far box of 15 blocks was planned with fewer in
+    // the bag, built to 13 and given up with "Nothing to place with" (strat4 t8, 7 Nov 2026)
+    public static Far planFar(Cells cells, int[] start, int sx, int sy, int sz, List<Vec3> eyes, FarRule rule, Floor floor, Sound sound, int bag) {
         java.util.Arrays.fill(farWhy, 0);
         List<Plan> found = new ArrayList<>();
         List<Double> scores = new ArrayList<>(), dists = new ArrayList<>();
@@ -295,6 +302,10 @@ public final class BlazePillbox {
                     Plan plan = planBentAt(cells, x, y, z, a, p, true, eyes, sx, sz);
                     if (plan == null) {
                         farWhy[3]++;
+                        continue;
+                    }
+                    if (plan.blocks().size() > bag) {
+                        farWhy[8]++;
                         continue;
                     }
                     if (!sound(plan, sound)) {

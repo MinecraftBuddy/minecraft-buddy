@@ -44,6 +44,24 @@ final class BlazePillboxTask extends Task {
         this(plan, true);
     }
 
+    // (the buddy's fork, Tuning far_box, off by default, steering 89: the far box is planned once the spawner is seen, as much
+    // as 140 blocks off. its give-up clock counted that walk and ran out on it, not one block placed, strat3 t1, 7 Nov 2026.
+    // with clockAtCell the clock starts once the buddy is within CLOCK_NEAR of the cell, and the walk there is given up after
+    // WALK_STUCK ticks of this task with no step closer, walkStuck true. no other box uses it)
+    static final double CLOCK_NEAR = 6;
+    static final long WALK_STUCK = 1200;
+    private boolean clockAtCell, atCell, walkStuck;
+    private double walkBest = Double.MAX_VALUE;
+    private long walkTicks;
+
+    void clockAtCell() {
+        clockAtCell = true;
+    }
+
+    boolean walkStuck() {
+        return walkStuck;
+    }
+
     // hides false: a box that is not the fight's corner (the brew box, BrewBoxTask) leaves the fight's hiding place in its own
     // pillbox where it is (hideAway is one for all)
     BlazePillboxTask(BlazePillbox.Plan plan, boolean hides) {
@@ -247,7 +265,30 @@ final class BlazePillboxTask extends Task {
         // from its first start in game time, the clock ran on through a ghast shelter, kills and runs, and the box was given up
         // with not one block placed, the camp then the open one, realfort-ab-leash-3 run 4)
         boolean runClock = adris.altoclef.util.helpers.Tuning.get("pillbox_clock_run", 0) > 0;
-        if (runClock ? ++runTicks > GIVE_UP_TICKS : now - startedAt > GIVE_UP_TICKS) {
+        if (clockAtCell && !atCell) {
+            double d = mod.getPlayer().position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(cell));
+            if (d <= CLOCK_NEAR) {
+                atCell = true;
+                startedAt = now;
+                runTicks = 0;
+                Debug.logInternal("pillbox: at the cell " + cell.toShortString() + ", the clock starts");
+            } else {
+                if (d < walkBest - 1) {
+                    walkBest = d;
+                    walkTicks = 0;
+                }
+                if (++walkTicks > WALK_STUCK) {
+                    gaveUp = true;
+                    walkStuck = true;
+                    Debug.logInternal(String.format(java.util.Locale.ROOT, "pillbox: the walk to the cell %s came no closer in %d ticks, %.1f from it, given up",
+                            cell.toShortString(), WALK_STUCK, d));
+                    return null;
+                }
+            }
+        }
+        // (the far box's clock waits for the cell)
+        boolean clockWaits = clockAtCell && !atCell;
+        if (!clockWaits && (runClock ? ++runTicks > GIVE_UP_TICKS : now - startedAt > GIVE_UP_TICKS)) {
             gaveUp = true;
             Debug.logInternal("pillbox: not built in " + GIVE_UP_TICKS + " ticks, " + (plan.blocks().size() - next) + " blocks short");
             return null;
