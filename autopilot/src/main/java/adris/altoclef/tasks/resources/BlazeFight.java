@@ -1233,7 +1233,8 @@ final class BlazeFight {
             boolean packed = packHere || ((distance <= range || blaze == target)
                     && BlazeFightRules.packNear(witherSkeletonsNear(mod, blaze.position(), BlazeFightRules.PACK_BLAZE_RADIUS)));
             // a pack we already met is still there when one of them walks out of tracking, the zone remembers it for us
-            packed |= RunZones.INSTANCE.covers(blaze.getX(), blaze.getZ(), now);
+            // (not one biting us, nor any under the rush: BlazeFightRules.zoneHides)
+            packed |= BlazeFightRules.zoneHides(RunZones.INSTANCE.covers(blaze.getX(), blaze.getZ(), now), rushNow, distance, BITE_RANGE);
             if (packed && blaze == target) packDrop = true;
             if (distance <= range && !packed) {
                 around++;

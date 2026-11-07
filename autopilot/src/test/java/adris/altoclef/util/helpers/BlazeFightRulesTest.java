@@ -281,4 +281,14 @@ public class BlazeFightRulesTest {
         assertFalse(BlazeFightRules.holdPocket(true, 1, 3.0, BlazeFightRules.PANIC_HEALTH));
         assertFalse(BlazeFightRules.holdPocket(false, 1, 3.0, 9));
     }
+
+    @Test
+    public void aRunZoneNeverHidesABiteNorABlazeUnderTheRush() {
+        assertFalse(BlazeFightRules.zoneHides(false, false, 10, 2.5));
+        assertTrue(BlazeFightRules.zoneHides(true, false, 10, 2.5));
+        assertTrue(BlazeFightRules.zoneHides(true, false, 2.6, 2.5));
+        assertFalse(BlazeFightRules.zoneHides(true, false, 2.5, 2.5));
+        assertFalse(BlazeFightRules.zoneHides(true, false, 1.5, 2.5));
+        assertFalse(BlazeFightRules.zoneHides(true, true, 10, 2.5));
+    }
 }

@@ -81,6 +81,14 @@ public final class BlazeFightRules {
         return witherSkeletons >= PACK_SIZE;
     }
 
+    // a run zone (a wither skeleton pack met before, RunZones) hides the blazes in it from the fight, but never one in bite's
+    // reach, nor any while the fire resistance rush holds: under the potion a blaze is only its bite. rush2 B run 13 on
+    // 7 Nov 2026 waited three minutes by the spawner under the potion, shield up, bitten three times, while every blaze was
+    // inside the 24 round the start of a run from wither skeletons 15 blocks off
+    public static boolean zoneHides(boolean inZone, boolean rush, double distance, double biteRange) {
+        return inZone && !rush && distance > biteRange;
+    }
+
     // the middle of a pack ({x, z}), null when the skeletons in the list are not enough to call it one
     public static double[] packCenter(java.util.List<double[]> spots) {
         return packCenter(spots, PACK_SIZE);
