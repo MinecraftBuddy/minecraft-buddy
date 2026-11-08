@@ -134,6 +134,15 @@
     if ((m = /^kill \[([^\],]+).*\] for (\d+) (\S+)/.exec(s))) return 'Hunting ' + thing(m[1], 2).replace(/^2 /, '') + ' for ' + thing(m[3], +m[2]);
     if ((m = /^barter for (\d+) (\S+)/.exec(s))) return 'Bartering for ' + thing(m[2], +m[1]);
     if ((m = /^(.+) by AltoClef, for (.+)$/.exec(s))) return 'Getting ' + (m[1] === 'food' ? 'food' : thing(m[1], 2).replace(/^2 /, ''));
+    // the steps handed to Soprano as a whole (Obtain: food, the kit, a boat, the order)
+    s = s.replace(/ -> .*$/, '');
+    if ((m = /^the kit for (.+?) by Soprano(?::\s*(?:AltoClef:\s*)?(?:kit\s+)?(.*))?$/.exec(s))) return 'Getting the kit for ' + m[1] + (m[2] ? ': ' + m[2] : '');
+    if (/^home for food by Soprano/.test(s)) return 'Going home for food';
+    if (/^food by Soprano/.test(s)) return 'Getting food';
+    if (/^kit by Soprano/.test(s)) return 'Getting the kit';
+    if ((m = /^a boat by Soprano(?:, (.+))?$/.exec(s))) return 'Getting a boat' + (m[1] ? ' ' + m[1] : '');
+    if (/^(the whole order )?by Soprano$/.test(s)) return 'Starting on the order';
+    if ((m = /^(.+?) by Soprano[,:]?\s*(.*)$/.exec(s))) return cap(m[1]) + (m[2] ? ': ' + m[2].replace(/^AltoClef:\s*/, '') : '');
     // the buddy's own steps (Obtain: shelter, bed, digging out, the furnace, a pick-up)
     if ((m = /^shelter (.+)/.exec(s))) return 'Sheltering ' + m[1];
     if (/^a night in bed/.test(s)) return 'Sleeping in a bed';
