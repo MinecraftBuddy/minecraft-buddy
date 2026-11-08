@@ -319,7 +319,8 @@ public class MobDefenseChain extends SingleTaskChain {
         // (a creeper step does not stand down for a meal either: the line says we stepped, so we step. nor does the heal-up
         // hold: the meal is half of what it is holding for)
         boolean committed = _brain.mode() != CombatCommit.Mode.NONE || _creeperStep.active() || _brain.recovering();
-        if ((!committed && mod.getFoodChain().needsToEat()) || mod.getMLGBucketChain().isFallingOhNo(mod) ||
+        // (in lava with a fire resistance drink to go down, as for a meal: the shields come down, FoodChain.drinkInLava)
+        if ((!committed && mod.getFoodChain().needsToEat()) || mod.getFoodChain().drinkInLava(mod) || mod.getMLGBucketChain().isFallingOhNo(mod) ||
                 !mod.getMLGBucketChain().doneMLG() || mod.getMLGBucketChain().isChorusFruiting()) {
             _killAura.stopShielding(mod);
             stopShielding(mod);

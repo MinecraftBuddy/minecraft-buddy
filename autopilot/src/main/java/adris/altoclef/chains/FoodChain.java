@@ -242,6 +242,12 @@ public class FoodChain extends SingleTaskChain {
         return Optional.empty();
     }
 
+    // in lava with a fire resistance drink that is to go down: the shields are lowered for it (the drink waits while
+    // blocking, and the shield keys are not ours to let go: a buddy in lava with the potion in the bag never drank)
+    public boolean drinkInLava(AltoClef mod) {
+        return mod.getPlayer() != null && mod.getPlayer().isInLava() && wantsFireRes(mod);
+    }
+
     private boolean wantsFireRes(AltoClef mod) {
         LocalPlayer player = mod.getPlayer();
         boolean has = isFireRes(player.getMainHandItem()) || fireResSlot(mod).isPresent();
