@@ -446,7 +446,8 @@ final class Obtain {
 				// the client's ticks and the world's time, to see the game keep up with a faster tick rate (practiceFastTicks)
 				"ticks", Follow.ticks(), "gametime", p.level().getGameTime());
 		}
-		if (ObtainSteps.count(p, item) >= count) { done(p); return false; }
+		// (an order of blaze rods counts as done only once out of the nether: the route's way out, Alto.routeExitHolds)
+		if (ObtainSteps.count(p, item) >= count && !Alto.routeExitHolds(p, item)) { done(p); return false; }
 		// Soprano first: an item its catalogue knows is got by it whole, and the buddy's own layer (the kit, the night's
 		// hole, out of the water, digging out, throwing junk away) keeps out of its way; the order, its status, a stop and
 		// the delivery stay the buddy's
@@ -916,7 +917,7 @@ final class Obtain {
 		exec.stop();
 		exec = null;
 		step = null;
-		if (ObtainSteps.count(p, item) >= count) { done(p); return false; }
+		if (ObtainSteps.count(p, item) >= count && !Alto.routeExitHolds(p, item)) { done(p); return false; }
 		if (++sopranoEnds >= 3) {
 			Exchange.emit("obtain", "action", "gives up", "item", item, "why", "Soprano's task ended three times without it" + (why == null ? "" : ": " + why));
 			giveUp("Soprano did not get " + item + (why == null ? "" : ": " + why));

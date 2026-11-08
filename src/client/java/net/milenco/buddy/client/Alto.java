@@ -487,6 +487,21 @@ final class Alto {
 		return on() && AfkConfig.get().obtainSopranoFirst && adris.altoclef.TaskCatalogue.taskExists(item);
 	}
 
+	/**
+	 * The route through the nether (the autopilot's RouteRules): an order of blaze rods that the autopilot plays whole is not
+	 * done with its count in the bag while the buddy is still in the nether; its rods task goes back through a portal first.
+	 * Done all the same once that way out is given up (no portal known, or its cap). Out of the nether the arrival is said
+	 * once, here or by the rods task, whichever sees it first.
+	 */
+	static boolean routeExitHolds(net.minecraft.client.player.LocalPlayer p, String item) {
+		String it = item == null ? "" : item.startsWith("minecraft:") ? item.substring("minecraft:".length()) : item;
+		if (!"blaze_rod".equals(it) || !knows(it)) return false;
+		boolean nether = p.level().dimension().equals(net.minecraft.world.level.Level.NETHER);
+		if (!nether) adris.altoclef.util.helpers.RouteRules.out();
+		return adris.altoclef.util.helpers.RouteRules.exitHolds(adris.altoclef.util.helpers.RouteRules.exitOn(), nether,
+			adris.altoclef.util.helpers.RouteRules.exitGaveUp());
+	}
+
 	/** A step of the buddy's own plan (for an order AltoClef does not know whole: the elytra) for an item it does know. */
 	static boolean forCatalogue(ObtainPlan.Step s) {
 		return (s.act() == ObtainPlan.Act.KILL || s.act() == ObtainPlan.Act.MINE || s.act() == ObtainPlan.Act.CRAFT
