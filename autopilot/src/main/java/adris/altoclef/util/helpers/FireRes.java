@@ -113,6 +113,34 @@ public final class FireRes {
         return true;
     }
 
+    // Tuning route_hold, on by default (the route, steering 118: the first two rods under the traded potion): while the route's
+    // phase 3 runs (the trade over, the cream and the wart on their errand; the rods task says so every tick it gets to the
+    // errand) any fire resistance potion waits, by the spawner too, where fr_trade_hold's and fr_hold's waits end and where
+    // the errand waits for a cube: only a blaze in drinking range, a task's ask, lava, or fire at fr_trade_hold_hp or less
+    // let it go down. the say counts ROUTE_FRESH ticks, so a fight that takes the tick ends the wait soon after
+    static final long ROUTE_FRESH = 40;
+    private static volatile long routeAt = Long.MIN_VALUE / 2;
+    private static volatile long routeHeldAt = Long.MIN_VALUE / 2;
+
+    public static void routeHolds(long now) {
+        routeAt = now;
+    }
+
+    public static boolean holdsRoute(LivingEntity e, double blaze, boolean asked, long now) {
+        if (Tuning.get("route_hold", 0) <= 0 || now < routeAt || now - routeAt > ROUTE_FRESH) return false;
+        boolean inLava = e.isInLava() || e.isEyeInFluid(FluidTags.LAVA);
+        double hp = Tuning.get("fr_trade_hold_hp", FireResTradeRules.HOLD_HP);
+        if (!FireResTradeRules.held(true, blaze <= FireResRules.BLAZE_RANGE, false, asked, inLava, e.isOnFire(), e.getHealth(), hp)) {
+            return false;
+        }
+        if (FireResTradeRules.newEpisode(routeHeldAt, now)) {
+            Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion kept for the blazes (%s, %.1f hp, nearest blaze %s)",
+                    e.isOnFire() ? "on fire" : "not on fire", e.getHealth(), FireResTradeRules.distance(blaze)));
+        }
+        routeHeldAt = now;
+        return true;
+    }
+
     // whether a fire resistance potion that would go down now (FireResRules.wantsToDrink said yes) waits for the blazes, with
     // a line once per fire episode. always false with the switch off. blaze: the nearest one, infinite for none
     public static boolean holdsTraded(LivingEntity e, double blaze, boolean asked, long now) {

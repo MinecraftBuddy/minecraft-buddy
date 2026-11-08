@@ -265,7 +265,9 @@ public class FoodChain extends SingleTaskChain {
         // (Tuning fr_hold, off by default: any potion, the kit's too, waits as the traded one, FireRes.holdsAny)
         return !adris.altoclef.util.helpers.FireRes.holdsTraded(player, blaze, asked, now)
                 && !adris.altoclef.util.helpers.FireRes.holdsForBox(player, blaze, asked, now)
-                && !adris.altoclef.util.helpers.FireRes.holdsAny(player, blaze, asked, now);
+                && !adris.altoclef.util.helpers.FireRes.holdsAny(player, blaze, asked, now)
+                // (Tuning route_hold: any potion waits while the route's phase 3 runs, FireRes.holdsRoute)
+                && !adris.altoclef.util.helpers.FireRes.holdsRoute(player, blaze, asked, now);
     }
 
     // the drink: no stop asked for and no hit rules, the same press and watch as a bite. a screen still keeps the use key from

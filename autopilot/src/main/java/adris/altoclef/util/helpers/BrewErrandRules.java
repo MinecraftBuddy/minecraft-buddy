@@ -1,6 +1,6 @@
 package adris.altoclef.util.helpers;
 
-// the buddy's fork, Tuning brew_errand, off by default: the magma cream and the nether wart for the brew fetched on an errand
+// the buddy's fork, Tuning brew_errand, on by default since the route (steering 118): the magma cream and the nether wart for the brew fetched on an errand
 // of their own before the spawner fight (CollectBlazeRodsTask.brewErrand), so the first two rods make the stand and its powder,
 // the brew goes up at once beside the spawner and the rest of the rods follow without leaving again. as a chance on the way the
 // cream came in 15 of 121 trade runs and the brew began once: the cubes in sight were mostly on another level of the fortress,

@@ -8,7 +8,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.alchemy.PotionContents;
 
-// the buddy's fork, Tuning fr_trade, off by default, steering 89: the first fire resistance bartered from piglins before the
+// the buddy's fork, Tuning fr_trade, on by default since the route (steering 118; steering 89): the first fire resistance bartered from piglins before the
 // fortress (FireResTrade), as answers. no world in here: the trade reads the bag, the piglins, the blazes and the clocks and asks
 public final class FireResTradeRules {
 
@@ -90,6 +90,47 @@ public final class FireResTradeRules {
         if (sincePiglin >= searchTicks) return new Verdict(Step.GIVE_UP, "no piglin found in " + seconds(searchTicks) + " s");
         if (atFortress) return new Verdict(Step.GIVE_UP, "at the fortress with no piglin in sight");
         return Verdict.of(Step.SEARCH);
+    }
+
+    // Tuning route_trade, on by default (steering 120): the route's trade ends with a potion, with all the gold handed, or at a
+    // dead end, never on a clock of the search alone and never at the fortress: phase 3 does not begin with gold left and no
+    // potion. the dead end: no ingot taken by any piglin for this long (seconds; Tuning route_trade_dead_s), searching wider
+    // all the while. at about 6 s an ingot by one piglin the 64 gold take some 400 s; ten game minutes with no piglin taking
+    // one, out to rings some 300 blocks round, is a nether with no piglin to be had within the run's 90 minutes
+    public static final double DEAD_S = 600;
+
+    // as decide, for the route: potion, gold, pending, goldWearable, sinceGoldOut and blazeNear as there; sinceHanded: game
+    // ticks since the last ingot a piglin took (or since the begin); piglinNear: one in sight to give gold to; deadTicks the
+    // dead end's bound
+    public static Verdict decideRoute(boolean potion, int gold, boolean pending, boolean goldWearable, long sinceGoldOut,
+                                      long sinceHanded, boolean piglinNear, boolean blazeNear, long deadTicks) {
+        if (potion) return Verdict.of(Step.DONE);
+        if (!goldWearable) return new Verdict(Step.GIVE_UP, "no gold armour to wear, the piglins would attack");
+        if (gold <= 0 && (!pending || sinceGoldOut >= LAST_THROW_TICKS)) return new Verdict(Step.GIVE_UP, "out of gold");
+        if (blazeNear) return Verdict.of(Step.YIELD);
+        if (pending) return Verdict.of(Step.TRADE);
+        if (sinceHanded >= deadTicks) return new Verdict(Step.GIVE_UP, "a dead end, no piglin took gold in " + seconds(deadTicks) + " s");
+        if (gold > 0 && piglinNear) return Verdict.of(Step.TRADE);
+        return Verdict.of(Step.SEARCH);
+    }
+
+    // the route's wider search once the wastes walk is over: rings round where it began, RING_STEP blocks further out each,
+    // eight points to a ring taken in turn round it; past RINGS rings it starts again at the first. point k of the search,
+    // from the centre cx, cz, the first point at the angle from (radians)
+    public static final double RING_STEP = 40;
+    public static final int RING_POINTS = 8;
+    public static final int RINGS = 8;
+    // a point not reached in this long is passed over for the next (game ticks)
+    public static final long POINT_TICKS = 60 * 20;
+
+    public static int ring(int k) {
+        return 1 + Math.floorMod(k, RING_POINTS * RINGS) / RING_POINTS;
+    }
+
+    public static Spot searchPoint(int k, double cx, double cz, double from) {
+        double r = RING_STEP * ring(k);
+        double a = from + Math.floorMod(k, RING_POINTS) * (2 * Math.PI / RING_POINTS);
+        return new Spot((int) Math.round(cx + r * Math.cos(a)), (int) Math.round(cz + r * Math.sin(a)));
     }
 
     // (look 28, 8 Nov 2026: a blaze at the 16-block line flipped the trade into a yield and back each second for six minutes,

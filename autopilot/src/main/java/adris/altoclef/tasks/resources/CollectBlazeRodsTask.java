@@ -103,7 +103,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // the buddy's fork, Tuning fr_trade: the barter for the first fire resistance, one per order (kept through interruptions);
     // null with the tuning off
     private FireResTrade _frTrade;
-    // the buddy's fork, Tuning brew_errand (off by default): the cream and the wart fetched on an errand of their own before the
+    // the buddy's fork, Tuning brew_errand (on by default since the route, steering 118): the cream and the wart fetched on an errand of their own before the
     // spawner fight, brewErrand. under way, ended (one per order, done or given up), the step it is on, when the errand began,
     // its last tick, the step's own ticks and its waiting ticks with nothing in sight (BrewErrandRules.own, noSight), its
     // tasks, the tick the trade was seen over (-1: not yet), and this tick's word to the rest of the tick: brewStep's chance
@@ -120,6 +120,24 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private long _tradeOverAt = -1;
     private boolean _errandHolds;
     private boolean _errandWaits;
+    // ---- the route through the nether (RouteRules, steering 118 to 120): the last phase said; whether this task is an order of
+    // rods of its own (the catalogue's: the gamer's nether phase goes on to a plan of its own, with no exit here); the no-potion
+    // line asked; the cream hunt on the trade's search and whether one is under way; the brew's pillbox not to be planned again
+    // at this spawner, and whether its cornering is awaited; the portals seen in the nether (feet cells, oldest first) and the
+    // next look for one; the exit's tasks, where its walk goes and when it began
+    private int _routePhase;
+    private final boolean _bareOrder;
+    private boolean _noPotionSaid;
+    private CollectMagmaCreamTask _tradeCream;
+    private boolean _tradeCreamOn;
+    private BlockPos _routeBoxFailedFor;
+    private boolean _routeBoxWaits;
+    private final java.util.List<BlockPos> _portalsSeen = new java.util.ArrayList<>();
+    private long _portalNoteAt = Long.MIN_VALUE / 2;
+    private Task _exitEnter;
+    private BlockPos _exitWalkTo;
+    private Task _exitWalk;
+    private long _exitAt = -1;
 
     private BlockPos _foundBlazeSpawner = null;
     // where we camp: a cell out past the spawn area (LavaShore.campSpot), picked once per spawner. null = the room had none, so
@@ -196,19 +214,45 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // the zones are nether coordinates, the overworld walk to the portal must not see them as walls
     private volatile boolean _zoneNether;
 
+    // an order of rods of its own (the catalogue's): the route's exit plays after the rods
     public CollectBlazeRodsTask(int count) {
-        this(count, List::of);
+        this(count, List::of, () -> 0, true);
     }
 
     public CollectBlazeRodsTask(int count, Supplier<List<double[]>> deathSpots) {
-        this(count, deathSpots, () -> 0);
+        this(count, deathSpots, () -> 0, false);
     }
 
     public CollectBlazeRodsTask(int count, Supplier<List<double[]>> deathSpots, IntSupplier pearlsNeeded) {
+        this(count, deathSpots, pearlsNeeded, false);
+    }
+
+    private CollectBlazeRodsTask(int count, Supplier<List<double[]>> deathSpots, IntSupplier pearlsNeeded, boolean bareOrder) {
         super(Items.BLAZE_ROD, count);
         _count = count;
         _deathSpots = deathSpots;
         _pearlsNeeded = pearlsNeeded;
+        _bareOrder = bareOrder;
+        if (bareOrder) adris.altoclef.util.helpers.RouteRules.reset();
+    }
+
+    // the route's phase line, once, when the route first reaches it (RouteRules)
+    private void routePhase(int phase) {
+        if (!adris.altoclef.util.helpers.RouteRules.says(_routePhase, phase)) return;
+        _routePhase = phase;
+        Debug.logInternal(adris.altoclef.util.helpers.RouteRules.line(phase));
+    }
+
+    // (the route's exit, Tuning route_exit: an order of rods of its own is done only once out of the nether, or with the exit
+    // given up; the arrival is said here, where it is first seen)
+    @Override
+    public boolean isFinished(AltoClef mod) {
+        if (!super.isFinished(mod)) return false;
+        if (!_bareOrder) return true;
+        boolean nether = WorldHelper.getCurrentDimension() == Dimension.NETHER;
+        if (!nether) adris.altoclef.util.helpers.RouteRules.out();
+        return !adris.altoclef.util.helpers.RouteRules.exitHolds(adris.altoclef.util.helpers.RouteRules.exitOn(), nether,
+                adris.altoclef.util.helpers.RouteRules.exitGaveUp());
     }
 
     // the middle of the wither pack around a spot, null when there is no pack there
@@ -275,6 +319,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         mod.getBlockTracker().trackBlock(Blocks.SPAWNER);
         mod.getBlockTracker().trackBlock(Blocks.NETHER_WART);
+        // (the route's exit: the portals met, the one the buddy came through first, kept in mind for the way out)
+        mod.getBlockTracker().trackBlock(Blocks.NETHER_PORTAL);
         // the fight is ours: mob defense chasing a hovering blaze with a sword is how this used to go wrong. its projectile
         // shield and dodge do not look at this list, and the combat stance (no eating mid volley) still counts them
         mod.getBehaviour().addMobDefenseExclusion(entity -> entity instanceof Blaze);
@@ -328,11 +374,13 @@ public class CollectBlazeRodsTask extends ResourceTask {
         noteZoneInputs(mod);
         // the fight only sets this on ticks it runs, the walk to the nether or a rod pickup should not inherit it
         _fight.idle();
+        routePhase(adris.altoclef.util.helpers.RouteRules.NETHER);
         // We must go to the nether.
         if (WorldHelper.getCurrentDimension() != Dimension.NETHER) {
             setDebugState("Going to nether");
             return new DefaultGoToDimensionTask(Dimension.NETHER);
         }
+        notePortals(mod);
         // (the buddy's fork, Tuning far_box: the clock of the strategy's lines starts with the first tick in the nether)
         if (_netherSince < 0 && farOn()) _netherSince = mod.getWorld().getGameTime();
         // the spawner is what starts the dry timer, finding one only between fights meant a long fight never found it
@@ -347,7 +395,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (again: the goal the walk is judged against is the spawner we just picked, not last tick's)
         noteZoneInputs(mod);
         fireproofFallback(mod);
-        // (the buddy's fork, Tuning fr_trade, off by default, steering 89: the first fire resistance bartered from piglins before
+        // (the buddy's fork, Tuning fr_trade, on by default since the route (steering 118; steering 89): the first fire resistance bartered from piglins before
         // the fortress, FireResTrade. a splash potion of it is thrown at the feet when the drink would go down, a drinkable one
         // the food chain drinks as it does the brewed one)
         if (adris.altoclef.util.helpers.Tuning.get("fr_trade", 0) > 0) {
@@ -358,10 +406,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 return splash;
             }
             Task trade = _frTrade.tick(mod, _foundBlazeSpawner, within -> _fight.takesWithin(mod, within));
+            if (_frTrade.begun()) routePhase(adris.altoclef.util.helpers.RouteRules.TRADE);
+            if (!_frTrade.live()) noteNoPotion(mod);
             if (trade != null) {
+                // (Tuning route_cream_trade: a magma cube in sight on the search's walk is taken along for its cream)
+                Task cream = tradeCream(mod);
+                if (cream != null) return cream;
                 setDebugState(_frTrade.hud());
                 return trade;
             }
+            _tradeCreamOn = false;
         }
         // (the buddy's fork, Tuning box_home, off by default: whether the standing box holds the buddy this tick, BoxHomeRules)
         homeTick(mod);
@@ -546,6 +600,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
             return null;
         }
 
+        // (the route's exit, Tuning route_exit: an order of rods of its own with its count in the bag goes back through a portal;
+        // the fight and the heal above come first)
+        if (_bareOrder && adris.altoclef.util.helpers.RouteRules.exitOn() && !adris.altoclef.util.helpers.RouteRules.exitGaveUp()
+                && super.isFinished(mod)) {
+            Task out = exitStep(mod);
+            if (out != null) return out;
+        }
+
         // (the buddy's fork: a pillbox under way goes up before the hiding and the looks; the fight above comes first)
         if (_pillbox != null && !_pillbox.isFinished(mod)) {
             setDebugState("Building a pillbox by the spawner");
@@ -605,10 +667,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
             return hide;
         }
 
-        // (the buddy's fork, Tuning brew_errand, off by default: the cream and the wart on an errand of their own before the
+        // (the buddy's fork, Tuning brew_errand, on by default since the route (steering 118): the cream and the wart on an errand of their own before the
         // spawner fight, after the fight's own tick, the boxes and the hiding place; while it is under way brewStep's chance
         // errands are held off, and by the spawner with nothing in sight the buddy waits rather than taking the camp)
         Task errand = brewErrand(mod);
+        // (Tuning route_hold: the route's phase 3 under way, any fire resistance potion waits for the blazes, FireRes.holdsRoute)
+        if (_errandOn) adris.altoclef.util.helpers.FireRes.routeHolds(mod.getWorld().getGameTime());
         if (errand != null) {
             return errand;
         }
@@ -623,6 +687,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         // If we have a blaze spawner, stand next to it in the open and let them come.
         if (_foundBlazeSpawner != null) {
+            // (the route: the trade and the errand over, the blazes now)
+            if (_frTrade == null || !_frTrade.live()) routePhase(adris.altoclef.util.helpers.RouteRules.RODS2);
             // a wither skeleton pack at the spawner: hold where we are, the rods watch counts it as dud time and moves us on
             // if they never leave. walking in is how the last two runs ended
             // (the buddy's fork, Tuning far_box: not with a far box standing, out of the pack's way: the hold would keep the buddy
@@ -891,7 +957,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 + (dys.isEmpty() ? "" : ", dy " + dys) + "), " + far + " more within 64, " + small + " tiny; rods " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
     }
 
-    // the buddy's fork, Tuning brew_errand, off by default: the cream and the wart before the spawner fight, so the first two
+    // the buddy's fork, Tuning brew_errand, on by default since the route (steering 118): the cream and the wart before the spawner fight, so the first two
     // rods make the stand and its powder, brewStep brews at once beside the spawner (the bag then holds what the fortress
     // start's cream kit gives) and the rest of the rods follow without leaving again. it begins once the fire resistance trade
     // is over (or at once with no trade) with bottles in the bag and the cream or the wart missing, a traded potion or none
@@ -921,6 +987,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             if (adris.altoclef.util.helpers.BrewErrandRules.whyNot(tradeLive, kit, brewing, step) != null) return null;
             _errandOn = true;
             _errandAt = now;
+            routePhase(adris.altoclef.util.helpers.RouteRules.WART);
             _errandStep = step;
             _errandLastTick = now;
             _errandStepTicks = 0;
@@ -1040,11 +1107,13 @@ public class CollectBlazeRodsTask extends ResourceTask {
                     && BrewFireResistanceTask.wantsCream(mod);
             if (_brew.isFinished(mod) && !boxed) {
                 _brewSince = -1;
+                routePhase(adris.altoclef.util.helpers.RouteRules.RODS);
             } else if (WorldHelper.getTicks() - _brewSince > BREW_BUDGET_TICKS || creamGone) {
                 Debug.logMessage(creamGone ? "No magma cream left for the brew, back to the blazes" : "Brewing fire resistance took too long, back to the blazes");
                 Debug.logInternal(creamGone ? "brew: given up, no magma cream for the stand" : "brew: given up, too long");
                 _brewSince = -1;
                 _brewGaveUp = true;
+                routePhase(adris.altoclef.util.helpers.RouteRules.RODS);
                 if (boxed) {
                     _brewBox.giveUp("the brew given up inside");
                     if (_brewBox.opening()) return _brewBox;
@@ -1119,6 +1188,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
             return null;
         }
         if (WorldHelper.getTicks() < _brewWaitUntil) return null;
+        routePhase(adris.altoclef.util.helpers.RouteRules.BREW);
+        // (Tuning route_brew_pillbox: the brew shut in the fight's pillbox by the spawner, built first when none stands)
+        Task routeBox = routeBrewBox(mod);
+        if (routeBox != null) return routeBox;
+        if (_routeBoxWaits) return null;
         setDebugState("Brewing fire resistance");
         _brewSince = WorldHelper.getTicks();
         _openLogged = false;
@@ -1145,6 +1219,171 @@ public class CollectBlazeRodsTask extends ResourceTask {
             return _brewBox;
         }
         return _brew;
+    }
+
+    // Tuning route_brew_pillbox, on by default (the route's phase 5, steering 118): the brew shut in the fight's pillbox by the
+    // spawner, never in a box of its own beside it. under the traded potion the camp is the fire-proof one and no pillbox
+    // stands when the first two rods are in, so the pillbox is planned here as pickCampSpot plans one (the camp is its cell),
+    // and built; once it stands brewStep brews in it with its look out walled (brew_box 2). a pillbox that does not fit, or
+    // was given up at this spawner, leaves the box of its own as before. null is no task of the box's this tick;
+    // _routeBoxWaits says the box is built and its cornering (the next tick's) is awaited
+    private Task routeBrewBox(AltoClef mod) {
+        _routeBoxWaits = false;
+        if (adris.altoclef.util.helpers.Tuning.get("route_brew_pillbox", 0) <= 0 || _foundBlazeSpawner == null
+                || !adris.altoclef.util.helpers.BrewBox.inPillbox(adris.altoclef.util.helpers.Tuning.get("brew_box", 0))) return null;
+        if (_pillbox != null && _pillboxCornered) return null;
+        if (_pillbox != null && !_pillbox.isFinished(mod)) {
+            setDebugState("Building the pillbox for the brew");
+            return _pillbox;
+        }
+        if (_pillbox != null && _pillbox.nearlyBuilt(mod)) {
+            _routeBoxWaits = true;
+            return null;
+        }
+        if (_foundBlazeSpawner.equals(_pillboxGaveUpFor) || _foundBlazeSpawner.equals(_routeBoxFailedFor)
+                || mod.getClientBaritone().bsi == null || mod.getClientBaritone().getPlayerContext() == null) return null;
+        Cells cells = CliffAvoidance.of(new baritone.utils.BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
+        int sx = _foundBlazeSpawner.getX(), sy = _foundBlazeSpawner.getY(), sz = _foundBlazeSpawner.getZ();
+        adris.altoclef.util.helpers.BlazePillbox.Plan plan = pillboxPlan(mod, cells, sx, sy, sz);
+        if (plan == null) {
+            _routeBoxFailedFor = _foundBlazeSpawner;
+            Debug.logInternal("brew: no pillbox fits by the spawner " + _foundBlazeSpawner.toShortString() + ", the brew in a box of its own");
+            return null;
+        }
+        // (as pickCampSpot's pillbox: the camp is the box's cell, picked for this spawner now, so the pick does not drop it)
+        _campSpotFor = _foundBlazeSpawner;
+        _campFireproof = BlazeFight.fireproofCamp(mod.getPlayer());
+        _campPickedAt = mod.getWorld().getGameTime();
+        _fight.corner(null);
+        _lure = null;
+        notePillboxSpot();
+        _rushStands = null;
+        _rushStand = 0;
+        _rushWalkTicks = 0;
+        _pillbox = new BlazePillboxTask(plan);
+        _pillboxCornered = false;
+        _pillboxCornerSet = null;
+        _fight.pillboxPlanned(true);
+        _fight.pillboxLookout(_pillbox.lookout());
+        _campSpot = _pillbox.cell();
+        Debug.logInternal("brew: the pillbox for the brew at " + _campSpot.toShortString() + " (" + plan.blocks().size() + " blocks), looking out from "
+                + _pillbox.lookout().toShortString() + " (spawner " + _foundBlazeSpawner.toShortString() + ")");
+        setDebugState("Building the pillbox for the brew");
+        return _pillbox;
+    }
+
+    // Tuning route_cream_trade, on by default (the route's phase 2): with no cream in the bag and bottles to brew, a magma cube
+    // in sight while the trade searches for a piglin (a walk, no ingot being admired) is hunted for its cream, by the brew
+    // errand's rules (CollectMagmaCreamTask's errand hunt: any level the path reaches, never by lava, a drop or the sea). a
+    // piglin in sight takes the tick back at once: the trade's verdict is asked first every tick. null is no hunt now
+    private Task tradeCream(AltoClef mod) {
+        boolean on = adris.altoclef.util.helpers.Tuning.get("route_cream_trade", 0) > 0 && _frTrade.searching()
+                && !mod.getItemStorage().hasItem(Items.MAGMA_CREAM)
+                && PotionHelper.count(mod, Potions.WATER) + PotionHelper.count(mod, Potions.AWKWARD) > 0
+                && CollectMagmaCreamTask.inSight(mod, true);
+        if (!on) {
+            _tradeCreamOn = false;
+            return null;
+        }
+        if (!_tradeCreamOn) {
+            _tradeCreamOn = true;
+            Debug.logInternal("cream: a magma cube on the trade's search, its cream taken along");
+        }
+        if (_tradeCream == null) _tradeCream = new CollectMagmaCreamTask(1, true);
+        setDebugState("A magma cube on the way, for its cream");
+        return _tradeCream;
+    }
+
+    // the route's no-potion line, once: on the first tick the trade is seen over, without a potion from it, in the bag or on
+    // the buddy (all the gold handed, a dead end, or no trade begun): the cream and the wart, the first two rods without the
+    // potion, then the brew. asked once, so a potion drunk later is not taken for none
+    private void noteNoPotion(AltoClef mod) {
+        if (_noPotionSaid) return;
+        _noPotionSaid = true;
+        if (_frTrade.succeeded()) return;
+        if (FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.DRINK)
+                + FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.THROW) > 0
+                || mod.getPlayer().hasEffect(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE)) return;
+        Debug.logInternal(adris.altoclef.util.helpers.RouteRules.NO_POTION);
+    }
+
+    // the portals met in the nether, kept for the route's exit: every PORTAL_NOTE_TICKS the nearest one the tracker knows a
+    // way into (its bottom cell), and the one the buddy came through (MiscBlockTracker), at most PORTALS_KEPT
+    private void notePortals(AltoClef mod) {
+        long now = mod.getWorld().getGameTime();
+        if (now - _portalNoteAt < adris.altoclef.util.helpers.RouteRules.PORTAL_NOTE_TICKS && now >= _portalNoteAt) return;
+        _portalNoteAt = now;
+        notePortal(mod.getMiscBlockTracker().getLastUsedNetherPortal(Dimension.NETHER).orElse(null));
+        notePortal(adris.altoclef.tasks.movement.EnterNetherPortalTask.usablePortal(mod, adris.altoclef.tasks.movement.EnterNetherPortalTask.ANY_PORTAL,
+                mod.getPlayer().position()).orElse(null));
+    }
+
+    private void notePortal(BlockPos feet) {
+        if (feet == null || _portalsSeen.contains(feet)) return;
+        if (_portalsSeen.size() >= adris.altoclef.util.helpers.RouteRules.PORTALS_KEPT) _portalsSeen.remove(0);
+        _portalsSeen.add(feet);
+        Debug.logInternal("exit: a portal kept for the way out at " + feet.toShortString() + " (" + _portalsSeen.size() + " known)");
+    }
+
+    // the nearest portal kept that is still one as far as the loaded world shows (one in an unloaded chunk is trusted)
+    private BlockPos nearestPortalSeen(AltoClef mod) {
+        Vec3 me = mod.getPlayer().position();
+        BlockPos best = null;
+        for (java.util.Iterator<BlockPos> it = _portalsSeen.iterator(); it.hasNext(); ) {
+            BlockPos p = it.next();
+            if (mod.getChunkTracker().isChunkLoaded(p) && mod.getWorld().getBlockState(p).getBlock() != Blocks.NETHER_PORTAL) {
+                Debug.logInternal("exit: the portal kept at " + p.toShortString() + " is gone");
+                it.remove();
+                continue;
+            }
+            if (best == null || p.distToCenterSqr(me) < best.distToCenterSqr(me)) best = p;
+        }
+        return best;
+    }
+
+    // Tuning route_exit, on by default (the route's phase 7): the rods in the bag, back to the overworld. a portal the tracker
+    // knows a way into is entered (EnterNetherPortalTask, which would build one when it knows none: here it idles instead,
+    // and the next tick decides again); else the walk to the nearest portal kept (notePortals), where the tracker sees it
+    // again. no portal known at all, or still in the nether Tuning route_exit_s after the exit began: given up with a line,
+    // the order then ends in the nether (isFinished). null is nothing of the exit's this tick
+    private Task exitStep(AltoClef mod) {
+        long now = mod.getWorld().getGameTime();
+        var me = mod.getPlayer();
+        if (_exitAt < 0 || now < _exitAt) {
+            _exitAt = now;
+            routePhase(adris.altoclef.util.helpers.RouteRules.EXIT);
+            adris.altoclef.util.helpers.RouteRules.exitBegins();
+            notePortals(mod);
+        }
+        Optional<BlockPos> tracked = adris.altoclef.tasks.movement.EnterNetherPortalTask.usablePortal(mod,
+                adris.altoclef.tasks.movement.EnterNetherPortalTask.ANY_PORTAL, me.position());
+        BlockPos kept = tracked.isPresent() ? null : nearestPortalSeen(mod);
+        String why = adris.altoclef.util.helpers.RouteRules.exitGiveUp(tracked.isPresent() || kept != null, now - _exitAt,
+                Math.round(adris.altoclef.util.helpers.Tuning.get("route_exit_s", adris.altoclef.util.helpers.RouteRules.EXIT_S) * 20));
+        if (why != null) {
+            Debug.logInternal("exit: given up (" + why + "), the order ends in the nether at " + me.blockPosition().toShortString()
+                    + " with " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD) + " rods");
+            adris.altoclef.util.helpers.RouteRules.exitGivesUp();
+            return null;
+        }
+        if (tracked.isPresent()) {
+            if (_exitEnter == null) {
+                _exitEnter = new adris.altoclef.tasks.movement.EnterNetherPortalTask(new adris.altoclef.tasks.movement.IdleTask(), Dimension.OVERWORLD);
+                Debug.logInternal("exit: through the portal at " + tracked.get().toShortString() + ", "
+                        + (int) Math.round(me.position().distanceTo(Vec3.atBottomCenterOf(tracked.get()))) + " blocks off, "
+                        + mod.getItemStorage().getItemCount(Items.BLAZE_ROD) + " rods");
+            }
+            setDebugState("Out of the nether through the portal");
+            return _exitEnter;
+        }
+        if (!kept.equals(_exitWalkTo)) {
+            _exitWalkTo = kept;
+            _exitWalk = new GetToBlockTask(kept, false);
+            Debug.logInternal("exit: the walk to the portal kept at " + kept.toShortString() + ", "
+                    + (int) Math.round(me.position().distanceTo(Vec3.atBottomCenterOf(kept))) + " blocks off");
+        }
+        setDebugState("Back to the portal");
+        return _exitWalk;
     }
 
     // the cells a brew box may not take: the fight's pillbox, its blocks and its cells
@@ -1927,6 +2166,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         baritone.altoclef.AltoClefSettings.getInstance().walkThroughFire(false);
         mod.getBlockTracker().stopTracking(Blocks.SPAWNER);
         mod.getBlockTracker().stopTracking(Blocks.NETHER_WART);
+        mod.getBlockTracker().stopTracking(Blocks.NETHER_PORTAL);
         if (_sweepTracking) {
             ObtainSweep.track(mod, false);
             _sweepTracking = false;

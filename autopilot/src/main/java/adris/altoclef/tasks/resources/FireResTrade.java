@@ -60,7 +60,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 
-// the buddy's fork, Tuning fr_trade, off by default, steering 89: the first fire resistance bartered from piglins before the
+// the buddy's fork, Tuning fr_trade, on by default since the route (steering 118; steering 89): the first fire resistance bartered from piglins before the
 // fortress. in the nether with gold in the bag, no fire resistance potion and fewer than two rods, the buddy gives gold to the
 // piglins it meets until a fire resistance potion is in the bag (drinkable or splash), then goes on to the fortress; at the
 // blazes the potion goes down before the fight, a drinkable one by the food chain as the brewed one does, a splash one thrown at
@@ -148,6 +148,20 @@ final class FireResTrade {
     private int _lastDrink;
     private int _lastThrow;
     private ThrowAtFeetTask _throw;
+    // Tuning route_trade (on by default, steering 120): the last ingot a piglin took (the dead end's clock), the ingots counted
+    // then, whether this tick's step is the search (a walk the rods task may break off for a magma cube, route_cream_trade),
+    // and the wider search: its centre, the angle of its first point, the point under way, its walk and when it began, and
+    // the last ring said
+    private boolean _everBegun;
+    private long _handedAt;
+    private int _handedSeen;
+    private boolean _searchStep;
+    private BlockPos _searchCentre;
+    private double _searchFrom;
+    private int _searchK;
+    private Task _searchWalk;
+    private long _searchWalkAt;
+    private int _searchRingSaid;
 
     FireResTrade() {
         this(() -> 0);
@@ -165,12 +179,36 @@ final class FireResTrade {
         return _state != State.ENDED;
     }
 
+    // the trade began (it may have ended since)
+    boolean begun() {
+        return _everBegun;
+    }
+
+    // the trade ended with its potion
+    boolean succeeded() {
+        return _state == State.ENDED && _succeeded;
+    }
+
+    // this tick's step was the search for a piglin, a walk with no piglin in sight and no ingot being admired
+    boolean searching() {
+        return _searchStep;
+    }
+
+    static boolean routeOn() {
+        return Tuning.get("route_trade", 0) > 0;
+    }
+
+    private static long deadTicks() {
+        return Math.round(Tuning.get("route_trade_dead_s", FireResTradeRules.DEAD_S) * 20);
+    }
+
     // the trade's step this tick: a task to run, or null for the blaze rods' own way (the walk to the fortress while no piglin
     // is in sight, the fight when a blaze is near, everything once the trade has ended)
     // fight: whether the blaze fight would take a blaze within the given blocks now (BlazeFight.takesWithin)
     Task tick(AltoClef mod, BlockPos spawner, java.util.function.DoublePredicate fight) {
         LocalPlayer player = mod.getPlayer();
         long now = mod.getWorld().getGameTime();
+        _searchStep = false;
         int drink = count(mod, Form.DRINK);
         int thrown = count(mod, Form.THROW);
         boolean potion = drink + thrown > 0;
@@ -199,6 +237,9 @@ final class FireResTrade {
             }
             _state = State.BEGUN;
             _begunAt = now;
+            _everBegun = true;
+            _handedAt = now;
+            _handedSeen = 0;
             _goldAtBegin = gold;
             _piglinSeenAt = now;
             _bagPotionsBefore = 0;
@@ -208,9 +249,19 @@ final class FireResTrade {
             Debug.logInternal(String.format(Locale.ROOT, "strategy trade: begun, %d gold (a potion by the last ingot %.0f%%), rods %d, search %s s, cap %s s, %s",
                     gold, 100 * FireResTradeRules.chanceWithin(gold), mod.getItemStorage().getItemCount(Items.BLAZE_ROD),
                     FireResTradeRules.seconds(searchTicks()), FireResTradeRules.seconds(maxTicks()), wander() ? "wandering for piglins" : "on the way to the fortress meanwhile"));
+            if (routeOn()) {
+                Debug.logInternal("strategy trade: the route's trade, until a potion or all the gold handed; a dead end after "
+                        + FireResTradeRules.seconds(deadTicks()) + " s with no ingot taken, the search widening meanwhile (the search and cap above unused)");
+            }
         }
 
         int given = Math.max(0, _goldAtBegin - gold);
+        // (the dead end's clock: from the last ingot gone from the bag; gold picked up again does not count back)
+        if (given > _handedSeen) {
+            _handedSeen = given;
+            _handedAt = now;
+        }
+        if (now < _handedAt) _handedAt = now;
         if (gold <= 0 && _goldOutAt < 0) _goldOutAt = now;
         if (gold > 0) _goldOutAt = -1;
         _give.watchHanded(gold, now);
@@ -253,7 +304,11 @@ final class FireResTrade {
         if (!blazeNear) _blazeOnLogged = false;
         boolean worn = PiglinAi.isWearingSafeArmor(player);
         Item piece = goldPieceInBag(mod);
-        FireResTradeRules.Verdict verdict = FireResTradeRules.decide(potion, gold, pending, worn || piece != null, now - _begunAt,
+        // (Tuning route_trade: no give-up on the search's clock, the cap or the fortress; only all the gold handed, or the dead end)
+        FireResTradeRules.Verdict verdict = routeOn()
+                ? FireResTradeRules.decideRoute(potion, gold, pending, worn || piece != null, _goldOutAt < 0 ? Long.MAX_VALUE : now - _goldOutAt,
+                now - _handedAt, _piglinNear, _yielding, deadTicks())
+                : FireResTradeRules.decide(potion, gold, pending, worn || piece != null, now - _begunAt,
                 _goldOutAt < 0 ? Long.MAX_VALUE : now - _goldOutAt, now - _piglinSeenAt, _piglinNear, atFortress, _yielding,
                 searchTicks(), maxTicks());
         if (given >= _progressLogged + PROGRESS_EVERY && verdict.step() != FireResTradeRules.Step.DONE) {
@@ -287,13 +342,20 @@ final class FireResTrade {
                 _yieldLogged = false;
                 if (!_searchLogged) {
                     _searchLogged = true;
-                    Debug.logInternal("strategy trade: no piglin in sight, " + (wander() ? "wandering for one" : "on the way to the fortress meanwhile"));
+                    Debug.logInternal("strategy trade: no piglin in sight, " + (wander() ? "wandering for one"
+                            : routeOn() ? "searching on" : "on the way to the fortress meanwhile"));
                 }
+                _searchStep = true;
                 // (Tuning fr_trade_biome: out of the wastes, first the walk to them)
                 Task walk = biomeWalk() ? toWastes(mod, now, spawner) : null;
                 if (walk != null) {
                     _hud = "Walking to the nether wastes for piglins";
                     return walk;
+                }
+                // (Tuning route_trade: then wider and wider round where the walk ended, never to the fortress meanwhile)
+                if (routeOn() && !wander()) {
+                    _hud = "Looking further for piglins to trade with";
+                    return widerSearch(mod, now);
                 }
                 if (!wander()) return null;
                 if (_wander == null) _wander = new TimeoutWanderTask(false);
@@ -381,7 +443,7 @@ final class FireResTrade {
         if (!FireResRules.wantsToDrink(true, fx == null ? 0 : fx.getDuration(), player.isOnFire() || asked, blaze)) return null;
         // (Tuning fr_trade_hold, off by default: merely on fire on the way, the potion waits for the blazes)
         if (FireRes.holdsTraded(player, blaze, asked, now) || FireRes.holdsForBox(player, blaze, asked, now)
-                || FireRes.holdsAny(player, blaze, asked, now)) return null;
+                || FireRes.holdsAny(player, blaze, asked, now) || FireRes.holdsRoute(player, blaze, asked, now)) return null;
         _throw = new ThrowAtFeetTask(blaze);
         return _throw;
     }
@@ -547,6 +609,58 @@ final class FireResTrade {
             return null;
         }
         return _toWastes;
+    }
+
+    // Tuning route_trade: the search once the wastes walk is over, rings round where it began (the sampled wastes block, or
+    // where the buddy stood), RING_STEP further out each (FireResTradeRules.searchPoint). a point is passed over when it lies in
+    // a loaded chunk of a biome where no piglin spawns, or near a known bastion (its brutes); one not reached in POINT_TICKS
+    // gives way to the next. a piglin met on the way is traded with (the verdict's TRADE comes first), and the search goes on
+    // from its point after it. a line per ring begun
+    private Task widerSearch(AltoClef mod, long now) {
+        LocalPlayer player = mod.getPlayer();
+        if (_searchCentre == null) {
+            _searchCentre = _wastesAt != null ? _wastesAt : player.blockPosition();
+            _searchFrom = Math.atan2(player.getZ() - _searchCentre.getZ(), player.getX() - _searchCentre.getX());
+            _searchK = 0;
+            _searchWalk = null;
+            _searchRingSaid = 0;
+        }
+        if (_searchWalk != null && (_searchWalk.isFinished(mod) || now - _searchWalkAt >= FireResTradeRules.POINT_TICKS || now < _searchWalkAt)) {
+            _searchK++;
+            _searchWalk = null;
+        }
+        if (_searchWalk == null) {
+            List<Spot> bastions = knownBastions(mod);
+            Spot at = null;
+            for (int tries = 0; tries < FireResTradeRules.RING_POINTS * FireResTradeRules.RINGS; tries++, _searchK++) {
+                Spot s = FireResTradeRules.searchPoint(_searchK, _searchCentre.getX(), _searchCentre.getZ(), _searchFrom);
+                if (noPiglinsAt(mod, s, player.getBlockY())) continue;
+                boolean bastion = false;
+                for (Spot b : bastions) bastion |= s.distanceTo(b.x(), b.z()) <= FireResTradeRules.BASTION_KEEP_OFF;
+                if (bastion) continue;
+                at = s;
+                break;
+            }
+            // (every point passed over: the next one all the same, a walk is better than a stand)
+            if (at == null) at = FireResTradeRules.searchPoint(_searchK, _searchCentre.getX(), _searchCentre.getZ(), _searchFrom);
+            int ring = FireResTradeRules.ring(_searchK);
+            if (ring != _searchRingSaid) {
+                _searchRingSaid = ring;
+                Debug.logInternal(String.format(Locale.ROOT, "strategy trade: searching wider, ring %d at %.0f blocks round %s, %s s since the last ingot taken",
+                        ring, ring * FireResTradeRules.RING_STEP, _searchCentre.toShortString(), FireResTradeRules.seconds(now - _handedAt)));
+            }
+            _searchWalk = new GetToXZTask(at.x(), at.z(), WASTES_ARRIVE);
+            _searchWalkAt = now;
+        }
+        return _searchWalk;
+    }
+
+    // a column in a loaded chunk whose biome at height y spawns no piglin (piglins spawn in the wastes and crimson forests)
+    private static boolean noPiglinsAt(AltoClef mod, Spot s, int y) {
+        BlockPos pos = new BlockPos(s.x(), y, s.z());
+        if (!mod.getChunkTracker().isChunkLoaded(pos)) return false;
+        var biome = mod.getWorld().getBiome(pos);
+        return biome.is(Biomes.SOUL_SAND_VALLEY) || biome.is(Biomes.BASALT_DELTAS) || biome.is(Biomes.WARPED_FOREST);
     }
 
     private void settleWastes(long now, String line) {
