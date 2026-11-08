@@ -29,4 +29,23 @@ public class FireResRulesTest {
         assertEquals(false, FireResRules.wantsToDrink(true, FireResRules.REDRINK_TICKS + 1, true, 3));
         assertEquals(true, FireResRules.wantsToDrink(true, FireResRules.REDRINK_TICKS, true, 3));
     }
+
+    // the lava escape asks the food chain to stop: in the lava a wanted drink still goes down, every bite still waits
+    @Test
+    public void theEscapesStopLetsAFireResistanceDrinkInLavaBy() {
+        assertEquals(false, FireResRules.stopHolds(true, true, true));
+        // no drink wanted (none in the bag, or the effect has long to run): the stop holds
+        assertEquals(true, FireResRules.stopHolds(true, true, false));
+        // out of the lava, burning on the shore: the stop holds as before
+        assertEquals(true, FireResRules.stopHolds(true, false, true));
+        assertEquals(true, FireResRules.stopHolds(true, false, false));
+    }
+
+    @Test
+    public void noStopAskedHoldsNothing() {
+        assertEquals(false, FireResRules.stopHolds(false, true, true));
+        assertEquals(false, FireResRules.stopHolds(false, true, false));
+        assertEquals(false, FireResRules.stopHolds(false, false, true));
+        assertEquals(false, FireResRules.stopHolds(false, false, false));
+    }
 }

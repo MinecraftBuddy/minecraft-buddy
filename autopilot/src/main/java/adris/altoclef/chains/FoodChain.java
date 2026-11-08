@@ -558,9 +558,17 @@ public class FoodChain extends SingleTaskChain {
         // do NOT eat while in lava if we are escaping it (spaghetti code dependencies go brrrr)
         // (the buddy's fork: but a fire resistance drink goes down in lava too. sinking in a lava column under the potion, the
         // third potion stayed in the bag and the buddy died in the lava as the second ran out, realfort-ab-fpreach-1 run 8)
-        if (mod.getPlayer().isInLava() && !wantsFireRes(mod)) return true;
+        boolean inLava = mod.getPlayer().isInLava();
+        boolean lavaDrink = inLava && wantsFireRes(mod);
+        if (inLava && !lavaDrink) return true;
         // We're in danger, don't eat now!!
-        return !mod.getMLGBucketChain().doneMLG() || mod.getMLGBucketChain().isFallingOhNo(mod) || shouldStop;
+        // (the buddy's fork: the lava escape's stop let the drink above in and then held it here, so a buddy knocked into the
+        // lava sea died there in 5 s with the potion in the bag, row W-lavadrink. FireResRules.stopHolds lets that drink by.
+        // the escape's stair and Baritone's block placing do not fight it for the hand or the use key: every tick of the press
+        // sets the click muzzle (holdBite, watchUse), this chain asks after the ones that clear it and before the escape ticks,
+        // and selectThrowawayForLocation picks nothing under the muzzle; the escape keeps swimming and goes on after the drink)
+        return !mod.getMLGBucketChain().doneMLG() || mod.getMLGBucketChain().isFallingOhNo(mod)
+                || FireResRules.stopHolds(shouldStop, inLava, lavaDrink);
     }
 
     // this is also "are we busy chewing", half the codebase asks it to know whether it may swing or click. so it says no

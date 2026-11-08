@@ -20,4 +20,10 @@ public final class FireResRules {
         if (!hasPotion || effectTicks > REDRINK_TICKS) return false;
         return onFire || blazeDistance <= BLAZE_RANGE;
     }
+
+    // a stop asked of the food chain (the lava escape asks one for as long as it runs) holds every bite, but not a wanted fire
+    // resistance drink in lava: that drink is a way out too. the MLG and falling checks are not this rule's and still hold it
+    public static boolean stopHolds(boolean stopAsked, boolean inLava, boolean wantsDrink) {
+        return stopAsked && !(inLava && wantsDrink);
+    }
 }
