@@ -699,11 +699,16 @@ final class Alto {
 
 	static Run kit(net.minecraft.client.player.LocalPlayer p) { return kit(p, k -> false); }
 
-	/** The kit's spare shield, while the one in the off hand is at its last uses and no other is in the bag; or null. */
+	/**
+	 * The kit's spare shield, while the one in the off hand is at its last uses and no other is in the bag; or null. Outside the
+	 * overworld only with the makings in the bag: with no iron in the nether, Soprano's bill for the shield built a portal of its
+	 * own, went home for iron ore and came back, six game minutes out of a blaze run (8 Nov 2026).
+	 */
 	private static Run spareShield(net.minecraft.client.player.LocalPlayer p, java.util.function.Predicate<String> skip) {
 		var off = p.getOffhandItem();
 		if (!off.is(net.minecraft.world.item.Items.SHIELD) || !adris.altoclef.util.helpers.ToolWear.wornOut(off.getDamageValue(), off.getMaxDamage())
 				|| ObtainSteps.count(p, "shield") >= 2 || skip.test("kit a spare shield")) return null;
+		if (!p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD) && !shieldMakings(p)) return null;
 		return new Run("kit a spare shield", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
 			new adris.altoclef.util.ItemTarget("shield", 2))));
 	}
@@ -715,6 +720,11 @@ final class Alto {
 	 */
 	static boolean spareShieldFirst(net.minecraft.client.player.LocalPlayer p, long now) {
 		if (!on() || spareShield(p, k -> { Long at = KIT_FAILED.get("AltoClef: " + k); return at != null && now - at < 600_000; }) == null) return false;
+		return shieldMakings(p);
+	}
+
+	/** Whether a shield's makings are in the bag: an iron, raw or smelted, and six planks of wood (logs and stems count four). */
+	private static boolean shieldMakings(net.minecraft.client.player.LocalPlayer p) {
 		if (ObtainSteps.count(p, "raw_iron") + ObtainSteps.count(p, "iron_ingot") < 1) return false;
 		int wood = 0;
 		var inv = p.getInventory();
