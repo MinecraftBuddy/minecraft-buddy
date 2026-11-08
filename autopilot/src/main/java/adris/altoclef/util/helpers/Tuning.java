@@ -66,6 +66,11 @@ public final class Tuning {
             java.util.Map.entry("route_hold_way", 1.0),
             java.util.Map.entry("route_rods2_camp", 1.0),
             java.util.Map.entry("route_trade", 1.0),
+            // (route jar 4, 9 Nov 2026: a piglin is passed over only while a hoglin is within 12 of it or of the buddy, 0 the
+            // old 64 from the piglin; the trade's dead end counts only time with no piglin known, 0 the old clock of no ingot
+            // taken, FireResTradeRules.decideRoute)
+            java.util.Map.entry("route_trade_hoglin", 12.0),
+            java.util.Map.entry("route_trade_known", 1.0),
             java.util.Map.entry("run_bite_wither", 14.0),
             java.util.Map.entry("run_shelter_wither", 1.0),
             java.util.Map.entry("run_turn_fight", 1.0),

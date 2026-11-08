@@ -63,25 +63,104 @@ public class RouteRulesTest {
     // ---- the route's trade (FireResTradeRules.decideRoute)
 
     private static final long DEAD = Math.round(FireResTradeRules.DEAD_S * 20);
+    private static final long STALL = Math.round(FireResTradeRules.STALL_S * 20);
     private static final long NEVER = Long.MAX_VALUE;
+
+    // the old clock (route_trade_known off): potion, gold, pending, worn, sinceGoldOut, sinceHanded, piglinNear, blazeNear
+    private static FireResTradeRules.Verdict old(boolean potion, int gold, boolean pending, boolean worn, long sinceGoldOut,
+                                                 long sinceHanded, boolean piglinNear, boolean blazeNear) {
+        return FireResTradeRules.decideRoute(potion, gold, pending, worn, sinceGoldOut, sinceHanded, 0, piglinNear, false, blazeNear,
+                false, DEAD, STALL);
+    }
+
+    // route_trade_known on: sinceHanded, noneKnown, piglinNear, hoglinWait with 40 gold, nothing pending, gold armour worn
+    private static Step known(long sinceHanded, long noneKnown, boolean piglinNear, boolean hoglinWait) {
+        return FireResTradeRules.decideRoute(false, 40, false, true, NEVER, sinceHanded, noneKnown, piglinNear, hoglinWait, false,
+                true, DEAD, STALL).step();
+    }
 
     @Test
     public void theRoutesTradeGivesUpOnlyWithTheGoldGoneOrAtADeadEnd() {
         // (no piglin in sight for a long while, gold left: the search goes on)
-        assertEquals(Step.SEARCH, FireResTradeRules.decideRoute(false, 40, false, true, NEVER, DEAD - 1, false, false, DEAD).step());
-        assertEquals(Step.GIVE_UP, FireResTradeRules.decideRoute(false, 40, false, true, NEVER, DEAD, false, false, DEAD).step());
+        assertEquals(Step.SEARCH, old(false, 40, false, true, NEVER, DEAD - 1, false, false).step());
+        assertEquals(Step.GIVE_UP, old(false, 40, false, true, NEVER, DEAD, false, false).step());
         // (all the gold handed, the last throw seen: the fallback)
-        FireResTradeRules.Verdict out = FireResTradeRules.decideRoute(false, 0, false, true, FireResTradeRules.LAST_THROW_TICKS, 10, false, false, DEAD);
+        FireResTradeRules.Verdict out = old(false, 0, false, true, FireResTradeRules.LAST_THROW_TICKS, 10, false, false);
         assertEquals(Step.GIVE_UP, out.step());
         assertEquals("out of gold", out.reason());
+        assertEquals(FireResTradeRules.OUT_OF_GOLD, out.reason());
         // (the last ingot still admired: its throw waited for)
-        assertEquals(Step.TRADE, FireResTradeRules.decideRoute(false, 0, true, true, 20, 20, false, false, DEAD).step());
-        assertEquals(Step.DONE, FireResTradeRules.decideRoute(true, 30, false, true, NEVER, DEAD * 2, false, false, DEAD).step());
-        assertEquals(Step.TRADE, FireResTradeRules.decideRoute(false, 30, false, true, NEVER, 100, true, false, DEAD).step());
-        assertEquals(Step.YIELD, FireResTradeRules.decideRoute(false, 30, false, true, NEVER, 100, true, true, DEAD).step());
+        assertEquals(Step.TRADE, old(false, 0, true, true, 20, 20, false, false).step());
+        assertEquals(Step.DONE, old(true, 30, false, true, NEVER, DEAD * 2, false, false).step());
+        assertEquals(Step.TRADE, old(false, 30, false, true, NEVER, 100, true, false).step());
+        assertEquals(Step.YIELD, old(false, 30, false, true, NEVER, 100, true, true).step());
         // (a piglin in sight that never takes the gold is a dead end too)
-        assertEquals(Step.GIVE_UP, FireResTradeRules.decideRoute(false, 30, false, true, NEVER, DEAD, true, false, DEAD).step());
-        assertEquals(Step.GIVE_UP, FireResTradeRules.decideRoute(false, 30, false, false, NEVER, 0, true, false, DEAD).step());
+        assertEquals(Step.GIVE_UP, old(false, 30, false, true, NEVER, DEAD, true, false).step());
+        assertEquals(Step.GIVE_UP, old(false, 30, false, false, NEVER, 0, true, false).step());
+    }
+
+    @Test
+    public void withAPiglinKnownTheClockStands() {
+        // (smoke 3 run 1: ten minutes since the last ingot, a piglin in sight all the while: no give-up)
+        assertEquals(Step.SEARCH, known(DEAD, 0, false, false));
+        assertEquals(Step.TRADE, known(DEAD, 0, true, false));
+        // (the clock counts only time with none known)
+        assertEquals(Step.SEARCH, known(DEAD * 3 / 2, DEAD - 1, false, false));
+        FireResTradeRules.Verdict bound = FireResTradeRules.decideRoute(false, 40, false, true, NEVER, DEAD, DEAD, false, false, false,
+                true, DEAD, STALL);
+        assertEquals(Step.GIVE_UP, bound.step());
+        assertEquals("the bound, no piglin known in 600 s of searching", bound.reason());
+        // (piglins known all the while, none taking an ingot: the backstop)
+        FireResTradeRules.Verdict stall = FireResTradeRules.decideRoute(false, 40, false, true, NEVER, STALL, 0, true, false, false,
+                true, DEAD, STALL);
+        assertEquals(Step.GIVE_UP, stall.step());
+        assertEquals("the bound, no piglin took gold in 1200 s", stall.reason());
+        assertEquals(Step.TRADE, known(STALL - 1, 0, true, false));
+        // (the gold all handed still ends it at once, the last throw seen)
+        assertEquals(Step.GIVE_UP, FireResTradeRules.decideRoute(false, 0, false, true, FireResTradeRules.LAST_THROW_TICKS, 0, 0, true,
+                false, false, true, DEAD, STALL).step());
+        // (a piglin the buddy is giving to, an ingot admired: never a give-up meanwhile)
+        assertEquals(Step.TRADE, FireResTradeRules.decideRoute(false, 40, true, true, NEVER, STALL * 2, DEAD * 2, false, false, false,
+                true, DEAD, STALL).step());
+    }
+
+    @Test
+    public void aKnownPiglinWithAHoglinByItIsWaitedFor() {
+        assertEquals(Step.WAIT, known(100, 0, false, true));
+        // (a free one near goes first)
+        assertEquals(Step.TRADE, known(100, 0, true, true));
+        // (without route_trade_known: the search, as before)
+        assertEquals(Step.SEARCH, FireResTradeRules.decideRoute(false, 40, false, true, NEVER, 100, 0, false, true, false,
+                false, DEAD, STALL).step());
+        // (a blaze the fight takes comes first)
+        assertEquals(Step.YIELD, FireResTradeRules.decideRoute(false, 40, false, true, NEVER, 100, 0, false, true, true,
+                true, DEAD, STALL).step());
+    }
+
+    @Test
+    public void aPiglinIsKnownForAMinuteAndAHalfAfterItWasSeenFree() {
+        assertTrue(FireResTradeRules.known(0));
+        assertTrue(FireResTradeRules.known(FireResTradeRules.KNOWN_TICKS));
+        assertFalse(FireResTradeRules.known(FireResTradeRules.KNOWN_TICKS + 1));
+        assertFalse(FireResTradeRules.known(Long.MAX_VALUE));
+        // (a clock that went back: not known)
+        assertFalse(FireResTradeRules.known(-5));
+    }
+
+    @Test
+    public void aHoglinKeepsUsOffAPiglinOnlyWithinItsRange() {
+        double r = FireResTradeRules.HOGLIN_NEAR;
+        double none = Double.POSITIVE_INFINITY;
+        // (smoke 3 run 1: a hoglin within 64 of the piglin, not within 12 of it or of the buddy: the piglin takes gold)
+        assertFalse(FireResTradeRules.hoglinBars(40, 30, r));
+        assertFalse(FireResTradeRules.hoglinBars(none, none, r));
+        assertTrue(FireResTradeRules.hoglinBars(12, none, r));
+        assertTrue(FireResTradeRules.hoglinBars(none, 11.5, r));
+        assertFalse(FireResTradeRules.hoglinBars(12.1, 12.1, r));
+        // (0: the old rule, within 64 of the piglin, the buddy's distance not asked)
+        assertTrue(FireResTradeRules.hoglinBars(40, none, 0));
+        assertFalse(FireResTradeRules.hoglinBars(64, 1, 0));
+        assertFalse(FireResTradeRules.hoglinBars(none, 1, 0));
     }
 
     @Test

@@ -1514,7 +1514,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.DRINK)
                 + FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.THROW) > 0
                 || mod.getPlayer().hasEffect(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE)) return;
-        Debug.logInternal(adris.altoclef.util.helpers.RouteRules.NO_POTION);
+        // (route jar 4: the line says why, all the gold handed or the trade's bound, FireResTrade.endWhy)
+        Debug.logInternal(adris.altoclef.util.helpers.RouteRules.NO_POTION + " (" + _frTrade.endWhy() + ")");
     }
 
     // the portals met in the nether, kept for the route's exit: every PORTAL_NOTE_TICKS the nearest one the tracker knows a

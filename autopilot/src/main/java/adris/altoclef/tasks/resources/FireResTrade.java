@@ -7,6 +7,7 @@ import adris.altoclef.tasks.misc.EquipArmorTask;
 import adris.altoclef.tasks.movement.GetToEntityTask;
 import adris.altoclef.tasks.movement.GetToXZTask;
 import adris.altoclef.tasks.movement.GetWithinRangeOfBlockTask;
+import adris.altoclef.tasks.movement.IdleTask;
 import adris.altoclef.tasks.movement.PickupDroppedItemTask;
 import adris.altoclef.tasks.movement.TimeoutWanderTask;
 import adris.altoclef.tasks.speedrun.gamer.RunState;
@@ -162,6 +163,15 @@ public final class FireResTrade {
     private Task _searchWalk;
     private long _searchWalkAt;
     private int _searchRingSaid;
+    // Tuning route_trade_known (route jar 4): the piglins seen free to take gold within KEEP_RANGE (entity id, the last game
+    // tick), the game ticks with none known since the last ingot taken, this tick's clock, the hoglin's wait and its line, and
+    // why the trade ended without its potion (the fallback's line)
+    private final Map<Integer, Long> _freeSeen = new HashMap<>();
+    private long _noneKnown;
+    private long _lastTickAt = -1;
+    private Task _idle;
+    private boolean _waitLogged;
+    private String _endWhy;
 
     FireResTrade() {
         this(() -> 0);
@@ -202,6 +212,19 @@ public final class FireResTrade {
         return Math.round(Tuning.get("route_trade_dead_s", FireResTradeRules.DEAD_S) * 20);
     }
 
+    private static boolean knownOn() {
+        return Tuning.get("route_trade_known", 0) > 0;
+    }
+
+    private static long stallTicks() {
+        return Math.round(Tuning.get("route_trade_stall_s", FireResTradeRules.STALL_S) * 20);
+    }
+
+    // why the trade ended without its potion, for the route's fallback line: all the gold handed, or the bound and the gold left
+    String endWhy() {
+        return _endWhy != null ? _endWhy : _everBegun ? "the trade still on" : "no trade begun";
+    }
+
     // the trade's step this tick: a task to run, or null for the blaze rods' own way (the walk to the fortress while no piglin
     // is in sight, the fight when a blaze is near, everything once the trade has ended)
     // fight: whether the blaze fight would take a blaze within the given blocks now (BlazeFight.takesWithin)
@@ -231,6 +254,7 @@ public final class FireResTrade {
             if (why != null) {
                 if (now - _firstLookAt >= BEGIN_GRACE_TICKS || now < _firstLookAt) {
                     Debug.logInternal("strategy trade: not begun (" + why + ")");
+                    _endWhy = "no trade begun, " + why;
                     _state = State.ENDED;
                 }
                 return null;
@@ -240,6 +264,8 @@ public final class FireResTrade {
             _everBegun = true;
             _handedAt = now;
             _handedSeen = 0;
+            _noneKnown = 0;
+            _lastTickAt = now;
             _goldAtBegin = gold;
             _piglinSeenAt = now;
             _bagPotionsBefore = 0;
@@ -249,7 +275,11 @@ public final class FireResTrade {
             Debug.logInternal(String.format(Locale.ROOT, "strategy trade: begun, %d gold (a potion by the last ingot %.0f%%), rods %d, search %s s, cap %s s, %s",
                     gold, 100 * FireResTradeRules.chanceWithin(gold), mod.getItemStorage().getItemCount(Items.BLAZE_ROD),
                     FireResTradeRules.seconds(searchTicks()), FireResTradeRules.seconds(maxTicks()), wander() ? "wandering for piglins" : "on the way to the fortress meanwhile"));
-            if (routeOn()) {
+            if (routeOn() && knownOn()) {
+                Debug.logInternal(String.format(Locale.ROOT, "strategy trade: the route's trade, until a potion or all the gold handed; the bound %s s with no piglin known"
+                        + " or %s s with none taking gold, the search widening meanwhile, a hoglin keeping us off a piglin within %s (the search and cap above unused)",
+                        FireResTradeRules.seconds(deadTicks()), FireResTradeRules.seconds(stallTicks()), GiveGoldTask.hoglinRule()));
+            } else if (routeOn()) {
                 Debug.logInternal("strategy trade: the route's trade, until a potion or all the gold handed; a dead end after "
                         + FireResTradeRules.seconds(deadTicks()) + " s with no ingot taken, the search widening meanwhile (the search and cap above unused)");
             }
@@ -260,8 +290,11 @@ public final class FireResTrade {
         if (given > _handedSeen) {
             _handedSeen = given;
             _handedAt = now;
+            _noneKnown = 0;
         }
         if (now < _handedAt) _handedAt = now;
+        long dt = _lastTickAt < 0 || now < _lastTickAt ? 0 : now - _lastTickAt;
+        _lastTickAt = now;
         if (gold <= 0 && _goldOutAt < 0) _goldOutAt = now;
         if (gold > 0) _goldOutAt = -1;
         _give.watchHanded(gold, now);
@@ -274,6 +307,11 @@ public final class FireResTrade {
         boolean admiring = admiringNear(mod);
         boolean pending = admiring || drop.isPresent();
         double piglin = _give.nearestTradeable(mod);
+        // (Tuning route_trade_known: the dead end's clock runs only with no piglin known; a known one a hoglin keeps us off
+        // just now is waited for)
+        boolean known = noteKnown(mod, now);
+        if (!known && !pending) _noneKnown += dt;
+        Piglin held = knownOn() ? _give.hoglinHeld(mod, _freeSeen.keySet()) : null;
         boolean wasNear = _piglinNear;
         _piglinNear = FireResTradeRules.piglinNear(_piglinNear, piglin);
         // (the last piglin near can stop counting the moment it is done admiring, and the search walks off that tick:
@@ -307,7 +345,7 @@ public final class FireResTrade {
         // (Tuning route_trade: no give-up on the search's clock, the cap or the fortress; only all the gold handed, or the dead end)
         FireResTradeRules.Verdict verdict = routeOn()
                 ? FireResTradeRules.decideRoute(potion, gold, pending, worn || piece != null, _goldOutAt < 0 ? Long.MAX_VALUE : now - _goldOutAt,
-                now - _handedAt, _piglinNear, _yielding, deadTicks())
+                now - _handedAt, _noneKnown, _piglinNear, held != null, _yielding, knownOn(), deadTicks(), stallTicks())
                 : FireResTradeRules.decide(potion, gold, pending, worn || piece != null, now - _begunAt,
                 _goldOutAt < 0 ? Long.MAX_VALUE : now - _goldOutAt, now - _piglinSeenAt, _piglinNear, atFortress, _yielding,
                 searchTicks(), maxTicks());
@@ -328,6 +366,8 @@ public final class FireResTrade {
             case GIVE_UP -> {
                 Debug.logInternal("strategy trade: given up (" + verdict.reason() + ") after " + given + " ingots in "
                         + FireResTradeRules.seconds(now - _begunAt) + " seconds, " + gold + " gold left");
+                _endWhy = FireResTradeRules.OUT_OF_GOLD.equals(verdict.reason()) ? "all the gold handed, " + given + " ingots"
+                        : verdict.reason() + ", " + given + " ingots handed, " + gold + " gold left";
                 end(player, now, false, drink, thrown);
                 return null;
             }
@@ -338,8 +378,20 @@ public final class FireResTrade {
                 }
                 return null;
             }
+            case WAIT -> {
+                _yieldLogged = false;
+                _searchLogged = false;
+                if (!_waitLogged) {
+                    _waitLogged = true;
+                    Debug.logInternal("strategy trade: waiting by " + _give.hoglinWhy(mod, held) + ", the mob defense takes one that comes");
+                }
+                _hud = "Waiting for a hoglin to leave the piglins";
+                if (_idle == null) _idle = new IdleTask();
+                return _idle;
+            }
             case SEARCH -> {
                 _yieldLogged = false;
+                _waitLogged = false;
                 if (!_searchLogged) {
                     _searchLogged = true;
                     Debug.logInternal("strategy trade: no piglin in sight, " + (wander() ? "wandering for one"
@@ -365,6 +417,7 @@ public final class FireResTrade {
             default -> {
                 _yieldLogged = false;
                 _searchLogged = false;
+                _waitLogged = false;
             }
         }
         // TRADE. piglins attack a player with no gold on
@@ -395,6 +448,21 @@ public final class FireResTrade {
         }
         _hud = gold > 0 ? "Trading gold with piglins for fire resistance" : "Waiting for the piglin's last throw";
         return _give;
+    }
+
+    // Tuning route_trade_known: every piglin free to take gold within KEEP_RANGE is noted as seen now; one seen dead or left
+    // alone since is forgotten, one out of sight is kept till KNOWN_TICKS have passed (it may well be alive round a wall).
+    // whether a piglin is known
+    private boolean noteKnown(AltoClef mod, long now) {
+        LocalPlayer player = mod.getPlayer();
+        for (Piglin piglin : mod.getEntityTracker().getTrackedEntities(Piglin.class)) {
+            if (_give.tradeable(mod, piglin) && piglin.distanceTo(player) <= FireResTradeRules.KEEP_RANGE) _freeSeen.put(piglin.getId(), now);
+        }
+        _freeSeen.entrySet().removeIf(e -> {
+            Entity seen = mod.getWorld().getEntity(e.getKey());
+            return !FireResTradeRules.known(now - e.getValue()) || _give.leftAlone(e.getKey()) || seen != null && !seen.isAlive();
+        });
+        return !_freeSeen.isEmpty();
     }
 
     private void end(LocalPlayer player, long now, boolean succeeded, int drink, int thrown) {
@@ -750,9 +818,12 @@ public final class FireResTrade {
     // one already admiring. no piglin is hit meanwhile: the aura and the mob defense leave them all alone
     static final class GiveGoldTask extends AbstractDoToEntityTask {
 
-        // as TradeWithPiglinsTask: a hoglin this near a piglin keeps us off it, and a new piglin is one near the last
-        static final double HOGLIN_AVOID_TRADE_RADIUS = 64;
+        // a new piglin is one near the last (as TradeWithPiglinsTask); a hoglin keeps us off a piglin by Tuning
+        // route_trade_hoglin (FireResTradeRules.hoglinBars)
         static final double PIGLIN_NEARBY_RADIUS = 10;
+        // a piglin taken up that the buddy gets no closer than reach in this long (game ticks of the task's own) is left
+        // alone: one across lava or up a cliff stays free to take gold, so known, and would hold the trade's dead end off
+        static final long APPROACH_STALL_TICKS = 60 * 20;
         // the walk stops this close and backs off only inside it: in reach is the swing's own reach (inKillReach)
         static final double KEEP_OFF = 1;
         // between two clicks, game ticks: two a second at most
@@ -781,6 +852,8 @@ public final class FireResTrade {
         private final java.util.ArrayDeque<long[]> _unanswered = new java.util.ArrayDeque<>();
         private int _lastGold = -1;
         private int _handed;
+        private int _approachId = -1;
+        private long _approachTicks;
 
         GiveGoldTask() {
             super(KEEP_OFF);
@@ -807,16 +880,77 @@ public final class FireResTrade {
         }
 
         boolean tradeable(AltoClef mod, Entity entity) {
-            if (!(entity instanceof Piglin piglin) || !piglin.isAlive() || piglin.isBaby() || _blacklisted.contains(piglin.getId())
-                    || EntityHelper.isTradingPiglin(piglin) || piglin.getArmPose() == PiglinArmPose.ADMIRING_ITEM) {
-                return false;
-            }
-            return !hoglinNear(mod, piglin);
+            return freeButHoglin(entity) && !hoglinNear(mod, entity);
+        }
+
+        // an adult piglin alive, not left alone and not admiring an ingot: free to take gold but for a hoglin
+        private boolean freeButHoglin(Entity entity) {
+            return entity instanceof Piglin piglin && piglin.isAlive() && !piglin.isBaby() && !_blacklisted.contains(piglin.getId())
+                    && !EntityHelper.isTradingPiglin(piglin) && piglin.getArmPose() != PiglinArmPose.ADMIRING_ITEM;
+        }
+
+        boolean leftAlone(int id) {
+            return _blacklisted.contains(id);
+        }
+
+        private static double hoglinRange() {
+            return Tuning.get("route_trade_hoglin", FireResTradeRules.HOGLIN_NEAR);
+        }
+
+        // the rule in force, for the lines
+        static String hoglinRule() {
+            double range = hoglinRange();
+            return range > 0 ? String.format(Locale.ROOT, "%.0f of it or of the buddy", range)
+                    : String.format(Locale.ROOT, "%.0f of it (the old rule)", FireResTradeRules.HOGLIN_OLD);
+        }
+
+        private static double hoglinTo(AltoClef mod, Entity from) {
+            return mod.getEntityTracker().getClosestEntity(from.position(), Hoglin.class)
+                    .map(h -> (double) h.distanceTo(from)).orElse(Double.POSITIVE_INFINITY);
         }
 
         private static boolean hoglinNear(AltoClef mod, Entity piglin) {
-            Optional<Entity> hoglin = mod.getEntityTracker().getClosestEntity(piglin.position(), Hoglin.class);
-            return hoglin.isPresent() && hoglin.get().closerThan(piglin, HOGLIN_AVOID_TRADE_RADIUS);
+            double range = hoglinRange();
+            return FireResTradeRules.hoglinBars(hoglinTo(mod, piglin), range > 0 ? hoglinTo(mod, mod.getPlayer()) : Double.POSITIVE_INFINITY, range);
+        }
+
+        // the nearest piglin of the known ones (ids) within KEEP_RANGE that is free but for a hoglin just now, null for none
+        Piglin hoglinHeld(AltoClef mod, Set<Integer> known) {
+            LocalPlayer player = mod.getPlayer();
+            Piglin best = null;
+            for (Piglin piglin : mod.getEntityTracker().getTrackedEntities(Piglin.class)) {
+                if (!known.contains(piglin.getId()) || !freeButHoglin(piglin) || piglin.distanceTo(player) > FireResTradeRules.KEEP_RANGE
+                        || !hoglinNear(mod, piglin)) continue;
+                if (best == null || piglin.distanceTo(player) < best.distanceTo(player)) best = piglin;
+            }
+            return best;
+        }
+
+        // the wait's line: the piglin and how far the nearest hoglin is from it and from the buddy
+        String hoglinWhy(AltoClef mod, Piglin piglin) {
+            if (piglin == null) return "a piglin with a hoglin by it";
+            return String.format(Locale.ROOT, "piglin %d at %.0f blocks, a hoglin %s from it and %s from the buddy (the rule %s)", piglin.getId(),
+                    piglin.distanceTo(mod.getPlayer()), FireResTradeRules.distance(hoglinTo(mod, piglin)).replace(" off", ""),
+                    FireResTradeRules.distance(hoglinTo(mod, mod.getPlayer())).replace(" off", ""), hoglinRule());
+        }
+
+        // a piglin taken up to give gold to: left alone after APPROACH_STALL_TICKS with the buddy never in reach of it
+        private Optional<Entity> approached(AltoClef mod, Entity piglin) {
+            if (inReach(mod, piglin)) {
+                _approachId = -1;
+                return Optional.of(piglin);
+            }
+            if (piglin.getId() != _approachId) {
+                _approachId = piglin.getId();
+                _approachTicks = 0;
+            }
+            if (++_approachTicks <= APPROACH_STALL_TICKS) return Optional.of(piglin);
+            _blacklisted.add(piglin.getId());
+            _approachId = -1;
+            _currentId = -1;
+            Debug.logInternal(String.format(Locale.ROOT, "strategy trade: not into reach of piglin %d in %d s, %.0f blocks off, left alone",
+                    piglin.getId(), APPROACH_STALL_TICKS / 20, piglin.distanceTo(mod.getPlayer())));
+            return Optional.empty();
         }
 
         private static boolean stayOn() {
@@ -852,7 +986,7 @@ public final class FireResTrade {
             if (nearest == null) return "no adult piglin tracked";
             String why = _blacklisted.contains(nearest.getId()) ? "left alone"
                     : EntityHelper.isTradingPiglin(nearest) || nearest.getArmPose() == PiglinArmPose.ADMIRING_ITEM ? "admiring"
-                    : hoglinNear(mod, nearest) ? String.format(Locale.ROOT, "a hoglin within %.0f of it", HOGLIN_AVOID_TRADE_RADIUS)
+                    : hoglinNear(mod, nearest) ? "a hoglin within " + hoglinRule()
                     : nearest.distanceTo(player) > FireResTradeRules.KEEP_RANGE ? "out of range" : "free";
             return String.format(Locale.ROOT, "the nearest piglin %d at %.0f blocks, %s", nearest.getId(), nearest.distanceTo(player), why);
         }
@@ -890,10 +1024,10 @@ public final class FireResTrade {
                         held != null && _blacklisted.contains(held.getId()), held != null && hoglinNear(mod, held),
                         held == null ? Double.POSITIVE_INFINITY : held.distanceTo(player), held != null && tradeable(mod, held),
                         other.map(entity -> (double) entity.distanceTo(player)).orElse(Double.POSITIVE_INFINITY));
-                if (pick == FireResTradeRules.Pick.STAY) return Optional.of(current);
+                if (pick == FireResTradeRules.Pick.STAY) return approached(mod, current);
                 if (pick == FireResTradeRules.Pick.OTHER) {
                     _currentId = other.get().getId();
-                    return other;
+                    return approached(mod, other.get());
                 }
             }
             if (gold) {
@@ -907,7 +1041,7 @@ public final class FireResTrade {
                 }
                 if (found.isPresent()) {
                     _currentId = found.get().getId();
-                    return found;
+                    return approached(mod, found.get());
                 }
             }
             // none free: stay by the one admiring our ingot, its loot comes our way

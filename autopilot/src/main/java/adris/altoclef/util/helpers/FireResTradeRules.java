@@ -63,6 +63,9 @@ public final class FireResTradeRules {
         SEARCH,
         // a blaze is near: the fight has this tick, the clocks run on
         YIELD,
+        // Tuning route_trade_known: a piglin known (seen free a moment ago) has a hoglin by it or by the buddy: stand and wait,
+        // the mob defense takes a hoglin that comes at the buddy
+        WAIT,
         DONE,
         GIVE_UP
     }
@@ -94,24 +97,65 @@ public final class FireResTradeRules {
 
     // Tuning route_trade, on by default (steering 120): the route's trade ends with a potion, with all the gold handed, or at a
     // dead end, never on a clock of the search alone and never at the fortress: phase 3 does not begin with gold left and no
-    // potion. the dead end: no ingot taken by any piglin for this long (seconds; Tuning route_trade_dead_s), searching wider
-    // all the while. at about 6 s an ingot by one piglin the 64 gold take some 400 s; ten game minutes with no piglin taking
-    // one, out to rings some 300 blocks round, is a nether with no piglin to be had within the run's 90 minutes
+    // potion. the dead end (seconds; Tuning route_trade_dead_s): with Tuning route_trade_known (on by default, route jar 4)
+    // this long with no piglin known at all since the last ingot a piglin took (a piglin is known while it was seen free to
+    // take gold within KEEP_RANGE in the last KNOWN_TICKS and not seen dead), searching wider all the while; without it, this
+    // long with no ingot taken. at about 6 s an ingot by one piglin the 64 gold take some 400 s; ten game minutes with no
+    // piglin known, out to rings some 200 blocks round, is a nether with no piglin to be had within the run's 90 minutes
     public static final double DEAD_S = 600;
+    // route_trade_known's backstop (seconds; Tuning route_trade_stall_s): piglins known all the while, yet none took an ingot
+    // for this long (each one left alone after REFUSED_CLICKS clicks, an unreachable one after its approach cap, one held by a
+    // hoglin known only KNOWN_TICKS past its last free look: a stream of such piglins could hold the trade for ever).
+    // twenty minutes leaves the rest of a 90 minute run to the fortress and the blazes
+    public static final double STALL_S = 1200;
+    // a piglin seen free to take gold is known this long after (game ticks): the hoglin's wait, the walk round a wall, a
+    // piglin gone behind a hill a moment
+    public static final long KNOWN_TICKS = 90 * 20;
+
+    // a piglin last seen free sinceFree game ticks ago (MAX_VALUE never; a clock that went back counts as never) is known
+    public static boolean known(long sinceFree) {
+        return sinceFree >= 0 && sinceFree <= KNOWN_TICKS;
+    }
 
     // as decide, for the route: potion, gold, pending, goldWearable, sinceGoldOut and blazeNear as there; sinceHanded: game
-    // ticks since the last ingot a piglin took (or since the begin); piglinNear: one in sight to give gold to; deadTicks the
-    // dead end's bound
+    // ticks since the last ingot a piglin took (or since the begin); noneKnown: game ticks with no piglin known since then
+    // (route_trade_known; ignored without it); piglinNear: one in sight to give gold to; hoglinWait: a piglin known within
+    // KEEP_RANGE that a hoglin keeps us off just now (hoglinBars); knownOn: Tuning route_trade_known; deadTicks, stallTicks the
+    // bounds
     public static Verdict decideRoute(boolean potion, int gold, boolean pending, boolean goldWearable, long sinceGoldOut,
-                                      long sinceHanded, boolean piglinNear, boolean blazeNear, long deadTicks) {
+                                      long sinceHanded, long noneKnown, boolean piglinNear, boolean hoglinWait, boolean blazeNear,
+                                      boolean knownOn, long deadTicks, long stallTicks) {
         if (potion) return Verdict.of(Step.DONE);
         if (!goldWearable) return new Verdict(Step.GIVE_UP, "no gold armour to wear, the piglins would attack");
-        if (gold <= 0 && (!pending || sinceGoldOut >= LAST_THROW_TICKS)) return new Verdict(Step.GIVE_UP, "out of gold");
+        if (gold <= 0 && (!pending || sinceGoldOut >= LAST_THROW_TICKS)) return new Verdict(Step.GIVE_UP, OUT_OF_GOLD);
         if (blazeNear) return Verdict.of(Step.YIELD);
         if (pending) return Verdict.of(Step.TRADE);
-        if (sinceHanded >= deadTicks) return new Verdict(Step.GIVE_UP, "a dead end, no piglin took gold in " + seconds(deadTicks) + " s");
+        if (!knownOn && sinceHanded >= deadTicks) return new Verdict(Step.GIVE_UP, "a dead end, no piglin took gold in " + seconds(deadTicks) + " s");
+        if (knownOn && noneKnown >= deadTicks) return new Verdict(Step.GIVE_UP, "the bound, no piglin known in " + seconds(deadTicks) + " s of searching");
+        if (knownOn && sinceHanded >= stallTicks) return new Verdict(Step.GIVE_UP, "the bound, no piglin took gold in " + seconds(stallTicks) + " s");
         if (gold > 0 && piglinNear) return Verdict.of(Step.TRADE);
+        if (knownOn && gold > 0 && hoglinWait) return Verdict.of(Step.WAIT);
         return Verdict.of(Step.SEARCH);
+    }
+
+    // the reason of the give-up with all the gold handed
+    public static final String OUT_OF_GOLD = "out of gold";
+
+    // Tuning route_trade_hoglin (route jar 4, 9 Nov 2026), blocks: a piglin is passed over only while a hoglin is within this
+    // of it or of the buddy. the trade's rule from TradeWithPiglinsTask, the nearest hoglin within 64 of the piglin, barred
+    // nearly every piglin of a crimson forest, where they share the ground, and the wastes' edge by one: smoke 3 run 1 handed
+    // 16 ingots, then searched ten minutes with piglin 876529 in sight 30 blocks off ("a hoglin within 64 of it") and gave
+    // up with 48 gold. a hoglin notices a player within 16 blocks and charges at about 4 blocks a second, its toss can land
+    // the buddy in lava: within 12 of the piglin the buddy, by it to click, is in its charge within some 3 s and mid-click;
+    // further off the mob defense (which takes hoglins) has the time to turn on one that comes. 0: the old rule
+    public static final double HOGLIN_NEAR = 12;
+    public static final double HOGLIN_OLD = 64;
+
+    // whether a hoglin keeps us off a piglin: toPiglin the nearest hoglin's distance to the piglin, toBuddy the nearest
+    // hoglin's to the buddy (infinite for none); range Tuning route_trade_hoglin (0 or below: the old rule)
+    public static boolean hoglinBars(double toPiglin, double toBuddy, double range) {
+        if (range <= 0) return toPiglin < HOGLIN_OLD;
+        return toPiglin <= range || toBuddy <= range;
     }
 
     // the route's wider search once the wastes walk is over: rings round where it began, RING_STEP blocks further out each,

@@ -137,8 +137,11 @@ gate lacks is fetched by safer steps first, all of it planned together.
 - **The route for blaze rods**: with the autopilot an order of blaze rods goes through the nether in a fixed order.
   1. Into the nether.
   2. Gold to any piglin met until one throws a potion of fire resistance. The search starts in the nether wastes and
-     widens until all the gold is handed; it stops only when no piglin has taken gold for ten minutes. A magma cube
-     seen on the way is killed for its cream.
+     widens until all the gold is handed. It stops early only after ten minutes with no piglin known (one seen free to
+     take gold in the last minute and a half), or twenty with piglins about and none taking gold. A piglin is passed
+     over only while a hoglin is within 12 blocks of it or of the buddy: by a piglin just seen free the buddy waits, and
+     fights a hoglin that comes. A piglin the buddy cannot get to in a minute is left alone. A magma cube seen on the
+     way is killed for its cream.
   3. To the fortress for a nether wart and a magma cream, both. A magma cube in sight is hunted first, and kept after
      until it is dead or out of reach; then a nether wart the buddy knows of. With nothing in sight at the fortress, the
      buddy walks round the spawner in three rings, 20, 40 and 60 blocks out, to see more of it. This ends with both in
