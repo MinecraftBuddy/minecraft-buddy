@@ -81,6 +81,67 @@ public class SimpleChunkTracker {
         return findInChunk(chunk, state) != null;
     }
 
+    // a server's anti-xray (Paper's engine-mode 2, as Tweakcraft runs it) sends every block hidden from view as a random
+    // one of its hidden list, nether bricks and polished blackstone bricks among them, so a palette hit says nothing about
+    // what is there. a block counts here only with an open face (air or a fluid next to it), which such a server always
+    // sends as it is: the no x-ray rule, for bricks as for ores. faces across the chunk's sides are not looked at
+    public boolean chunkHasExposed(ChunkPos chunk, Predicate<BlockState> state) {
+        LevelChunk levelChunk = _mod.getWorld().getChunk(chunk.x(), chunk.z());
+        if (levelChunk instanceof EmptyLevelChunk) {
+            return false;
+        }
+        return findExposedInSections(levelChunk.getSections(), levelChunk.getMinY(), chunk.getMinBlockX(), chunk.getMinBlockZ(), state) != null;
+    }
+
+    // findInSections, a hit only with an open face inside the chunk (see chunkHasExposed)
+    public static BlockPos findExposedInSections(LevelChunkSection[] sections, int minY, int minX, int minZ, Predicate<BlockState> state) {
+        for (int i = 0; i < sections.length; ++i) {
+            LevelChunkSection section = sections[i];
+            if (section == null || !section.maybeHas(state)) {
+                continue;
+            }
+            for (int y = 0; y < 16; ++y) {
+                for (int z = 0; z < 16; ++z) {
+                    for (int x = 0; x < 16; ++x) {
+                        if (state.test(section.getBlockState(x, y, z)) && openFace(sections, i, x, y, z)) {
+                            return new BlockPos(minX + x, minY + i * 16 + y, minZ + z);
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean openFace(LevelChunkSection[] sections, int i, int x, int y, int z) {
+        return open(sections, i, x - 1, y, z) || open(sections, i, x + 1, y, z) || open(sections, i, x, y, z - 1)
+                || open(sections, i, x, y, z + 1) || open(sections, i, x, y - 1, z) || open(sections, i, x, y + 1, z);
+    }
+
+    // air or a fluid at local x y z of section i (y may step into the section below or above); outside the chunk's sides
+    // or its height, no. a missing section is all air
+    private static boolean open(LevelChunkSection[] sections, int i, int x, int y, int z) {
+        if (x < 0 || x > 15 || z < 0 || z > 15) {
+            return false;
+        }
+        if (y < 0) {
+            i--;
+            y += 16;
+        } else if (y > 15) {
+            i++;
+            y -= 16;
+        }
+        if (i < 0 || i >= sections.length) {
+            return false;
+        }
+        LevelChunkSection section = sections[i];
+        if (section == null) {
+            return true;
+        }
+        BlockState s = section.getBlockState(x, y, z);
+        return s.isAir() || !s.getFluidState().isEmpty();
+    }
+
     // split out from findInChunk so a test can feed it hand built sections. sections[i] covers world y
     // minY + i * 16, NOT i * 16, which is the bug waiting to happen in the overworld where minY is -64
     public static BlockPos findInSections(LevelChunkSection[] sections, int minY, int minX, int minZ, Predicate<BlockState> state) {

@@ -141,4 +141,98 @@ public class SimpleChunkTrackerTest {
         BlockPos hit = find(emptyColumn(), s -> s.isAir());
         assertEquals(new BlockPos(32, MIN_Y, -48), hit);
     }
+
+    // anti-xray: a block hidden from view may be a fake, so only one with an open face counts
+
+    private static final Predicate<BlockState> NETHER_BRICKS = s -> s.is(Blocks.NETHER_BRICKS);
+
+    private static BlockPos findExposed(LevelChunkSection[] sections) {
+        return SimpleChunkTracker.findExposedInSections(sections, MIN_Y, 32, -48, NETHER_BRICKS);
+    }
+
+    // a brick at local x y z of section i with netherrack on all six faces (y inside the section)
+    private static LevelChunkSection[] buried(int i, int x, int y, int z) {
+        LevelChunkSection[] sections = emptyColumn();
+        BlockState rack = Blocks.NETHERRACK.defaultBlockState();
+        sections[i].setBlockState(x, y, z, Blocks.NETHER_BRICKS.defaultBlockState());
+        sections[i].setBlockState(x - 1, y, z, rack);
+        sections[i].setBlockState(x + 1, y, z, rack);
+        sections[i].setBlockState(x, y, z - 1, rack);
+        sections[i].setBlockState(x, y, z + 1, rack);
+        sections[i].setBlockState(x, y - 1, z, rack);
+        sections[i].setBlockState(x, y + 1, z, rack);
+        return sections;
+    }
+
+    @Test
+    public void aBuriedBrickIsNoFortress() {
+        LevelChunkSection[] sections = buried(8, 5, 5, 5);
+        // the palette has it, so the old test said fortress
+        assertEquals(new BlockPos(32 + 5, MIN_Y + 8 * 16 + 5, -48 + 5), find(sections, NETHER_BRICKS));
+        assertNull(findExposed(sections));
+    }
+
+    @Test
+    public void aBrickWithAirOnOneFaceCounts() {
+        LevelChunkSection[] sections = buried(8, 5, 5, 5);
+        sections[8].setBlockState(5, 6, 5, Blocks.AIR.defaultBlockState());
+        assertEquals(new BlockPos(32 + 5, MIN_Y + 8 * 16 + 5, -48 + 5), findExposed(sections));
+    }
+
+    @Test
+    public void aBrickByLavaCounts() {
+        LevelChunkSection[] sections = buried(8, 5, 5, 5);
+        sections[8].setBlockState(4, 5, 5, Blocks.LAVA.defaultBlockState());
+        assertEquals(new BlockPos(32 + 5, MIN_Y + 8 * 16 + 5, -48 + 5), findExposed(sections));
+    }
+
+    @Test
+    public void theOpenFaceMayBeInTheSectionAbove() {
+        LevelChunkSection[] sections = emptyColumn();
+        BlockState rack = Blocks.NETHERRACK.defaultBlockState();
+        // the brick on the top layer of section 8, its upper face in section 9
+        sections[8].setBlockState(5, 15, 5, Blocks.NETHER_BRICKS.defaultBlockState());
+        for (int[] d : new int[][]{{4, 15, 5}, {6, 15, 5}, {5, 15, 4}, {5, 15, 6}, {5, 14, 5}}) {
+            sections[8].setBlockState(d[0], d[1], d[2], rack);
+        }
+        sections[9].setBlockState(5, 0, 5, rack);
+        assertNull(findExposed(sections));
+        sections[9].setBlockState(5, 0, 5, Blocks.AIR.defaultBlockState());
+        assertEquals(new BlockPos(32 + 5, MIN_Y + 8 * 16 + 15, -48 + 5), findExposed(sections));
+    }
+
+    @Test
+    public void aFaceAcrossTheChunksSideIsNotLookedAt() {
+        LevelChunkSection[] sections = emptyColumn();
+        BlockState rack = Blocks.NETHERRACK.defaultBlockState();
+        // at local x 0 the west face lies in the next chunk: unknown here, so not open
+        sections[8].setBlockState(0, 5, 5, Blocks.NETHER_BRICKS.defaultBlockState());
+        for (int[] d : new int[][]{{1, 5, 5}, {0, 5, 4}, {0, 5, 6}, {0, 4, 5}, {0, 6, 5}}) {
+            sections[8].setBlockState(d[0], d[1], d[2], rack);
+        }
+        assertNull(findExposed(sections));
+    }
+
+    @Test
+    public void manyBuriedBricksAndOneOpen() {
+        // a column of fakes deep in the rock and the one real brick on a ledge further up
+        LevelChunkSection[] sections = emptyColumn();
+        BlockState rack = Blocks.NETHERRACK.defaultBlockState();
+        for (int y = 0; y < 16; y++) {
+            for (int z = 0; z < 16; z++) {
+                for (int x = 0; x < 16; x++) {
+                    sections[6].setBlockState(x, y, z, (x + y + z) % 3 == 0 ? Blocks.NETHER_BRICKS.defaultBlockState() : rack);
+                }
+            }
+        }
+        for (int z = 0; z < 16; z++) {
+            for (int x = 0; x < 16; x++) {
+                sections[5].setBlockState(x, 15, z, rack);
+                sections[7].setBlockState(x, 0, z, rack);
+            }
+        }
+        assertNull(findExposed(sections));
+        sections[7].setBlockState(3, 1, 3, Blocks.NETHER_BRICKS.defaultBlockState());
+        assertEquals(new BlockPos(32 + 3, MIN_Y + 7 * 16 + 1, -48 + 3), findExposed(sections));
+    }
 }

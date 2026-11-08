@@ -50,7 +50,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // 0, realfort-a-bent-i runs 2 and 4. Tuning pillbox_quiet, the default the rod drills' yardstick plays)
     private static final double PILLBOX_QUIET = 3;
     private final int _count;
-    private final Task _searcher = new SearchChunkForBlockTask(Blocks.NETHER_BRICKS);
+    // by bricks that show (an anti-xray fakes hidden ones in nearly every chunk: from 8 Nov 2026 on the rig, "New searcher"
+    // at a median 16 blocks from the buddy against 161 before)
+    private final Task _searcher = SearchChunkForBlockTask.exposed(Blocks.NETHER_BRICKS);
     // the fight logic lives in there. this task used to just camp, silently, while blazes it had decided not to see shot at it
     private final BlazeFight _fight = new BlazeFight();
     // fire resistance from the kit's water bottles: fire was over half the nether's damage, and the blazes' fireballs, lava and

@@ -275,6 +275,8 @@ public final class DangerShadow {
                 int z = feet.getZ() + dz;
                 for (int dy = -1; dy <= 2; dy++) {
                     String kind = hazardKind(level.getBlockState(at.set(x, feet.getY() + dy, z)));
+                    // (a server's anti-xray sends magma for blocks hidden in the rock: one counts only with an open face)
+                    if ("magma_block".equals(kind) && !openFace(level, x, feet.getY() + dy, z)) continue;
                     if (kind != null) out.add(new Spot(kind, x, feet.getY() + dy, z, 0));
                 }
                 if (dx == 0 && dz == 0) continue;
@@ -300,6 +302,18 @@ public final class DangerShadow {
         }
         return DangerMeter.LETHAL_DROP;
     }
+
+    // air or a fluid on one of the six faces of x y z
+    private static boolean openFace(ClientLevel level, int x, int y, int z) {
+        BlockPos.MutableBlockPos n = new BlockPos.MutableBlockPos();
+        for (int[] d : FACES) {
+            BlockState state = level.getBlockState(n.set(x + d[0], y + d[1], z + d[2]));
+            if (state.isAir() || !state.getFluidState().isEmpty()) return true;
+        }
+        return false;
+    }
+
+    private static final int[][] FACES = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
 
     private static boolean open(ClientLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
