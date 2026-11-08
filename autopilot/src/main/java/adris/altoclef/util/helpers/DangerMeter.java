@@ -15,9 +15,11 @@ import java.util.Locale;
 //   makes any mob within 3 blocks a pusher: a passive or calm one by walking into us, a hostile by its knock when the hazard
 //   lies behind us. without a hazard nothing pushes
 // - D: time to die, hp over the loss rate (T + push); K: time to kill what is after us (its hp over our damage a second, plus
-//   the walk to each); R = D / K
-// - the level: calm (T and push both under about 1), flee (R under 1, or hp minus the loss at the margin), cover (R under 2),
-//   fight (R 2 and up). a level is left only 20% past its bound and is held at least HOLD_TICKS (Track)
+//   the walk to each); the risk K / D: higher is more danger, over 1 the buddy loses the race (0 with nothing on us; the
+//   meter's lines said R = D / K before steering 116, which the rig reads as 1 / R)
+// - the level: calm (T and push both under about 1), flee (risk over 1, or hp minus the loss at the margin), cover (risk over
+//   0.5), fight (risk 0.5 and under). a level is left only 20% past its bound (the bound in R, so the levels are R's as they
+//   were) and is held at least HOLD_TICKS (Track)
 //
 // fire resistance zeroes fire damage: a blaze's fireballs and their burning, and the fire hazards (lava, fire, soul fire,
 // magma, campfires). the mob numbers in MobThreat are through iron (armour 15) on Normal; scale() turns them into ours
@@ -42,8 +44,9 @@ public final class DangerMeter {
     public static final double CALM_PUSH = 1;
     // flee when hp minus the loss within the horizon comes down to this
     public static final double MARGIN = 4;
-    public static final double FIGHT_R = 2;
-    public static final double FLEE_R = 1;
+    // flee over this risk, cover over this (R under 1 and under 2 before the turn)
+    public static final double FLEE_RISK = 1;
+    public static final double COVER_RISK = 0.5;
     // a level is left only this far past its bound
     public static final double BAND = 0.2;
     // and held at least this long (1 s)
@@ -90,7 +93,7 @@ public final class DangerMeter {
     public record Part(String kind, double distance, double hp3) {
     }
 
-    public record Reading(double t, double push, double d, double k, double r, double hp, List<Part> top) {
+    public record Reading(double t, double push, double d, double k, double risk, double hp, List<Part> top) {
         public double loss() {
             return t + push;
         }
@@ -187,9 +190,10 @@ public final class DangerMeter {
         push = Math.min(push, us.hp());
         double loss = t + push;
         double d = loss > 0 ? us.hp() / (loss / HORIZON) : Double.POSITIVE_INFINITY;
-        double r = loss > 0 && k > 0 ? d / k : Double.POSITIVE_INFINITY;
+        // (nothing on us, or nothing to kill: 0, where R was inf)
+        double risk = loss > 0 && k > 0 ? k / d : 0;
         parts.sort(Comparator.comparingDouble(Part::hp3).reversed());
-        return new Reading(t, push, d, k, r, us.hp(), parts.size() > 3 ? List.copyOf(parts.subList(0, 3)) : List.copyOf(parts));
+        return new Reading(t, push, d, k, risk, us.hp(), parts.size() > 3 ? List.copyOf(parts.subList(0, 3)) : List.copyOf(parts));
     }
 
     // want x what one mob can do to us within the horizon, hp per 3 s
@@ -239,15 +243,16 @@ public final class DangerMeter {
         return worst;
     }
 
-    // the level for these numbers, starting from the current one: a level is entered at its bound and left 20% past it
-    public static Level classify(Level current, double t, double push, double r, double hp) {
+    // the level for these numbers, starting from the current one: a level is entered at its bound and left 20% past it. the
+    // band divides the risk's bound, as it multiplied R's (risk over 1 / (1.2) is R under 1.2), so every level is R's
+    public static Level classify(Level current, double t, double push, double risk, double hp) {
         double calmBand = current == Level.CALM ? 1 + BAND : 1 - BAND;
         if (t < CALM_T * calmBand && push < CALM_PUSH * calmBand) return Level.CALM;
-        double fleeR = FLEE_R * (current == Level.FLEE ? 1 + BAND : current == Level.COVER ? 1 - BAND : 1);
+        double fleeRisk = FLEE_RISK / (current == Level.FLEE ? 1 + BAND : current == Level.COVER ? 1 - BAND : 1);
         double margin = MARGIN * (current == Level.FLEE ? 1 + BAND : 1);
-        if (r < fleeR || hp - (t + push) <= margin) return Level.FLEE;
-        double coverR = FIGHT_R * (current == Level.FIGHT ? 1 - BAND : current == Level.COVER || current == Level.FLEE ? 1 + BAND : 1);
-        if (r < coverR) return Level.COVER;
+        if (risk > fleeRisk || hp - (t + push) <= margin) return Level.FLEE;
+        double coverRisk = COVER_RISK / (current == Level.FIGHT ? 1 - BAND : current == Level.COVER || current == Level.FLEE ? 1 + BAND : 1);
+        if (risk > coverRisk) return Level.COVER;
         return Level.FIGHT;
     }
 
@@ -262,11 +267,11 @@ public final class DangerMeter {
 
         // true when the level changed
         public boolean step(long tick, Reading reading) {
-            return step(tick, reading.t(), reading.push(), reading.r(), reading.hp());
+            return step(tick, reading.t(), reading.push(), reading.risk(), reading.hp());
         }
 
-        public boolean step(long tick, double t, double push, double r, double hp) {
-            Level next = classify(_level, t, push, r, hp);
+        public boolean step(long tick, double t, double push, double risk, double hp) {
+            Level next = classify(_level, t, push, risk, hp);
             if (next == _level || tick - _since < HOLD_TICKS) return false;
             _level = next;
             _since = tick;
@@ -349,20 +354,20 @@ public final class DangerMeter {
         return sb.toString();
     }
 
-    // danger: <level>, T <t> hp/3s, push <p>, R <r>, hp <hp>, top <kind> <dist> <share>%, ...
+    // danger: <level>, T <t> hp/3s, push <p>, risk <risk>, hp <hp>, top <kind> <dist> <share>%, ...
     public static String levelLine(Level level, Reading reading) {
-        return "danger: " + level.word() + ", T " + num(reading.t()) + " hp/3s, push " + num(reading.push()) + ", R " + num(reading.r())
+        return "danger: " + level.word() + ", T " + num(reading.t()) + " hp/3s, push " + num(reading.push()) + ", risk " + num(reading.risk())
                 + ", hp " + num(reading.hp()) + ", top " + top(reading);
     }
 
-    // danger: hit <damage> from <kind>, level <level>, T <t>, R <r>
+    // danger: hit <damage> from <kind>, level <level>, T <t>, risk <risk>
     public static String hitLine(double damage, String kind, Level level, Reading reading) {
-        return "danger: hit " + num(damage) + " from " + kind + ", level " + level.word() + ", T " + num(reading.t()) + ", R " + num(reading.r());
+        return "danger: hit " + num(damage) + " from " + kind + ", level " + level.word() + ", T " + num(reading.t()) + ", risk " + num(reading.risk());
     }
 
-    // danger: at death, level <level>, T <t>, push <p>, R <r>, top ...
+    // danger: at death, level <level>, T <t>, push <p>, risk <risk>, top ...
     public static String deathLine(Level level, Reading reading) {
-        return "danger: at death, level " + level.word() + ", T " + num(reading.t()) + ", push " + num(reading.push()) + ", R " + num(reading.r())
+        return "danger: at death, level " + level.word() + ", T " + num(reading.t()) + ", push " + num(reading.push()) + ", risk " + num(reading.risk())
                 + ", top " + top(reading);
     }
 
@@ -373,6 +378,6 @@ public final class DangerMeter {
 
     // an empty reading, for a line before the first sample
     public static Reading none(double hp) {
-        return new Reading(0, 0, Double.POSITIVE_INFINITY, 0, Double.POSITIVE_INFINITY, hp, List.of());
+        return new Reading(0, 0, Double.POSITIVE_INFINITY, 0, 0, hp, List.of());
     }
 }

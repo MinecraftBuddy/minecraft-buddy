@@ -136,6 +136,9 @@ public class AltoClef {
         _mlgBucketChain = new MLGBucketFallChain(_taskRunner);
         new WorldSurvivalChain(_taskRunner);
         _foodChain = new FoodChain(_taskRunner);
+        // the buddy's fork: the forced drills' fight or flee while the danger meter is not calm (82, over the mob defense and the
+        // blaze fight; tuning danger_force, off by default, and then it never asks for the wheel)
+        new adris.altoclef.chains.DangerForceChain(_taskRunner);
 
         // Trackers
         _storageTracker = new ItemStorageTracker(this, _trackerManager, container -> _containerSubTracker = container);

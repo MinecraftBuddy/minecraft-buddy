@@ -35,9 +35,9 @@ import net.minecraft.world.level.block.state.BlockState;
 
 // the buddy's fork: the danger meter in shadow (phase 1). every EVERY ticks in the nether and the overworld it reads the meter
 // from what the client sees and logs it: a line when its level changes, one at every hit taken, one at death, and one when a
-// stretch in cover or flee ends. it steers nothing: no task, chain or path cost reads anything here, and everything it asks
-// the game is a read (MobReachability.wayFor makes no verdict, LookHelper.seesPlayer is a plain ray). off with the tuning
-// key danger_shadow=0
+// stretch in cover or flee ends. it steers nothing by default: everything it asks the game is a read (MobReachability.wayFor
+// makes no verdict, LookHelper.seesPlayer is a plain ray), and only the forced drills' chain (DangerForceChain, tuning key
+// danger_force, off by default) reads its level and threats. off with the tuning key danger_shadow=0
 public final class DangerShadow {
     private static final int EVERY = 5;
     // mobs within this; a shooter within its range up to SHOOTER_RANGE
@@ -55,6 +55,9 @@ public final class DangerShadow {
     private static final DangerMeter.Track track = new DangerMeter.Track();
     private static final DangerMeter.Patience patience = new DangerMeter.Patience();
     private static Reading last = DangerMeter.none(20);
+    // the mobs of the last reading by entity, with what each adds to T and push: only while danger_force is on (the forced
+    // drills), empty otherwise
+    private static List<DangerForce.Threat> threats = List.of();
     private static long tick;
     private static boolean wasDead;
     private static int errors;
@@ -82,6 +85,25 @@ public final class DangerShadow {
     private static long spotsTick = Long.MIN_VALUE / 4;
 
     private DangerShadow() {
+    }
+
+    // the meter's level now: calm while the meter is off (danger_shadow=0, or off after its errors)
+    public static Level level() {
+        return on() ? track.level() : Level.CALM;
+    }
+
+    // the last reading (the risk for a line)
+    public static Reading last() {
+        return last;
+    }
+
+    // the mobs of the last reading with their shares (danger_force on only)
+    public static List<DangerForce.Threat> threats() {
+        return on() ? threats : List.of();
+    }
+
+    private static boolean on() {
+        return errors < MAX_ERRORS && Tuning.get("danger_shadow", 1) > 0;
     }
 
     public static void tick(AltoClef mod) {
@@ -129,6 +151,7 @@ public final class DangerShadow {
         if (dead && !wasDead) {
             track.reset(tick);
             last = DangerMeter.none(0);
+            threats = List.of();
             after = new HashMap<>();
             lastRods = -1;
         }
@@ -138,6 +161,7 @@ public final class DangerShadow {
         if (dead) return;
         if (!watched) {
             last = DangerMeter.none(hp);
+            threats = List.of();
             return;
         }
 
@@ -194,6 +218,8 @@ public final class DangerShadow {
         long now = level.getGameTime();
         MobReachability reach = mod.getEntityTracker().getMobReachability();
         List<DangerMeter.Mob> mobs = new ArrayList<>();
+        // (each mob's entity, for the forced drills' threats)
+        List<Mob> bodies = new ArrayList<>();
         Map<Integer, Double> afterNow = new HashMap<>();
         for (Entity e : level.entitiesForRendering()) {
             if (!(e instanceof Mob mob) || !mob.isAlive()) continue;
@@ -218,10 +244,28 @@ public final class DangerShadow {
             boolean way = row != null && row.flies() || reach.wayFor(mob, player, now);
             mobs.add(new DangerMeter.Mob(kind, row, mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ(),
                     want, way, sees, mob.getHealth()));
+            bodies.add(mob);
             if (want > 0) afterNow.put(mob.getId(), distance);
         }
         pendingAfter = afterNow;
-        return DangerMeter.read(us, mobs, hazards(level, player));
+        List<Hazard> hazards = hazards(level, player);
+        threats = DangerForce.mode(Tuning.get("danger_force", 0)) == DangerForce.OFF ? List.of() : threats(us, mobs, bodies, hazards);
+        return DangerMeter.read(us, mobs, hazards);
+    }
+
+    // each mob's share as DangerMeter.read counts it (T, and push before read's cap at our hp), with its entity
+    private static List<DangerForce.Threat> threats(DangerMeter.Us us, List<DangerMeter.Mob> mobs, List<Mob> bodies, List<Hazard> hazards) {
+        List<DangerForce.Threat> out = new ArrayList<>();
+        for (int i = 0; i < mobs.size(); i++) {
+            DangerMeter.Mob m = mobs.get(i);
+            double distance = m.distance();
+            double t = DangerMeter.damage3(m, us, distance);
+            double push = DangerMeter.pushRisk(m, us, distance, hazards);
+            if (t <= 0 && push <= 0) continue;
+            Mob body = bodies.get(i);
+            out.add(new DangerForce.Threat(body.getId(), m.kind(), body.getX(), body.getY(), body.getZ(), t, push));
+        }
+        return out;
     }
 
     // ---- progress: a kill or a rod since the last sample (hp and T are the meter's own)

@@ -27,7 +27,7 @@ public class DangerMeterTest {
     }
 
     private static Level levelFrom(Level start, Reading r) {
-        return DangerMeter.classify(start, r.t(), r.push(), r.r(), r.hp());
+        return DangerMeter.classify(start, r.t(), r.push(), r.risk(), r.hp());
     }
 
     @Test
@@ -65,7 +65,9 @@ public class DangerMeterTest {
         Reading r = DangerMeter.read(us(10, false), blazes, List.of());
         assertTrue("T " + r.t(), r.t() > 1);
         Level level = levelFrom(Level.CALM, r);
-        assertTrue(level + " R " + r.r(), level == Level.FLEE || level == Level.COVER);
+        assertTrue(level + " risk " + r.risk(), level == Level.FLEE || level == Level.COVER);
+        // three blazes at 10 hp lose the race: the risk is over 1
+        assertTrue("risk " + r.risk(), r.risk() > 1);
         assertEquals(3, r.top().size());
         assertEquals("blaze", r.top().get(0).kind());
     }
@@ -133,29 +135,78 @@ public class DangerMeterTest {
     public void theHysteresisHoldsALevelOneSecond() {
         DangerMeter.Track track = new DangerMeter.Track();
         // three blazes at 10 hp: out of calm at once
-        assertTrue(track.step(0, 4, 0, 0.5, 10));
+        assertTrue(track.step(0, 4, 0, 2, 10));
         assertEquals(Level.FLEE, track.level());
         // all quiet half a second later: held
-        assertFalse(track.step(10, 0, 0, Double.POSITIVE_INFINITY, 20));
+        assertFalse(track.step(10, 0, 0, 0, 20));
         assertEquals(Level.FLEE, track.level());
         // a second on: calm
-        assertTrue(track.step(20, 0, 0, Double.POSITIVE_INFINITY, 20));
+        assertTrue(track.step(20, 0, 0, 0, 20));
         assertEquals(Level.CALM, track.level());
     }
 
     @Test
     public void aLevelIsLeftTwentyPercentPastItsBound() {
-        // fight is left below R 1.6, not at 2
-        assertEquals(Level.FIGHT, DangerMeter.classify(Level.FIGHT, 3, 0, 1.8, 20));
-        assertEquals(Level.COVER, DangerMeter.classify(Level.FIGHT, 3, 0, 1.5, 20));
-        // cover goes back to fight only at R 2.4
-        assertEquals(Level.COVER, DangerMeter.classify(Level.COVER, 3, 0, 2.2, 20));
-        assertEquals(Level.FIGHT, DangerMeter.classify(Level.COVER, 3, 0, 2.5, 20));
+        // fight is left over risk 1 / 1.6 (R below 1.6), not at 0.5
+        assertEquals(Level.FIGHT, DangerMeter.classify(Level.FIGHT, 3, 0, 1 / 1.8, 20));
+        assertEquals(Level.COVER, DangerMeter.classify(Level.FIGHT, 3, 0, 1 / 1.5, 20));
+        // cover goes back to fight only at risk 1 / 2.4 (R 2.4)
+        assertEquals(Level.COVER, DangerMeter.classify(Level.COVER, 3, 0, 1 / 2.2, 20));
+        assertEquals(Level.FIGHT, DangerMeter.classify(Level.COVER, 3, 0, 1 / 2.5, 20));
         // calm is left at T 1.2, entered from fight below 0.8
-        assertEquals(Level.CALM, DangerMeter.classify(Level.CALM, 1.1, 0, 5, 20));
-        assertEquals(Level.FIGHT, DangerMeter.classify(Level.FIGHT, 0.9, 0, 5, 20));
+        assertEquals(Level.CALM, DangerMeter.classify(Level.CALM, 1.1, 0, 0.2, 20));
+        assertEquals(Level.FIGHT, DangerMeter.classify(Level.FIGHT, 0.9, 0, 0.2, 20));
         // the margin: hp minus the loss at 4 or less is flee
-        assertEquals(Level.FLEE, DangerMeter.classify(Level.FIGHT, 3, 0, 5, 7));
+        assertEquals(Level.FLEE, DangerMeter.classify(Level.FIGHT, 3, 0, 0.2, 7));
+        // nothing on us is risk 0, and no way to win (no damage of ours) is risk inf
+        assertEquals(0, DangerMeter.none(20).risk(), 1e-9);
+        assertEquals(Level.FLEE, DangerMeter.classify(Level.FIGHT, 3, 0, Double.POSITIVE_INFINITY, 20));
+    }
+
+    // the levels as they were with R = D / K, kept here to hold the turned risk to them
+    private static Level oldClassify(Level current, double t, double push, double r, double hp) {
+        double calmBand = current == Level.CALM ? 1.2 : 0.8;
+        if (t < calmBand && push < calmBand) return Level.CALM;
+        double fleeR = current == Level.FLEE ? 1.2 : current == Level.COVER ? 0.8 : 1;
+        double margin = 4 * (current == Level.FLEE ? 1.2 : 1);
+        if (r < fleeR || hp - (t + push) <= margin) return Level.FLEE;
+        double coverR = 2 * (current == Level.FIGHT ? 0.8 : current == Level.COVER || current == Level.FLEE ? 1.2 : 1);
+        if (r < coverR) return Level.COVER;
+        return Level.FIGHT;
+    }
+
+    @Test
+    public void theTurnedRiskGivesTheOldLevels() {
+        // a sweep of T, D and K from every level: risk K / D against R D / K, the old R inf as risk 0
+        java.util.Random random = new java.util.Random(116);
+        for (int i = 0; i < 200_000; i++) {
+            Level from = Level.values()[random.nextInt(4)];
+            double hp = 1 + random.nextDouble() * 19;
+            double t = random.nextInt(5) == 0 ? 0 : random.nextDouble() * 8;
+            double push = random.nextInt(3) == 0 ? 0 : random.nextDouble() * 3;
+            double k = random.nextInt(6) == 0 ? 0 : random.nextDouble() * 30;
+            double loss = t + push;
+            double d = loss > 0 ? hp / (loss / DangerMeter.HORIZON) : Double.POSITIVE_INFINITY;
+            double r = loss > 0 && k > 0 ? d / k : Double.POSITIVE_INFINITY;
+            double risk = loss > 0 && k > 0 ? k / d : 0;
+            assertEquals("from " + from + " T " + t + " push " + push + " R " + r, oldClassify(from, t, push, r, hp),
+                    DangerMeter.classify(from, t, push, risk, hp));
+        }
+        // and on the bounds themselves
+        for (Level from : Level.values()) {
+            for (double r : new double[]{0.8, 1, 1.2, 1.6, 2, 2.4}) {
+                assertEquals(from + " R " + r, oldClassify(from, 3, 0, r, 20), DangerMeter.classify(from, 3, 0, 1 / r, 20));
+            }
+        }
+    }
+
+    @Test
+    public void theRiskIsTimeToKillOverTimeToDie() {
+        Reading r = DangerMeter.read(us(20, false), List.of(mob("zombie", 1, 0, 1, true, true)), List.of());
+        assertEquals(r.k() / r.d(), r.risk(), 1e-12);
+        // a lone zombie next to a buddy in iron with a sword: the buddy wins the race easily
+        assertTrue("risk " + r.risk(), r.risk() < 0.5);
+        assertEquals(Level.FIGHT, levelFrom(Level.CALM, r));
     }
 
     @Test
@@ -179,9 +230,9 @@ public class DangerMeterTest {
         Reading r = DangerMeter.read(us(20, false), List.of(mob("zombie", 1, 0, 1, true, true)), List.of());
         String line = DangerMeter.levelLine(Level.FIGHT, r);
         assertTrue(line, line.startsWith("danger: fight, T "));
-        assertTrue(line, line.contains(" hp/3s, push 0.0, R "));
+        assertTrue(line, line.contains(" hp/3s, push 0.0, risk "));
         assertTrue(line, line.endsWith("top zombie 1.0 100%"));
-        assertEquals("danger: hit 2.5 from blaze, level fight, T 0.0, R inf", DangerMeter.hitLine(2.5, "blaze", Level.FIGHT, DangerMeter.none(20)));
-        assertEquals("danger: at death, level calm, T 0.0, push 0.0, R inf, top none", DangerMeter.deathLine(Level.CALM, DangerMeter.none(0)));
+        assertEquals("danger: hit 2.5 from blaze, level fight, T 0.0, risk 0.0", DangerMeter.hitLine(2.5, "blaze", Level.FIGHT, DangerMeter.none(20)));
+        assertEquals("danger: at death, level calm, T 0.0, push 0.0, risk 0.0, top none", DangerMeter.deathLine(Level.CALM, DangerMeter.none(0)));
     }
 }
