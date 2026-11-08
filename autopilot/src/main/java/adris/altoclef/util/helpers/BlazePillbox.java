@@ -840,4 +840,16 @@ public final class BlazePillbox {
         }
         return true;
     }
+
+    // what the pillbox's no-face rule (BlazePillboxTask, Tuning pillbox_no_face) does with the next block of the plan. with atCell
+    // (Tuning pillbox_at_cell, route jar 5) LATER until the buddy stands at the block's stand, WAIT while the block or a
+    // neighbour is in a chunk not loaded (the client reads one as air, so "nothing to go against" there is unknown, never a
+    // reason to leave the block out); else, or without atCell, LEAVE_OUT with no face, PLACE with one
+    public enum Face { LATER, WAIT, LEAVE_OUT, PLACE }
+
+    public static Face faceCall(boolean atCell, boolean atStand, boolean loaded, boolean face) {
+        if (atCell && !atStand) return Face.LATER;
+        if (atCell && !loaded) return Face.WAIT;
+        return face ? Face.PLACE : Face.LEAVE_OUT;
+    }
 }

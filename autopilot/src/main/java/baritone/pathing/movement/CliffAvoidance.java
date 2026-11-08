@@ -107,6 +107,22 @@ public final class CliffAvoidance {
         return false;
     }
 
+    // the buddy's fork (route jar 5): feet at (x, y, z), the floor at y - 1 whatever it is: lava under it within SEA_DEPTH, or
+    // depth or more open cells under the floor, so that a body knocked off beside it falls more than depth blocks. a ghast's
+    // ball knocked the buddy off its own bridge over a drop of 36 blocks to the ground, 20 damage, and overSea saw no sea
+    public static boolean deepUnder(Cells cells, int x, int y, int z, int depth) {
+        for (int d = 2; d <= SEA_DEPTH; d++) {
+            Cell c = cells.at(x, y - d, z);
+            if (c == Cell.LAVA) {
+                return true;
+            }
+            if (c != Cell.OPEN) {
+                return d - 2 >= depth;
+            }
+        }
+        return true;
+    }
+
     static boolean onFortressBricks(BlockState floor) {
         return floor.is(Blocks.NETHER_BRICKS) || floor.is(Blocks.NETHER_BRICK_SLAB) || floor.is(Blocks.NETHER_BRICK_STAIRS);
     }

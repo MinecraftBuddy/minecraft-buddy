@@ -23,7 +23,7 @@ public final class GhastCover {
     // a ghast this close with a line on us counts; past it its balls rarely reach
     static final double SIGHT = 64;
     // how far round us a cover cell is looked for
-    static final int RADIUS = 8;
+    public static final int RADIUS = 8;
     // a second with no path in its sight before going for cover: a path being worked out is no reason to move
     static final int NO_PATH_TICKS = 20;
     // half a game minute for the walk to cover
@@ -99,12 +99,17 @@ public final class GhastCover {
     // cover's choice without a world (the snapshots' harness feeds it): walk is the world as Baritone reads it, for the drops;
     // body by collision, for where a body stands; hidden whether the ghast sees no body standing in a cell. {x, y, z} or null
     public static int[] pick(CliffAvoidance.Cells walk, CliffAvoidance.Cells body, int ax, int ay, int az, BlazeCover.Hidden hidden) {
+        return pick(walk, body, ax, ay, az, hidden, RADIUS);
+    }
+
+    // the same within radius of (ax, az)
+    public static int[] pick(CliffAvoidance.Cells walk, CliffAvoidance.Cells body, int ax, int ay, int az, BlazeCover.Hidden hidden, int radius) {
         int[] best = null;
         double bestD = Double.MAX_VALUE;
-        for (int dx = -RADIUS; dx <= RADIUS; dx++) {
-            for (int dz = -RADIUS; dz <= RADIUS; dz++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
                 double flat = dx * dx + dz * dz;
-                if (flat > RADIUS * RADIUS || flat >= bestD) continue;
+                if (flat > radius * radius || flat >= bestD) continue;
                 for (int dy = -2; dy <= 2; dy++) {
                     int x = ax + dx, y = ay + dy, z = az + dz;
                     if (!standable(body, x, y, z)) continue;
@@ -121,6 +126,26 @@ public final class GhastCover {
     // a cover cell keeps MARGIN from any drop: one two blocks from the cliff's edge was out of one ghast's sight, a second
     // ghast higher up saw it and its ball pushed the buddy over the edge into the sea (the lavasea2 drill, 4 Nov 2026)
     static final int MARGIN = 4;
+
+    // solid ground with room on all sides (the buddy's fork, route jar 5): a cell to stand in with no drop within MARGIN of
+    // it, where a ghast's ball can knock the buddy about but not off a drop. GhastShelterChain's fallback when no cell nearby
+    // is out of the ghast's sight
+    public static boolean safeGround(CliffAvoidance.Cells walk, CliffAvoidance.Cells body, int x, int y, int z) {
+        return standable(body, x, y, z) && !nearDrop(walk, x, y, z);
+    }
+
+    // where to go back to with no cover from the ghast: the last solid ground with room the buddy stood on (the way out along
+    // its own bridge is known), within back of (ax, az) and still that; else the nearest within radius, seen or not. null with
+    // neither
+    public static int[] ground(CliffAvoidance.Cells walk, CliffAvoidance.Cells body, int ax, int ay, int az, int[] last, double back, int radius) {
+        if (last != null && Math.hypot(last[0] - ax, last[2] - az) <= back && safeGround(walk, body, last[0], last[1], last[2])) return last.clone();
+        return pick(walk, body, ax, ay, az, (x, y, z) -> true, radius);
+    }
+
+    // the cells as Baritone reads them, for the drops
+    public static CliffAvoidance.Cells walkCells(AltoClef mod) {
+        return CliffAvoidance.of(new BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
+    }
 
     private static boolean nearDrop(CliffAvoidance.Cells cells, int x, int y, int z) {
         for (int dx = -MARGIN; dx <= MARGIN; dx++) {

@@ -29,6 +29,11 @@ public final class Tuning {
             java.util.Map.entry("fr_trade_biome", 1.0),
             // (the maintainer's word, 8 Nov 2026: by one piglin about 6 s an ingot, so the 64 gold of the trade fit its cap)
             java.util.Map.entry("fr_trade_stay", 1.0),
+            // (route jar 5, 9 Nov 2026: with a ghast in sight, or seen in the last 3 s, no standing on a bridge or rim over a
+            // deadly drop: back to solid ground with room, and a crossing over more than ghast_deep_drop blocks of air waits as
+            // one over the sea, GhastShelterChain; 0 the old shelter)
+            java.util.Map.entry("ghast_bridge", 1.0),
+            java.util.Map.entry("ghast_deep_drop", 10.0),
             // (route jar 2, 8 Nov 2026: a ghast's ball punched back only from this far
             // (blocks, our copy's gap); the punches that burst on the buddy came at 2.6 to 3.1, none of those at 3.3 or more)
             java.util.Map.entry("ghast_punch_min", 3.3),
@@ -45,6 +50,9 @@ public final class Tuning {
             // spawn eye sees (the far box, else the open camp); a run starts no bite with a wither skeleton within 14, turns to
             // fight when it doubles back 8 with a melee foe on its heels, and passes a corner with a wither skeleton by it)
             java.util.Map.entry("nether_lava_edges", 1.0),
+            // (route jar 5: the no-face check only at the block's stand with its chunks loaded, and the box's clock from its
+            // cell; 0 route jar 4's way, the check before the walk and the clock from the plan)
+            java.util.Map.entry("pillbox_at_cell", 1.0),
             java.util.Map.entry("pillbox_no_face", 1.0),
             java.util.Map.entry("pillbox_open_skip", 1.0),
             java.util.Map.entry("piglin_grudge", 1.0),

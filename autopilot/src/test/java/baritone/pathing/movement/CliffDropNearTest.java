@@ -51,4 +51,25 @@ public class CliffDropNearTest {
         CliffAvoidance.Cells ground = (x, y, z) -> y <= 64 ? Cell.SOLID : Cell.OPEN;
         assertFalse(CliffAvoidance.dropNear(ground, 0, 65, 0));
     }
+
+    // route jar 5: a ghast knocked the buddy off a one-wide bridge (floor y 80, feet 81) over the ground at y 44, a fall of 36;
+    // overSea saw no sea there
+    @Test
+    public void aDeepDropCountsAsTheSea() {
+        CliffAvoidance.Cells canyon = (x, y, z) -> (y == 80 && x == 0) || y <= 44 ? Cell.SOLID : Cell.OPEN;
+        assertFalse(CliffAvoidance.overSea(canyon, 0, 81, 0));
+        assertTrue(CliffAvoidance.deepUnder(canyon, 0, 81, 0, 10));
+        // the lava sea under a fortress bridge counts at any depth
+        assertTrue(CliffAvoidance.deepUnder(bridge(false), -450, 67, -229, 10));
+        assertFalse(CliffAvoidance.deepUnder((x, y, z) -> y <= 64 ? Cell.SOLID : Cell.OPEN, 0, 65, 0, 10));
+    }
+
+    @Test
+    public void tenCellsUnderTheFloorIsDeep() {
+        // ten open cells under the floor: knocked off beside it the feet fall from 81 to 70, eleven blocks; nine is ten
+        CliffAvoidance.Cells ten = (x, y, z) -> (y == 80 && x == 0) || y <= 69 ? Cell.SOLID : Cell.OPEN;
+        CliffAvoidance.Cells nine = (x, y, z) -> (y == 80 && x == 0) || y <= 70 ? Cell.SOLID : Cell.OPEN;
+        assertTrue(CliffAvoidance.deepUnder(ten, 0, 81, 0, 10));
+        assertFalse(CliffAvoidance.deepUnder(nine, 0, 81, 0, 10));
+    }
 }

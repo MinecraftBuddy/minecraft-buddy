@@ -1,7 +1,9 @@
 package adris.altoclef.util.helpers;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import baritone.pathing.movement.CliffAvoidance.Cell;
 import baritone.pathing.movement.CliffAvoidance.Cells;
@@ -52,5 +54,38 @@ public class GhastCoverTest {
             return walk.at(x, y, z);
         };
         assertArrayEquals(new int[]{-4, 64, 0}, GhastCover.pick(walk, body, 0, 64, 0, (x, y, z) -> x <= -3));
+    }
+
+    // a yard (x -30 to 30, z -30 to 6) at y 63 and a one-wide bridge of its own from it along +z at x 0 out to z 40, the
+    // ground far below at y 20 (route jar 5: knocked off such a bridge by a ghast, a fall of 36)
+    private static Cells yardAndBridge() {
+        return (x, y, z) -> {
+            boolean yard = Math.abs(x) <= 30 && z >= -30 && z <= 6;
+            boolean bridge = x == 0 && z > 6 && z <= 40;
+            if (y == 63 && (yard || bridge)) return Cell.SOLID;
+            if (y <= 20) return Cell.SOLID;
+            return Cell.OPEN;
+        };
+    }
+
+    @Test
+    public void groundWithRoomIsFourFromAnyDrop() {
+        Cells c = yardAndBridge();
+        assertTrue(GhastCover.safeGround(c, c, 0, 64, 2));
+        assertFalse(GhastCover.safeGround(c, c, 0, 64, 3));
+        assertFalse(GhastCover.safeGround(c, c, 0, 64, 25));
+    }
+
+    @Test
+    public void backAlongTheBridgeToTheLastGroundStoodOn() {
+        Cells c = yardAndBridge();
+        // 23 back along the bridge, within 32
+        assertArrayEquals(new int[]{0, 64, 2}, GhastCover.ground(c, c, 0, 64, 25, new int[]{0, 64, 2}, 32, 16));
+        // none known: the nearest within 16 of the bridge's tip is none
+        assertNull(GhastCover.ground(c, c, 0, 64, 25, null, 32, 16));
+        // the last one 38 back, past 32: the nearest within 16 again
+        assertNull(GhastCover.ground(c, c, 0, 64, 40, new int[]{0, 64, 2}, 32, 16));
+        // a last one that is no ground with room any more is passed over for the nearest
+        assertArrayEquals(new int[]{0, 64, 2}, GhastCover.ground(c, c, 0, 64, 12, new int[]{0, 64, 5}, 32, 16));
     }
 }

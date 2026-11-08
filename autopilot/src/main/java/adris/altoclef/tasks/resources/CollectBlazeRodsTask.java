@@ -1470,6 +1470,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         _rushStand = 0;
         _rushWalkTicks = 0;
         _pillbox = new BlazePillboxTask(plan);
+        // (Tuning pillbox_at_cell: its clock starts at the cell, as the camp's box)
+        if (adris.altoclef.util.helpers.Tuning.get("pillbox_at_cell", 0) > 0) _pillbox.clockAtCell();
         _pillboxCornered = false;
         _pillboxCornerSet = null;
         _fight.pillboxPlanned(true);
@@ -1755,7 +1757,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 _pillbox = new BlazePillboxTask(plan);
                 // (Tuning box_home: the box is picked on arrival at the spawner, maybe 120 blocks off; its clock starts at
                 // the cell, as the far box's, or the walk ate it, realfort-pair-home2 B:1)
-                if (homeFirst) _pillbox.clockAtCell();
+                // (Tuning pillbox_at_cell, on by default, route jar 5: every box's clock starts at its cell. the route picks the camp
+                // when phase 4 begins, wherever the errand left the buddy: 620 blocks off in realfort-route-1 run 1, a walk of
+                // minutes against the 2 minute clock)
+                if (homeFirst || adris.altoclef.util.helpers.Tuning.get("pillbox_at_cell", 0) > 0) _pillbox.clockAtCell();
                 _fight.pillboxPlanned(true);
                 _fight.pillboxLookout(_pillbox.lookout());
                 _campSpot = _pillbox.cell();

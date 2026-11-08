@@ -73,4 +73,18 @@ public class BlazePillboxTest {
             assertTrue("cell " + java.util.Arrays.toString(p.cell()), Math.abs(p.cell()[0]) <= 6 && Math.abs(p.cell()[2]) <= 6);
         }
     }
+
+    // route jar 5: a box planned 620 blocks off read every neighbour of its blocks from unloaded chunks as air, left all 13 out
+    // for "nothing to go against" and was given up. with pillbox_at_cell the check waits for the stand and the loaded chunks
+    @Test
+    public void theNoFaceCheckWaitsForTheStandAndTheChunks() {
+        // without the switch, anywhere
+        org.junit.Assert.assertEquals(BlazePillbox.Face.LEAVE_OUT, BlazePillbox.faceCall(false, false, false, false));
+        org.junit.Assert.assertEquals(BlazePillbox.Face.PLACE, BlazePillbox.faceCall(false, false, false, true));
+        org.junit.Assert.assertEquals(BlazePillbox.Face.LATER, BlazePillbox.faceCall(true, false, true, false));
+        // an unloaded neighbour is a wait, never a leave out
+        org.junit.Assert.assertEquals(BlazePillbox.Face.WAIT, BlazePillbox.faceCall(true, true, false, false));
+        org.junit.Assert.assertEquals(BlazePillbox.Face.LEAVE_OUT, BlazePillbox.faceCall(true, true, true, false));
+        org.junit.Assert.assertEquals(BlazePillbox.Face.PLACE, BlazePillbox.faceCall(true, true, true, true));
+    }
 }

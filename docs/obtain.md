@@ -159,7 +159,10 @@ gate lacks is fetched by safer steps first, all of it planned together.
   burning at 10. At the spawner it goes down in lava at once, or when the buddy burns and the health falls. No pillbox
   goes up where nearly every blaze would see it built: the buddy builds one out of the spawner's range where one fits,
   and otherwise fights from the open. A ghast's fireball is punched back only while it is more than about three blocks
-  off; closer, the shield goes up.
+  off; closer, the shield goes up. With a ghast in sight, or one seen in the last three seconds, the buddy neither
+  bridges nor stands by a drop of about ten blocks or more, or over lava: it goes back to solid ground with room on all
+  sides, four blocks from any drop, and waits there until the ghast is gone or out of sight for ten seconds, two minutes
+  at most.
 - **The End**: a bow with arrows on top.
 
 A piece of the kit may take ten game minutes and three more for each ingot; a piece that did not come is not asked again

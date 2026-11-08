@@ -338,13 +338,13 @@ final class BlazePillboxTask extends Task {
         // for a click to go against, and no click puts it in: left out at once. a bent box's front roof after the back roof
         // was left out took the clicks and the steps to the cell's middle under fireballs till the buddy died in the box,
         // "block 9 of 9", route jar 2 run 2. the roof row's retry below tries it again once its neighbour is in)
-        if (adris.altoclef.util.helpers.Tuning.get("pillbox_no_face", 0) > 0 && !anyFace(mod, pos)) {
-            Debug.logInternal("pillbox: the block at " + pos.toShortString() + " has nothing to go against, left out");
-            left++;
-            next++;
-            placing = null;
-            return null;
-        }
+        // (Tuning pillbox_at_cell, on by default, route jar 5: the check only once the buddy stands at the block's stand, below,
+        // with the block and its six neighbours in loaded chunks. made before the walk, a box planned 620 blocks off read every
+        // neighbour from unloaded chunks as air: all 13 blocks left out, the roof tried three times, the plan given up, and the
+        // spawner barred from a box for the rest of the run, the brew's box with it, realfort-route-1 run 1)
+        boolean noFace = adris.altoclef.util.helpers.Tuning.get("pillbox_no_face", 0) > 0;
+        boolean faceAtCell = adris.altoclef.util.helpers.Tuning.get("pillbox_at_cell", 0) > 0;
+        if (noFace && BlazePillbox.faceCall(faceAtCell, false, true, anyFace(mod, pos)) == BlazePillbox.Face.LEAVE_OUT) return leaveOutNoFace(pos);
         BlockPos stand = standFor(next, pos);
         if (!inColumn(mod.getPlayer().position(), stand) && BlazeShelter.loadedOn(mod, cell, now) < adris.altoclef.util.helpers.Tuning.get("pillbox_loaded", LOADED)) {
             setDebugState(stand.equals(cell) ? "To the pillbox's cell" : "To the pillbox's front cell");
@@ -368,6 +368,14 @@ final class BlazePillboxTask extends Task {
         }
         hideAt = null;
         hideWalk = null;
+        if (noFace && faceAtCell) {
+            BlazePillbox.Face f = BlazePillbox.faceCall(true, inColumn(mod.getPlayer().position(), stand), loadedRound(mod, pos), anyFace(mod, pos));
+            if (f == BlazePillbox.Face.LEAVE_OUT) return leaveOutNoFace(pos);
+            if (f == BlazePillbox.Face.WAIT) {
+                setDebugState("Waiting for the chunks round the pillbox's block " + (next + 1) + " of " + plan.blocks().size());
+                return null;
+            }
+        }
         boolean roofRow = pos.getY() >= stand.getY() + 2;
         if (placing == null || !pos.equals(placingPos)) {
             placing = click(mod, pos, roofRow);
@@ -475,6 +483,24 @@ final class BlazePillboxTask extends Task {
         else if (f < -k) in.tryPress(baritone.api.utils.input.Input.MOVE_BACK);
         if (l > k) in.tryPress(baritone.api.utils.input.Input.MOVE_LEFT);
         else if (l < -k) in.tryPress(baritone.api.utils.input.Input.MOVE_RIGHT);
+        return true;
+    }
+
+    private Task leaveOutNoFace(BlockPos pos) {
+        Debug.logInternal("pillbox: the block at " + pos.toShortString() + " has nothing to go against, left out");
+        left++;
+        next++;
+        placing = null;
+        return null;
+    }
+
+    // the block and its six neighbours in loaded chunks
+    private static boolean loadedRound(AltoClef mod, BlockPos p) {
+        var level = mod.getWorld();
+        if (!level.isLoaded(p)) return false;
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
+            if (!level.isLoaded(p.relative(d))) return false;
+        }
         return true;
     }
 
