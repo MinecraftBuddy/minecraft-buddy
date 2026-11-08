@@ -15,9 +15,36 @@ public class CollectMagmaCreamTask extends ResourceTask {
     private final int _count;
     private final Task _deltas = new adris.altoclef.tasks.movement.SearchChunkForBlockTask(net.minecraft.world.level.block.Blocks.BASALT);
 
+    // the buddy's fork, Tuning brew_errand (CollectBlazeRodsTask.brewErrand): the brew errand's hunt, a cube at any height the
+    // path reaches (the level rule off; the floor, lava, sea, drop and shore rules as they stand), and no walk to the basalt
+    // deltas with none in reach (the errand gives up for no cube instead)
+    private final boolean _errand;
+
     public CollectMagmaCreamTask(int count) {
+        this(count, false);
+    }
+
+    public CollectMagmaCreamTask(int count, boolean errand) {
         super(Items.MAGMA_CREAM, count);
         _count = count;
+        _errand = errand;
+    }
+
+    // a cube that drops cream (size 2 and up) in the hunt's range, passing the rods task's rules for the cream hunt; errand: at
+    // any height, and not one the tracker gave up reaching
+    static java.util.function.Predicate<net.minecraft.world.entity.Entity> fit(AltoClef mod, boolean errand) {
+        var us = mod.getPlayer();
+        double range = adris.altoclef.util.helpers.Tuning.get("cream_range", CollectBlazeRodsTask.CREAM_RANGE);
+        return e -> e instanceof MagmaCube c && c.isAlive() && c.getSize() > 1 && c.distanceTo(us) <= range
+                && CollectBlazeRodsTask.creamCubeWhyNot(mod, c, errand) == null && (!errand || mod.getEntityTracker().isEntityReachable(c));
+    }
+
+    // a cube to hunt in sight, or its cream on the ground within the hunt's range
+    static boolean inSight(AltoClef mod, boolean errand) {
+        var us = mod.getPlayer();
+        double range = adris.altoclef.util.helpers.Tuning.get("cream_range", CollectBlazeRodsTask.CREAM_RANGE);
+        return mod.getEntityTracker().getClosestEntity(us.position(), fit(mod, errand), MagmaCube.class).isPresent()
+                || mod.getEntityTracker().getClosestItemDrop(us.position(), Items.MAGMA_CREAM).filter(d -> d.distanceTo(us) <= range).isPresent();
     }
 
     @Override
@@ -52,8 +79,7 @@ public class CollectMagmaCreamTask extends ResourceTask {
                 // task's brew back to the cream, round and round (steering 58, piece 1, 6 Nov 2026))
                 var us = mod.getPlayer();
                 double range = adris.altoclef.util.helpers.Tuning.get("cream_range", CollectBlazeRodsTask.CREAM_RANGE);
-                java.util.function.Predicate<net.minecraft.world.entity.Entity> fit = e -> e instanceof MagmaCube c && c.isAlive() && c.getSize() > 1
-                        && c.distanceTo(us) <= range && CollectBlazeRodsTask.creamCubeWhyNot(mod, c) == null;
+                java.util.function.Predicate<net.minecraft.world.entity.Entity> fit = fit(mod, _errand);
                 if (mod.getEntityTracker().getClosestEntity(us.position(), fit, MagmaCube.class).isPresent()) {
                     setDebugState("Killing Magma cube");
                     return new KillAndLootTask(MagmaCube.class, fit, new ItemTarget(Items.MAGMA_CREAM, neededCream));
@@ -61,6 +87,10 @@ public class CollectMagmaCreamTask extends ResourceTask {
                 if (mod.getEntityTracker().getClosestItemDrop(us.position(), Items.MAGMA_CREAM).filter(d -> d.distanceTo(us) <= range).isPresent()) {
                     setDebugState("Picking up the magma cream");
                     return new adris.altoclef.tasks.movement.PickupDroppedItemTask(new ItemTarget(Items.MAGMA_CREAM, neededCream), true);
+                }
+                if (_errand) {
+                    setDebugState("No magma cube in reach");
+                    return null;
                 }
                 setDebugState("Looking for magma cubes: the basalt deltas");
                 return _deltas;
@@ -88,7 +118,7 @@ public class CollectMagmaCreamTask extends ResourceTask {
 
     @Override
     protected boolean isEqualResource(ResourceTask other) {
-        return other instanceof CollectMagmaCreamTask;
+        return other instanceof CollectMagmaCreamTask t && t._errand == _errand;
     }
 
     @Override

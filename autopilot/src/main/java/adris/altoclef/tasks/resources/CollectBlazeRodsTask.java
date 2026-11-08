@@ -103,6 +103,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // the buddy's fork, Tuning fr_trade: the barter for the first fire resistance, one per order (kept through interruptions);
     // null with the tuning off
     private FireResTrade _frTrade;
+    // the buddy's fork, Tuning brew_errand (off by default): the cream and the wart fetched on an errand of their own once two
+    // rods are in, brewErrand. under way, ended (one per order, done or given up), the step it is on and when it and the step
+    // began, its last tick and the seek clock (BrewErrandRules.noCube), its tasks, the yield to the fight as the trade's, and
+    // whether it holds brewStep's chance errands off this tick. all of it unused with the switch off
+    private boolean _errandOn;
+    private boolean _errandEnded;
+    private adris.altoclef.util.helpers.BrewErrandRules.Step _errandStep;
+    private long _errandAt;
+    private long _errandStepAt;
+    private long _errandLastTick;
+    private long _errandNoCube;
+    private CollectMagmaCreamTask _errandCream;
+    private Task _errandWart;
+    private boolean _errandYielding;
+    private long _errandYieldTakenAt = -1;
+    private boolean _errandHolds;
 
     private BlockPos _foundBlazeSpawner = null;
     // where we camp: a cell out past the spawn area (LavaShore.campSpot), picked once per spawner. null = the room had none, so
@@ -588,7 +604,13 @@ public class CollectBlazeRodsTask extends ResourceTask {
             return hide;
         }
 
-        Task brew = brewStep(mod);
+        // (the buddy's fork, Tuning brew_errand, off by default: the cream and the wart on an errand of their own, after the
+        // fight, the boxes and the hiding place; while it is under way brewStep's chance errands are held off)
+        Task errand = brewErrand(mod);
+        if (errand != null) {
+            return errand;
+        }
+        Task brew = _errandHolds ? null : brewStep(mod);
         if (brew != null) {
             return brew;
         }
@@ -795,11 +817,17 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // null when the cube may be hunted for its cream, else the first rule it fails (the count line's words)
     // (package-wide: CollectMagmaCreamTask hunts by the same rules)
     static String creamCubeWhyNot(AltoClef mod, MagmaCube cube) {
+        return creamCubeWhyNot(mod, cube, false);
+    }
+
+    // anyLevel: the brew errand's hunt (Tuning brew_errand), a cube on any level of the fortress, the path finds the way
+    static String creamCubeWhyNot(AltoClef mod, MagmaCube cube, boolean anyLevel) {
         var us = mod.getPlayer();
+        if (us == null) return "level";
         // (Tunings cream_down and cream_up: how far below and above our feet a cube may be, 2 and 3 by default. in the fortress the
         // cubes in reach were nearly all on another level, brew2-s8-1, 5 Nov 2026)
-        if (us == null || cube.getY() < us.getY() - adris.altoclef.util.helpers.Tuning.get("cream_down", 2)
-                || cube.getY() > us.getY() + adris.altoclef.util.helpers.Tuning.get("cream_up", 3)) return "level";
+        if (!anyLevel && (cube.getY() < us.getY() - adris.altoclef.util.helpers.Tuning.get("cream_down", 2)
+                || cube.getY() > us.getY() + adris.altoclef.util.helpers.Tuning.get("cream_up", 3))) return "level";
         BlockPos at = cube.blockPosition();
         Block floor = mod.getWorld().getBlockState(at.below()).getBlock();
         // (Tuning cream_wild: also a cube met on the way to the fortress, on any sturdy ground but magma; the rules for lava, the
@@ -854,6 +882,113 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         Debug.logInternal("cream: " + near + " cubes within " + (int) range + " (" + fit + " fit" + (why.isEmpty() ? "" : ", left " + why)
                 + (dys.isEmpty() ? "" : ", dy " + dys) + "), " + far + " more within 64, " + small + " tiny; rods " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
+    }
+
+    // the buddy's fork, Tuning brew_errand, off by default: with two rods or more, no fire resistance on or in the bag and the
+    // kit in the bag (bottles, the rods for the stand and its powder), the cream and the wart are an errand of their own rather
+    // than a chance on the way (BrewErrandRules): the cream by CollectMagmaCreamTask's errand hunt (a cube at any height the
+    // path reaches) within Tuning brew_errand_cream_s, given up when no cube to hunt is in sight for brew_errand_seek_s; then
+    // the wart the block tracker knows, at any distance, within brew_errand_wart_s. brewStep then brews as it does without the
+    // switch. it runs after the fight (whatever the fight takes comes first) and yields as the fire resistance trade does while
+    // the fight would take a blaze (BlazeFight.takesWithin, FireResTradeRules.yields): the camp then goes on. null is nothing
+    // of the errand's this tick; _errandHolds says whether brewStep's chance errands wait
+    private Task brewErrand(AltoClef mod) {
+        _errandHolds = false;
+        if (_errandEnded || adris.altoclef.util.helpers.Tuning.get("brew_errand", 0) <= 0) return null;
+        var player = mod.getPlayer();
+        long now = mod.getWorld().getGameTime();
+        int rods = mod.getItemStorage().getItemCount(Items.BLAZE_ROD);
+        int water = PotionHelper.count(mod, Potions.WATER);
+        int bottles = water + PotionHelper.count(mod, Potions.AWKWARD);
+        boolean kit = adris.altoclef.util.helpers.BrewErrandRules.kit(bottles, mod.getItemStorage().hasItem(Items.BREWING_STAND),
+                mod.getItemStorage().hasItem(Items.BLAZE_POWDER), rods);
+        int cream = mod.getItemStorage().getItemCount(Items.MAGMA_CREAM);
+        int wart = mod.getItemStorage().getItemCount(Items.NETHER_WART);
+        adris.altoclef.util.helpers.BrewErrandRules.Step step = adris.altoclef.util.helpers.BrewErrandRules.step(cream > 0, wart > 0, water);
+        boolean fireResOn = adris.altoclef.util.helpers.FireRes.has(player);
+        int fireResBag = FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.DRINK)
+                + FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.THROW);
+        if (!_errandOn) {
+            boolean brewing = _brewSince >= 0 || _brewGaveUp || BrewFireResistanceTask.pending();
+            // (box_home: no errand begins while the box holds the buddy)
+            if (adris.altoclef.util.helpers.BrewErrandRules.whyNot(rods, fireResOn, fireResBag, kit, brewing, step) != null || homeHolds()) {
+                return null;
+            }
+            _errandOn = true;
+            _errandAt = now;
+            _errandStepAt = now;
+            _errandStep = step;
+            _errandLastTick = now;
+            _errandNoCube = 0;
+            _errandYielding = false;
+            _errandYieldTakenAt = -1;
+            Debug.logInternal("brew errand: begun (rods " + rods + ", cream " + cream + ", wart " + wart + ")");
+        }
+        // (a clock that went back, a new world: the errand's seconds from now on)
+        if (now < _errandAt) _errandAt = now;
+        if (now < _errandStepAt) _errandStepAt = now;
+        if (step != _errandStep) {
+            if (_errandStep == adris.altoclef.util.helpers.BrewErrandRules.Step.CREAM && cream > 0) {
+                Debug.logInternal("brew errand: cream got after " + secs(now - _errandAt) + " s");
+            } else if (_errandStep == adris.altoclef.util.helpers.BrewErrandRules.Step.WART && wart > 0) {
+                Debug.logInternal("brew errand: wart got after " + secs(now - _errandAt) + " s");
+            }
+            _errandStep = step;
+            _errandStepAt = now;
+            _errandNoCube = 0;
+        }
+        long gap = now - _errandLastTick;
+        _errandLastTick = now;
+        if (step == adris.altoclef.util.helpers.BrewErrandRules.Step.DONE) {
+            // the cream and the wart in the bag: brewStep brews, this tick already
+            _errandOn = false;
+            _errandEnded = true;
+            return null;
+        }
+        boolean creamStep = step == adris.altoclef.util.helpers.BrewErrandRules.Step.CREAM;
+        boolean cube = creamStep && CollectMagmaCreamTask.inSight(mod, true);
+        if (creamStep) {
+            _errandNoCube = adris.altoclef.util.helpers.BrewErrandRules.noCube(_errandNoCube, cube, gap);
+            logCreamCubes(mod);
+        }
+        // (the fortress's own wart, as the tracker knows it, or a wart lying on the ground: no range)
+        boolean wartKnown = creamStep || mod.getBlockTracker().anyFound(Blocks.NETHER_WART)
+                || mod.getEntityTracker().getClosestItemDrop(player.position(), Items.NETHER_WART).isPresent();
+        String why = adris.altoclef.util.helpers.BrewErrandRules.giveUp(step, kit, fireResOn || fireResBag > 0, now - _errandStepAt, _errandNoCube,
+                wartKnown, adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.Tuning.get("brew_errand_cream_s", adris.altoclef.util.helpers.BrewErrandRules.CREAM_S)),
+                adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.Tuning.get("brew_errand_seek_s", adris.altoclef.util.helpers.BrewErrandRules.SEEK_S)),
+                adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.Tuning.get("brew_errand_wart_s", adris.altoclef.util.helpers.BrewErrandRules.WART_S)));
+        if (why != null) {
+            Debug.logInternal("brew errand: given up (" + why + ") after " + secs(now - _errandAt) + " s");
+            _errandOn = false;
+            _errandEnded = true;
+            return null;
+        }
+        _errandHolds = true;
+        // (the fight first: while it would take a blaze the errand yields as the trade does, with the trade's margins in blocks
+        // and in time, and the camp goes on)
+        double line = adris.altoclef.util.helpers.FireResTradeRules.yieldLine(_errandYielding);
+        boolean fightTakes = _fight.takesWithin(mod, line);
+        if (fightTakes) _errandYieldTakenAt = now;
+        _errandYielding = adris.altoclef.util.helpers.FireResTradeRules.yields(fightTakes,
+                _errandYieldTakenAt < 0 || now < _errandYieldTakenAt ? Long.MAX_VALUE : now - _errandYieldTakenAt);
+        if (_errandYielding) {
+            return null;
+        }
+        if (homeHolds()) {
+            homeSkip("the brew errand");
+            return null;
+        }
+        if (creamStep) {
+            // (no cube to hunt in sight: the camp goes on while the seek clock runs, no walk to the basalt deltas)
+            if (!cube) return null;
+            if (_errandCream == null) _errandCream = new CollectMagmaCreamTask(1, true);
+            setDebugState("Brew errand: a magma cube for its cream");
+            return _errandCream;
+        }
+        if (_errandWart == null) _errandWart = TaskCatalogue.getItemTask("nether_wart", 1);
+        setDebugState("Brew errand: a nether wart");
+        return _errandWart;
     }
 
     // between fights: the brew that is under way, a magma cube or a nether wart close by while the bottles want them, and the
