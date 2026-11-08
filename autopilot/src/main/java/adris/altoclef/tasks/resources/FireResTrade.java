@@ -4,6 +4,7 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.tasks.entity.AbstractDoToEntityTask;
 import adris.altoclef.tasks.misc.EquipArmorTask;
+import adris.altoclef.tasks.movement.GetToEntityTask;
 import adris.altoclef.tasks.movement.GetToXZTask;
 import adris.altoclef.tasks.movement.GetWithinRangeOfBlockTask;
 import adris.altoclef.tasks.movement.PickupDroppedItemTask;
@@ -218,7 +219,11 @@ final class FireResTrade {
         boolean admiring = admiringNear(mod);
         boolean pending = admiring || drop.isPresent();
         double piglin = _give.nearestTradeable(mod);
+        boolean wasNear = _piglinNear;
         _piglinNear = FireResTradeRules.piglinNear(_piglinNear, piglin);
+        // (the last piglin near can stop counting the moment it is done admiring, and the search walks off that tick:
+        // the line says why, 8 Nov 2026)
+        if (wasNear && !_piglinNear && !admiring) Debug.logInternal("strategy trade: no piglin free any more: " + _give.whyNone(mod));
         // (Tuning fr_trade_biome: the walk to the wastes does not count against the search)
         if (walkingToWastes()) _piglinSeenAt = now;
         if (_piglinNear || admiring) {
@@ -595,8 +600,16 @@ final class FireResTrade {
         // answered within this many game ticks took nothing
         static final long HAND_SEEN_TICKS = 40;
 
+        // a piglin in reach the look cannot land on: a step up to it after this many game ticks, left alone after twice that
+        static final long TURN_STALL_TICKS = 60;
+        static final double STEP_UP_DISTANCE = 1.5;
+
         private final Set<Integer> _blacklisted = new HashSet<>();
         private final Map<Integer, Integer> _clicks = new HashMap<>();
+        private int _turnId = -1;
+        private long _turnSince;
+        private long _turnLast;
+        private boolean _stepUpLogged;
         private int _currentId = -1;
         private long _clickedAt = Long.MIN_VALUE / 2;
         // the clicks not yet seen to take an ingot, oldest first ({piglin id, game tick}), the bag's gold as last seen, and the
@@ -655,9 +668,29 @@ final class FireResTrade {
                 long[] click = _unanswered.poll();
                 _handed++;
                 gone--;
+                // it took the gold: its count of refusals starts over (the reset on its admiring pose only came when the
+                // buddy stayed to look; walking on to the next piglin, a piglin that took every ingot was left alone on
+                // its fourth: 29 times in 10 trades of tsure)
+                _clicks.remove((int) click[0]);
                 Debug.logInternal(String.format(Locale.ROOT, "strategy trade: ingot %d handed to piglin %d", _handed, click[0]));
             }
             _unanswered.removeIf(click -> now - click[1] > HAND_SEEN_TICKS || now < click[1]);
+        }
+
+        // the nearest adult piglin and why it takes no gold now, for the line when the last one stops counting
+        String whyNone(AltoClef mod) {
+            LocalPlayer player = mod.getPlayer();
+            Piglin nearest = null;
+            for (Piglin piglin : mod.getEntityTracker().getTrackedEntities(Piglin.class)) {
+                if (!piglin.isAlive() || piglin.isBaby()) continue;
+                if (nearest == null || piglin.distanceTo(player) < nearest.distanceTo(player)) nearest = piglin;
+            }
+            if (nearest == null) return "no adult piglin tracked";
+            String why = _blacklisted.contains(nearest.getId()) ? "left alone"
+                    : EntityHelper.isTradingPiglin(nearest) || nearest.getArmPose() == PiglinArmPose.ADMIRING_ITEM ? "admiring"
+                    : hoglinNear(mod, nearest) ? String.format(Locale.ROOT, "a hoglin within %.0f of it", HOGLIN_AVOID_TRADE_RADIUS)
+                    : nearest.distanceTo(player) > FireResTradeRules.KEEP_RANGE ? "out of range" : "free";
+            return String.format(Locale.ROOT, "the nearest piglin %d at %.0f blocks, %s", nearest.getId(), nearest.distanceTo(player), why);
         }
 
         double nearestTradeable(AltoClef mod) {
@@ -739,9 +772,35 @@ final class FireResTrade {
             mod.getControllerExtras().aimAt(piglin, CombatAim.Priority.KILL_TASK);
             if (now - _clickedAt < CLICK_GAP && now >= _clickedAt) return null;
             if (!mod.getControllerExtras().onTarget(piglin) || Minecraft.getInstance().gui.screen() != null) {
+                // in reach by distance, but the look never lands on it (a block in between): after TURN_STALL_TICKS a step up
+                // to it, after twice that it is left alone (a buddy stood 500 s turning to one piglin, gold in hand)
+                // (a new piglin, or the turning broken off a second or more: the clock starts again)
+                if (piglin.getId() != _turnId || now - _turnLast > 20 || now < _turnLast) {
+                    _turnId = piglin.getId();
+                    _turnSince = now;
+                    _stepUpLogged = false;
+                }
+                _turnLast = now;
+                long turning = now - _turnSince;
+                if (turning > 2 * TURN_STALL_TICKS) {
+                    _blacklisted.add(piglin.getId());
+                    _turnId = -1;
+                    Debug.logInternal("strategy trade: no clear click on a piglin for " + (2 * TURN_STALL_TICKS / 20) + " s, left alone");
+                    return null;
+                }
+                if (turning > TURN_STALL_TICKS && piglin.distanceTo(player) > STEP_UP_DISTANCE) {
+                    if (!_stepUpLogged) {
+                        _stepUpLogged = true;
+                        Debug.logInternal("strategy trade: no clear click on a piglin for " + (TURN_STALL_TICKS / 20) + " s, stepping up to it");
+                    }
+                    setDebugState("Stepping up to the piglin");
+                    return new GetToEntityTask(piglin, STEP_UP_DISTANCE);
+                }
                 setDebugState("Turning to the piglin");
                 return null;
             }
+            _turnId = -1;
+            _stepUpLogged = false;
             // the point the server's look meets the piglin's box, as the crosshair would send it
             Rotation look = mod.getClientBaritone().getLookBehavior().serverRotation()
                     .orElseGet(() -> new Rotation(player.getYRot(), player.getXRot()));
