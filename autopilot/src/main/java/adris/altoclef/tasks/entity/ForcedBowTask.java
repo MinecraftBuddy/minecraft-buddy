@@ -44,9 +44,10 @@ public class ForcedBowTask extends Task {
         _target = target;
     }
 
-    // a bow and an arrow in the bag
+    // a bow and an arrow in the bag (and the bow not switched off: tuning key danger_bow=0, melee only and the meter's K
+    // without it, should the bow misbehave in a drill)
     public static boolean canShoot(AltoClef mod) {
-        return mod.getItemStorage().hasItem(Items.BOW)
+        return adris.altoclef.util.helpers.Tuning.get("danger_bow", 1) > 0 && mod.getItemStorage().hasItem(Items.BOW)
                 && mod.getItemStorage().hasItem(Items.ARROW, Items.SPECTRAL_ARROW, Items.TIPPED_ARROW);
     }
 
