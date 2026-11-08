@@ -965,6 +965,7 @@ dialog#rawdlg td code { word-break: break-all; }
 <div class="tip" id="tip"></div>
 <div class="card gscreen" id="gscreen" hidden></div>
 <div class="toast" id="toast" hidden></div>
+<script src="3d/activity.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1295,11 +1296,24 @@ function obPlanHtml(o) {
   let h = '<h3>Plan</h3><div class="obhead"><b>Fetch ' + n + '</b><span>' + esc(o.have + ' of ' + o.count + ' · ' + obAgo(Math.round((Date.now() - o.since) / 1000))) + '</span></div>';
   if (by) h += '<div class="obby"><b>Interrupted: ' + esc(by) + '</b>' + (pl.by_tasks ? '<ul class="obtree">' + pl.by_tasks.map((r, i, a) => obRow(r, i, i === a.length - 1)).join('') + '</ul>' : '') + '</div>';
   // the step as its line in the log names it ("the kit for the deep by Soprano: equip shield"); the state's own is the planner's
-  const said = OBE.findLast(e => e.type === 'obtain' && e.action === 'step' && e.t >= Math.max(o.since, Date.now() - (o.step_s || 0) * 1000) - 3000);
+  const said = obSaid(o);
   const step = o.sheltering ? 'Dug in ' + o.sheltering : o.step ? 'Step ' + (o.steps + 1) + ': ' + (said ? said.step : o.step.replace(/ -> .*$/, '')) : 'Working out the next step';
   h += '<ul class="obtree"><li' + (tasks.length || by ? '' : ' class="cur"') + '>' + esc(step) + ' <span class="st">' + esc(obAgo(o.step_s || 0)) + '</span></li>' +
     tasks.map((r, i, a) => obRow(r, i + 1, !by && i === a.length - 1)).join('') + '</ul>';
   return h;
+}
+/* the log's line of the order's current step, or undefined */
+const obSaid = o => OBE.findLast(e => e.type === 'obtain' && e.action === 'step' && e.t >= Math.max(o.since, Date.now() - (o.step_s || 0) * 1000) - 3000);
+/* what the buddy does within an order, in a few words (3d/activity.js): Soprano's plan, else the order's step; null while
+   one of the buddy's own steps has the wheel (doingText says that one) or with no order */
+function obNow(s) {
+  const o = s && s.obtain, A = window.buddyActivity;
+  if (!A || !o || !o.on || !OB_OWN.includes(s.doing)) return null;
+  if (o.sheltering) return {now: 'Dug in ' + o.sheltering, detail: '', goal: '', then: ''};
+  const r = A.read(o.plan);
+  if (r.now) return r;
+  const said = obSaid(o), now = A.step(said ? said.step : o.step);
+  return now ? {now, detail: '', goal: '', then: ''} : null;
 }
 /* the timeline: the log's lines of an order, kept from the order's start; rows merged where they repeat (a hit after a hit
    by the same, Soprano's task with only its deepest part changed) */
@@ -2108,10 +2122,11 @@ async function state() {
     $('leavejoin').textContent = s.online ? 'Leave server' : 'Join';
     $('leavejoin').classList.toggle('go', !s.online);
     $('leave').disabled = !s.online; $('join').disabled = !!s.online;
-    const doing = s.online ? doingText(s) : 'Offline';
+    const doing = s.online ? doingText(s) : 'Offline', ob = s.online ? obNow(s) : null;
     $('now').textContent = doing;
-    // the note only where what the buddy does is not that already (it stood twice)
-    $('nowm').textContent = s.online && s.steered && !/driven from this page/i.test(doing) ? 'driven from this page' : '';
+    // the note only where what the buddy does is not that already (it stood twice); in an order, what it does in it
+    $('nowm').textContent = s.online && s.steered && !/driven from this page/i.test(doing) ? 'driven from this page'
+      : ob ? buddyActivity.line(ob, {goal: false}) : '';
     const gt = s.online && fresh ? gameTime(s.clock) : '';
     if ($('mclock').textContent !== gt) $('mclock').textContent = gt;
     if ($('w3clock').textContent !== gt) $('w3clock').textContent = gt;
@@ -3994,9 +4009,9 @@ try { keysShort = localStorage.getItem('buddy-keys-short') === '1'; } catch { }
 function watchLine() {
   const h = $('padhint');
   if (!h || $('driver').hidden) return;
-  const n = (S && S.name) || 'the buddy', busy = someoneElse();
+  const n = (S && S.name) || 'the buddy', busy = someoneElse(), ob = S && S.online ? obNow(S) : null;
   const t = !S || !S.online ? first(n) + ' is not on a server.' : busy ? busyText()
-    : 'Watching ' + n + ': ' + (S.steered && !steer.on ? 'played from the panel' : doingText(S).replace(/^./, c => c.toLowerCase())) + '.';
+    : 'Watching ' + n + ': ' + (S.steered && !steer.on ? 'played from the panel' : (ob ? buddyActivity.line(ob) : doingText(S)).replace(/^./, c => c.toLowerCase())) + '.';
   if ($('watchline').textContent !== t) $('watchline').textContent = t;
   obSide();
   const how = busy ? 'You can take control once the other one lets go.' : 'Click the view to take control.';

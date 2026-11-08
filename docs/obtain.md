@@ -11,6 +11,10 @@ dying on the way. Orders for everyday things (iron blocks, diamonds, obsidian, t
   buddy knows a way to from nothing, worked out from the game's own recipes and drops), type how many and who gets it,
   and **Fetch**. Under it the progress: how many are gathered so far, the current step and for how long, or that the
   buddy is dug in for the night or to heal. **Stop** ends it; once it is over the panel says how it ended.
+- **What the buddy does**, in a few words, on the line above the view while watching and under **Now** on the overview:
+  the stage of the plan ("Going to the blaze spawner", "Bartering with piglins for fire resistance"), the detail under it
+  ("a piglin admiring the gold") and what for ("9 blaze rods"); while something else takes over, that first and then
+  what follows ("Fighting a wither skeleton; then killing blazes").
 - **Watching an order** (**Take control**): at the left the plan (**Plan** shows and hides it): the order, its step, and
   the autopilot's tasks from the outer to the deepest (a golden helmet, its gold, the raw gold, the mine down to it). When
   something else takes over (monsters, food, lava, a fall, the buddy's own fighting), it shows on top as **Interrupted**
