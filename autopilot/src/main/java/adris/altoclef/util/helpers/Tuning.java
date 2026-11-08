@@ -29,7 +29,17 @@ public final class Tuning {
             java.util.Map.entry("fr_trade_biome", 1.0),
             // (the maintainer's word, 8 Nov 2026: by one piglin about 6 s an ingot, so the 64 gold of the trade fit its cap)
             java.util.Map.entry("fr_trade_stay", 1.0),
+            // (route jar 2, 8 Nov 2026: a ghast's ball punched back only from this far
+            // (blocks, our copy's gap); the punches that burst on the buddy came at 2.6 to 3.1, none of those at 3.3 or more)
+            java.util.Map.entry("ghast_punch_min", 3.3),
+            // (route jar 2: the heal in cover builds the pillbox only within its leash; out of it the build's walk and the run took
+            // turns about 40 times in 3.7 minutes with no rod, route jar 1 run 2)
+            java.util.Map.entry("heal_build_near", 1.0),
             java.util.Map.entry("lure_cap", 120.0),
+            // (route jar 2: a lure ends after four looks in a row that no blaze saw; a blaze within 3.3 with its body in view is
+            // fought, never let go by the buddy's leash)
+            java.util.Map.entry("lure_blind", 4.0),
+            java.util.Map.entry("lure_keep_reach", 3.3),
             java.util.Map.entry("piglin_grudge", 1.0),
             // (the route's own pieces, steering 118 to 120, each a switch an A/B arm may turn off for one phase: the brew shut
             // in the fight's pillbox, a magma cube taken along on the trade's search, the way out through a portal after the
@@ -37,8 +47,14 @@ public final class Tuning {
             // until the gold is gone or a dead end)
             java.util.Map.entry("route_brew_pillbox", 1.0),
             java.util.Map.entry("route_cream_trade", 1.0),
+            // (route jar 2, each a switch back to route jar 1's way: the errand fetching the wart and the cream both and looking
+            // for them till a dead end; the potion kept through phase 4 for the spawner fight, gone at once in lava or burning
+            // with the health falling; the fire-proof camp in phase 4 while the potion is kept)
+            java.util.Map.entry("route_errand", 1.0),
             java.util.Map.entry("route_exit", 1.0),
             java.util.Map.entry("route_hold", 1.0),
+            java.util.Map.entry("route_hold_fight", 1.0),
+            java.util.Map.entry("route_rods2_camp", 1.0),
             java.util.Map.entry("route_trade", 1.0),
             java.util.Map.entry("spawner_wait_cap", 90.0));
 

@@ -438,8 +438,11 @@ public class MobDefenseChain extends SingleTaskChain {
         // (never for a ghast's ball, whatever the behaviour's noFireballShield says: the shield takes its damage and none of its
         // blast's knock, which blew it off a platform in the air three times in three in the ghast drill, 3 Nov 2026, and a
         // punch with the shield up is a hit while blocking. punchGhastBall sends it back instead, at no durability)
+        // (route jar 2, Tuning ghast_punch_min: a ghast's ball inside the punch's minimum, not punched, gets the shield after all)
+        long nowTick = mod.getWorld().getGameTime();
+        boolean ballInside = nowTick >= _ballInsideAt && nowTick - _ballInsideAt <= 2;
         boolean arrowClose = mayShield && mode != CombatCommit.Mode.RUN
-                && isProjectileClose(mod) && !_closeFireball;
+                && isProjectileClose(mod) && (!_closeFireball || ballInside);
         Mob drawer = mayShield ? drawingShooter(mod, mode, player) : null;
         double impact = arrowClose ? _impactTicks : Double.POSITIVE_INFINITY;
         if (drawer != null) impact = Math.min(impact, _drawImpactTicks);
@@ -504,9 +507,9 @@ public class MobDefenseChain extends SingleTaskChain {
                                 shouldForce = true;
                             }
                         }
-                    } else if (entity instanceof LargeFireball) {
-                        // Ghast ball
-                        shouldForce = true;
+                    } else if (entity instanceof LargeFireball ball) {
+                        // Ghast ball (not inside Tuning ghast_punch_min: a blind swing there bursts it on us, see punchGhastBall)
+                        shouldForce = !insidePunchMin(mod, ball);
                     } else if (entity instanceof Player player && mod.getBehaviour().shouldForceFieldPlayers()) {
                         if (!player.equals(mod.getPlayer())) {
                             String name = player.getName().getString();
@@ -560,6 +563,17 @@ public class MobDefenseChain extends SingleTaskChain {
     static final int PUNCH_AGAIN_TICKS = 3;
     private final java.util.Map<Integer, Long> _punched = new java.util.HashMap<>();
     private int _punchLoggedId = -1;
+    private int _punchSkipLoggedId = -1;
+    private long _ballInsideAt = Long.MIN_VALUE / 2;
+
+    // a ghast's ball nearer our eye than Tuning ghast_punch_min (0: no such line)
+    private static boolean insidePunchMin(AltoClef mod, LargeFireball ball) {
+        double min = adris.altoclef.util.helpers.Tuning.get("ghast_punch_min", 0);
+        if (min <= 0) return false;
+        Vec3 eye = mod.getPlayer().getEyePosition();
+        AABB box = ball.getBoundingBox();
+        return ReachRules.gap(eye.x, eye.y, eye.z, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ) < min;
+    }
 
     // same as PlaceObsidianBucketTask.pingMs
     private static int pingMs(AltoClef mod) {
@@ -595,6 +609,19 @@ public class MobDefenseChain extends SingleTaskChain {
             }
         }
         if (best == null || bestGap > PUNCH_WATCH) return;
+        // (Tuning ghast_punch_min, 3.3 by default, route jar 2: a ball closer than that is not punched, the shield is raised for
+        // it instead. punched at 2.6 to 3.2, as our copy is late, the ball burst on the buddy four times in ten, the server's
+        // ball already at it: twice the knock into the lava, once its death; none of twelve punched from 3.5 to 4.0 did. the
+        // shield takes the ball's damage, not its knock, and takes a few ticks to come up)
+        if (bestGap < adris.altoclef.util.helpers.Tuning.get("ghast_punch_min", 0) && !_punched.containsKey(best.getId())) {
+            _ballInsideAt = now;
+            if (best.getId() != _punchSkipLoggedId) {
+                _punchSkipLoggedId = best.getId();
+                Debug.logInternal("combat: a ghast's ball at " + String.format("%.1f", bestGap) + ", inside " + String.format("%.1f",
+                        adris.altoclef.util.helpers.Tuning.get("ghast_punch_min", 0)) + ": not punched, the shield");
+            }
+            return;
+        }
         Entity shooter = best.getOwner();
         boolean atShooter = shooter != null && shooter.isAlive() && shooter.distanceTo(player) < 64;
         mod.getControllerExtras().aimAtOverPath(atShooter ? shooter : best);

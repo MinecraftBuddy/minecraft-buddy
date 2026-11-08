@@ -159,6 +159,13 @@ public class WorldSurvivalChain extends SingleTaskChain {
             return 100;
         }
         if (lava) {
+            // (route jar 2, Tuning route_hold_fight: a splash fire resistance potion goes down at once in shallow lava,
+            // FireResTrade.lavaThrow; the escape after it)
+            Task splash = adris.altoclef.tasks.resources.FireResTrade.lavaThrow(mod);
+            if (splash != null) {
+                setTask(splash);
+                return 100;
+            }
             setTask(new EscapeFromLavaTask());
             return 100;
         }

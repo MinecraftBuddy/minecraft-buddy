@@ -121,6 +121,14 @@ final class BlazeFight {
     // it is dead, gone or out of reach (FightOpenRules.leashed)
     private Blaze freeTarget;
 
+    // Tuning lure_keep_reach, 3.3 by default (route jar 2): a blaze this close (centre to centre) with its body in view is fought,
+    // never let go by the buddy's leash: a lure is for bringing one into reach, and in 4 of 5 lures the one that came was let go,
+    // the buddy 2.5 from the corner on its look out. 0: the leash as before (only a biting one kept)
+    private static boolean keptInReach(AltoClef mod, LocalPlayer player, Blaze target) {
+        double reach = adris.altoclef.util.helpers.Tuning.get("lure_keep_reach", 0);
+        return reach > 0 && player.distanceTo(target) <= reach && BlazeCover.bodySeen(mod.getWorld(), player.getEyePosition(), target, player);
+    }
+
     private boolean leashed() {
         return FightOpenRules.leashed(open, rushNow, target != null && target == freeTarget);
     }
@@ -505,12 +513,17 @@ final class BlazeFight {
     // is over, its nook barred, a new hide held off, the line said. the caller drops the camp's corner when that was the hiding place
     boolean hideCapped(AltoClef mod) {
         long cap = adris.altoclef.util.helpers.BlazeCapRules.lureCapTicks();
-        if (cap <= 0 || hide == null) return false;
+        if (hide == null) return false;
         long now = mod.getWorld().getGameTime();
-        if (!hideWatch.tick(BlazeCover.key(hide.getX(), hide.getY(), hide.getZ()), now, killAt, cap)) return false;
+        // (Tuning lure_blind, route jar 2: the looks from the hide that no blaze saw end it as the cap does, BlazeLureTask.blindLooks)
+        int blindLimit = BlazeLureTask.blindLimit();
+        boolean blind = blindLimit > 0 && hideLure != null && hideLure.blindLooks() >= blindLimit;
+        boolean capped = cap > 0 && hideWatch.tick(BlazeCover.key(hide.getX(), hide.getY(), hide.getZ()), now, killAt, cap);
+        if (!capped && !blind) return false;
         int looks = hideLure != null ? hideLure.looks() : 0;
         boolean camp = hide.equals(corner);
-        Debug.logInternal("lure cap: " + hideWatch.ticks() / 20 + " s with no blaze in reach, hiding at " + hide.toShortString() + " ("
+        Debug.logInternal((blind ? "lure blind: " + hideLure.blindLooks() + " looks in a row no blaze saw, " : "lure cap: ")
+                + hideWatch.ticks() / 20 + " s with no blaze in reach, hiding at " + hide.toShortString() + " ("
                 + looks + " looks, " + (hideArrived ? "in it" : "never in it") + ", " + String.format(java.util.Locale.ROOT, "danger %.1f", hideDanger)
                 + ", " + blazesWithin(mod, BlazeFightRules.SIGHT_RANGE) + " blazes within " + (int) BlazeFightRules.SIGHT_RANGE + "), out of hiding"
                 + (camp ? " (the camp's corner)" : "") + ", the nook barred (cells within " + (int) adris.altoclef.util.helpers.BlazeCapRules.NOOK_RADIUS
@@ -775,7 +788,7 @@ final class BlazeFight {
         // every blaze is let go, one in the bite's reach too, BoxHomeRules.letGo)
         boolean home = pillboxPlanned && adris.altoclef.util.helpers.BoxHomeRules.on();
         // (Tuning open_attack, fireproof_rush: no leash while either holds, nor for a blaze picked under them)
-        if (next == Mode.KILL && held != null && target != null && leashed() && adris.altoclef.util.helpers.BoxHomeRules.letGo(home,
+        if (next == Mode.KILL && held != null && target != null && leashed() && !keptInReach(mod, player, target) && adris.altoclef.util.helpers.BoxHomeRules.letGo(home,
                 player.position().distanceTo(Vec3.atBottomCenterOf(held)), leash(), player.distanceTo(target) > BITE_RANGE)) {
             noteLetGo(String.format(java.util.Locale.ROOT, "we are %.1f from the corner", player.position().distanceTo(Vec3.atBottomCenterOf(held))), player);
             target = null;

@@ -100,4 +100,78 @@ public class RouteRulesTest {
         assertEquals(0, quarter.x());
         assertEquals(40, quarter.z());
     }
+
+    // ---- route jar 2
+
+    @Test
+    public void theErrandWalksThreeRingsRoundTheSpawnerNearestFirst() {
+        int[] p0 = RouteRules.errandPoint(0, 100, 200, 0);
+        assertEquals(120, p0[0]);
+        assertEquals(200, p0[1]);
+        // (the second point of the first ring, a quarter of the way round at eight a ring is 90 degrees two points on)
+        int[] p2 = RouteRules.errandPoint(2, 100, 200, 0);
+        assertEquals(100, p2[0]);
+        assertEquals(220, p2[1]);
+        int[] p8 = RouteRules.errandPoint(8, 100, 200, 0);
+        assertEquals(140, p8[0]);
+        int[] p16 = RouteRules.errandPoint(16, 100, 200, Math.PI);
+        assertEquals(40, p16[0]);
+        assertEquals(24, RouteRules.ERRAND_POINTS);
+    }
+
+    @Test
+    public void theErrandStopsOnlyAtADeadEnd() {
+        long dead = 600 * 20;
+        assertNull(RouteRules.errandDeadEnd(0, 0, dead));
+        assertNull(RouteRules.errandDeadEnd(23, dead - 1, dead));
+        assertEquals("the 3 rings round the spawner walked, nothing left in sight", RouteRules.errandDeadEnd(24, 0, dead));
+        assertEquals("neither got in 600 s at the fortress", RouteRules.errandDeadEnd(3, dead, dead));
+    }
+
+    @Test
+    public void thePotionWaitsForTheSpawnerFightNotForABlazeOnTheWay() {
+        double holdHp = 8;
+        // (a blaze 12 off on the walk to the spawner, not hitting: route jar 1 drank here)
+        assertTrue(RouteRules.holdPotion(false, false, false, false, 20, holdHp, false, true));
+        // (at the spawner with a blaze in drinking range: the fight has begun)
+        assertFalse(RouteRules.holdPotion(false, false, false, false, 20, holdHp, true, true));
+        assertEquals("the spawner fight", RouteRules.holdLetGo(false, false, false, false, 20, holdHp, true, true));
+        // (at the spawner with no blaze yet: it waits)
+        assertTrue(RouteRules.holdPotion(false, false, false, false, 20, holdHp, true, false));
+    }
+
+    @Test
+    public void thePotionGoesAtOnceInLavaOrBurningWithTheHealthFalling() {
+        double holdHp = 8;
+        assertEquals("in lava", RouteRules.holdLetGo(false, true, true, false, 17, holdHp, false, false));
+        // (route jar 1 kept it here, burning on a lava rim at 17 hp, and the buddy fell back in with none)
+        assertEquals("burning, the health falling", RouteRules.holdLetGo(false, false, true, true, 16, holdHp, false, false));
+        // (just caught fire, the health not down yet, or held up by the food: it waits)
+        assertNull(RouteRules.holdLetGo(false, false, true, false, 17, holdHp, false, false));
+        assertEquals("on fire at 8 hp", RouteRules.holdLetGo(false, false, true, false, 8, holdHp, false, false));
+        assertEquals("asked for", RouteRules.holdLetGo(true, false, false, false, 20, holdHp, false, false));
+    }
+
+    @Test
+    public void theHealthFallsHalfAHeartBelowTheBurnsBest() {
+        assertTrue(RouteRules.healthFalling(true, 17, 16.5));
+        assertFalse(RouteRules.healthFalling(true, 17, 16.6));
+        assertFalse(RouteRules.healthFalling(false, 17, 10));
+    }
+
+    @Test
+    public void theSpawnerFightBeginsInPhaseFourAtTheSpawner() {
+        assertFalse(RouteRules.fightBegun(RouteRules.WART, 3));
+        assertTrue(RouteRules.fightBegun(RouteRules.RODS2, 10));
+        assertFalse(RouteRules.fightBegun(RouteRules.RODS2, 10.5));
+        assertTrue(RouteRules.fightBegun(RouteRules.RODS, 2));
+    }
+
+    @Test
+    public void oneFramesCellsAreOnePortal() {
+        assertTrue(RouteRules.samePortal(0, 64, 0, 1, 65, 0));
+        assertTrue(RouteRules.samePortal(0, 64, 0, 0, 64, 3));
+        assertFalse(RouteRules.samePortal(0, 64, 0, 0, 64, 4));
+        assertEquals("route: no brew, the fallback", RouteRules.NO_BREW);
+    }
 }

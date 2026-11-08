@@ -121,16 +121,47 @@ public final class FireRes {
     static final long ROUTE_FRESH = 40;
     private static volatile long routeAt = Long.MIN_VALUE / 2;
     private static volatile long routeHeldAt = Long.MIN_VALUE / 2;
+    // (Tuning route_hold_fight, on by default, route jar 2: RouteRules.holdPotion) the rods task's say whether the spawner fight
+    // has begun (phase 4 and the buddy at the spawner); the burn's best health and the tick it was last looked at (a look
+    // BURN_GAP after the last is a new burn); the last let-go said
+    private static volatile boolean routeFight;
+    private static double burnBest = Double.NaN;
+    private static long burnAt = Long.MIN_VALUE / 2;
+    static final long BURN_GAP = 10;
+    private static volatile long routeLetAt = Long.MIN_VALUE / 2;
 
     public static void routeHolds(long now) {
+        routeHolds(now, false);
+    }
+
+    // said every tick of phases 3 and 4 (route_hold_fight) or of the errand (route jar 1); fightBegun: RouteRules.fightBegun
+    public static void routeHolds(long now, boolean fightBegun) {
         routeAt = now;
+        routeFight = fightBegun;
     }
 
     public static boolean holdsRoute(LivingEntity e, double blaze, boolean asked, long now) {
         if (Tuning.get("route_hold", 0) <= 0 || now < routeAt || now - routeAt > ROUTE_FRESH) return false;
         boolean inLava = e.isInLava() || e.isEyeInFluid(FluidTags.LAVA);
         double hp = Tuning.get("fr_trade_hold_hp", FireResTradeRules.HOLD_HP);
-        if (!FireResTradeRules.held(true, blaze <= FireResRules.BLAZE_RANGE, false, asked, inLava, e.isOnFire(), e.getHealth(), hp)) {
+        if (RouteRules.holdFightOn()) {
+            boolean onFire = e.isOnFire();
+            synchronized (FireRes.class) {
+                if (!onFire || Double.isNaN(burnBest) || now < burnAt || now - burnAt > BURN_GAP) burnBest = onFire ? e.getHealth() : Double.NaN;
+                else burnBest = Math.max(burnBest, e.getHealth());
+                burnAt = now;
+            }
+            boolean falling = RouteRules.healthFalling(onFire, burnBest, e.getHealth());
+            String why = RouteRules.holdLetGo(asked, inLava, onFire, falling, e.getHealth(), hp, routeFight, blaze <= FireResRules.BLAZE_RANGE);
+            if (why != null) {
+                if (FireResTradeRules.newEpisode(routeLetAt, now)) {
+                    Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion goes down, %s (%.1f hp%s, nearest blaze %s)", why,
+                            e.getHealth(), falling ? String.format(Locale.ROOT, ", %.1f at the burn's start", burnBest) : "", FireResTradeRules.distance(blaze)));
+                }
+                routeLetAt = now;
+                return false;
+            }
+        } else if (!FireResTradeRules.held(true, blaze <= FireResRules.BLAZE_RANGE, false, asked, inLava, e.isOnFire(), e.getHealth(), hp)) {
             return false;
         }
         if (FireResTradeRules.newEpisode(routeHeldAt, now)) {

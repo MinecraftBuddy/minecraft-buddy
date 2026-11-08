@@ -22,6 +22,8 @@ public final class RouteRules {
     public static final int EXIT = 7;
 
     public static final String NO_POTION = "route: no potion, the fallback";
+    // the errand's dead end without the cream or the wart: no brew, so the rods past the first two come without it
+    public static final String NO_BREW = "route: no brew, the fallback";
     public static final String OUT = "route: out of the nether";
 
     // the line of phase n (1 to 7)
@@ -35,7 +37,99 @@ public final class RouteRules {
         return phase > last;
     }
 
+    // ---- phase 3, the errand (Tuning route_errand, on by default; route jar 2, 8 Nov 2026). the first route jar gave up the
+    // cream after 60 s of waiting by the spawner and never fetched the wart (the cream came first, the wart only after it):
+    // phase 4 began with neither in two runs of two. now the errand wants both at once, takes what is in sight (a cube first,
+    // it moves; then the wart the tracker knows), and with nothing in sight walks round the spawner in rings to bring more
+    // of the fortress into view. it ends only with both in the bag or at a dead end
+
+    // the rings the errand walks round the spawner while nothing is in sight: this far apart, this many points a ring, this
+    // many rings, a point given this long (game ticks) before the next
+    public static final double ERRAND_RING_STEP = 20;
+    public static final int ERRAND_RING_POINTS = 8;
+    public static final int ERRAND_RINGS = 3;
+    public static final int ERRAND_POINTS = ERRAND_RING_POINTS * ERRAND_RINGS;
+    public static final long ERRAND_POINT_TICKS = 20 * 20;
+    // a point counts as reached within this many blocks of its column
+    public static final double ERRAND_POINT_NEAR = 4;
+    // the dead end's clock (Tuning route_errand_dead_s): this long with neither the cream nor the wart got, counted from the
+    // spawner first known (game seconds; the trade's dead end is 600 s too)
+    public static final double ERRAND_DEAD_S = 600;
+    // one cube is hunted at most this long, one wart block fetched at most this long, then let go for another (game seconds)
+    public static final double CUBE_HOLD_S = 40;
+    public static final double WART_HOLD_S = 90;
+
+    public static boolean errandOn() {
+        return Tuning.get("route_errand", 0) > 0;
+    }
+
+    // the k-th point of the errand's walk (0 first), round the spawner at sx, sz, the first of each ring at angle from
+    // (radians: the buddy's own side, so the walk starts near). the rings ERRAND_RING_STEP apart, nearest first
+    public static int[] errandPoint(int k, double sx, double sz, double from) {
+        int ring = 1 + Math.floorMod(k, ERRAND_POINTS) / ERRAND_RING_POINTS;
+        double r = ERRAND_RING_STEP * ring;
+        double a = from + Math.floorMod(k, ERRAND_RING_POINTS) * (2 * Math.PI / ERRAND_RING_POINTS);
+        return new int[]{(int) Math.round(sx + r * Math.cos(a)), (int) Math.round(sz + r * Math.sin(a))};
+    }
+
+    // why the errand stops at a dead end, null to go on: every point of the rings walked with nothing to hunt or fetch left,
+    // or deadTicks with neither item got since the spawner was known (sinceProgress counts only once it is)
+    public static String errandDeadEnd(int pointsWalked, long sinceProgress, long deadTicks) {
+        if (pointsWalked >= ERRAND_POINTS) return "the " + ERRAND_RINGS + " rings round the spawner walked, nothing left in sight";
+        if (sinceProgress >= deadTicks) return "neither got in " + Math.round(deadTicks / 20.0) + " s at the fortress";
+        return null;
+    }
+
+    // ---- the potion kept for the spawner fight (Tuning route_hold, phases 3 and 4; route jar 2). the first route jar let it go
+    // for any blaze within 16, so it went down on the walk to the pillbox with a blaze 12 off and ran out with one rod; and
+    // it kept it while the buddy burned on a lava rim at 17 hp, so the buddy fell back in with none. whether a fire resistance
+    // potion that would go down now waits: asked (a task's drink, the brew box), in lava, or burning with the health falling
+    // (healthFalling: below the best health of this burn), or on fire at holdHp or less, and it goes; at the spawner fight
+    // (fightBegun: the route past phase 3 and the buddy at the spawner) a blaze in drinking range lets it go too. a blaze on
+    // the way that is not hitting (no fire on the buddy) does not
+    // (Tuning route_hold_fight, on by default: off, route jar 1's hold, FireResTradeRules.held)
+    public static boolean holdPotion(boolean asked, boolean inLava, boolean onFire, boolean healthFalling, double health, double holdHp,
+                                     boolean fightBegun, boolean blazeNear) {
+        return holdLetGo(asked, inLava, onFire, healthFalling, health, holdHp, fightBegun, blazeNear) == null;
+    }
+
+    // why the potion kept goes down now (the line's words), null while it waits
+    public static String holdLetGo(boolean asked, boolean inLava, boolean onFire, boolean healthFalling, double health, double holdHp,
+                                   boolean fightBegun, boolean blazeNear) {
+        if (asked) return "asked for";
+        if (inLava) return "in lava";
+        if (onFire && healthFalling) return "burning, the health falling";
+        if (onFire && health <= holdHp) return "on fire at " + Math.round(health) + " hp";
+        if (fightBegun && blazeNear) return "the spawner fight";
+        return null;
+    }
+
+    public static boolean holdFightOn() {
+        return Tuning.get("route_hold_fight", 0) > 0;
+    }
+
+    // the spawner fight has begun for the potion's sake: the buddy this close to the spawner (blocks), the route past phase 3
+    public static final double FIGHT_NEAR = 10;
+
+    public static boolean fightBegun(int phase, double toSpawner) {
+        return phase >= RODS2 && toSpawner <= FIGHT_NEAR;
+    }
+
+    // a burn's health counts as falling this far below its best (half a heart: one tick of fire is a whole heart)
+    public static final double BURN_FALL = 0.5;
+
+    public static boolean healthFalling(boolean onFire, double best, double health) {
+        return onFire && health <= best - BURN_FALL;
+    }
+
     // ---- phase 7, the exit (Tuning route_exit, on by default)
+
+    // portal cells this close (blocks, each axis) are one portal: the exit counted one frame's cells as several
+    public static final int PORTAL_SAME = 3;
+
+    public static boolean samePortal(int ax, int ay, int az, int bx, int by, int bz) {
+        return Math.abs(ax - bx) <= PORTAL_SAME && Math.abs(ay - by) <= PORTAL_SAME && Math.abs(az - bz) <= PORTAL_SAME;
+    }
 
     // the exit's own cap: still in the nether this long after it began, it is given up (game seconds; Tuning route_exit_s)
     public static final double EXIT_S = 600;

@@ -76,7 +76,7 @@ import net.minecraft.world.phys.Vec3;
 // piglin the gold went to keeps it: the buddy waits by it while it admires and takes another free one only within a few
 // blocks (FireResTradeRules.pick). the pickup takes a piglin's ender pearls too while the goal asks for more, or always with
 // Tuning fr_trade_pearls (off by default; FireResTradeRules.takesPearls). a line for every ingot handed and every pearl picked up
-final class FireResTrade {
+public final class FireResTrade {
 
     // by the spawner: the trade is for before the fortress
     static final double FORTRESS_NEAR = FireResTradeRules.FORTRESS_NEAR;
@@ -446,6 +446,32 @@ final class FireResTrade {
                 || FireRes.holdsAny(player, blaze, asked, now) || FireRes.holdsRoute(player, blaze, asked, now)) return null;
         _throw = new ThrowAtFeetTask(blaze);
         return _throw;
+    }
+
+    // Tuning route_hold_fight, on by default (route jar 2): a splash or lingering fire resistance potion thrown at the feet in
+    // shallow lava, by the lava escape's chain. the throw lived in the rods task alone, which the lava escape interrupts, so
+    // a splash potion never went down in lava (a drinkable one does: the food chain drinks in lava). shallow: ground within
+    // LAVA_THROW_DEPTH under the feet, where the splash lands within its reach; in deep lava it would sink past it. null when
+    // not now
+    static final int LAVA_THROW_DEPTH = 2;
+    private static ThrowAtFeetTask _lavaThrow;
+
+    public static Task lavaThrow(AltoClef mod) {
+        LocalPlayer player = mod.getPlayer();
+        if (player == null || !adris.altoclef.util.helpers.RouteRules.holdFightOn()) return null;
+        if (_lavaThrow != null && _lavaThrow.isActive() && !_lavaThrow.isFinished(mod)) return _lavaThrow;
+        _lavaThrow = null;
+        if (!player.isInLava() || FireRes.has(player) || count(mod, Form.DRINK) > 0 || count(mod, Form.THROW) == 0 || player.isBlocking()) return null;
+        net.minecraft.core.BlockPos feet = player.blockPosition();
+        boolean shallow = false;
+        for (int i = 1; i <= LAVA_THROW_DEPTH && !shallow; i++) {
+            var state = mod.getWorld().getBlockState(feet.below(i));
+            if (!state.isAir() && state.getFluidState().isEmpty()) shallow = true;
+        }
+        if (!shallow) return null;
+        _lavaThrow = new ThrowAtFeetTask(nearestBlaze(mod));
+        Debug.logInternal(String.format(Locale.ROOT, "strategy trade: in lava at %.1f hp, the splash potion thrown at the feet", player.getHealth()));
+        return _lavaThrow;
     }
 
     // every fire resistance potion of this form in the bag, the hotbar and the offhand

@@ -122,6 +122,22 @@ final class BlazeLureTask extends Task {
         return looks;
     }
 
+    // ---- blind looks (Tuning lure_blind, 4 by default; route jar 2): the looks in a row that no blaze saw (no blaze with a line
+    // on the buddy's eyes at any tick of the look). a lure whose looks go out from cells no blaze sees, behind the wall towards
+    // the blazes, brings none round: 42 looks in 106 s with the meter calm, ended only by the 120 s cap. the caller ends the
+    // lure at the count; a look a blaze saw starts it again
+    private int blindLooks;
+    private boolean peekSeen;
+
+    int blindLooks() {
+        return blindLooks;
+    }
+
+    // the count of blind looks that ends a lure, 0 for none
+    static int blindLimit() {
+        return (int) Math.round(adris.altoclef.util.helpers.Tuning.get("lure_blind", 0));
+    }
+
     @Override
     protected void onStart(AltoClef mod) {
         stage = Stage.WAIT;
@@ -203,6 +219,7 @@ final class BlazeLureTask extends Task {
                 if (outOfCorner(at) && (in(at, out) || seen(mod))) {
                     lower(mod);
                     looks++;
+                    peekSeen = seen(mod);
                     next(Stage.PEEK, now);
                     return null;
                 }
@@ -241,10 +258,12 @@ final class BlazeLureTask extends Task {
                     setDebugState("Looking round the corner");
                 }
                 long held = now - since;
+                peekSeen |= seen(mod);
                 // (back in before the ball: a blaze that sees us charged PEEK_LOADED ticks, its first one due at 60)
                 boolean due = adris.altoclef.util.helpers.BlazeShelter.loadedOn(mod, mod.getPlayer().blockPosition(), now) >= adris.altoclef.util.helpers.Tuning.get("peek_loaded", PEEK_LOADED);
                 if (held >= PEEK_MAX || due || (held >= PEEK_MIN && allSeeingCharged(mod))) {
                     lower(mod);
+                    blindLooks = peekSeen ? 0 : blindLooks + 1;
                     next(Stage.BACK, now);
                 }
                 return null;
