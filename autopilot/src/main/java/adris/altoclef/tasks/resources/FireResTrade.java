@@ -18,6 +18,7 @@ import adris.altoclef.util.helpers.FireResRules;
 import adris.altoclef.util.helpers.FireResTradeRules;
 import adris.altoclef.util.helpers.FireResTradeRules.Form;
 import adris.altoclef.util.helpers.FireResTradeRules.Spot;
+import adris.altoclef.util.helpers.ItemPickupRules;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.Tuning;
@@ -419,11 +420,16 @@ final class FireResTrade {
                         form == Form.DRINK ? "drinkable" : "splash", given, item.distanceTo(player)));
             }
             if (_dropsGivenUp.contains(item.getId())) continue;
+            if (lavaGivenUp(item, "potion")) continue;
             if (nearest == null || item.distanceTo(player) < nearest.distanceTo(player)) nearest = item;
         }
         for (var it = _drops.entrySet().iterator(); it.hasNext(); ) {
             var seen = it.next();
             if (present.contains(seen.getKey())) continue;
+            // (out of the box is not gone: a potion on its edge left and came back with each step, a new line each time,
+            // 269 times in five minutes on 8 Nov 2026)
+            Entity still = mod.getWorld().getEntity(seen.getKey());
+            if (still != null && still.isAlive()) continue;
             it.remove();
             if (bagPotions <= _bagPotionsBefore) {
                 Debug.logInternal("strategy trade: a fire resistance potion on the ground was lost before the pickup");
@@ -439,9 +445,20 @@ final class FireResTrade {
         ItemEntity nearest = null;
         for (ItemEntity item : mod.getWorld().getEntitiesOfClass(ItemEntity.class, player.getBoundingBox().inflate(PICKUP_RANGE))) {
             if (!item.isAlive() || !item.getItem().is(Items.ENDER_PEARL) || _dropsGivenUp.contains(item.getId())) continue;
+            if (lavaGivenUp(item, "ender pearl")) continue;
             if (nearest == null || item.distanceTo(player) < nearest.distanceTo(player)) nearest = item;
         }
         return Optional.ofNullable(nearest);
+    }
+
+    // a drop the pickup will not go for, every spot it could be grabbed from being next to lava (the entity tracker leaves
+    // it out, so the pickup wanders and never gives up; the trade then stood still on it until it despawned): given up at
+    // once, so the barter goes on
+    private boolean lavaGivenUp(ItemEntity item, String what) {
+        if (!ItemPickupRules.lavaBlocksPickup(item)) return false;
+        _dropsGivenUp.add(item.getId());
+        Debug.logInternal("strategy trade: the " + what + " on the ground given up (next to lava, the pickup leaves it)");
+        return true;
     }
 
     // one line per ender pearl that came into the bag during the trade, whatever picked it up
