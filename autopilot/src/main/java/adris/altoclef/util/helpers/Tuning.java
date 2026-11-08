@@ -20,6 +20,8 @@ public final class Tuning {
             java.util.Map.entry("cream_wild", 1.0),
             java.util.Map.entry("fireproof_camp", 1.0),
             java.util.Map.entry("fireproof_side", 1.0),
+            // (confirmed 8 Nov 2026, realfort-pair-tsure2 at look 2: a potion 17 against 30 of 59 pairs, z 2.84)
+            java.util.Map.entry("fr_trade_biome", 1.0),
             java.util.Map.entry("lure_cap", 120.0),
             java.util.Map.entry("piglin_grudge", 1.0),
             java.util.Map.entry("spawner_wait_cap", 90.0));
