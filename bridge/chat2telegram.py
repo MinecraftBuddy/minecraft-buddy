@@ -700,17 +700,20 @@ def span(seconds):
     return f"{d}d {h}h" if d else f"{h}h {m}m" if h else f"{m}m" if m else f"{seconds}s"
 
 
-ITEM = re.compile(r"^(.+?)(?:x(\d+))?(?:\((\d+)\))?$")
+ITEM = re.compile(r"^(.+?)(?:\{([a-z0-9_]+)\})?(?:x(\d+))?(?:\((\d+)\))?$")
 
 
 def inventory(ev):
-    """The inventory event as a table: "2:cooked_beefx23 4:diamond_axe(912)" becomes one row per slot."""
+    """The inventory event as a table: "2:cooked_beefx23 4:diamond_axe(912) 5:potion{water}" becomes one row per slot,
+    a potion with its kind ("potion (water)")."""
     parts = {"Hotbar": [], "Backpack": [], "Armour and off hand": []}
     for token in ev.get("things", "").split():
         where, _, what = token.partition(":")
         slot = int(where) if where.isdigit() else 40 if where == "hand2" else 36 + int(where[5:]) if where.startswith("armor") else -1
         m = ITEM.match(what)
-        name, count, uses = m.group(1).replace("_", " "), m.group(2), m.group(3)
+        name, kind, count, uses = m.group(1).replace("_", " "), m.group(2), m.group(3), m.group(4)
+        if kind:
+            name += " (" + kind.replace("_", " ") + ")"
         row = f"{slot:>2}  {name}" + (f" ×{count}" if count else "") + (f"  ({uses} uses left)" if uses else "")
         parts["Hotbar" if slot < 9 else "Backpack" if slot < 36 else "Armour and off hand"].append((slot, row))
     lines = []

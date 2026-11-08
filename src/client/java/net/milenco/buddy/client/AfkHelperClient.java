@@ -1201,6 +1201,8 @@ public class AfkHelperClient implements ClientModInitializer {
 	 * Log the whole inventory as soon as something changes: hotbar, backpack, armour and off hand, with the
 	 * free slots included. Writing the same line every 5 s makes the log unreadable, so only on a difference.
 	 * That way you can see from outside whether there is still room for an axe or how much food is left.
+	 * A slot is "slot:item", then "{kind}" for what a potion holds ({@link #potionKind}), "xN" for a count above one and
+	 * "(n)" for the durability left: "0:iron_sword(246) 5:potion{water} 6:splash_potion{fire_resistance}x2".
 	 */
 	private static void inventoryCheck(LocalPlayer p) {
 		StringBuilder sb = new StringBuilder();
@@ -1215,6 +1217,8 @@ public class AfkHelperClient implements ClientModInitializer {
 			}
 			if (sb.length() > 0) sb.append(" ");
 			sb.append(i < 36 ? String.valueOf(i) : i == n - 1 ? "hand2" : "armor" + (i - 36)).append(":").append(itemId(st));
+			String kind = potionKind(st);
+			if (kind != null) sb.append("{").append(kind).append("}");
 			if (st.getCount() > 1) sb.append("x").append(st.getCount());
 			var dur = st.getMaxDamage() > 0 ? (st.getMaxDamage() - st.getDamageValue()) : -1;
 			if (dur >= 0) sb.append("(").append(dur).append(")");
@@ -1382,6 +1386,21 @@ public class AfkHelperClient implements ClientModInitializer {
 	}
 
 	static String itemId(ItemStack st) { return BuiltInRegistries.ITEM.getKey(st.getItem()).getPath(); }
+
+	/**
+	 * What a potion, a splash or lingering potion or a tipped arrow holds: its potion's id without the namespace ("water",
+	 * "fire_resistance", "long_fire_resistance"), "custom" for effects of its own only, or null when it holds nothing.
+	 * The item id alone says "potion" for a water bottle and a potion of fire resistance alike.
+	 */
+	static String potionKind(ItemStack st) {
+		var contents = st.get(DataComponents.POTION_CONTENTS);
+		if (contents == null) return null;
+		if (contents.potion().isPresent()) {
+			var potion = contents.potion().get();
+			return potion.unwrapKey().map(k -> k.identifier().getPath()).orElseGet(() -> potion.value().name());
+		}
+		return contents.customEffects().isEmpty() ? null : "custom";
+	}
 
 	// ---------- commands from the watcher ----------
 	private void handleCommand(JsonObject o) {

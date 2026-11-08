@@ -57,8 +57,9 @@ import net.minecraft.client.multiplayer.ClientLevel;
  * <li>{@code T} a line of the timeline: UTF-8 JSON {@code {t, type, ...}}, {@code t} when it happened: the lines of
  * events.jsonl of the types in {@link #EVENTS} as they are written there; those of {@link #STATES} ({@code inventory}:
  * {@code free_hotbar}, {@code free_backpack} and {@code things}, the slots as "0:iron_sword(246) 2:cobblestonex31
- * armor0:iron_boots(190)"; {@code status}: hp, food, the hand and more) when they differ from the last one of their type
- * (their {@code t} aside), and the last of each again right after every segment's first K (with its own, older
+ * 5:potion{water} armor0:iron_boots(190)", a potion's kind in braces; {@code status}: hp, food, the hand and more)
+ * when they differ from the last one of their type (their {@code t} aside), and the last of each again right after
+ * every segment's first K (with its own, older
  * {@code t}), so that a segment read alone knows them; {@code {"type":"plan", "tasks", "by",
  * "by_tasks"}}, the order's plan as the panel shows it (rows of {@code t} task and {@code s} state), when it changes
  * (only its numbers: at most every 10 s; without {@code tasks}, no plan); and {@code {"type":"think", "text", "n"}},
