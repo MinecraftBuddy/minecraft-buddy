@@ -699,6 +699,30 @@ final class BlazeFight {
         return candidates.size();
     }
 
+    // (the buddy's fork, look 28, 8 Nov 2026: whether the fight would take a blaze within `within` blocks now, asked by the fire
+    // resistance trade before it yields. the trade's tick comes before the fight's, which runs only on a yield, so this checks
+    // afresh and changes nothing: the pick range, no wither skeleton pack about the blaze, a floor under it, a way to it; the
+    // corner and pillbox rules of the scan do not apply before the camp)
+    boolean takesWithin(AltoClef mod, double within) {
+        LocalPlayer player = mod.getPlayer();
+        List<Blaze> blazes;
+        try {
+            blazes = new ArrayList<>(mod.getEntityTracker().getTrackedEntities(Blaze.class));
+        } catch (java.util.ConcurrentModificationException e) {
+            return false;
+        }
+        for (Blaze blaze : blazes) {
+            if (!blaze.isAlive()) continue;
+            double distance = player.distanceTo(blaze);
+            if (distance > within || distance > range) continue;
+            if (BlazeFightRules.packNear(witherSkeletonsNear(mod, blaze.position(), BlazeFightRules.PACK_BLAZE_RADIUS))) continue;
+            Floor floor = floorUnder(mod.getWorld(), blaze);
+            if (BlazeFightRules.isReachable(floor.height(), floor.lava(), distance, range, false)
+                    && mod.getEntityTracker().isEntityReachable(blaze)) return true;
+        }
+        return false;
+    }
+
     int around() {
         return around;
     }

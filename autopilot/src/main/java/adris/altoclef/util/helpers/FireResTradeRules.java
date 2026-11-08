@@ -77,7 +77,7 @@ public final class FireResTradeRules {
     // admired) or a fire resistance potion lies on the ground near. goldWearable: a piece of gold armour is worn or in the bag
     // (without one the piglins attack). sinceBegin, sinceGoldOut (MAX_VALUE while gold is left), sincePiglin (since a piglin was
     // last in sight to trade with, or since the begin): game ticks. piglinNear: one in sight to give gold to. atFortress: by the
-    // spawner. blazeNear: a blaze in drinking range
+    // spawner. blazeNear: the trade yields to a blaze (yields: the fight would take one)
     public static Verdict decide(boolean potion, int gold, boolean pending, boolean goldWearable, long sinceBegin, long sinceGoldOut,
                                  long sincePiglin, boolean piglinNear, boolean atFortress, boolean blazeNear, long searchTicks,
                                  long maxTicks) {
@@ -90,6 +90,24 @@ public final class FireResTradeRules {
         if (sincePiglin >= searchTicks) return new Verdict(Step.GIVE_UP, "no piglin found in " + seconds(searchTicks) + " s");
         if (atFortress) return new Verdict(Step.GIVE_UP, "at the fortress with no piglin in sight");
         return Verdict.of(Step.SEARCH);
+    }
+
+    // (look 28, 8 Nov 2026: a blaze at the 16-block line flipped the trade into a yield and back each second for six minutes,
+    // and the yield handed the tick to the camp walk, not to a fight: 15 gold never handed, the cap with no potion.) the trade
+    // yields to a blaze only while the fight would take one: within BLAZE_RANGE, or BLAZE_KEEP once yielding; and a yield lasts
+    // YIELD_HOLD_TICKS past the last tick the fight would take one, so a blaze at the edge of reach does not restart the walk
+    // each tick
+    public static final double BLAZE_KEEP = 24;
+    public static final long YIELD_HOLD_TICKS = 40;
+
+    public static double yieldLine(boolean yielding) {
+        return yielding ? BLAZE_KEEP : FireResRules.BLAZE_RANGE;
+    }
+
+    // fightTakes: the fight would take a blaze within yieldLine this tick. sinceTaken: game ticks since it last would
+    // (MAX_VALUE when never)
+    public static boolean yields(boolean fightTakes, long sinceTaken) {
+        return fightTakes || sinceTaken < YIELD_HOLD_TICKS;
     }
 
     // a piglin in sight to trade with, with a margin: one is taken up within enter, and kept while within keep, so the trade

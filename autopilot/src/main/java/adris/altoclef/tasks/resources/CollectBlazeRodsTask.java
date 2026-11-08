@@ -340,7 +340,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 setDebugState("Throwing fire resistance at the feet");
                 return splash;
             }
-            Task trade = _frTrade.tick(mod, _foundBlazeSpawner);
+            Task trade = _frTrade.tick(mod, _foundBlazeSpawner, within -> _fight.takesWithin(mod, within));
             if (trade != null) {
                 setDebugState(_frTrade.hud());
                 return trade;

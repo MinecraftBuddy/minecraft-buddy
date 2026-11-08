@@ -201,4 +201,16 @@ public class FireResTradeRulesTest {
         assertEquals(0.96, FireResTradeRules.chanceWithin(96), 0.01);
         assertEquals(0.99, FireResTradeRules.chanceWithin(128), 0.01);
     }
+
+    // look 28: the line is 16 blocks, 24 once yielding; a yield lasts two seconds past the last tick the fight would take a
+    // blaze, and none comes while the fight would take none
+    @Test
+    public void theTradeYieldsOnlyWhileTheFightTakesABlaze() {
+        assertEquals(16, FireResTradeRules.yieldLine(false), 0);
+        assertEquals(24, FireResTradeRules.yieldLine(true), 0);
+        assertTrue(FireResTradeRules.yields(true, 0));
+        assertTrue(FireResTradeRules.yields(false, 39));
+        assertFalse(FireResTradeRules.yields(false, 40));
+        assertFalse(FireResTradeRules.yields(false, NEVER));
+    }
 }

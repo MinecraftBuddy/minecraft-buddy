@@ -109,6 +109,9 @@ final class FireResTrade {
     private boolean _piglinLogged;
     private boolean _searchLogged;
     private boolean _yieldLogged;
+    private boolean _yielding;
+    private long _yieldTakenAt = -1;
+    private boolean _blazeOnLogged;
     private int _progressLogged;
     private String _hud = "Trading gold with piglins for fire resistance";
     // the fire resistance potions seen on the ground (entity id), and the ones the pickup gave up on
@@ -164,7 +167,8 @@ final class FireResTrade {
 
     // the trade's step this tick: a task to run, or null for the blaze rods' own way (the walk to the fortress while no piglin
     // is in sight, the fight when a blaze is near, everything once the trade has ended)
-    Task tick(AltoClef mod, BlockPos spawner) {
+    // fight: whether the blaze fight would take a blaze within the given blocks now (BlazeFight.takesWithin)
+    Task tick(AltoClef mod, BlockPos spawner, java.util.function.DoublePredicate fight) {
         LocalPlayer player = mod.getPlayer();
         long now = mod.getWorld().getGameTime();
         int drink = count(mod, Form.DRINK);
@@ -236,10 +240,21 @@ final class FireResTrade {
             }
             _piglinSeenAt = now;
         }
+        // (look 28: the yield to a blaze only while the fight would take one, with a margin in blocks and in time,
+        // FireResTradeRules.yields)
+        double line = FireResTradeRules.yieldLine(_yielding);
+        boolean fightTakes = blaze <= line && fight.test(line);
+        if (fightTakes) _yieldTakenAt = now;
+        _yielding = FireResTradeRules.yields(fightTakes, _yieldTakenAt < 0 || now < _yieldTakenAt ? Long.MAX_VALUE : now - _yieldTakenAt);
+        if (blazeNear && !_yielding && !_blazeOnLogged) {
+            _blazeOnLogged = true;
+            Debug.logInternal(String.format(Locale.ROOT, "strategy trade: a blaze %.0f blocks off, out of the fight's reach: the trade goes on", blaze));
+        }
+        if (!blazeNear) _blazeOnLogged = false;
         boolean worn = PiglinAi.isWearingSafeArmor(player);
         Item piece = goldPieceInBag(mod);
         FireResTradeRules.Verdict verdict = FireResTradeRules.decide(potion, gold, pending, worn || piece != null, now - _begunAt,
-                _goldOutAt < 0 ? Long.MAX_VALUE : now - _goldOutAt, now - _piglinSeenAt, _piglinNear, atFortress, blazeNear,
+                _goldOutAt < 0 ? Long.MAX_VALUE : now - _goldOutAt, now - _piglinSeenAt, _piglinNear, atFortress, _yielding,
                 searchTicks(), maxTicks());
         if (given >= _progressLogged + PROGRESS_EVERY && verdict.step() != FireResTradeRules.Step.DONE) {
             _progressLogged = given - given % PROGRESS_EVERY;
