@@ -351,6 +351,18 @@ final class CombatBrain {
                 net.minecraft.core.BlockPos shelter = adris.altoclef.util.helpers.BlazeShelter.fresh(mod.getWorld().getGameTime());
                 boolean nearShelter = shelter != null && mod.getPlayer().position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(shelter))
                         <= adris.altoclef.util.helpers.BlazeShelter.RANGE;
+                // (Tuning run_shelter_wither, on by default, route jar 3: not a corner with a wither skeleton within
+                // SHELTER_WITHER of it. route jar 2 run 2 ran "into" the corner it already stood in, a half built box in the
+                // open with the skeleton at its side, and ate there under fireballs till it died)
+                if (nearShelter && adris.altoclef.util.helpers.Tuning.get("run_shelter_wither", 0) > 0 && witherNear(shelter, SHELTER_WITHER)) {
+                    if (!shelter.equals(_shelterSkipped)) {
+                        _shelterSkipped = shelter;
+                        adris.altoclef.Debug.logInternal("combat: the run passes the blaze fight's corner at " + shelter.toShortString()
+                                + ", a wither skeleton within " + (int) SHELTER_WITHER + " of it");
+                    }
+                    nearShelter = false;
+                    shelter = null;
+                }
                 // (the buddy's fork, stand_model on, in the nether: the run's goal is the model's cell, the corner one cell among
                 // the rest; with no cell from it the corner and the committed run as before)
                 boolean model = adris.altoclef.util.helpers.StandPick.on() && WorldHelper.getCurrentDimension() == Dimension.NETHER;
@@ -390,6 +402,19 @@ final class CombatBrain {
                 // nothing committed, but hurt from the last one: stand here and heal instead of walking back in
                 return _commit.recovering() ? _healUp : null;
         }
+    }
+
+    // a wither skeleton this close to the blaze fight's corner makes it no place to run to: its reach of about 2 and the
+    // second (3.3 blocks) it takes to close on a buddy who stopped in the corner
+    static final double SHELTER_WITHER = 6;
+    private net.minecraft.core.BlockPos _shelterSkipped;
+
+    private boolean witherNear(net.minecraft.core.BlockPos at, double range) {
+        net.minecraft.world.phys.Vec3 c = net.minecraft.world.phys.Vec3.atBottomCenterOf(at);
+        for (Mob mob : _crowdBlazes) {
+            if (mob instanceof WitherSkeleton && mob.isAlive() && mob.position().distanceTo(c) <= range) return true;
+        }
+        return false;
     }
 
     // in contact: a bit past arm's reach, a cube's middle is further off than its edge

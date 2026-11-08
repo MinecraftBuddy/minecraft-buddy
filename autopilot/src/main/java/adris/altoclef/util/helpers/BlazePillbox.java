@@ -456,8 +456,17 @@ public final class BlazePillbox {
         return candidates(cells, start, sx, sz, CELL_MAX, WALK);
     }
 
+    // (Tuning pillbox_open_skip, on by default, route jar 3) a box by the spawner whose build this share of the spawn eyes or
+    // more sees is not built: every blaze that spawns has a line on the buddy placing blocks, standing still. route jar 2 run 2
+    // built one seen by all of them in phase 4 and died in it, burning without a break; run 1's box, seen by half, went up
+    public static final double BUILD_SEEN_MAX = 0.9;
+
+    public static boolean tooOpen(double buildSeen) {
+        return buildSeen >= BUILD_SEEN_MAX;
+    }
+
     // the share of the spawn eyes (in an open cell now) that see a body in B or in F before a block of the box is in
-    static double buildSeen(Cells cells, Plan plan, List<Vec3> eyes) {
+    public static double buildSeen(Cells cells, Plan plan, List<Vec3> eyes) {
         int all = 0, seen = 0;
         int[] b = plan.cell(), f = plan.front();
         for (Vec3 e : eyes) {

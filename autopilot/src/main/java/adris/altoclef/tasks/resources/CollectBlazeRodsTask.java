@@ -1736,6 +1736,20 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // stands, and the looks start from it)
         if (adris.altoclef.util.helpers.Tuning.get("pillbox", 1) > 0 && !_foundBlazeSpawner.equals(_pillboxGaveUpFor) && !campsOff) {
             adris.altoclef.util.helpers.BlazePillbox.Plan plan = pillboxPlan(mod, cells, sx, sy, sz);
+            // (Tuning pillbox_open_skip, on by default, route jar 3: no box whose build nearly every spawn eye sees,
+            // BlazePillbox.tooOpen. the far box instead, out of the spawner's range, where one fits; else the camp as with no box)
+            if (plan != null && adris.altoclef.util.helpers.Tuning.get("pillbox_open_skip", 0) > 0) {
+                java.util.List<Vec3> eyes = new java.util.ArrayList<>();
+                for (Vec3 eye : BlazeCover.spawnEyes(sx, sy, sz)) {
+                    if (mod.getWorld().getBlockState(BlockPos.containing(eye)).getCollisionShape(mod.getWorld(), BlockPos.containing(eye)).isEmpty()) eyes.add(eye);
+                }
+                double seen = adris.altoclef.util.helpers.BlazePillbox.buildSeen(cells, plan, eyes);
+                if (adris.altoclef.util.helpers.BlazePillbox.tooOpen(seen)) {
+                    Debug.logInternal("blaze camp: the pillbox's build seen by " + Math.round(seen * 100) + "% of the spawn eyes, none by the spawner");
+                    if (!_foundBlazeSpawner.equals(_farGaveUpFor) && farPick(mod, cells, sx, sy, sz)) return;
+                    plan = null;
+                }
+            }
             if (plan != null) {
                 _pillbox = new BlazePillboxTask(plan);
                 // (Tuning box_home: the box is picked on arrival at the spawner, maybe 120 blocks off; its clock starts at

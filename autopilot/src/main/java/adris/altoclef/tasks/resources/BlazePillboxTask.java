@@ -334,6 +334,17 @@ final class BlazePillboxTask extends Task {
         }
         int[] nb = plan.blocks().get(next);
         BlockPos pos = new BlockPos(nb[0], nb[1], nb[2]);
+        // (Tuning pillbox_no_face, on by default, route jar 3: a block with no solid block beside, under or over it has nothing
+        // for a click to go against, and no click puts it in: left out at once. a bent box's front roof after the back roof
+        // was left out took the clicks and the steps to the cell's middle under fireballs till the buddy died in the box,
+        // "block 9 of 9", route jar 2 run 2. the roof row's retry below tries it again once its neighbour is in)
+        if (adris.altoclef.util.helpers.Tuning.get("pillbox_no_face", 0) > 0 && !anyFace(mod, pos)) {
+            Debug.logInternal("pillbox: the block at " + pos.toShortString() + " has nothing to go against, left out");
+            left++;
+            next++;
+            placing = null;
+            return null;
+        }
         BlockPos stand = standFor(next, pos);
         if (!inColumn(mod.getPlayer().position(), stand) && BlazeShelter.loadedOn(mod, cell, now) < adris.altoclef.util.helpers.Tuning.get("pillbox_loaded", LOADED)) {
             setDebugState(stand.equals(cell) ? "To the pillbox's cell" : "To the pillbox's front cell");
@@ -465,6 +476,14 @@ final class BlazePillboxTask extends Task {
         if (l > k) in.tryPress(baritone.api.utils.input.Input.MOVE_LEFT);
         else if (l < -k) in.tryPress(baritone.api.utils.input.Input.MOVE_RIGHT);
         return true;
+    }
+
+    // a solid block on any of the six sides of p: something a click can put a block at p against
+    private static boolean anyFace(AltoClef mod, BlockPos p) {
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
+            if (solid(mod, p.relative(d))) return true;
+        }
+        return false;
     }
 
     private static boolean solid(AltoClef mod, BlockPos p) {

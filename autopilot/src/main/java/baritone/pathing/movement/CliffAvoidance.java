@@ -76,7 +76,8 @@ public final class CliffAvoidance {
             return SEA_NODE_COST;
         }
         if (!nearADrop(context.bsi, memo, x, y, z)) {
-            return 0;
+            // (the nether's lava edges, Tuning nether_lava_edges, route jar 3: CalculationContext.lavaEdges)
+            return context.lavaEdges && lavaNear(context.bsi, memo, x, y, z) ? NODE_COST : 0;
         }
         return fortress ? FORTRESS_NODE_COST : NODE_COST;
     }

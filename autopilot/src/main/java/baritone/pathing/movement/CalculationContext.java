@@ -292,7 +292,10 @@ public class CalculationContext {
         // the End's edges too: every drop there is the void, and the dragon's wings, an enderman's blow and a shulker's bullet
         // all knock sideways
         this.cliffEdges = nether || ExperimentalMovement.inEnd(world);
-        this.lavaEdges = !nether;
+        // (the buddy's fork, Tuning nether_lava_edges, on by default, route jar 3: the nether prices the nodes beside a lava
+        // pool at the feet's height too, where no drop is. the fortress search walked a bastion's bridge by a pool and stepped
+        // into its edge at full health, and the potion kept for the blazes nearly went for it, route jar 2 run 1)
+        this.lavaEdges = !nether || adris.altoclef.util.helpers.Tuning.get("nether_lava_edges", 0) > 0;
         this.fastModeMinHealth = Baritone.settings().fastModeMinHealth.value;
         this.fallDamageCost = Baritone.settings().fallDamageCost.value;
         this.jumpBias = ExperimentalMovement.jumpBias();

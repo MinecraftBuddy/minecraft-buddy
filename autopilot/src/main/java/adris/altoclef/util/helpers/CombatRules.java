@@ -44,6 +44,12 @@ public final class CombatRules {
     public static final double RUN_BITE_START = 10;
     public static final double RUN_BITE_ABORT = 5;
     public static final double RUN_BITE_START_FAST = 13;
+    // (Tuning run_bite_wither, route jar 3: 0 turns it off) a run starts no bite while a wither skeleton is within this. it
+    // chases at 1.2 times its speed, about 3.3 blocks a second; over a bite it closes 3.8 on a chewing buddy and 5.3 on one
+    // the run has stood still at its goal, its reach is about 2, and a second more (3.3) goes by before the run is up to
+    // speed again: 10.6. route jar 2 run 1 started bites at 10 and 11 with one following, and each was followed by a 4.5 hit
+    // within four seconds, so 14
+    public static final double RUN_BITE_WITHER = 14;
     // a mob with at least this movement speed attribute is "fast" for the bite (spiders, baby zombies, vindicators, and an
     // angry zombified piglin at 0.23 + 0.05; a plain zombie is 0.23, a skeleton 0.25). the epsilon is float noise on 0.28
     public static final double FAST_MOB_SPEED = 0.28 - 1e-6;

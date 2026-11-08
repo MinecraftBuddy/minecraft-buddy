@@ -174,4 +174,32 @@ public class RouteRulesTest {
         assertFalse(RouteRules.samePortal(0, 64, 0, 0, 64, 4));
         assertEquals("route: no brew, the fallback", RouteRules.NO_BREW);
     }
+
+    // route jar 2's runs: run 1 stepped into a lava pool's edge at 20 hp and was out at once at 18.1; run 2 burned at 17.4 in a
+    // blaze fight in phase 3. on the way neither lets the potion go now
+    @Test
+    public void onTheWayThePotionWaitsTillLifeIsAtStake() {
+        long cap = Math.round(RouteRules.WAY_LAVA_S * 20);
+        double lavaHp = RouteRules.WAY_LAVA_HP, burnHp = RouteRules.WAY_BURN_HP;
+        // a step into lava and out, burning after it
+        assertNull(RouteRules.wayLetGo(false, true, 3, cap, true, 18.1, lavaHp, burnHp));
+        assertNull(RouteRules.wayLetGo(false, false, -1, cap, true, 17.4, lavaHp, burnHp));
+        assertNull(RouteRules.wayLetGo(false, false, -1, cap, true, 10.5, lavaHp, burnHp));
+        // not out of the lava in 2 s, or low in it
+        assertEquals("in lava for 2 s", RouteRules.wayLetGo(false, true, cap, cap, true, 16, lavaHp, burnHp));
+        assertEquals("in lava at 12 hp", RouteRules.wayLetGo(false, true, 10, cap, true, 12, lavaHp, burnHp));
+        // burning out of the lava at 10 or less
+        assertEquals("burning at 10 hp", RouteRules.wayLetGo(false, false, -1, cap, true, 10, lavaHp, burnHp));
+        // not on fire: nothing to drink for
+        assertNull(RouteRules.wayLetGo(false, false, -1, cap, false, 4, lavaHp, burnHp));
+        // a task's ask goes at once
+        assertEquals("asked for", RouteRules.wayLetGo(true, false, -1, cap, false, 20, lavaHp, burnHp));
+    }
+
+    @Test
+    public void aPillboxEveryEyeSeesBuildingIsNotBuilt() {
+        assertTrue(BlazePillbox.tooOpen(1.0));
+        assertTrue(BlazePillbox.tooOpen(0.9));
+        assertFalse(BlazePillbox.tooOpen(0.5));
+    }
 }

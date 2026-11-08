@@ -140,11 +140,39 @@ public final class FireRes {
         routeFight = fightBegun;
     }
 
+    // (Tuning route_hold_way, on by default, route jar 3: RouteRules.wayLetGo) on the way the say lasts WAY_FRESH: the mob
+    // defense's run took the tick for more than ROUTE_FRESH and let the potion go at any burn; and how long the buddy has
+    // been in this lava (a look LAVA_GAP after the last is new lava)
+    static final long WAY_FRESH = 200;
+    static final long LAVA_GAP = 10;
+    private static long lavaSince = Long.MIN_VALUE / 2;
+    private static long lavaAt = Long.MIN_VALUE / 2;
+
+    static synchronized long lavaTicks(boolean inLava, long now) {
+        if (!inLava) return -1;
+        if (now < lavaAt || now - lavaAt > LAVA_GAP) lavaSince = now;
+        lavaAt = now;
+        return now - lavaSince;
+    }
+
     public static boolean holdsRoute(LivingEntity e, double blaze, boolean asked, long now) {
-        if (Tuning.get("route_hold", 0) <= 0 || now < routeAt || now - routeAt > ROUTE_FRESH) return false;
+        boolean way = RouteRules.holdFightOn() && RouteRules.holdWayOn() && !routeFight;
+        if (Tuning.get("route_hold", 0) <= 0 || now < routeAt || now - routeAt > (way ? WAY_FRESH : ROUTE_FRESH)) return false;
         boolean inLava = e.isInLava() || e.isEyeInFluid(FluidTags.LAVA);
         double hp = Tuning.get("fr_trade_hold_hp", FireResTradeRules.HOLD_HP);
-        if (RouteRules.holdFightOn()) {
+        if (way) {
+            long lava = lavaTicks(inLava, now);
+            String why = RouteRules.wayLetGo(asked, inLava, lava, Math.round(RouteRules.WAY_LAVA_S * 20), e.isOnFire(), e.getHealth(),
+                    Tuning.get("route_hold_lava_hp", RouteRules.WAY_LAVA_HP), Tuning.get("route_hold_burn_hp", RouteRules.WAY_BURN_HP));
+            if (why != null) {
+                if (FireResTradeRules.newEpisode(routeLetAt, now)) {
+                    Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion goes down on the way, %s (%.1f hp, nearest blaze %s)",
+                            why, e.getHealth(), FireResTradeRules.distance(blaze)));
+                }
+                routeLetAt = now;
+                return false;
+            }
+        } else if (RouteRules.holdFightOn()) {
             boolean onFire = e.isOnFire();
             synchronized (FireRes.class) {
                 if (!onFire || Double.isNaN(burnBest) || now < burnAt || now - burnAt > BURN_GAP) burnBest = onFire ? e.getHealth() : Double.NaN;

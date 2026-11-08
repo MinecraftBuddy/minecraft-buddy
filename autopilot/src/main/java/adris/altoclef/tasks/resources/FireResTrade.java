@@ -469,9 +469,18 @@ public final class FireResTrade {
             if (!state.isAir() && state.getFluidState().isEmpty()) shallow = true;
         }
         if (!shallow) return null;
+        // (Tuning route_hold_way, route jar 3: on the way the potion waits in lava too, till RouteRules.wayLetGo lets it go;
+        // the escape goes on meanwhile)
+        long now = mod.getWorld().getGameTime();
+        if (adris.altoclef.util.helpers.RouteRules.holdWayOn() && FireRes.holdsRoute(player, nearestBlaze(mod), FireRes.asked(now), now)) return null;
         _lavaThrow = new ThrowAtFeetTask(nearestBlaze(mod));
         Debug.logInternal(String.format(Locale.ROOT, "strategy trade: in lava at %.1f hp, the splash potion thrown at the feet", player.getHealth()));
         return _lavaThrow;
+    }
+
+    // (route jar 3) a splash potion's throw under way and not yet thrown: the food chain starts no bite meanwhile
+    public static boolean throwDue(long now) {
+        return ThrowAtFeetTask.due(now);
     }
 
     // every fire resistance potion of this form in the bag, the hotbar and the offhand
@@ -1027,6 +1036,16 @@ public final class FireResTrade {
             }
             Optional<Slot> slot = throwSlot(mod);
             if (slot.isEmpty()) return null;
+            // (route jar 3: the bite stops for the throw, FoodChain.eatingBlocked, and the potion comes into the hand only with
+            // the use key up. swapped in under a bite's held key, the game threw it ahead at eye level, run 1 of route jar 2:
+            // the potion gone with no line and the buddy burning on)
+            _dueAt = now;
+            if (player.isUsingItem() || mod.getInputControls().isHeldDown(Input.CLICK_RIGHT)) {
+                if (player.isUsingItem() && FireResTradeRules.form(player.getUseItem()) != Form.THROW) mod.getController().releaseUsingItem(player);
+                mod.getInputControls().release(Input.CLICK_RIGHT);
+                setDebugState("Letting go of the use key to throw");
+                return null;
+            }
             if (FireResTradeRules.form(player.getMainHandItem()) != Form.THROW) {
                 mod.getSlotHandler().forceEquipSlot(slot.get());
                 setDebugState("The splash potion in hand");
@@ -1054,8 +1073,22 @@ public final class FireResTrade {
             return Optional.empty();
         }
 
+        // (route jar 3) stopped before the throw with the potion in hand, the hand goes to the sword (else the pickaxe or an empty
+        // slot): the next right click of anything else would throw it
         @Override
         protected void onStop(AltoClef mod, Task interruptTask) {
+            _dueAt = Long.MIN_VALUE / 2;
+            LocalPlayer player = mod.getPlayer();
+            if (_thrownAt >= 0 || player == null || FireResTradeRules.form(player.getMainHandItem()) != Form.THROW) return;
+            int away = adris.altoclef.control.SlotHandler.nonFoodSlot(player.getInventory());
+            if (away >= 0) player.getInventory().setSelectedSlot(away);
+        }
+
+        // a throw under way and not yet thrown, stamped each tick: the food chain starts no bite meanwhile
+        private static volatile long _dueAt = Long.MIN_VALUE / 2;
+
+        public static boolean due(long now) {
+            return now >= _dueAt && now - _dueAt <= 2;
         }
 
         @Override

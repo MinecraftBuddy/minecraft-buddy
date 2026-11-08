@@ -40,6 +40,13 @@ public final class Tuning {
             // fought, never let go by the buddy's leash)
             java.util.Map.entry("lure_blind", 4.0),
             java.util.Map.entry("lure_keep_reach", 3.3),
+            // (route jar 3, 8 Nov 2026, each a switch back to route jar 2's way: the nether's path prices the nodes beside a
+            // lava pool; a pillbox block with nothing to go against is left out at once; no pillbox whose build nearly every
+            // spawn eye sees (the far box, else the open camp); a run starts no bite with a wither skeleton within 14, turns to
+            // fight when it doubles back 8 with a melee foe on its heels, and passes a corner with a wither skeleton by it)
+            java.util.Map.entry("nether_lava_edges", 1.0),
+            java.util.Map.entry("pillbox_no_face", 1.0),
+            java.util.Map.entry("pillbox_open_skip", 1.0),
             java.util.Map.entry("piglin_grudge", 1.0),
             // (the route's own pieces, steering 118 to 120, each a switch an A/B arm may turn off for one phase: the brew shut
             // in the fight's pillbox, a magma cube taken along on the trade's search, the way out through a portal after the
@@ -54,8 +61,14 @@ public final class Tuning {
             java.util.Map.entry("route_exit", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
+            // (route jar 3: on the way, before the spawner fight, the potion goes down only in lava for 2 s or at 12 hp, or
+            // burning at 10 hp, RouteRules.wayLetGo)
+            java.util.Map.entry("route_hold_way", 1.0),
             java.util.Map.entry("route_rods2_camp", 1.0),
             java.util.Map.entry("route_trade", 1.0),
+            java.util.Map.entry("run_bite_wither", 14.0),
+            java.util.Map.entry("run_shelter_wither", 1.0),
+            java.util.Map.entry("run_turn_fight", 1.0),
             java.util.Map.entry("spawner_wait_cap", 90.0));
 
     private static Path file;

@@ -84,7 +84,8 @@ public final class RouteRules {
     // for any blaze within 16, so it went down on the walk to the pillbox with a blaze 12 off and ran out with one rod; and
     // it kept it while the buddy burned on a lava rim at 17 hp, so the buddy fell back in with none. whether a fire resistance
     // potion that would go down now waits: asked (a task's drink, the brew box), in lava, or burning with the health falling
-    // (healthFalling: below the best health of this burn), or on fire at holdHp or less, and it goes; at the spawner fight
+    // (healthFalling: below the best health of this burn), or on fire at holdHp or less, and it goes (on the way with
+    // route_hold_way: wayLetGo instead); at the spawner fight
     // (fightBegun: the route past phase 3 and the buddy at the spawner) a blaze in drinking range lets it go too. a blaze on
     // the way that is not hitting (no fire on the buddy) does not
     // (Tuning route_hold_fight, on by default: off, route jar 1's hold, FireResTradeRules.held)
@@ -106,6 +107,33 @@ public final class RouteRules {
 
     public static boolean holdFightOn() {
         return Tuning.get("route_hold_fight", 0) > 0;
+    }
+
+    // ---- the potion on the way (Tuning route_hold_way, on by default; route jar 3, 8 Nov 2026). route jar 2 let it go on the
+    // way for any burn with the health half a heart down: run 1 stepped into a lava pool's edge on the fortress search at 20
+    // hp (out at once, 18.1 hp) and run 2 took one fireball in a blaze fight in phase 3 (17.4 hp); both reached the spawner
+    // with none. the potion is the spawner fight's (rule 91.1): before that fight it goes down only with life at stake.
+    // in lava: not out within WAY_LAVA_S, or at WAY_LAVA_HP or less. lava takes about 1.9 a half second through this armour,
+    // so 2 s is about 8 hp, and 12 hp leaves about 3 s of lava for the throw and the way out; a step in and out costs one
+    // hit. burning, out of the lava: at WAY_BURN_HP or less. the burn is 1 hp a second and the food heals against it; 10 hp
+    // is ten seconds of fire, or two fireballs and a burn, from death
+    public static final double WAY_LAVA_S = 2;
+    public static final double WAY_LAVA_HP = 12;
+    public static final double WAY_BURN_HP = 10;
+
+    public static boolean holdWayOn() {
+        return Tuning.get("route_hold_way", 0) > 0;
+    }
+
+    // why the potion kept goes down now on the way (before the spawner fight), null while it waits. lavaTicks: how long the
+    // buddy has been in this lava (game ticks), lavaCap: WAY_LAVA_S in ticks
+    public static String wayLetGo(boolean asked, boolean inLava, long lavaTicks, long lavaCap, boolean onFire, double health,
+                                  double lavaHp, double burnHp) {
+        if (asked) return "asked for";
+        if (inLava && lavaTicks >= lavaCap) return "in lava for " + Math.round(lavaTicks / 20.0) + " s";
+        if (inLava && health <= lavaHp) return "in lava at " + Math.round(health) + " hp";
+        if (onFire && !inLava && health <= burnHp) return "burning at " + Math.round(health) + " hp";
+        return null;
     }
 
     // the spawner fight has begun for the potion's sake: the buddy this close to the spawner (blocks), the route past phase 3

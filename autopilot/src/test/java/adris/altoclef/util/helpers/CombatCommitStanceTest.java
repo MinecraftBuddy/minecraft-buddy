@@ -305,9 +305,14 @@ public class CombatCommitStanceTest {
     public void anUnseenWitherSkeletonKeepsARunBiteFromStarting() {
         double inf = Double.POSITIVE_INFINITY;
         CombatCommit.Bite close = new CombatCommit.Bite(false, inf, false, inf, false, CombatRules.RUN_BITE_START - 1);
-        CombatCommit.Bite far = new CombatCommit.Bite(false, inf, false, inf, false, CombatRules.RUN_BITE_START + 1);
+        // (route jar 3, Tuning run_bite_wither: a run's bite waits for a wither skeleton past RUN_BITE_WITHER, not just
+        // RUN_BITE_START; route jar 2 run 1 bit at 10 and 11 and took a hit after each)
+        CombatCommit.Bite eleven = new CombatCommit.Bite(false, inf, false, inf, false, CombatRules.RUN_BITE_START + 1);
+        CombatCommit.Bite far = new CombatCommit.Bite(false, inf, false, inf, false, CombatRules.RUN_BITE_WITHER + 1);
         CombatCommit.Bite chewing = new CombatCommit.Bite(false, inf, true, inf, false, CombatRules.RUN_BITE_ABORT + 1);
         assertFalse(CombatCommit.stance(Mode.RUN, 10, inf, false, false, close) == Stance.CALM);
+        assertFalse(CombatCommit.stance(Mode.RUN, 10, inf, false, false, eleven) == Stance.CALM);
+        assertTrue(CombatCommit.stanceWhy(Mode.RUN, 10, inf, false, eleven).contains("wither skeleton"));
         // (no hp exception: at 2 hp it is still no bite)
         assertFalse(CombatCommit.stance(Mode.RUN, 2, inf, false, false, close) == Stance.CALM);
         assertEquals(Stance.CALM, CombatCommit.stance(Mode.RUN, 10, inf, false, false, far));

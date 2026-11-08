@@ -152,8 +152,11 @@ gate lacks is fetched by safer steps first, all of it planned together.
      the nether.
   When the gold gives no potion, the buddy fetches the cream and the wart, gets the first two rods without the potion,
   then brews as above. Without the cream or the wart, there is no brew: the rest of the rods come without it. A potion
-  kept for the blazes goes down at once in lava, or when the buddy burns and the health falls. A ghast's fireball is
-  punched back only while it is more than about three blocks off; closer, the shield goes up.
+  kept for the blazes goes down on the way only when life is at stake: in lava for two seconds or at 12 health, or
+  burning at 10. At the spawner it goes down in lava at once, or when the buddy burns and the health falls. No pillbox
+  goes up where nearly every blaze would see it built: the buddy builds one out of the spawner's range where one fits,
+  and otherwise fights from the open. A ghast's fireball is punched back only while it is more than about three blocks
+  off; closer, the shield goes up.
 - **The End**: a bow with arrows on top.
 
 A piece of the kit may take ten game minutes and three more for each ingot; a piece that did not come is not asked again
@@ -223,13 +226,16 @@ hunted; their meat is picked up.
 - **Hurt**: under half health with no fight on and food to heal by, a hole until healed; with nothing to eat, food first.
 - **Fight or flight by numbers**: the time the best weapon in the bag takes to kill what comes against the time they
   take to bring the buddy to two hearts, armour counted. A fight that would be lost is run from in the open, never down
-  a tunnel and never where there is no way away; a flight that still takes hits from a monster ends in a fight.
+  a tunnel and never where there is no way away; a flight that still takes hits from a monster, or that turns back
+  toward what it ran from with a monster on its heels, ends in a fight. A run never ends in a corner with a wither
+  skeleton beside it.
 - **Shooters**: from skeletons and the like, a hole three down right there, or walls built of the blocks in the bag, the
   shooters' side first, kept while one is about. A drowned with a trident counts as a shooter. Under the ground monsters
   on their way are walled out at once. Hit at arm's length inside the walls, the buddy fights.
 - **Places to avoid**: where a patrol of pillagers was seen (twenty minutes) or the buddy was shot (ten), no search
   leg, no ore and no animal within 48 blocks.
-- **No meal with a monster in pursuit** within ten blocks or a shooter in sight, unless only a bite can save the buddy.
+- **No meal with a monster in pursuit** within ten blocks (a wither skeleton: fourteen) or a shooter in sight, unless
+  only a bite can save the buddy.
 - **Edges**: no bridge over more than three blocks of nothing, and at a brink a crouched walk, so there is no walking
   off; getting loose never jumps beside a drop.
 - **Water and lava**: in water underground, a walk to a dry cell; at night out of the water at once; a boat for more

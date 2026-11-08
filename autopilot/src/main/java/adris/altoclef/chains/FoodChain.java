@@ -563,6 +563,9 @@ public class FoodChain extends SingleTaskChain {
         // a fireball or an arrow is on its way and the shield is up for it: a bite swaps the food into the hand and lets go of the use
         // key, and that is the shield gone
         if (mod.getMobDefenseChain().projectileDodging(mod)) return true;
+        // a splash fire resistance potion about to be thrown at the feet: the bite holds the use key, and the potion swapped in
+        // under it was thrown ahead (FireResTrade.ThrowAtFeetTask, route jar 3)
+        if (mod.getWorld() != null && adris.altoclef.tasks.resources.FireResTrade.throwDue(mod.getWorld().getGameTime())) return true;
         // do NOT eat while in lava if we are escaping it (spaghetti code dependencies go brrrr)
         // (the buddy's fork: but a fire resistance drink goes down in lava too. sinking in a lava column under the potion, the
         // third potion stayed in the bag and the buddy died in the lava as the second ran out, realfort-ab-fpreach-1 run 8)

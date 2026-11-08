@@ -749,9 +749,18 @@ public final class CombatCommit {
     private static boolean fighting(Mode mode, boolean recovering, float health, double nearest, boolean creeperClose, Bite bite) {
         return switch (mode) {
             case FIGHT -> !fightBite(bite);
-            case RUN -> runBiteBlocked(nearest, bite);
+            case RUN -> runBiteBlocked(nearest, bite) || runBiteWither(bite);
             default -> creeperClose || (health <= FLEE_HP && nearest <= LOW_HP_RANGE) || (recovering && runBiteBlocked(nearest, bite));
         };
+    }
+
+    // (Tuning run_bite_wither, route jar 3) a run starts no bite with a wither skeleton within CombatRules.RUN_BITE_WITHER
+    static double runBiteWitherRange() {
+        return Tuning.get("run_bite_wither", 0);
+    }
+
+    private static boolean runBiteWither(Bite bite) {
+        return !bite.biting() && bite.nearestWither() < runBiteWitherRange();
     }
 
     private static boolean runBiteBlocked(double nearest, Bite bite) {
@@ -780,7 +789,7 @@ public final class CombatCommit {
             case FIGHT -> "fighting, no meals mid fight";
             case RUN -> bite.biting() ? "running, " + near + ", too close to keep chewing"
                     : bite.shotAt() ? "running, a shooter has a line on us"
-                    : nearest >= CombatRules.RUN_BITE_START && bite.nearestWither() < CombatRules.RUN_BITE_START
+                    : nearest >= CombatRules.RUN_BITE_START && bite.nearestWither() < Math.max(CombatRules.RUN_BITE_START, runBiteWitherRange())
                     ? "running, a wither skeleton " + Math.round(bite.nearestWither()) + " blocks off, too close to start a bite"
                     : nearest >= CombatRules.RUN_BITE_START ? "running, something fast is too close to start a bite"
                     : "running, " + near + ", too close to eat";
@@ -874,6 +883,8 @@ public final class CombatCommit {
     private double stuckX;
     private double stuckZ;
     private long noRoomSince = -1;
+    // (Tuning run_turn_fight, route jar 3) the farthest this run has got from its origin, -1 before its first tick
+    private double runBest = -1;
     private int noRoomCount;
     private double noRoomX;
     private double noRoomZ;
@@ -2326,6 +2337,7 @@ public final class CombatCommit {
         stuckSince = -1;
         noRoomSince = -1;
         noRoom = false;
+        runBest = -1;
         return event;
     }
 
@@ -2406,6 +2418,9 @@ public final class CombatCommit {
         Event cramped = holds ? Event.NONE : noRoomFight(t);
         if (cramped != Event.NONE) return cramped;
 
+        Event turned = holds ? Event.NONE : turnedBack(t, fromOrigin);
+        if (turned != Event.NONE) return turned;
+
         if (nearest > CORNER_WATCH) {
             cornerSince = -1;
             return stuck(t);
@@ -2435,6 +2450,21 @@ public final class CombatCommit {
         // nobody worth a fight: the run goes on, the cap or the mob settles it
         if (closest == null) return Event.NONE;
         return startFight(t, closest, Why.CORNERED, Event.RUN_TO_FIGHT, true);
+    }
+
+    // (Tuning run_turn_fight, on by default, route jar 3) a run that has come back RUN_TURN_BACK toward its origin from the
+    // farthest it got, with a melee foe still within LOW_HP_RANGE, is a fight with that foe: the way on was gone and the run
+    // was taking the buddy back past what it ran from. route jar 2 run 1 ran 57 blocks west from three wither skeletons,
+    // turned back east with one on its heels, took two hits of 4.5 and ran on toward a blaze; the attempts 214, 215 and 220
+    // the same. a path round an obstacle doubles back a few blocks, so 8, about a chaser's reach and two seconds of its walk
+    static final double RUN_TURN_BACK = 8;
+
+    private Event turnedBack(Tick t, double fromOrigin) {
+        runBest = Math.max(runBest, fromOrigin);
+        if (runBest - fromOrigin < RUN_TURN_BACK || Tuning.get("run_turn_fight", 0) <= 0) return Event.NONE;
+        Foe chaser = chaser(t);
+        if (chaser == null || !chaser.melee()) return Event.NONE;
+        return startFight(t, chaser, Why.CHASED, Event.RUN_CHASED_FIGHT, true);
     }
 
     private static boolean inBowRange(Tick t) {
