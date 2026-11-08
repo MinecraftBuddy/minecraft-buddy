@@ -71,8 +71,8 @@ import net.minecraft.world.phys.Vec3;
 // TradeWithPiglinsTask's PerformTradeWithPiglin (the nearest adult piglin not already admiring, none with a hoglin near, one
 // that never takes gold left alone), aimed and paced: that task clicks every tick without a look, fetches gold when it has
 // none, and is a pearl and obsidian ResourceTask whose finish counts any potion, a water bottle too. with Tuning fr_trade_biome
-// (off by default) a search begun out of nether wastes first walks to the wastes the client has loaded (FireResTradeRules
-// .wastesTarget), and the fr_trade_search clock counts from the arrival there. with Tuning fr_trade_stay (off by default) the
+// (on by default) a search begun out of nether wastes first walks to the wastes the client has loaded (FireResTradeRules
+// .wastesTarget), and the fr_trade_search clock counts from the arrival there. with Tuning fr_trade_stay (on by default) the
 // piglin the gold went to keeps it: the buddy waits by it while it admires and takes another free one only within a few
 // blocks (FireResTradeRules.pick). the pickup takes a piglin's ender pearls too while the goal asks for more, or always with
 // Tuning fr_trade_pearls (off by default; FireResTradeRules.takesPearls). a line for every ingot handed and every pearl picked up

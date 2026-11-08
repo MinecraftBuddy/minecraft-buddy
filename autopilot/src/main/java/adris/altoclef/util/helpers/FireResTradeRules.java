@@ -119,7 +119,7 @@ public final class FireResTradeRules {
         return distance <= (wasNear ? KEEP_RANGE : ENTER_RANGE);
     }
 
-    // Tuning fr_trade_stay, off by default, steering 98 and 101: one piglin found keeps the gold. a piglin admires an ingot for
+    // Tuning fr_trade_stay, on by default since 8 Nov 2026, steering 98 and 101: one piglin found keeps the gold. a piglin admires an ingot for
     // about 6 s and takes no other meanwhile; without the switch the buddy walks to the nearest other free one within
     // KEEP_RANGE after every ingot. with it another free piglin is taken only within this many blocks of the buddy (who stands
     // by the current one); otherwise the buddy waits by the current one and hands it the next ingot once it is free
@@ -184,7 +184,7 @@ public final class FireResTradeRules {
         return now < lastHeld || now - lastHeld > HOLD_EPISODE_GAP;
     }
 
-    // Tuning fr_trade_biome, off by default: where the search for a piglin starts. by the mob seen first, a trade begun in nether
+    // Tuning fr_trade_biome, on by default since 8 Nov 2026: where the search for a piglin starts. by the mob seen first, a trade begun in nether
     // wastes missed a piglin 13 times in 69, in a crimson forest 22 in 25, a soul sand valley 13 in 22, basalt deltas 7 in 13;
     // so out of the wastes the search first walks to the wastes the client has loaded. a spot is a column, x and z in blocks
     public record Spot(int x, int z) {

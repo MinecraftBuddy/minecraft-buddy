@@ -22,6 +22,8 @@ public final class Tuning {
             java.util.Map.entry("fireproof_side", 1.0),
             // (confirmed 8 Nov 2026, realfort-pair-tsure2 at look 2: a potion 17 against 30 of 59 pairs, z 2.84)
             java.util.Map.entry("fr_trade_biome", 1.0),
+            // (the maintainer's word, 8 Nov 2026: by one piglin about 6 s an ingot, so the 64 gold of the trade fit its cap)
+            java.util.Map.entry("fr_trade_stay", 1.0),
             java.util.Map.entry("lure_cap", 120.0),
             java.util.Map.entry("piglin_grudge", 1.0),
             java.util.Map.entry("spawner_wait_cap", 90.0));
