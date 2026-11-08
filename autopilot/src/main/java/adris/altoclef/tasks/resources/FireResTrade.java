@@ -5,6 +5,7 @@ import adris.altoclef.Debug;
 import adris.altoclef.tasks.entity.AbstractDoToEntityTask;
 import adris.altoclef.tasks.misc.EquipArmorTask;
 import adris.altoclef.tasks.movement.GetToXZTask;
+import adris.altoclef.tasks.movement.GetWithinRangeOfBlockTask;
 import adris.altoclef.tasks.movement.PickupDroppedItemTask;
 import adris.altoclef.tasks.movement.TimeoutWanderTask;
 import adris.altoclef.tasks.speedrun.gamer.RunState;
@@ -85,8 +86,10 @@ final class FireResTrade {
     static final int PROGRESS_EVERY = 8;
     // the first look decides, a kit landing a moment late still counts (game ticks)
     static final long BEGIN_GRACE_TICKS = 100;
-    // the walk to the wastes ends this close to the middle of the chosen chunk, in them or not (blocks)
+    // the walk to the wastes reaches this close to the middle of the chosen chunk first, in them or not (blocks)
     static final double WASTES_ARRIVE = 8;
+    // past that ring out of the wastes, the walk goes on to within this of the sampled block (blocks, any direction)
+    static final int WASTES_MIDDLE = 2;
 
     enum State {
         WAITING,
@@ -124,7 +127,11 @@ final class FireResTrade {
     // none loaded, or after the walk ended out of them
     private double _startX;
     private double _startZ;
-    private GetToXZTask _toWastes;
+    private Task _toWastes;
+    // the sampled block the target was picked by (in the wastes at the height the trade began), and whether the walk has
+    // gone on from the ring to it
+    private BlockPos _wastesAt;
+    private boolean _toWastesMiddle;
     private long _walkTicks;
     private boolean _wastesSettled;
     // after the trade: whether it got its potion, then the way to the blazes and the drink there
@@ -482,10 +489,22 @@ final class FireResTrade {
             Debug.logInternal(String.format(Locale.ROOT, "strategy trade: to the wastes at %d %d, %.0f blocks, extra %s on the way",
                     target.x(), target.z(), target.distanceTo(player.getX(), player.getZ()), extra));
             _toWastes = new GetToXZTask(target.x(), target.z(), WASTES_ARRIVE);
+            _wastesAt = new BlockPos(target.x(), player.getBlockY(), target.z());
             // (from here the search clock waits for the arrival)
             _piglinSeenAt = now;
         }
-        if (_toWastes.isFinished(mod) || ++_walkTicks > searchTicks()) {
+        boolean ended = _toWastes.isFinished(mod) || ++_walkTicks > searchTicks();
+        if (ended && !_toWastesMiddle && _walkTicks <= searchTicks()) {
+            // the ring is reached from the near side, mostly short of the biome's edge, and at whatever height the path
+            // took (nether biomes change with the height): on to the sampled block itself, which is in the wastes; the
+            // check above settles the walk as soon as the buddy's feet are in them
+            _toWastesMiddle = true;
+            _toWastes = new GetWithinRangeOfBlockTask(_wastesAt, WASTES_MIDDLE);
+            Debug.logInternal(String.format(Locale.ROOT, "strategy trade: at the ring of the wastes target out of them (in %s), on to %s",
+                    biomeAt(mod, player.blockPosition()), _wastesAt.toShortString()));
+            ended = _toWastes.isFinished(mod);
+        }
+        if (ended) {
             settleWastes(now, String.format(Locale.ROOT, "strategy trade: the walk to the wastes ended out of them (in %s) after %s s, searching here",
                     biomeAt(mod, player.blockPosition()), FireResTradeRules.seconds(_walkTicks)));
             return null;
