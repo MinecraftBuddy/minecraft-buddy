@@ -89,4 +89,16 @@ public class ChunkCommitRulesTest {
         }
         return -1;
     }
+
+    // chunk_search_keep: a restart in the same dimension with something gathered keeps it; off, another dimension or
+    // nothing gathered starts empty
+
+    @Test
+    public void aRestartKeepsTheSearchOnlyWithTheSwitchInTheSameDimension() {
+        assertTrue(ChunkCommitRules.keepOnRestart(true, true, true, false));
+        assertTrue(ChunkCommitRules.keepOnRestart(true, true, false, true));
+        assertFalse(ChunkCommitRules.keepOnRestart(false, true, true, true));
+        assertFalse(ChunkCommitRules.keepOnRestart(true, false, true, true));
+        assertFalse(ChunkCommitRules.keepOnRestart(true, true, false, false));
+    }
 }

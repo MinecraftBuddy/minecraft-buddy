@@ -53,6 +53,9 @@ public abstract class SearchChunksExploreTask extends Task {
         return null;
     }
 
+    // (Tuning chunk_search_keep) the dimension the searcher and the explored chunks were gathered in
+    private Dimension _searchDimension;
+
     @Override
     protected void onStart(AltoClef mod) {
         _mod = mod;
@@ -60,6 +63,25 @@ public abstract class SearchChunksExploreTask extends Task {
         // Listen for chunk loading
         _chunkLoadedSubscription = EventBus.subscribe(ChunkLoadEvent.class, evt -> onChunkLoad(evt.chunkPos));
 
+        Dimension here = WorldHelper.getCurrentDimension();
+        boolean keep;
+        synchronized (_searcherMutex) {
+            keep = ChunkCommitRules.keepOnRestart(Tuning.get("chunk_search_keep", 0) > 0, here == _searchDimension,
+                    _searcher != null, !_alreadyExplored.isEmpty());
+        }
+        _searchDimension = here;
+        if (keep) {
+            // (an interruption: the searcher goes on where it was; without one, the loaded chunks may seed a new one, the
+            // explored ones left out as before)
+            Debug.logInternal(String.format(Locale.ROOT, "chunk search: resumed after an interruption, %s, %d chunks explored",
+                    _searcher != null ? "its searcher kept" : "no searcher", _alreadyExplored.size()));
+            if (_searcher == null) {
+                for (ChunkPos start : mod.getChunkTracker().getLoadedChunks()) {
+                    onChunkLoad(start);
+                }
+            }
+            return;
+        }
         resetSearch(mod);
     }
 
