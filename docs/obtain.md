@@ -134,6 +134,20 @@ gate lacks is fetched by safer steps first, all of it planned together.
   dust, each a piece of its own and filled in the overworld, the redstone tried once an order. In the fortress the autopilot's
   blaze hunt then picks up a nether wart and a magma cream when they are close by and, with two rods for the stand and
   its fuel, brews three potions of fire resistance (eight minutes each). Without water bottles in the bag it brews nothing.
+- **The route for blaze rods**: with the autopilot an order of blaze rods goes through the nether in a fixed order.
+  1. Into the nether.
+  2. Gold to any piglin met until one throws a potion of fire resistance. The search starts in the nether wastes and
+     widens until all the gold is handed; it stops only when no piglin has taken gold for ten minutes. A magma cube
+     seen on the way is killed for its cream.
+  3. To the fortress for a nether wart, and a magma cube if there is no cream yet. The potion is kept for the blazes.
+  4. The first two blaze rods, under the potion.
+  5. Shut in the pillbox by the spawner, the brew of three potions of fire resistance.
+  6. The rest of the rods under the brewed potions. The order's count stays in the bag; the two rods for the stand
+     and its fuel come on top.
+  7. Back to the overworld through the nearest portal seen. The order is done there. With no portal known, it ends in
+     the nether.
+  When the gold gives no potion, the buddy fetches the cream and the wart, gets the first two rods without the potion,
+  then brews as above.
 - **The End**: a bow with arrows on top.
 
 A piece of the kit may take ten game minutes and three more for each ingot; a piece that did not come is not asked again
