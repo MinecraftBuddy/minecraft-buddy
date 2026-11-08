@@ -105,7 +105,9 @@ public class DangerForceChain extends SingleTaskChain {
             logWay(world, player, threats.isEmpty() ? choice.crowd() : threats);
         }
         float out = act(mod, player, world, choice, now);
-        if (now - _secondAt >= SECOND) {
+        // (_secondAt starts at Long.MIN_VALUE, and now - Long.MIN_VALUE overflows to a negative number: the first test
+        // first, or no second line is ever written)
+        if (_secondAt == Long.MIN_VALUE || now - _secondAt >= SECOND) {
             _secondAt = now;
             Debug.logInternal(secondLine(force, choice.act()));
         }
