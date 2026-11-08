@@ -6,9 +6,16 @@ import adris.altoclef.eventbus.EventBus;
 import adris.altoclef.eventbus.Subscription;
 import adris.altoclef.eventbus.events.ChunkLoadEvent;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.util.helpers.ChunkCommitRules;
+import adris.altoclef.util.helpers.Tuning;
+import adris.altoclef.util.helpers.WorldHelper;
+import baritone.api.utils.Dimension;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.function.BiFunction;
 import net.minecraft.world.level.ChunkPos;
 
 /**
@@ -29,6 +36,17 @@ public abstract class SearchChunksExploreTask extends Task {
     private boolean _failingWanderCounted;
     private AltoClef _mod;
     private Subscription<ChunkLoadEvent> _chunkLoadedSubscription;
+
+    // (the buddy's fork, Tuning chunk_search_commit, off by default) the target chunk the search heads for, the distance of its
+    // last progress mark, the search's ticks on it since that mark and since the commit, and the chunks given up. resetSearch
+    // leaves all of it alone, so a task that interrupts the search (and restarts it) does not wipe it. a new instance (another
+    // block or biome to search for, a new order) starts empty; a change of dimension clears it (committedPick)
+    private ChunkPos _commitTarget;
+    private double _commitBest;
+    private long _commitTicks;
+    private long _commitTotalTicks;
+    private final Set<ChunkPos> _givenUp = new HashSet<>();
+    private Dimension _commitDimension;
 
     // Virtual
     protected ChunkPos getBestChunkOverride(AltoClef mod, List<ChunkPos> chunks) {
@@ -138,6 +156,70 @@ public abstract class SearchChunksExploreTask extends Task {
         }
     }
 
+    // chunk_search_commit: the target is kept while it is still in the list, not loaded and not given up, and a new one is
+    // picked by the old score (scored) only then; an equal GetToChunkTask each tick, so the walk under it goes on instead of
+    // Baritone starting again. a target the search has not come ChunkCommitRules.PROGRESS_BLOCKS closer to in GIVE_UP_TICKS
+    // of its own ticks is given up and left out of every later pick. only given-up chunks left: null, the search ends as
+    // exhausted and the wander takes over, as when the list empties
+    private ChunkPos committedPick(AltoClef mod, List<ChunkPos> chunks, BiFunction<AltoClef, List<ChunkPos>, ChunkPos> scored) {
+        Dimension dimension = WorldHelper.getCurrentDimension();
+        if (dimension != _commitDimension) {
+            _commitDimension = dimension;
+            _commitTarget = null;
+            _givenUp.clear();
+        }
+        ChunkPos target = _commitTarget;
+        boolean keep = ChunkCommitRules.keep(target != null, target != null && chunks.contains(target),
+                target != null && _givenUp.contains(target), target != null && mod.getChunkTracker().isChunkLoaded(target));
+        if (!keep) {
+            ChunkPos pick = pickOpen(mod, chunks, scored);
+            // the score can name the same chunk again (loaded but not yet searched): that is no new target
+            if (pick == null || !pick.equals(target)) return commit(mod, pick);
+        }
+        double distance = distanceTo(mod, target);
+        _commitTicks++;
+        _commitTotalTicks++;
+        switch (ChunkCommitRules.clock(distance, _commitBest, _commitTicks)) {
+            case PROGRESS -> {
+                _commitBest = distance;
+                _commitTicks = 0;
+            }
+            case GIVE_UP -> {
+                Debug.logInternal(String.format(Locale.ROOT, "chunk search: gave up chunk [%d, %d] after %d s, %.0f blocks off",
+                        target.x(), target.z(), _commitTotalTicks / 20, distance));
+                _givenUp.add(target);
+                return commit(mod, pickOpen(mod, chunks, scored));
+            }
+            case WAIT -> {
+            }
+        }
+        return target;
+    }
+
+    private ChunkPos pickOpen(AltoClef mod, List<ChunkPos> chunks, BiFunction<AltoClef, List<ChunkPos>, ChunkPos> scored) {
+        List<ChunkPos> open = new ArrayList<>(chunks.size());
+        for (ChunkPos chunk : chunks) {
+            if (!_givenUp.contains(chunk)) open.add(chunk);
+        }
+        return open.isEmpty() ? null : scored.apply(mod, open);
+    }
+
+    private ChunkPos commit(AltoClef mod, ChunkPos pick) {
+        _commitTarget = pick;
+        _commitTicks = 0;
+        _commitTotalTicks = 0;
+        if (pick != null) {
+            _commitBest = distanceTo(mod, pick);
+            Debug.logInternal(String.format(Locale.ROOT, "chunk search: heading for chunk [%d, %d], %.0f blocks off",
+                    pick.x(), pick.z(), _commitBest));
+        }
+        return pick;
+    }
+
+    private static double distanceTo(AltoClef mod, ChunkPos chunk) {
+        return ChunkCommitRules.distanceXZ(mod.getPlayer().getX(), mod.getPlayer().getZ(), chunk.x(), chunk.z());
+    }
+
     class SearchSubTask extends ChunkSearchTask {
 
         public SearchSubTask(ChunkPos start) {
@@ -149,8 +231,15 @@ public abstract class SearchChunksExploreTask extends Task {
             return isChunkWithinSearchSpace(mod, pos);
         }
 
+        // asked once a tick, from ChunkSearchTask.onTick, and only while this search is the task ticking
         @Override
         public ChunkPos getBestChunk(AltoClef mod, List<ChunkPos> chunks) {
+            if (Tuning.get("chunk_search_commit", 0) > 0) return committedPick(mod, chunks, this::scored);
+            return scored(mod, chunks);
+        }
+
+        // the pick as it always was: the subclass's override, else ChunkSearchTask's score
+        private ChunkPos scored(AltoClef mod, List<ChunkPos> chunks) {
             ChunkPos override = getBestChunkOverride(mod, chunks);
             if (override != null) return override;
             return super.getBestChunk(mod, chunks);
