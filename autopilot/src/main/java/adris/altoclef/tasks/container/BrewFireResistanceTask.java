@@ -103,8 +103,12 @@ public class BrewFireResistanceTask extends ResourceTask {
     // bottles left in the stand), so the caller gives the brew up instead of letting this fetch run
     public static boolean wantsCream(AltoClef mod) {
         BrewRules.Stage stage = pending() ? _standStage : bagStage(mod);
-        return BrewRules.needsCream(stage) && !mod.getItemStorage().hasItem(Items.MAGMA_CREAM);
+        return BrewRules.needsCream(stage) && !adris.altoclef.util.helpers.SlimeCream.have(mod);
     }
+
+    // magma cream from a slime ball and a blaze powder, shapeless (route_slime_cream, SlimeCream); the powder comes from a rod
+    private static final adris.altoclef.util.CraftingRecipe CREAM_FROM_BALL = adris.altoclef.util.CraftingRecipe.newShapedRecipe("magma_cream",
+            new ItemTarget[]{new ItemTarget("blaze_powder"), new ItemTarget("slime_ball"), null, null}, 1);
 
     @Override
     protected void onResourceStart(AltoClef mod) {
@@ -133,6 +137,10 @@ public class BrewFireResistanceTask extends ResourceTask {
         if (stage == BrewRules.Stage.WATER && !mod.getItemStorage().hasItem(Items.NETHER_WART)) {
             setDebugState("Getting a nether wart");
             return TaskCatalogue.getItemTask("nether_wart", 1);
+        }
+        if (BrewRules.needsCream(stage) && adris.altoclef.util.helpers.SlimeCream.craft(mod)) {
+            setDebugState("Crafting a magma cream from the slime ball");
+            return new adris.altoclef.tasks.CraftInInventoryTask(new adris.altoclef.util.RecipeTarget(Items.MAGMA_CREAM, 1, CREAM_FROM_BALL));
         }
         if (BrewRules.needsCream(stage) && !mod.getItemStorage().hasItem(Items.MAGMA_CREAM)) {
             setDebugState("Getting a magma cream");

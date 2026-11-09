@@ -738,7 +738,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // rest of the rods are phase 6, with the fallback's line; route jar 1 counted them all under phase 4)
             if (_routePhase == adris.altoclef.util.helpers.RouteRules.RODS2 && _brewSince < 0 && !BrewFireResistanceTask.pending()
                     && mod.getItemStorage().getItemCount(Items.BLAZE_ROD) >= 2) {
-                boolean creamIn = mod.getItemStorage().hasItem(Items.MAGMA_CREAM);
+                // (route_slime_cream: a slime ball stands for the cream, SlimeCream)
+                boolean creamIn = adris.altoclef.util.helpers.SlimeCream.have(mod);
                 boolean wartIn = mod.getItemStorage().hasItem(Items.NETHER_WART) || PotionHelper.count(mod, Potions.WATER) == 0;
                 boolean bottles = PotionHelper.count(mod, Potions.WATER) + PotionHelper.count(mod, Potions.AWKWARD) > 0;
                 if (_brewGaveUp || !bottles || !creamIn || !wartIn) {
@@ -1178,7 +1179,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
         boolean kit = adris.altoclef.util.helpers.BrewErrandRules.kit(water + PotionHelper.count(mod, Potions.AWKWARD));
         int cream = mod.getItemStorage().getItemCount(Items.MAGMA_CREAM);
         int wart = mod.getItemStorage().getItemCount(Items.NETHER_WART);
-        adris.altoclef.util.helpers.BrewErrandRules.Step step = adris.altoclef.util.helpers.BrewErrandRules.step(cream > 0, wart > 0, water);
+        // (route_slime_cream: with a slime ball the errand fetches the wart alone, SlimeCream)
+        adris.altoclef.util.helpers.BrewErrandRules.Step step = adris.altoclef.util.helpers.BrewErrandRules.step(
+                cream > 0 || adris.altoclef.util.helpers.SlimeCream.have(mod), wart > 0, water);
         if (!_errandOn) {
             boolean brewing = _brewSince >= 0 || _brewGaveUp || BrewFireResistanceTask.pending();
             if (adris.altoclef.util.helpers.BrewErrandRules.whyNot(tradeLive, kit, brewing, step) != null) return null;
@@ -1641,7 +1644,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             return null;
         }
         boolean wart = water == 0 || mod.getItemStorage().hasItem(Items.NETHER_WART);
-        boolean cream = mod.getItemStorage().hasItem(Items.MAGMA_CREAM);
+        boolean cream = adris.altoclef.util.helpers.SlimeCream.have(mod);
         // (the buddy's fork, Tuning box_home: no cream hunt and no wart errand while the box holds: each is a walk out of it,
         // and the cream hunt was the leave never undone in 18 of 43 boxes left before the end since 6 Nov 2026)
         if (!cream) {
@@ -1782,7 +1785,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // piglin in sight takes the tick back at once: the trade's verdict is asked first every tick. null is no hunt now
     private Task tradeCream(AltoClef mod) {
         boolean on = adris.altoclef.util.helpers.Tuning.get("route_cream_trade", 0) > 0 && _frTrade.searching()
-                && !mod.getItemStorage().hasItem(Items.MAGMA_CREAM)
+                && !adris.altoclef.util.helpers.SlimeCream.have(mod)
                 && PotionHelper.count(mod, Potions.WATER) + PotionHelper.count(mod, Potions.AWKWARD) > 0
                 // (route_errand: a cube held is hunted on till it is dead or let go, CollectMagmaCreamTask.held)
                 && (_tradeCream != null && _tradeCream.holding(mod) || CollectMagmaCreamTask.inSight(mod, true));
