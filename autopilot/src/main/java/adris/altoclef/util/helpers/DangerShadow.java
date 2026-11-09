@@ -144,7 +144,7 @@ public final class DangerShadow {
         if (dead && !wasDead && watched) {
             // the killing blow's line first, then the meter as it stood
             flushHit(Math.min(hp, pendingLow));
-            Debug.logInternal(DangerMeter.deathLine(track.level(), last));
+            Debug.logInternal(DangerMeter.deathLine(track.level(), last) + at());
             DangerMeter.Patience.Ended ended = patience.end(tick);
             if (ended != null) Debug.logInternal(DangerMeter.patienceLine(ended));
         }
@@ -193,9 +193,17 @@ public final class DangerShadow {
         lastSource = source;
     }
 
+    // (the buddy's fork, steering 142: where a hit or the death was, for weighing risk in the path search later; the readers
+    // (racerule.py, situation.py, drillrun.py) stop at risk's number, so the place goes after it. no behaviour change)
+    private static String at() {
+        var p = net.minecraft.client.Minecraft.getInstance().player;
+        if (p == null) return "";
+        return ", at " + p.getBlockX() + "," + p.getBlockY() + "," + p.getBlockZ();
+    }
+
     private static void flushHit(float low) {
         if (pendingKind == null) return;
-        Debug.logInternal(DangerMeter.hitLine(Math.max(0, pendingBefore - low), pendingKind, track.level(), last));
+        Debug.logInternal(DangerMeter.hitLine(Math.max(0, pendingBefore - low), pendingKind, track.level(), last) + at());
         pendingKind = null;
     }
 

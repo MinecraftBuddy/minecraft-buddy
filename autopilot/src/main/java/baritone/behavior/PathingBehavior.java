@@ -834,12 +834,34 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         });
     }
 
+    // (a count of this client's searches, for the line's id; no memory of the world)
+    private final java.util.concurrent.atomic.AtomicLong searches = new java.util.concurrent.atomic.AtomicLong();
+
+    private void logSearch(BlockPos start, Goal goal, PathCalculationResult r, AbstractNodeCostSearch pf, boolean ahead, long ms) {
+        try {
+            var path = r.getPath();
+            String end = path.map(p -> p.getDest().getX() + "," + p.getDest().getY() + "," + p.getDest().getZ()).orElse("-");
+            adris.altoclef.Debug.logInternal("search: #" + searches.incrementAndGet() + " from " + start.getX() + "," + start.getY() + ","
+                    + start.getZ() + " goal " + (goal == null ? "none" : goal.getClass().getSimpleName()) + " to " + end + " result "
+                    + r.getType() + " ms " + ms + " nodes " + path.map(p -> p.getNumNodesConsidered()).orElse(-1) + " len "
+                    + path.map(p -> p.length()).orElse(0) + " " + (ahead ? "ahead" : "standstill") + (pf.exhausted() ? " exhausted" : ""));
+        } catch (RuntimeException ignored) {
+            // (a log line never takes a search down)
+        }
+    }
+
     private void runSearch(AbstractNodeCostSearch pathfinder, BlockPos start, Goal goal, boolean talkAboutIt, long primaryTimeout, long failureTimeout) {
         if (talkAboutIt) {
             logDebug("Starting to search for path from " + start + " to " + goal);
         }
 
+        // (the buddy's fork, steering 142: one line a search, whole (logInternal, not the folded debug), for weighing risk in the
+        // search later: whether a path was being walked (plan ahead) or the buddy stood, the goal's kind, the result, the time,
+        // the nodes, the path's length and end. no behaviour change. .private notes risk-routing-data.md, C)
+        boolean ahead = current != null;
+        long searchStart = System.nanoTime();
         PathCalculationResult calcResult = pathfinder.calculate(primaryTimeout, failureTimeout);
+        logSearch(start, goal, calcResult, pathfinder, ahead, (System.nanoTime() - searchStart) / 1_000_000L);
         synchronized (pathPlanLock) {
             if (inProgress != pathfinder) {
                 // forceCancel nulled us (and maybe a newer search took the slot), so this result is stale

@@ -254,11 +254,24 @@ public final class Monitors {
             }
         }
         Vitals.Gamer gamer = mod.getUserTaskChain().getCurrentTask() instanceof GamerTask g ? g.vitals() : null;
-        return Vitals.format(player.getHealth(), player.getAbsorptionAmount(), player.getFoodData().getFoodLevel(),
+        String line = Vitals.format(player.getHealth(), player.getAbsorptionAmount(), player.getFoodData().getFoodLevel(),
                 player.getFoodData().getSaturationLevel(), player.getArmorValue(), held.isEmpty() ? null : name(held.getItem()),
                 carried.isEmpty() ? null : name(carried.getItem()), carried.getCount(), at.getX(), at.getY(), at.getZ(),
                 WorldHelper.getCurrentDimension().name().toLowerCase(Locale.ROOT), chain == null ? null : chain.getClass().getSimpleName(), task, gamer,
                 StandReport.pathWord(mod.getClientBaritone()), standWatch.stillTicks(), player.isInWater());
+        // (the buddy's fork, steering 142: the danger meter's level, T and risk on every vitals line, so each 5 s sample is one row of
+        // exposure for weighing risk later; before task=, as drillrun keeps the tail after it. no behaviour change)
+        try {
+            var reading = adris.altoclef.util.helpers.DangerShadow.last();
+            String danger = " danger=" + adris.altoclef.util.helpers.DangerShadow.level().word()
+                    + (reading == null ? "" : " dT=" + adris.altoclef.util.helpers.DangerMeter.num(reading.t())
+                    + " risk=" + adris.altoclef.util.helpers.DangerMeter.num(reading.risk()));
+            int k = line.indexOf(" task=\"");
+            line = k < 0 ? line + danger : line.substring(0, k) + danger + line.substring(k);
+        } catch (RuntimeException ignored) {
+            // (a log line never takes the tick down)
+        }
+        return line;
     }
 
     private static String name(Item item) {
