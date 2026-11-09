@@ -1311,7 +1311,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _errandSinceGot += step;
         }
         String why = !kit ? "the kit missing" : adris.altoclef.util.helpers.RouteRules.errandDeadEnd(_errandPoint, _errandSinceGot,
-                adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.Tuning.get("route_errand_dead_s", adris.altoclef.util.helpers.RouteRules.ERRAND_DEAD_S)));
+                adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.Tuning.get("route_errand_dead_s", adris.altoclef.util.helpers.RouteRules.ERRAND_DEAD_S)),
+                adris.altoclef.util.helpers.RouteRules.errandRounds());
         if (why == null) return false;
         Debug.logInternal("brew errand: a dead end (" + why + ") after " + secs(now - _errandAt) + " s" + where + ", cream " + cream + ", wart " + wart);
         _errandOn = false;
@@ -1519,20 +1520,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 next = true;
             }
         }
-        if (_errandPoint >= adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS) return null;
+        // (Tuning route_errand_rounds: the rings walked that many times, RouteRules.errandRounds)
+        int points = adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS * adris.altoclef.util.helpers.RouteRules.errandRounds();
+        if (_errandPoint >= points) return null;
         if (next) {
             // (Tuning route_ring_out, route jar 8: the rings from 32 out, out of the spawner's blazes' reach, RouteRules.ringRadius)
             double first = adris.altoclef.util.helpers.RouteRules.ringOut();
             _errandPointAt = adris.altoclef.util.helpers.RouteRules.errandPoint(_errandPoint, sp.getX(), sp.getZ(), _errandFrom, first);
             _errandPointTicks = 0;
             _errandWalk = new adris.altoclef.tasks.movement.GetToXZTask(_errandPointAt[0], _errandPointAt[1], adris.altoclef.util.helpers.RouteRules.ERRAND_POINT_NEAR);
-            int ring = 1 + _errandPoint / adris.altoclef.util.helpers.RouteRules.ERRAND_RING_POINTS;
-            Debug.logInternal("brew errand: nothing in sight, looking round the fortress: point " + (_errandPoint + 1) + " of " + adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS
+            int ring = 1 + Math.floorMod(_errandPoint, adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS) / adris.altoclef.util.helpers.RouteRules.ERRAND_RING_POINTS;
+            Debug.logInternal("brew errand: nothing in sight, looking round the fortress: point " + (_errandPoint + 1) + " of " + points
                     + " at " + _errandPointAt[0] + " " + _errandPointAt[1] + " (ring " + ring + ", " + (int) adris.altoclef.util.helpers.RouteRules.ringRadius(ring, first)
                     + " blocks round the spawner), " + secs(_errandSinceGot) + " s at the fortress with nothing got");
         }
         errandSays("looking round the fortress");
-        setDebugState("Brew errand: looking round the fortress, point " + (_errandPoint + 1) + " of " + adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS);
+        setDebugState("Brew errand: looking round the fortress, point " + (_errandPoint + 1) + " of " + points);
         return _errandWalk;
     }
 

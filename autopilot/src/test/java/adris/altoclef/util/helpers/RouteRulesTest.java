@@ -206,6 +206,11 @@ public class RouteRulesTest {
         assertNull(RouteRules.errandDeadEnd(23, dead - 1, dead));
         assertEquals("the 3 rings round the spawner walked, nothing left in sight", RouteRules.errandDeadEnd(24, 0, dead));
         assertEquals("neither got in 600 s at the fortress", RouteRules.errandDeadEnd(3, dead, dead));
+        // three rounds: the rings walked three times, the clock three times as long
+        assertNull(RouteRules.errandDeadEnd(24, 0, dead, 3));
+        assertNull(RouteRules.errandDeadEnd(71, 3 * dead - 1, dead, 3));
+        assertEquals("the 3 rings round the spawner walked 3 times, nothing left in sight", RouteRules.errandDeadEnd(72, 0, dead, 3));
+        assertEquals("neither got in 1800 s at the fortress", RouteRules.errandDeadEnd(3, 3 * dead, dead, 3));
     }
 
     @Test

@@ -75,8 +75,21 @@ public final class RouteRules {
     // why the errand stops at a dead end, null to go on: every point of the rings walked with nothing to hunt or fetch left,
     // or deadTicks with neither item got since the spawner was known (sinceProgress counts only once it is)
     public static String errandDeadEnd(int pointsWalked, long sinceProgress, long deadTicks) {
-        if (pointsWalked >= ERRAND_POINTS) return "the " + ERRAND_RINGS + " rings round the spawner walked, nothing left in sight";
-        if (sinceProgress >= deadTicks) return "neither got in " + Math.round(deadTicks / 20.0) + " s at the fortress";
+        return errandDeadEnd(pointsWalked, sinceProgress, deadTicks, 1);
+    }
+
+    // (Tuning route_errand_rounds, 1 by default; route jar 11's B arm 3, 9 Nov 2026) the rings walked this many times before
+    // the dead end, and the clock of neither got that many times as long. route jar 8 ended 18 errands at the rings' dead end
+    // after 444 to 1010 s, cream 0 in 17 of them (wart in 12), while the 13 creams it got came after 25 to 1118 s, about
+    // one per 22 minutes of errand: the cubes of a fortress come and go, so a round more looks at new ones
+    public static int errandRounds() {
+        return Math.max(1, (int) Math.round(Tuning.get("route_errand_rounds", 1)));
+    }
+
+    public static String errandDeadEnd(int pointsWalked, long sinceProgress, long deadTicks, int rounds) {
+        if (pointsWalked >= ERRAND_POINTS * rounds) return "the " + ERRAND_RINGS + " rings round the spawner walked"
+                + (rounds > 1 ? " " + rounds + " times" : "") + ", nothing left in sight";
+        if (sinceProgress >= deadTicks * rounds) return "neither got in " + Math.round(deadTicks * rounds / 20.0) + " s at the fortress";
         return null;
     }
 
