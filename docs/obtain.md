@@ -309,6 +309,11 @@ stands and a few stations, the farthest wart known, Baritone's regions in memory
 was cleared. A memory that can outlive an order is one registration (`RunMemory` in the autopilot, `RunMemories` in the
 buddy); a guard test fails on a new static that is neither registered nor allowed with a reason.
 
+With `tick_log=1` in the same file the buddy writes one `client_tick` event every 20 client ticks: the mean and the
+longest tick of those 20 in ms (the whole client tick, the autopilot's work and the path searches it waits on included),
+the ticks a second it managed and its frames a second. A practice rig reads it to tell a slow machine from slow work; off
+by default.
+
 ## Notes for developers
 
 - The client jar carries `data/minecraft` (recipes, loot tables, tags): no recipe has to come from the server, which

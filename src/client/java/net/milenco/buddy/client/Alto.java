@@ -481,6 +481,11 @@ final class Alto {
 		return present() && adris.altoclef.util.helpers.RunMemory.newRun();
 	}
 
+	/** The autopilot's tick_log switch: the client's tick time written as events (ClientTicks, the practice rig). */
+	static boolean tickLog() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("tick_log", 0) > 0;
+	}
+
 	private static boolean memoriesIn;
 
 	/**

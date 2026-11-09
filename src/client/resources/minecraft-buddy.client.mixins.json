@@ -24,7 +24,8 @@
 		"EntityRenderersAccessor",
 		"LivingScaleInvoker",
 		"LightUpdateMixin",
-		"FastTicksMixin"
+		"FastTicksMixin",
+		"ClientTickTimeMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
