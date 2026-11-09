@@ -147,6 +147,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private double _wartBest;
     private long _wartStall;
     private long _wartNear;
+    private long _wartWalkTicks;
     private long _wartLastTick = -1;
     private long _wartSaidAt;
     private boolean _errandNearSaid;
@@ -1421,6 +1422,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _wartBest = d;
             _wartStall = 0;
             _wartNear = 0;
+            _wartWalkTicks = 0;
             _wartWalk = null;
             _wartBreak = null;
             _wartSaidAt = now;
@@ -1468,14 +1470,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _wartStall = adris.altoclef.util.helpers.BrewErrandRules.own(_wartStall, gap);
         }
         if (near) _wartNear = adris.altoclef.util.helpers.BrewErrandRules.own(_wartNear, gap);
+        else _wartWalkTicks = adris.altoclef.util.helpers.BrewErrandRules.own(_wartWalkTicks, gap);
         long stallCap = adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_STALL_S);
-        String why = adris.altoclef.util.helpers.RouteRules.wartGiveUp(_wartStall, _wartNear, stallCap,
-                adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_BREAK_S));
+        long walkCap = adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_WALK_S);
+        String why = adris.altoclef.util.helpers.RouteRules.wartGiveUp(_wartStall, _wartNear, _wartWalkTicks, stallCap,
+                adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_BREAK_S), walkCap);
         if (why != null) {
             _wartGaveUp.add(at);
             mod.getBlockTracker().requestBlockUnreachable(at, 0, "the brew errand's wart: " + why);
             int room = 0;
-            if (_wartStall >= stallCap) {
+            if (_wartStall >= stallCap || _wartWalkTicks >= walkCap) {
                 for (BlockPos p : mod.getBlockTracker().getKnownLocations(Blocks.NETHER_WART)) {
                     if (Math.sqrt(p.distSqr(at)) <= adris.altoclef.util.helpers.RouteRules.WART_ROOM && _wartGaveUp.add(p)) room++;
                 }

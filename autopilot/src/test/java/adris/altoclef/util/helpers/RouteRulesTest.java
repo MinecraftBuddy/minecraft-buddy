@@ -252,6 +252,20 @@ public class RouteRulesTest {
     }
 
     @Test
+    public void aWartWalkPulledOffAgainAndAgainEndsOnItsOwnTime() {
+        long stall = Math.round(RouteRules.WART_STALL_S * 20);
+        long brk = Math.round(RouteRules.WART_BREAK_S * 20);
+        long walk = Math.round(RouteRules.WART_WALK_S * 20);
+        // (look 37: the ghast shelter pulled the walk off every few seconds, each return a step closer, the stall never 60 s)
+        assertNull(RouteRules.wartGiveUp(stall - 1, 0, walk - 1, stall, brk, walk));
+        assertEquals("its stand not reached in 150 s of walking", RouteRules.wartGiveUp(10, 0, walk, stall, brk, walk));
+        // (the stall's own reason first, when both hold)
+        assertEquals("its stand not reached, no step closer in 60 s", RouteRules.wartGiveUp(stall, 0, walk, stall, brk, walk));
+        // (a 150-block walk at a walking pace fits well inside it)
+        assertTrue(RouteRules.WART_WALK_S * 4.3 > RouteRules.WART_NEAR * 2);
+    }
+
+    @Test
     public void thePotionWaitsForTheSpawnerFightNotForABlazeOnTheWay() {
         double holdHp = 8;
         // (a blaze 12 off on the walk to the spawner, not hitting: route jar 1 drank here)

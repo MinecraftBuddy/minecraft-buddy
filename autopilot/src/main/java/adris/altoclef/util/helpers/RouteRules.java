@@ -122,6 +122,11 @@ public final class RouteRules {
     public static final double WART_BREAK_NEAR = 5;
     public static final double WART_BREAK_S = 30;
     public static final double WART_ROOM = 8;
+    // and the walk to one wart has WART_WALK_S of its own ticks in all, steps closer or not (route jar 15, 9 Nov 2026): a fight
+    // or the ghast shelter in between starts the nearest again from where the walk goes on, so a wart with no way in, the
+    // walk pulled off by a ghast every few seconds, came a step closer after each pull and was never given up (look 37,
+    // route-9 run 7: about 9 minutes round one wart, 21 path failures)
+    public static final double WART_WALK_S = 150;
 
     public static boolean wartWalkOn() {
         return Tuning.get("route_wart_walk", 0) > 0;
@@ -133,11 +138,17 @@ public final class RouteRules {
     }
 
     // why the wart held is given up, null to go on. stallTicks: the walk's own ticks since its last step closer, out of the
-    // break's range; nearTicks: its own ticks within it, the block still standing; the caps in game ticks
-    public static String wartGiveUp(long stallTicks, long nearTicks, long stallCap, long breakCap) {
+    // break's range; nearTicks: its own ticks within it, the block still standing; walkTicks: all its own ticks out of the
+    // break's range; the caps in game ticks
+    public static String wartGiveUp(long stallTicks, long nearTicks, long walkTicks, long stallCap, long breakCap, long walkCap) {
         if (nearTicks >= breakCap) return "not broken in " + Math.round(breakCap / 20.0) + " s at its stand";
         if (stallTicks >= stallCap) return "its stand not reached, no step closer in " + Math.round(stallCap / 20.0) + " s";
+        if (walkTicks >= walkCap) return "its stand not reached in " + Math.round(walkCap / 20.0) + " s of walking";
         return null;
+    }
+
+    public static String wartGiveUp(long stallTicks, long nearTicks, long stallCap, long breakCap) {
+        return wartGiveUp(stallTicks, nearTicks, 0, stallCap, breakCap, Long.MAX_VALUE);
     }
 
     // ---- the wart near the spawner (Tuning route_wart_near, the distance, WART_NEAR by default, 0 off; route jar 8, 9 Nov 2026).
