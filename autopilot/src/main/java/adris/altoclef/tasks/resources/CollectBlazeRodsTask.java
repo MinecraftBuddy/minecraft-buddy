@@ -1007,6 +1007,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // took it again, route jar 1's ping-pong; Tuning route_errand
     static BlockPos creamCubeAt(AltoClef mod, MagmaCube cube, boolean anyLevel) {
         BlockPos at = cube.blockPosition();
+        // (Tuning route_cream_foot, off by default, route jar 10's B arm: a cube standing on a block's rim with its middle over
+        // air is judged at the block it stands on; the lava, sea, drop and shore rules then look round that cell)
+        if (anyLevel && creamFootOn()) {
+            BlockPos foot = creamFooting(mod, cube);
+            if (foot != null) return foot.above();
+        }
         if (anyLevel && !cube.onGround() && adris.altoclef.util.helpers.RouteRules.errandOn()) {
             int down = creamGroundOn() ? adris.altoclef.util.helpers.CubeWay.GROUND_DOWN : 4;
             for (int i = 0; i < down && mod.getWorld().getBlockState(at.below()).isAir(); i++) at = at.below();
@@ -1022,6 +1028,37 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (state.isAir()) return "air";
         if (state.getBlock() == Blocks.MAGMA_BLOCK) return "magma";
         return net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath();
+    }
+
+    // Tuning route_cream_foot (off by default; route jar 10, 9 Nov 2026): the B arm of the route's phase 3 block on the
+    // cream. route jar 9's count lines (realfort-p3-smoke) told the cubes left for "floor" over air apart: 126 of 139 stood
+    // on the ground with their middle over a rim (87 big ones, 39 of size 2), 6 jumped high, 7 hung over a depth. a cube
+    // judged at its middle's cell failed the floor rule on solid ground; with the switch it is judged at its footing
+    static boolean creamFootOn() {
+        return adris.altoclef.util.helpers.Tuning.get("route_cream_foot", 0) > 0;
+    }
+
+    // the block a cube stands on when its middle is over air: of the blocks with a collision shape in the row under its box,
+    // the one nearest its middle; null when its middle has a block under it, or nothing under its box touches it
+    static BlockPos creamFooting(AltoClef mod, MagmaCube cube) {
+        var world = mod.getWorld();
+        if (!world.getBlockState(cube.blockPosition().below()).isAir()) return null;
+        var box = cube.getBoundingBox();
+        int y = net.minecraft.util.Mth.floor(box.minY - 0.01);
+        BlockPos best = null;
+        double bestD = Double.POSITIVE_INFINITY;
+        for (int x = net.minecraft.util.Mth.floor(box.minX); x <= net.minecraft.util.Mth.floor(box.maxX - 1e-6); x++) {
+            for (int z = net.minecraft.util.Mth.floor(box.minZ); z <= net.minecraft.util.Mth.floor(box.maxZ - 1e-6); z++) {
+                BlockPos p = new BlockPos(x, y, z);
+                if (world.getBlockState(p).getCollisionShape(world, p).isEmpty()) continue;
+                double dx = x + 0.5 - cube.getX(), dz = z + 0.5 - cube.getZ();
+                if (dx * dx + dz * dz < bestD) {
+                    bestD = dx * dx + dz * dz;
+                    best = p;
+                }
+            }
+        }
+        return best;
     }
 
     // what a cube left for "floor" over air is, for the count line (route jar 9, 9 Nov 2026: realfort-route-6's errand
