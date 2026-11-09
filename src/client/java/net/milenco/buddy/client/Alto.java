@@ -738,6 +738,13 @@ final class Alto {
 		return shieldMakings(p);
 	}
 
+	/** Whether "equip shield" can do something here: anywhere in the overworld; elsewhere a shield in the bag beside the one in hand, or the makings. */
+	private static boolean shieldToEquip(net.minecraft.client.player.LocalPlayer p) {
+		if (p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return true;
+		int inHand = p.getOffhandItem().is(net.minecraft.world.item.Items.SHIELD) ? 1 : 0;
+		return ObtainSteps.count(p, "shield") > inHand || shieldMakings(p);
+	}
+
 	/** Whether a shield's makings are in the bag: an iron, raw or smelted, and six planks of wood (logs and stems count four). */
 	private static boolean shieldMakings(net.minecraft.client.player.LocalPlayer p) {
 		if (ObtainSteps.count(p, "raw_iron") + ObtainSteps.count(p, "iron_ingot") < 1) return false;
@@ -852,7 +859,10 @@ final class Alto {
 		// minutes, and the food run went first meanwhile (attempt 166: broken at 40 s among skeletons)
 		Run spare = spareShield(p, skip);
 		if (spare != null) return spare;
-		if (armour.contains("shield") && !skip.test("equip shield"))
+		// outside the overworld only a shield to put on, or its makings: in the nether the step saw the worn one in hand as
+		// missing, set the order again (the route back to its first phase, the brew errand's clock afresh: phase 4 had 51 s)
+		// and, once that shield broke, went home through the portal for iron (route-10 run 2, 9 Nov 2026)
+		if (armour.contains("shield") && !skip.test("equip shield") && shieldToEquip(p))
 			return new Run("equip shield", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget("shield", 1))));
 		// copper before the iron, a piece for every empty slot whose iron is not in the bag yet: iron came at an ore in three
 		// to eight game minutes and the chestplate's eight timed out twice in one order, in its clothes all the while, and
