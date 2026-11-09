@@ -106,7 +106,9 @@ public class GhastCoverTest {
         assertTrue(GhastCover.streak(true, -5, 1) == 0);
         // the wait ends once the ghast is dead or 64 or more off
         assertTrue(GhastCover.ghastGone(false, 10));
-        assertTrue(GhastCover.ghastGone(true, 64));
+        assertTrue(GhastCover.ghastGone(true, 80));
+        // (a margin over the shelter's sight of 64: one hovering at the edge is not gone, look 36)
+        assertFalse(GhastCover.ghastGone(true, 70));
         assertFalse(GhastCover.ghastGone(true, 40));
     }
 }

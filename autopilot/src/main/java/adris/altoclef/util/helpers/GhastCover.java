@@ -38,7 +38,14 @@ public final class GhastCover {
     // under the 20 minute stall clock
     public static final long AGAIN_TICKS = 600;
     public static final int DOUBLINGS = 2;
-    public static final double GONE = 64;
+    // (route jar 12, 9 Nov 2026, look 36: GONE was 64, the shelter's own sight, so a ghast hovering at 56 to 74 off was "gone"
+    // and seen again by turns: 9 releases in 2.5 minutes, the walk back in its line within 0 to 3 s each time, 13 covers.
+    // released now only past GONE, a margin over the sight; Tuning ghast_gone sets it, 64 the old way)
+    public static final double GONE = 80;
+
+    public static double gone() {
+        return Tuning.get("ghast_gone", GONE);
+    }
 
     public static boolean doubleOn() {
         return Tuning.get("ghast_wait_double", 0) > 0;
@@ -56,9 +63,9 @@ public final class GhastCover {
         return base << Math.max(0, Math.min(streak, DOUBLINGS));
     }
 
-    // the ghast that sent the buddy into cover is no more reason to wait: dead, or GONE or more off
+    // the ghast that sent the buddy into cover is no more reason to wait: dead, or gone() or more off
     public static boolean ghastGone(boolean alive, double distance) {
-        return !alive || distance >= GONE;
+        return !alive || distance >= gone();
     }
 
     private long _since = -1;
