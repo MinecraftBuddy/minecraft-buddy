@@ -260,13 +260,14 @@ public final class Monitors {
                 WorldHelper.getCurrentDimension().name().toLowerCase(Locale.ROOT), chain == null ? null : chain.getClass().getSimpleName(), task, gamer,
                 StandReport.pathWord(mod.getClientBaritone()), standWatch.stillTicks(), player.isInWater());
         // (the buddy's fork, steering 142: the danger meter's level, T and risk on every vitals line, so each 5 s sample is one row of
-        // exposure for weighing risk later; before task=, as drillrun keeps the tail after it. no behaviour change)
+        // exposure for weighing risk later; before chain=, as the rig's readers (livewatch, drillrun, stall) read chain= and task=
+        // side by side and drillrun keeps the tail after task=. no behaviour change)
         try {
             var reading = adris.altoclef.util.helpers.DangerShadow.last();
             String danger = " danger=" + adris.altoclef.util.helpers.DangerShadow.level().word()
                     + (reading == null ? "" : " dT=" + adris.altoclef.util.helpers.DangerMeter.num(reading.t())
                     + " risk=" + adris.altoclef.util.helpers.DangerMeter.num(reading.risk()));
-            int k = line.indexOf(" task=\"");
+            int k = line.indexOf(" chain=");
             line = k < 0 ? line + danger : line.substring(0, k) + danger + line.substring(k);
         } catch (RuntimeException ignored) {
             // (a log line never takes the tick down)
