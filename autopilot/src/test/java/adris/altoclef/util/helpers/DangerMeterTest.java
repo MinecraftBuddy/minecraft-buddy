@@ -235,4 +235,21 @@ public class DangerMeterTest {
         assertEquals("danger: hit 2.5 from blaze, level fight, T 0.0, risk 0.0", DangerMeter.hitLine(2.5, "blaze", Level.FIGHT, DangerMeter.none(20)));
         assertEquals("danger: at death, level calm, T 0.0, push 0.0, risk 0.0, top none", DangerMeter.deathLine(Level.CALM, DangerMeter.none(0)));
     }
+
+    @Test
+    public void aBowCountsForAFlyerOutOfReachWithALine() {
+        // a blaze 10 off with a line to us: without a bow, its hp over the sword plus the walk; with one, over the bow alone
+        Mob blaze = new Mob("blaze", MobThreat.forMeter("blaze", 1), 10, 3, 0, 1, true, true, 20);
+        Us sword = new Us(20, 9.6, 15, 0, 2, 0, false);
+        Us bow = new Us(20, 9.6, 15, 0, 2, 0, false, 4.0);
+        double d = Math.sqrt(10 * 10 + 3 * 3);
+        assertEquals(20 / 9.6 + (d - DangerMeter.OUR_REACH) / DangerMeter.OUR_SPEED, DangerMeter.killTime(blaze, sword, d, 20), 1e-9);
+        assertEquals(20 / 4.0, DangerMeter.killTime(blaze, bow, d, 20), 1e-9);
+        // no line, or in reach, or a walker: the sword as before
+        Mob hidden = new Mob("blaze", MobThreat.forMeter("blaze", 1), 10, 3, 0, 1, true, false, 20);
+        assertEquals(DangerMeter.killTime(hidden, sword, d, 20), DangerMeter.killTime(hidden, bow, d, 20), 1e-9);
+        Mob hoglin = mob("hoglin", 10, 0, 1, true, true);
+        assertEquals(DangerMeter.killTime(hoglin, sword, 10, 40), DangerMeter.killTime(hoglin, bow, 10, 40), 1e-9);
+        assertEquals(DangerMeter.killTime(blaze, sword, 2.5, 20), DangerMeter.killTime(blaze, bow, 2.5, 20), 1e-9);
+    }
 }

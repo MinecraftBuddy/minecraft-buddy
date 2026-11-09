@@ -85,8 +85,13 @@ public final class DangerMeter {
     public static final double LAVA_DROP = -2;
 
     // the buddy: hp (absorption included), our damage a second, armour points and toughness, the difficulty (0 peaceful to 3
-    // hard), resistance (0 none, else its level), fire resistance
-    public record Us(double hp, double dps, double armour, double toughness, int difficulty, int resistance, boolean fireRes) {
+    // hard), resistance (0 none, else its level), fire resistance; bowDps: the bow's damage a second with arrows in the bag,
+    // for a flyer out of reach with a line to it (0: no bow counted, the walk to it as before; only the forced drills hand
+    // one in, DangerShadow)
+    public record Us(double hp, double dps, double armour, double toughness, int difficulty, int resistance, boolean fireRes, double bowDps) {
+        public Us(double hp, double dps, double armour, double toughness, int difficulty, int resistance, boolean fireRes) {
+            this(hp, dps, armour, toughness, difficulty, resistance, fireRes, 0);
+        }
     }
 
     // one contributor: what it adds to T (or to push, for a pusher), in hp per 3 s
@@ -178,8 +183,7 @@ public final class DangerMeter {
                 parts.add(new Part(mob.kind(), distance, hp3));
                 // the race: its hp over our damage a second, plus the walk to it
                 double hp = mob.hp() > 0 ? mob.hp() : mob.row() != null ? mob.row().hp() : 20;
-                double kill = us.dps() > 0 ? hp / us.dps() + Math.max(0, distance - OUR_REACH) / OUR_SPEED : Double.POSITIVE_INFINITY;
-                k += mob.want() * kill;
+                k += mob.want() * killTime(mob, us, distance, hp);
             }
             double risk = pushRisk(mob, us, distance, hazards);
             if (risk > 0) {
@@ -194,6 +198,14 @@ public final class DangerMeter {
         double risk = loss > 0 && k > 0 ? k / d : 0;
         parts.sort(Comparator.comparingDouble(Part::hp3).reversed());
         return new Reading(t, push, d, k, risk, us.hp(), parts.size() > 3 ? List.copyOf(parts.subList(0, 3)) : List.copyOf(parts));
+    }
+
+    // the time to kill one mob: its hp over our damage a second plus the walk to it, or for a flyer out of reach with a line
+    // to it and a bow counted (Us.bowDps), its hp over the bow's damage a second where it is (the forced fight shoots it)
+    static double killTime(Mob mob, Us us, double distance, double hp) {
+        boolean flyer = mob.row() != null && mob.row().flies();
+        if (flyer && us.bowDps() > 0 && mob.sees() && distance > OUR_REACH) return hp / us.bowDps();
+        return us.dps() > 0 ? hp / us.dps() + Math.max(0, distance - OUR_REACH) / OUR_SPEED : Double.POSITIVE_INFINITY;
     }
 
     // want x what one mob can do to us within the horizon, hp per 3 s

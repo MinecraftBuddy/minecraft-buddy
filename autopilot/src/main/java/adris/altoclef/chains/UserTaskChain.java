@@ -68,7 +68,15 @@ public class UserTaskChain extends SingleTaskChain {
 
     @Override
     public float getPriority(AltoClef mod) {
-        return 50;
+        return held() ? Float.NEGATIVE_INFINITY : 50;
+    }
+
+    // the buddy's fork: tuning key danger_hold (the forced drills' count ladder, off by default): the order's task is kept but
+    // never gets the wheel, so the buddy stands where it landed and only the defenses and the forced arm act (DangerForceChain).
+    // the ladder needs an order for the buddy to hand the wheel over at all (its Alto bridge comes up only for one); the review
+    // of (b2) found most deaths of the single-foe drills were on the order's way to its fortress, none of the summoned foe's
+    public static boolean held() {
+        return adris.altoclef.util.helpers.Tuning.get("danger_hold", 0) > 0;
     }
 
     @Override

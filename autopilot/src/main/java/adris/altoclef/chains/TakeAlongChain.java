@@ -288,6 +288,8 @@ public class TakeAlongChain extends SingleTaskChain {
     }
 
     private static boolean underUserTask(AltoClef mod) {
+        // (an order held by danger_hold has no way to take things along on)
+        if (UserTaskChain.held()) return false;
         Task task = mod.getUserTaskChain().getCurrentTask();
         return task != null && !(task instanceof GamerTask);
     }

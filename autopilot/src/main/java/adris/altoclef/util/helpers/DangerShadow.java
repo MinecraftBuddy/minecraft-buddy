@@ -102,6 +102,23 @@ public final class DangerShadow {
         return on() ? threats : List.of();
     }
 
+    // the forced drills' look at the last reading (danger_force on only, null otherwise): our damage a second with the weapon
+    // the fight would use and the bow's, the foes counted with their want ("blaze 10.2 w1, ..."), and the "full" risk, every
+    // hostile in sight or after us counted at want 1 (the review of (b2): the meter's own reading counts a mob that only sees
+    // us at half, and only inside its horizon, so its first reading not calm says little of the crowd the buddy faces)
+    public record Detail(double dps, double bowDps, int foes, String counted, double fullRisk, double fullT) {
+    }
+
+    private static Detail detail;
+
+    public static Detail detail() {
+        return on() ? detail : null;
+    }
+
+    // a full bow's damage a second as the forced fight shoots it: an arrow of 6 at full draw (9 on a crit) about every
+    // 1.25 s, two in three landing on a mob that moves (a guess to size from the drills' hit lines)
+    public static final double BOW_DPS = 4.0;
+
     private static boolean on() {
         return errors < MAX_ERRORS && Tuning.get("danger_shadow", 1) > 0;
     }
@@ -152,6 +169,7 @@ public final class DangerShadow {
             track.reset(tick);
             last = DangerMeter.none(0);
             threats = List.of();
+            detail = null;
             after = new HashMap<>();
             lastRods = -1;
         }
@@ -162,6 +180,7 @@ public final class DangerShadow {
         if (!watched) {
             last = DangerMeter.none(hp);
             threats = List.of();
+            detail = null;
             return;
         }
 
@@ -220,8 +239,19 @@ public final class DangerShadow {
         boolean fireRes = player.hasEffect(MobEffects.FIRE_RESISTANCE);
         MobEffectInstance resistance = player.getEffect(MobEffects.RESISTANCE);
         double dps = player.getAttributeValue(Attributes.ATTACK_DAMAGE) * player.getAttributeValue(Attributes.ATTACK_SPEED);
+        // (the forced drills: K with the weapon the fight would use, not what is in hand, and the bow for a flyer out of reach;
+        // without the switch the meter reads as it always did)
+        boolean forced = DangerForce.mode(Tuning.get("danger_force", 0)) != DangerForce.OFF;
+        double bowDps = 0;
+        if (forced) {
+            net.minecraft.world.item.Item weapon = adris.altoclef.tasks.entity.AbstractKillEntityTask.bestWeapon(mod);
+            if (weapon != null) dps = Math.max(dps, ItemHelper.getAttackDamage(weapon) * ItemHelper.getAttackSpeed(weapon));
+            bowDps = adris.altoclef.tasks.entity.ForcedBowTask.canShoot(mod) ? BOW_DPS : 0;
+        }
         DangerMeter.Us us = new DangerMeter.Us(hp, dps, player.getArmorValue(), player.getAttributeValue(Attributes.ARMOR_TOUGHNESS),
-                level.getDifficulty().getId(), resistance == null ? 0 : resistance.getAmplifier() + 1, fireRes);
+                level.getDifficulty().getId(), resistance == null ? 0 : resistance.getAmplifier() + 1, fireRes, bowDps);
+        // (and the full count: every hostile in sight or after us at want 1)
+        List<DangerMeter.Mob> full = forced ? new ArrayList<>() : null;
 
         long now = level.getGameTime();
         MobReachability reach = mod.getEntityTracker().getMobReachability();
@@ -253,12 +283,35 @@ public final class DangerShadow {
             mobs.add(new DangerMeter.Mob(kind, row, mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ(),
                     want, way, sees, mob.getHealth()));
             bodies.add(mob);
+            if (full != null && (afterUs || (hostileKind && !calm))) {
+                boolean seen = afterUs || (needSight ? sees
+                        : LookHelper.seesPlayer(mob, player, Math.max(MOB_RANGE, Math.min(SHOOTER_RANGE, distance + 1))));
+                if (seen) {
+                    full.add(new DangerMeter.Mob(kind, row, mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ(),
+                            1, way, needSight ? sees : seen, mob.getHealth()));
+                }
+            }
             if (want > 0) afterNow.put(mob.getId(), distance);
         }
         pendingAfter = afterNow;
         List<Hazard> hazards = hazards(level, player);
-        threats = DangerForce.mode(Tuning.get("danger_force", 0)) == DangerForce.OFF ? List.of() : threats(us, mobs, bodies, hazards);
-        return DangerMeter.read(us, mobs, hazards);
+        threats = forced ? threats(us, mobs, bodies, hazards) : List.of();
+        Reading reading = DangerMeter.read(us, mobs, hazards);
+        if (forced) {
+            Reading all = DangerMeter.read(us, full, hazards);
+            StringBuilder counted = new StringBuilder();
+            int n = 0;
+            for (DangerMeter.Mob m : mobs) {
+                if (DangerMeter.damage3(m, us, m.distance()) <= 0) continue;
+                n++;
+                if (counted.length() > 0) counted.append(", ");
+                counted.append(m.kind()).append(' ').append(DangerMeter.num(m.distance())).append(" w").append(m.want() == 1 ? "1" : DangerMeter.num(m.want()));
+            }
+            detail = new Detail(dps, bowDps, n, counted.toString(), all.risk(), all.t());
+        } else {
+            detail = null;
+        }
+        return reading;
     }
 
     // each mob's share as DangerMeter.read counts it (T, and push before read's cap at our hp), with its entity
