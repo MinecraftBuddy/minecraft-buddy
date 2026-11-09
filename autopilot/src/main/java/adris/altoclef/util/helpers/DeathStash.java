@@ -46,6 +46,10 @@ public final class DeathStash {
         return death;
     }
 
+    public static synchronized int remembered() {
+        return pending != null ? 1 : 0;
+    }
+
     public static synchronized void clear() {
         pending = null;
     }

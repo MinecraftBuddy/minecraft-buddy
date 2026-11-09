@@ -167,6 +167,15 @@ public final class Tuning {
         }
     }
 
+    // a key read from the file as it is now, not as it was up to a second ago: for what is read once at an order's start
+    // (fresh_run, RunMemory), where the rig writes the file just before the order. the rig replaces the file whole, so no
+    // half-written file is read
+    public static synchronized double now(String key, double fallback) {
+        lookedAt = 0;
+        fileTime = Long.MIN_VALUE;
+        return get(key, fallback);
+    }
+
     // tuning.properties in the game directory (the system property buddy.tuning first, for tests); null before the game is up
     private static Path file() {
         if (file != null) return file;

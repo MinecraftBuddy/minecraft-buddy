@@ -309,6 +309,67 @@ public final class CachedWorld implements ICachedWorld, Helper {
         }
     }
 
+    // the regions in RAM, and the region files on disk (the buddy's fork, RunMemory's measure line)
+    public synchronized int regionsInRam() {
+        return cachedRegions.size();
+    }
+
+    public int regionFiles() {
+        return regionFiles(Path.of(directory));
+    }
+
+    static int regionFiles(Path cacheDir) {
+        if (!Files.isDirectory(cacheDir)) {
+            return 0;
+        }
+        try (var s = Files.newDirectoryStream(cacheDir, "r.*.bcr")) {
+            int n = 0;
+            for (Path ignored : s) {
+                n++;
+            }
+            return n;
+        } catch (IOException e) {
+            return 0;
+        }
+    }
+
+    // a fresh run (the buddy's fork, RunMemory): every region in RAM and every region file of this dimension goes, so the run
+    // plans through what it sees itself. under the disk lock no region loads from a file while the files go; a region a save
+    // or the packer still holds is discarded and never written back. chunk caching stays on: what is loaded from now on is
+    // cached again
+    public int forgetAll() {
+        synchronized (diskLock) {
+            List<CachedRegion> gone;
+            synchronized (this) {
+                gone = new ArrayList<>(cachedRegions.values());
+                cachedRegions.clear();
+            }
+            for (CachedRegion region : gone) {
+                if (region != null) {
+                    region.discard();
+                }
+            }
+            return deleteRegionFiles(Path.of(directory));
+        }
+    }
+
+    static int deleteRegionFiles(Path cacheDir) {
+        if (!Files.isDirectory(cacheDir)) {
+            return 0;
+        }
+        int n = 0;
+        try (var s = Files.newDirectoryStream(cacheDir, "r.*.bcr*")) {
+            for (Path f : s) {
+                if (Files.deleteIfExists(f)) {
+                    n++;
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("Could not delete the region files in " + cacheDir + ": " + e);
+        }
+        return n;
+    }
+
     public void tryLoadFromDisk(int regionX, int regionZ) {
         getOrCreateRegion(regionX, regionZ);
     }

@@ -28,6 +28,8 @@ public class GetCommand extends AltoClefCommand {
         if (plain == null) {
             throw new CommandInvalidStateException("no task for that, " + AltoClefCommands.prefix() + "list shows what altoclef can get");
         }
+        // an order of its own, as the buddy's obtain: the memory it starts with measured, and forgotten on a fresh run
+        adris.altoclef.util.helpers.RunMemory.logOrderStart("#get");
         // the whole shopping list first, tools, fetch it all, then craft
         startTask(mod, new GatherBillTask(items));
     }

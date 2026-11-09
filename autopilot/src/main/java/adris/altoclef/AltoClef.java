@@ -429,6 +429,11 @@ public class AltoClef {
         return _bans;
     }
 
+    // every tracker at once (RunMemory's fresh run)
+    public TrackerManager getTrackerManager() {
+        return _trackerManager;
+    }
+
     /**
      * Tracks of whether a chunk is loaded/visible or not
      */

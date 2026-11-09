@@ -94,6 +94,11 @@ public final class SeenFilter {
     }
 
     // forget everything (world leave)
+    // the rays remembered, seen and missed (RunMemory)
+    static int remembered() {
+        return MEMO.size() + MISSES.size();
+    }
+
     public static void reset() {
         MEMO.clear();
         MISSES.clear();

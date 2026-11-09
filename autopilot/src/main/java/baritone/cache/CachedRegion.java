@@ -74,6 +74,11 @@ public final class CachedRegion implements ICachedRegion {
      */
     private boolean hasUnsavedChanges;
 
+    /**
+     * Forgotten by {@link CachedWorld#forgetAll}: never saved again, so a save or a packer still holding it writes nothing back
+     */
+    private boolean discarded;
+
     CachedRegion(int x, int z, DimensionType dimension, ResourceKey<Level> dimensionId) {
         this.x = x;
         this.z = z;
@@ -120,7 +125,7 @@ public final class CachedRegion implements ICachedRegion {
 
 
     public synchronized final void save(String directory) {
-        if (!hasUnsavedChanges) {
+        if (!hasUnsavedChanges || discarded) {
             return;
         }
         removeExpired();
@@ -194,6 +199,11 @@ public final class CachedRegion implements ICachedRegion {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
+    }
+
+    synchronized void discard() {
+        discarded = true;
+        hasUnsavedChanges = false;
     }
 
     public synchronized void load(String directory) {

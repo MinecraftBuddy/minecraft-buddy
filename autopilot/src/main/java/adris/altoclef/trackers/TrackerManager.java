@@ -44,6 +44,16 @@ public class TrackerManager {
         _wasInGame = false;
     }
 
+    // a fresh run (RunMemory): every tracker forgets what it knows, as when the world is left. the chunk tracker is not one
+    // of them: the chunks it knows are loaded now, and no load event would bring them back
+    public void forgetRun() {
+        for (Tracker tracker : _trackers) {
+            tracker.reset();
+            // what a tracker reads from the world now (the bag, the mobs in sight) is read again at its next use, this tick too
+            tracker.setDirty();
+        }
+    }
+
     public void addTracker(Tracker tracker) {
         tracker._mod = _mod;
         _trackers.add(tracker);

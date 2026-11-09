@@ -393,6 +393,11 @@ public final class RouteRules {
     private static volatile boolean exitGaveUp;
     private static volatile boolean outSaid;
 
+    // the exit's marks and the zones kept (RunMemory)
+    public static synchronized int remembered() {
+        return AWAY_ZONES.size() + (exitBegun ? 1 : 0) + (exitGaveUp ? 1 : 0) + (outSaid ? 1 : 0);
+    }
+
     // a new order of rods: nothing of the last one's exit, nor of its zones walked away from
     public static void reset() {
         exitBegun = false;

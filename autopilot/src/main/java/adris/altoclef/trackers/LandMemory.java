@@ -140,6 +140,11 @@ public class LandMemory implements ExploreProcess.LandGate {
         }
     }
 
+    // the chunks known as land, water, explored or banned (RunMemory)
+    public int size() {
+        return _land.size() + _water.size() + _old.size() + _banned.size();
+    }
+
     public void reset() {
         _land.clear();
         _water.clear();

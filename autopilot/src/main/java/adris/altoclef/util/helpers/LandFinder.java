@@ -32,6 +32,18 @@ public final class LandFinder {
     private static final long[] STEERS = new long[4];
     private static int _steerAt;
 
+    // the steers kept (RunMemory): a fresh run starts with none
+    public static synchronized int steersKept() {
+        int n = 0;
+        for (long t : STEERS) if (t != 0) n++;
+        return n;
+    }
+
+    public static synchronized void forgetSteers() {
+        java.util.Arrays.fill(STEERS, 0);
+        _steerAt = 0;
+    }
+
     private static synchronized void noteSteer(long now) {
         STEERS[_steerAt++ % STEERS.length] = now;
     }

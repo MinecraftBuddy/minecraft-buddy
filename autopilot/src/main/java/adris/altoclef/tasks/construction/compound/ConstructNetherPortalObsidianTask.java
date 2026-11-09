@@ -112,6 +112,17 @@ public class ConstructNetherPortalObsidianTask extends Task {
     // cast had the order (attempt 175)
     private static final double RESUME_RANGE = 256;
 
+    // the frame under way as a memory of the run (RunMemory): 1 with one known
+    public static int remembered() {
+        return _lastOrigin != null ? 1 : 0;
+    }
+
+    public static void forgetRun() {
+        _lastOrigin = null;
+        _lastDimension = null;
+        _lastCount = 0;
+    }
+
     private BlockPos _origin;
 
     private BlockPos _destroyTarget;

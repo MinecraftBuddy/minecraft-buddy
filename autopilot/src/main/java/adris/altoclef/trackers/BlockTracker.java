@@ -139,11 +139,34 @@ public class BlockTracker extends Tracker {
 
     @Override
     protected void reset() {
-        // Tasks will handle de-tracking blocks.
-        if (!_caches.values().isEmpty()) {
+        // Tasks will handle de-tracking blocks. (under the scan's lock: a fresh run clears it while the async scan may be
+        // filling it)
+        synchronized (_scanMutex) {
             for (PosCache cache : _caches.values()) {
                 cache.clear();
             }
+        }
+    }
+
+    // the positions known of these blocks, every dimension (RunMemory's measure line; none given: of every block)
+    public int knownCount(Block... blocks) {
+        synchronized (_scanMutex) {
+            int n = 0;
+            for (PosCache cache : _caches.values()) {
+                n += blocks.length == 0 ? cache.getBlockTrackCount() : cache.getKnownLocations(blocks).size();
+            }
+            return n;
+        }
+    }
+
+    // the farthest known position of these blocks in this dimension from a point (blocks), -1 with none
+    public double farthestKnown(Vec3 from, Block... blocks) {
+        synchronized (_scanMutex) {
+            double far = -1;
+            for (BlockPos p : currentCache().getKnownLocations(blocks)) {
+                far = Math.max(far, Math.sqrt(WorldHelper.toVec3d(p).distanceToSqr(from)));
+            }
+            return far;
         }
     }
 

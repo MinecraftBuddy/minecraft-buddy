@@ -63,6 +63,11 @@ public class MiscBlockTracker {
         }
     }
 
+    // the portals used and the dry land kept, every dimension (RunMemory)
+    public int size() {
+        return _lastNetherPortalsUsed.size() + _lastDryLand.size();
+    }
+
     public void reset() {
         _lastNetherPortalsUsed.clear();
         _lastDryLand.clear();

@@ -1,0 +1,121 @@
+# statics of the fork that can hold state between orders and are no memory of the run (RunMemoryGuardTest).
+# "key reason": a field (a.b.C#f, or a.b.C#f,g for several), a class (a.b.C) or a package (a.b.). the
+# "unreviewed" ones were there at 33b6aca, before the guard: each wants a look, and a registration if it outlives a run
+adris.altoclef.ui. the in-game menus and HUD (screens, fonts, sounds), nothing of the world
+adris.altoclef.util.snapshot. diagnostics: death snapshots for the tests; no decision reads them
+adris.altoclef.AltoClef#_instance,_postInitQueue the one AltoClef and its start-up queue
+adris.altoclef.AltoSettingsMigration#SEEN settings loaded from the config files
+adris.altoclef.BuildInfo#built,id,minecraftVersion,version diagnostics: log lines, traces, snapshots, their throttles; no decision reads them
+adris.altoclef.Debug#CHAT_THROTTLE,jankModInstance,listener diagnostics: log lines, traces, snapshots, their throttles; no decision reads them
+adris.altoclef.Monitors#BARITONE,ERRORS,clientTick diagnostics: log lines, traces, snapshots, their throttles; no decision reads them
+adris.altoclef.TaskCatalogue#_aliases,_craftedRecipes,_itemToName,_itemToResourceTask,_madeFrom,_nameToItemMatches,_nameToResourceTask,_needsNether,_resourcesObtainable tables worked out once from the game's data or constants, the same every run
+adris.altoclef.TaskCatalogue$BillBook#EDGES,GATHER tables worked out once from the game's data or constants, the same every run
+adris.altoclef.butler.ButlerConfig#_instance settings loaded from the config files
+adris.altoclef.butler.WhisperChecker#_lastMessage,_repeatTimer the last whisper, against repeats
+adris.altoclef.chains.CombatBrain#SIDES a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.chains.FoodChain#_config settings loaded from the config files
+adris.altoclef.chains.FoodChain#_hasFood unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.chains.GhastShelterChain#_lastSaid diagnostics: log lines, traces, snapshots, their throttles; no decision reads them
+adris.altoclef.chains.LavaKnockGuard#KEYS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.chains.MobDefenseChain#SHIELD_HAND a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.chains.MobDefenseChain#_shielding unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.commands.AltoClefCommands#OWNED,current,generation,systemRun the typed command under way
+adris.altoclef.commands.CustomTaskConfig#_instance settings loaded from the config files
+adris.altoclef.eventbus.EventBus#_depth,_errorHandler,_toAdd,_toDelete,_topics the event bus's subscriptions
+adris.altoclef.takealong.TakeAlong#_config settings loaded from the config files
+adris.altoclef.takealong.TakeAlong#_current,_detours,_food,_hold,_last,_order,_orders,_thrown unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.takealong.TakeAlongKinds#_all,_byBlock,_byItem,_byRaw,_drops tables worked out once from the game's data or constants, the same every run
+adris.altoclef.takealong.TakeAlongRules#TABLES tables worked out once from the game's data or constants, the same every run
+adris.altoclef.tasks.CraftGenericManuallyTask#_idleAt,_idleLast,_idleSince,_idleTarget,_probeAt,_probeTarget unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.construction.CoverWithBlocksTask#getBlocks,timer unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.construction.CoverWithSandTask#getSand,goToNether,goToOverworld,timer unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.construction.PlaceObsidianBucketTask#CAST_FRAME a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.construction.SchematicBuildTask#ASKS,SERIALS id counters of the schematic builder
+adris.altoclef.tasks.construction.StationSpots#HORIZONTALS,STEPS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.construction.compound.ConstructNetherPortalBucketTask#PORTAL_FRAME,PORTAL_INTERIOR a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.construction.compound.ConstructNetherPortalObsidianTask#CORNER_BLOCKS,PORTAL_FRAME,PORTAL_INTERIOR a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.construction.compound.ConstructNetherPortalSpeedrunTask#PORTAL_FRAME_LAVA,PORTAL_INTERIOR a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.container.StationWalk#SIDES a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.container.StoreInAnyContainerTask#TO_SCAN a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.container.StoreInStashTask#TO_SCAN a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.entity.AbstractDoToEntityTask#LAVA_HOLDS unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.entity.AbstractDoToEntityTask#LAVA_STARES,LAVA_WAITS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.entity.AbstractKillEntityTask#_loggedPick,_swingsAtSwap unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.entity.SelfCareTask#beds,debugStateName,diamondArmorSet,diamondToolSet,equipArmorSet,getToolSet,ironArmorSet,ironToolSet,netheriteArmorSet,netheriteToolSet,stoneToolSet,woodToolSet unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.movement.HealUpTask#ghastHitAt,ghastLevel,ghastPlayer,ghastSeen unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.movement.MLGBucketTask#_config settings loaded from the config files
+adris.altoclef.tasks.movement.PickupDroppedItemTask#getPickaxeFirstTask,isGettingPickaxeFirstFlag unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.resources.BlazePillboxTask#BLOCKS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.resources.BlazePillboxTask#hideAwayX,hideAwayZ unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.resources.CollectBedTask#BEDS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.resources.CollectFoodTask#COOKABLE_FOODS,CROPS,GLOW_BERRY_VINES,HOES,ITEMS_TO_PICK_UP,KELP,MUSHROOMS_BROWN,MUSHROOMS_RED a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.resources.CollectFoodTask#lastLootMs,lastSearchMs,ticks unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.resources.CollectMagmaCreamTask#LET_GO unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.resources.CollectMagmaCreamTask#WAY a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.resources.CollectMeatTask#COOKABLE_FOODS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.resources.FireResTrade#_burnThrow,_lavaThrow unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.resources.FireResTrade$ThrowAtFeetTask#_dueAt unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.resources.FoodHunt#woolWanted unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.resources.GetSmithingTemplateTask#GOLD_PIECES a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.resources.MineAndCollectTask$MineOrCollectTask#BAND_MEMORY,STRIKES,bandWorld,dirtOffUntil,dirtTreeAt,dirtTreeTick,dirtTreeTrips unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.resources.PreyScan#PENS unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.slot.DragSplitToSlotsTask#lastBailMs unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.slot.ReceiveCraftingOutputSlotTask#CLICK_GUARD,_guardArmed,_guardContainer,_guardCursor,_guardOutput unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.speedrun.gamer.CookGate#RAW_MEAT a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.speedrun.gamer.CookTrip#live unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.speedrun.gamer.DeathRules#EYE_PARTS,IRON_OR_BETTER,PICKS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.speedrun.gamer.DetourRules#TABLES tables worked out once from the game's data or constants, the same every run
+adris.altoclef.tasks.speedrun.gamer.EscapeRoute#DX,DZ a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.speedrun.gamer.KitPlanner#COUNTED,EXACT tables worked out once from the game's data or constants, the same every run
+adris.altoclef.tasks.speedrun.gamer.Respawn#bound unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.speedrun.gamer.VillageBeds#EVIDENCE a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.speedrun.gamer.config.GamerConfigs#current settings loaded from the config files
+adris.altoclef.tasks.speedrun.gamer.end.EndGear#PICKAXES,WEAPONS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.speedrun.gamer.portal.LPortalPlan#ARM,BASE_WATER,CORNER_LEFT,CORNER_RIGHT,LEFT_STAND,PLACEHOLDER,PLATFORM_LEFT,PLATFORM_RIGHT,RIGHT_STAND,SHORE_LEFT,SHORE_RIGHT,WALLS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.speedrun.gamer.portal.WaterFlow#SIDES a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.speedrun.gamer.tasks.RoomCoverage#FOOTPRINT a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasks.speedrun.gamer.tasks.ShelterTask#_wood unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.speedrun.gamer.tasks.StrongholdRoomSearchTask#BRICKS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.tasksystem.Task#CUTS,REPEATS,STARTS,STORM_GATE,_holdOwner the task runner's watch on its own restarts, seconds long
+adris.altoclef.trace.RepeatCounter#MILESTONES diagnostics: log lines, traces, snapshots, their throttles; no decision reads them
+adris.altoclef.trace.Trace#RING,cooldown,sink diagnostics: log lines, traces, snapshots, their throttles; no decision reads them
+adris.altoclef.trackers.BlockTracker#_config settings loaded from the config files
+adris.altoclef.util.baritone.GoalDodgeProjectiles#NO_SHOTS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.util.helpers.BlazeCover#ELEVATIONS,SIDES a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.util.helpers.BlazeFightRules#pocketShieldUntil unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.BlazePillbox#SIDES a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.util.helpers.BlazePillbox#farWhy,why unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.BlazeShelter#at,box,boxStandsAt,brewBoxAt,buildingAt,chargedSince,corner,hide,killAt,lookingOut unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.BoxGuard#corner,tick unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.BreakContextCache#context,player,rules,tick,world unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.BrewBox#SIDES a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.util.helpers.BrewBox#why unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.CampReentry#camp,door,left,leftAt,markedAt,saidAt,watch unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.CatalogueBook#_byItem tables worked out once from the game's data or constants, the same every run
+adris.altoclef.util.helpers.ConfigHelper#_loadedConfigs settings loaded from the config files
+adris.altoclef.util.helpers.CubeWay#SIDES a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.util.helpers.DangerShadow#after,errors,hp1,hp2,last,lastRods,lastSource,patience,pendingAfter,pendingAt,pendingBefore,pendingKind,pendingLow,spots,spotsAt,spotsTick,threats,tick,track,wasDead unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.DeathStash#lastLavaHit,lastSeen unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.FireRes#anyHeldAt,askedAt,boxDrunkAt,boxHeldAt,burnAt,burnBest,heldAt,lavaAt,lavaSince,routeAt,routeFight,routeHeldAt,routeLetAt,spawnerAt,spawnerSeen,tradedAt,tradedSpawner unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.FuelPolicy#keepLogs,keepPlanks,preferCoal unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.ItemHelper#BED,COPPER_BLOCKS,DIAMOND_ARMORS,GOLDEN_ARMORS,HOSTILE_MOB_DROPS,IRON_ARMORS,LOG,NETHERITE_ARMORS,PLANKS,RAW_FOODS,WOOD_SIGN,WOOL,_fuelTimeMap tables worked out once from the game's data or constants, the same every run
+adris.altoclef.util.helpers.LavaShore#SIDES a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.util.helpers.LavaShore#lastStandable,lastWithLine unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.NightSleepHook#meleeAt,shelterAt,stamp unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.OceanRule#PLAYER unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.PearlHuntHook#stampedAt unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.PhantomScoops#clickedAt,dim,epoch,x,y,z unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.RimRetreat#_firm,_lastLook unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.RunMemory#MEMORIES the registry of the run memories itself
+adris.altoclef.util.helpers.RunZones#INSTANCE unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.ShieldRaise#_handTold,_raises,_told unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.SnowballAim#lastOwnThrow unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.StandModel#SIDES a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.util.helpers.StandModel$World#CELLS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.util.helpers.StationHook#plainAnswers,source the station hook another mod installs, and its switch
+adris.altoclef.util.helpers.StorageHelper#_lastStaleMenuLog diagnostics: log lines, traces, snapshots, their throttles; no decision reads them
+adris.altoclef.util.helpers.Tuning#file,fileTime,lookedAt,props the switches, read from the rig's file; kept on purpose
+adris.altoclef.util.slots.CraftingTableSlot#INPUT_SLOTS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.util.slots.PlayerSlot#ARMOR_SLOTS,CRAFT_INPUT_SLOTS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.world.FrameGeometry#OFFSETS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.world.StrongholdEstimator#RING_COUNTS a constant table (the scan sees an array store beside a read of it)

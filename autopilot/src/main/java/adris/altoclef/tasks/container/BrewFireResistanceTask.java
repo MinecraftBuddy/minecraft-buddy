@@ -76,6 +76,16 @@ public class BrewFireResistanceTask extends ResourceTask {
         _boxStand = at;
     }
 
+    // the stand and the box's stand as a memory of the run (RunMemory): 1 with either known
+    public static int remembered() {
+        return _stand != null || _boxStand != null ? 1 : 0;
+    }
+
+    public static void forgetRun() {
+        forget("a fresh run");
+        _boxStand = null;
+    }
+
     private static void forget(String why) {
         if (_stand != null) Debug.logInternal("brew: stand at " + _stand.toShortString() + " forgotten, " + why);
         _stand = null;

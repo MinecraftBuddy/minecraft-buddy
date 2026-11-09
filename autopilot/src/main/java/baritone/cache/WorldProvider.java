@@ -31,7 +31,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -69,6 +71,89 @@ public class WorldProvider implements IWorldProvider {
      *
      * @param world The new world
      */
+    // the buddy's fork (RunMemory): Baritone's cached world of the server played now, every dimension of it. the folder of the
+    // server is the one above the current dimension's (<baritone>/<server>/<namespace>/<dimension>_<height>), and a dimension
+    // not visited since the game started has its region files there as well
+    private Path serverDir() {
+        WorldData world = this.currentWorld;
+        if (world == null || world.directory.getParent() == null) {
+            return null;
+        }
+        return world.directory.getParent().getParent();
+    }
+
+    private static List<Path> cacheDirs(Path serverDir) {
+        List<Path> out = new ArrayList<>();
+        if (serverDir == null || !Files.isDirectory(serverDir)) {
+            return out;
+        }
+        try (var namespaces = Files.newDirectoryStream(serverDir, Files::isDirectory)) {
+            for (Path ns : namespaces) {
+                try (var dims = Files.newDirectoryStream(ns, Files::isDirectory)) {
+                    for (Path dim : dims) {
+                        if (Files.isDirectory(dim.resolve("cache"))) {
+                            out.add(dim.resolve("cache"));
+                        }
+                    }
+                }
+            }
+        } catch (IOException ignored) {
+        }
+        return out;
+    }
+
+    private List<WorldData> serverWorlds(Path serverDir) {
+        List<WorldData> out = new ArrayList<>();
+        synchronized (worldCache) {
+            for (WorldData w : worldCache.values()) {
+                if (serverDir != null && w.directory.startsWith(serverDir)) {
+                    out.add(w);
+                }
+            }
+        }
+        return out;
+    }
+
+    // the regions in RAM of this server's dimensions, -1 with no world
+    public int cachedRegionsInRam() {
+        Path server = serverDir();
+        if (server == null) {
+            return -1;
+        }
+        int n = 0;
+        for (WorldData w : serverWorlds(server)) {
+            n += w.cache.regionsInRam();
+        }
+        return n;
+    }
+
+    // the region files on disk of this server's dimensions, -1 with no world
+    public int cachedRegionFiles() {
+        Path server = serverDir();
+        if (server == null) {
+            return -1;
+        }
+        int n = 0;
+        for (Path dir : cacheDirs(server)) {
+            n += CachedWorld.regionFiles(dir);
+        }
+        return n;
+    }
+
+    // everything cached of this server forgotten: its dimensions in RAM (CachedWorld.forgetAll) and every region file of it
+    public void forgetServerCache() {
+        Path server = serverDir();
+        if (server == null) {
+            return;
+        }
+        for (WorldData w : serverWorlds(server)) {
+            w.cache.forgetAll();
+        }
+        for (Path dir : cacheDirs(server)) {
+            CachedWorld.deleteRegionFiles(dir);
+        }
+    }
+
     public final void initWorld(Level world) {
         this.getSaveDirectories(world).ifPresent(dirs -> {
             final Path worldDir = dirs.first();

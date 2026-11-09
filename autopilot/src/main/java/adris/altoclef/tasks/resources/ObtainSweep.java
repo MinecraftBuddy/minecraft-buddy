@@ -30,8 +30,30 @@ import net.minecraft.world.level.block.Blocks;
 // seed the server sends: that is a hash only, and an anti-seedcracker sends another one every hour. the world counts as
 // changed only on proof: the game time going back, or a remembered fortress whose chunk is loaded and shows none of its
 // blocks; then that world's memory is forgotten, and the log says which proof it was
-final class ObtainSweep {
+public final class ObtainSweep {
     private static final Map<String, ObtainSweep> BY_WORLD = new HashMap<>();
+
+    // the sweeps in RAM and their files on disk, for any server (RunMemory). a fresh run forgets both
+    public static synchronized int remembered(AltoClef mod) {
+        return BY_WORLD.size() + sweepFiles(mod).size();
+    }
+
+    public static synchronized void forgetRun(AltoClef mod) throws java.io.IOException {
+        BY_WORLD.clear();
+        for (Path f : sweepFiles(mod)) java.nio.file.Files.deleteIfExists(f);
+    }
+
+    private static java.util.List<Path> sweepFiles(AltoClef mod) {
+        Path dir = RunStateStore.resolvePath(mod).getParent();
+        if (dir == null || !java.nio.file.Files.isDirectory(dir)) return java.util.List.of();
+        try (var s = java.nio.file.Files.newDirectoryStream(dir, "obtain-sweep-*.json")) {
+            java.util.List<Path> out = new java.util.ArrayList<>();
+            s.forEach(out::add);
+            return out;
+        } catch (java.io.IOException e) {
+            return java.util.List.of();
+        }
+    }
     // a remembered fortress this far off is walked to before the old search takes over by it (blocks)
     static final int WALK_TO_REMEMBERED = 64;
     // the sightings are scanned this often (ticks), one kind a time

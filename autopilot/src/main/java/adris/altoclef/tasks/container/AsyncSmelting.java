@@ -268,6 +268,11 @@ public final class AsyncSmelting {
         return out;
     }
 
+    // the jobs loaded and not yet taken out (RunMemory)
+    public static int remembered() {
+        return LOADED.size() + (lastWork >= 0 ? 1 : 0);
+    }
+
     // a new run must not inherit a job from the one before it
     public static void clear() {
         LOADED.clear();
