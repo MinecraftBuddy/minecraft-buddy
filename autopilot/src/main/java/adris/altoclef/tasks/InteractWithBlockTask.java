@@ -538,7 +538,7 @@ public class InteractWithBlockTask extends Task {
         Optional<Rotation> reachable = getCurrentReach();
         if (reachable.isPresent() && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
             // a bucket that isn't aimed at the face we asked for gets aimed again instead of clicked, see pourAimOff
-            if (LookHelper.isLookingAt(mod, _target) && !pourAimOff(mod)) {
+            if (LookHelper.isLookingAt(mod, _target) && !pourAimOff(mod) && !placeAimOff(mod)) {
                 if (_toUse != null) {
                     boolean equipped = mod.getSlotHandler().forceEquipItem(_toUse, false);
                     if (ItemTarget.nullOrEmpty(_toUse) || equipped) {
@@ -560,6 +560,7 @@ public class InteractWithBlockTask extends Task {
                     if (_scoop) {
                         watchScoop(mod);
                     }
+                    _placeAimOff = 0;
                     return ClickResponse.CLICK_ATTEMPTED;
                 }
                 //mod.getClientBaritone().getInputOverrideHandler().setInputForceState(_interactInput, true);
@@ -612,6 +613,36 @@ public class InteractWithBlockTask extends Task {
         // again lands on the same one forever, so for those the block has to do
         boolean fullCube = Block.isShapeFullBlock(mod.getWorld().getBlockState(_target).getShape(mod.getWorld(), _target));
         return !BucketPour.aimedRight(hit.getBlockPos(), hit.getDirection(), _target, fullCube ? _direction : null);
+    }
+
+    // (the buddy's fork: a block click made onlyWith, the pillbox's and the brew box's, goes on the face asked for. the crosshair
+    // on the right block was enough, so a roof click whose ray met the underside of the block it builds on put the block in the
+    // cell below: the brew box's cell B got netherrack in its head and the box never shut, three tries, the run dead without
+    // its potion (realfort-p4-cream2-mc2, lane t1 run 1, 9 Nov 2026). on a block that is no full cube the aimed point may lie
+    // on another face, so there the block has to do, as for a pour. after PLACE_AIM_TRIES ticks aimed off the click goes as
+    // before: no build waits forever on a face it cannot get)
+    static final int PLACE_AIM_TRIES = 40;
+    private int _placeAimOff;
+
+    private boolean placeAimOff(AltoClef mod) {
+        if (!_onlyWith || _direction == null || _scoop || ItemTarget.nullOrEmpty(_toUse)) {
+            return false;
+        }
+        if (!Block.isShapeFullBlock(mod.getWorld().getBlockState(_target).getShape(mod.getWorld(), _target))) {
+            return false;
+        }
+        HitResult hit = mod.getClientBaritone().getPlayerContext().objectMouseOver();
+        boolean right = hit instanceof BlockHitResult b && b.getType() == HitResult.Type.BLOCK && b.getBlockPos().equals(_target)
+                && b.getDirection() == _direction;
+        if (right) {
+            _placeAimOff = 0;
+            return false;
+        }
+        if (++_placeAimOff == PLACE_AIM_TRIES) {
+            Debug.logInternal("click: the face " + _direction + " of " + _target.toShortString() + " not met in " + PLACE_AIM_TRIES
+                    + " ticks, clicked as aimed");
+        }
+        return _placeAimOff < PLACE_AIM_TRIES;
     }
 
     // a bucket with something in it. the empty one scoops, that's a different click

@@ -124,7 +124,9 @@ public final class BrewBox {
         int fx = x + a[0], fz = z + a[1];
         // (across a: the sides of the two cells)
         int[] p = {a[1], a[0]};
-        if (!BlazeCover.walkable(stand, x, y, z)) return no("no floor or room for B, " + stand.at(x, y - 1, z) + " under it");
+        // (what is in B as well as under it: a block in B's head read as the floor's fault, 9 Nov 2026)
+        if (!BlazeCover.walkable(stand, x, y, z)) return no("no floor or room for B, " + stand.at(x, y - 1, z) + " under it, "
+                + stand.at(x, y, z) + " and " + stand.at(x, y + 1, z) + " in it");
         if (!BlazeCover.walkable(stand, fx, y, fz)) return no("no floor or room for F, " + stand.at(fx, y - 1, fz) + " under it, "
                 + stand.at(fx, y, fz) + " and " + stand.at(fx, y + 1, fz) + " in it");
         // (and room in the world's own reading: a cell Baritone keeps off is no cell for the box either)

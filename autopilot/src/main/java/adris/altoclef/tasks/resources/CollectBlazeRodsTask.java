@@ -383,12 +383,27 @@ public class CollectBlazeRodsTask extends ResourceTask {
     protected Task onTick(AltoClef mod) {
         _rodWatch.tick(mod);
         rushTick(mod);
+        reserveStandStone(mod);
         if (_brewBox != null) _brewBox.noteHits(mod);
         if (_healBox != null) _healBox.noteHits(mod);
         // (the buddy's fork, Tuning rod_snowball: the blazes' points for the lead, the kills and the strategy's two ends, on a
         // pickup's ticks too)
         if (RodSnowball.on()) _snow.watch(mod);
         return super.onTick(mod);
+    }
+
+    // (the buddy's fork, Tuning brew_keep_stone: the stand's stone kept from Baritone's walks too. the pillbox builder kept the
+    // last three, but the bridges and pillars on the way to the spawner and in the fight took cobblestone first, 32 to 62 of it
+    // a run, so the stand's craft went mining for stone out of a built brew box, and the fight and the mining took turns till
+    // the buddy burned or stalled (realfort-p4-cream2-mc2, 4 of the 10 runs that reached the brew, 9 Nov 2026). reserved while
+    // no stand is in the bag and a brew is still to come, in this task's own level; a reserved item comes after the others in a
+    // walk's block order, so the walks bridge with netherrack first. 0 lifts the count, the stone then free to build with)
+    private void reserveStandStone(AltoClef mod) {
+        if (behaviourLevel() == null) return;
+        int keep = adris.altoclef.util.helpers.RouteRules.keepStone();
+        boolean brewToCome = !_brewGaveUp && !mod.getItemStorage().hasItem(Items.BREWING_STAND)
+                && PotionHelper.count(mod, Potions.WATER) + PotionHelper.count(mod, Potions.AWKWARD) > 0;
+        mod.getBehaviour().reserveProtectedItems(behaviourLevel(), java.util.Map.of(Items.COBBLESTONE, keep > 0 && brewToCome ? keep : 0));
     }
 
     // the camp's point the snowballs are thrown from (RodSnowball): the crowd's hiding place, a standing pillbox's cell, the camp

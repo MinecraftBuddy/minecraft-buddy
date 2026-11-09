@@ -68,6 +68,12 @@ public abstract class ResourceTask extends Task implements ITaskCanForce {
     // our own behaviour level. the reserve goes in here and not in whatever is on top, a child task pushes its own on every
     // tick of ours and the numbers used to land in it (and count twice)
     private BotBehaviour.State _level;
+
+    // the behaviour level this task pushed at its start (null before it and after its stop): a subclass's own reserves go
+    // into it, as the target's do, never into a child's level on top
+    protected BotBehaviour.State behaviourLevel() {
+        return _level;
+    }
     // a throwaway dig (building blocks) must not hold its own targets back from the movements: the blocks exist to be placed,
     // and a hold of the full count on every one of them left the pathing unable to place anything while it dug
     private boolean _noReserve = false;
