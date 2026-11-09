@@ -75,7 +75,11 @@ dependencies {
 tasks.register('autopilot', Exec) {
 	description = 'Builds the autopilot jar (autopilot/fabric/build/libs).'
 	workingDir file('autopilot')
-	commandLine './gradlew', ':fabric:build', '-x', 'test', '-Prelease_version=1.1.6'
+	// (-PunoptimizedOnly passed on: the jar compiled against here is the unoptimized one, and ProGuard's passes take
+	// minutes on a slow core)
+	def args = ['./gradlew', ':fabric:build', '-x', 'test', '-Prelease_version=1.1.6']
+	if (project.hasProperty('unoptimizedOnly')) args += '-PunoptimizedOnly'
+	commandLine args
 	inputs.files(fileTree('autopilot') {
 		exclude '**/build/**', '.gradle/**', 'run/**'
 	})
