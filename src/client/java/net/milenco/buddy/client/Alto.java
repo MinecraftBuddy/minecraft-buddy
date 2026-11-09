@@ -466,6 +466,34 @@ final class Alto {
 	private static long foodOffUntil;
 	private static int quickDone;
 
+	/** The food task held off, or a quick end counted (RunMemories). */
+	static int foodOffKept() { return (foodOffUntil > System.currentTimeMillis() ? 1 : 0) + quickDone; }
+
+	static void forgetFoodOff() { foodOffUntil = 0; quickDone = 0; }
+
+	// ---------- the run's memory (the autopilot's RunMemory) ----------
+
+	/** The autopilot's fresh_run switch as its file says now: each run a first visit (the practice rig). Off without it. */
+	static boolean freshRun() {
+		return present() && adris.altoclef.util.helpers.RunMemory.freshRun();
+	}
+
+	private static boolean memoriesIn;
+
+	/**
+	 * An obtain order starts: the buddy's own memories go into the autopilot's registry (the first time), its measure line
+	 * becomes the event run_memory, and on a fresh run everything registered is forgotten before the order's first tick.
+	 * Without the autopilot nothing happens.
+	 */
+	static void orderStart() {
+		if (!present()) return;
+		if (!memoriesIn) {
+			memoriesIn = true;
+			for (RunMemories.Memory m : RunMemories.ALL) adris.altoclef.util.helpers.RunMemory.register(m.name(), m.size(), m.clear(), m.fields());
+		}
+		Exchange.emit("run_memory", adris.altoclef.util.helpers.RunMemory.orderStart("obtain"));
+	}
+
 	/** The things a step for food gathers: AltoClef's food task does that better than a hunt for one kind. */
 	private static final java.util.Set<String> FOODISH = new java.util.HashSet<>(ObtainKit.ANY_FOOD);
 	static {

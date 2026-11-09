@@ -667,6 +667,16 @@ final class ObtainSafe {
 	private record Thrown(String id, net.minecraft.world.phys.Vec3 at, long when) {}
 	private static final java.util.List<Thrown> THROWN = new java.util.ArrayList<>();
 
+	/** The bed refused and the junk thrown away, kept past an order (RunMemories). */
+	static synchronized int remembered() {
+		return THROWN.size() + (bedRefusedUntil > System.currentTimeMillis() ? 1 : 0);
+	}
+
+	static synchronized void forgetRun() {
+		THROWN.clear();
+		bedRefusedUntil = 0;
+	}
+
 	/** Junk the buddy threw away here: no step picks it up again. */
 	static void threw(String id, net.minecraft.world.phys.Vec3 at) {
 		long now = System.currentTimeMillis();

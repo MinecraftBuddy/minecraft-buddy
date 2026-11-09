@@ -294,6 +294,18 @@ The mode is practised on a local server, where a death costs nothing. What such 
   which wins.
 - Paper's anti-xray (engine mode 2) on the practice server shows whether the search holds up on a real server.
 
+A practice server that puts its world back after each run while the game plays on would let one run use what the run
+before it learnt. With `fresh_run=1` in the autopilot's `tuning.properties` (read again at each order's start), every
+order starts as a first visit: the autopilot's known block positions, portals used, land and water chunks, bans, Baritone's
+cached world of that server (in memory and its region files on disk), the brewing stand and portal frame it keeps, the
+route's marks, the fortress sweep and its files, and the buddy's own marks (the portal room, the last open sky, failures,
+bad stands, a bed refused, junk thrown) are forgotten, and an order left open at a disconnect is not taken up. Off by
+default: a buddy on a real server keeps what it learnt. Every order's start writes one `run_memory` event either way:
+each memory's size before anything is cleared, the positions known of nether wart, spawners, portals, chests, brewing
+stands and a few stations, the farthest wart known, Baritone's regions in memory and region files on disk, and whether it
+was cleared. A memory that can outlive an order is one registration (`RunMemory` in the autopilot, `RunMemories` in the
+buddy); a guard test fails on a new static that is neither registered nor allowed with a reason.
+
 ## Notes for developers
 
 - The client jar carries `data/minecraft` (recipes, loot tables, tags): no recipe has to come from the server, which

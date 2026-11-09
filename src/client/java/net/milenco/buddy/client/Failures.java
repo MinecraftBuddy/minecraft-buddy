@@ -53,6 +53,15 @@ final class Failures {
 		return true;
 	}
 
+	/** The counts, blocks and strikes kept, for a whole day (RunMemories). */
+	static int remembered() { return COUNTS.size() + BLOCKED.size() + STRIKES.size(); }
+
+	static void forgetRun() {
+		COUNTS.clear();
+		BLOCKED.clear();
+		STRIKES.clear();
+	}
+
 	/** It worked: start counting again. */
 	static void succeeded(String what) {
 		COUNTS.remove(what);

@@ -1665,6 +1665,11 @@ final class Work {
 	/** A cell that got the buddy nowhere: no spot for a minute (a chore's own spots, which are no standCell). */
 	static void badStand(BlockPos c) { badStand.put(c.immutable(), System.currentTimeMillis() + 60_000); }
 
+	/** The cells kept as bad stands (RunMemories). */
+	static int badStands() { return badStand.size(); }
+
+	static void forgetBadStands() { badStand.clear(); }
+
 	static boolean badStandAt(BlockPos c) { Long until = badStand.get(c); return until != null && until > System.currentTimeMillis(); }
 
 	/**

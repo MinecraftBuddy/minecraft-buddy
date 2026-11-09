@@ -144,6 +144,11 @@ final class Obtain {
 		if (on()) { if (exec != null) exec.stop(); exec = null; step = null; return; }
 		try {
 			if (!java.nio.file.Files.exists(file())) return;
+			if (Alto.freshRun()) {
+				java.nio.file.Files.deleteIfExists(file());
+				Exchange.emit("obtain", "action", "not resumed", "why", "a fresh run");
+				return;
+			}
 			JsonObject o = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(file())).getAsJsonObject();
 			start(o.get("item").getAsString(), o.get("count").getAsInt(), o.has("by") ? o.get("by").getAsString() : null);
 			if (o.has("since")) since = o.get("since").getAsLong();
@@ -249,6 +254,8 @@ final class Obtain {
 		Alto.kitReset();
 		LocalPlayer p = AfkHelperClient.mc().player;
 		if (on()) stop("a new order");
+		// what this order starts with, one event, and on a fresh run (the practice rig) all of it forgotten first
+		Alto.orderStart();
 		item = it;
 		count = n;
 		by = who;
@@ -1275,6 +1282,25 @@ final class Obtain {
 
 	/** The stronghold's portal room, once a frame of it was seen (kept for the order; a new connection forgets it). */
 	static BlockPos portalRoom;
+
+	/** The marks that outlive an order (RunMemories): the portal room, the last open sky, the stall's and the swim's watch. */
+	static int remembered() {
+		return (portalRoom != null ? 1 : 0) + (lastSky != null ? 1 : 0) + (lastPos != null ? 1 : 0) + (wetPos != null ? 1 : 0);
+	}
+
+	/** An order on disk with none under way: one left open at a disconnect, taken up by newConnection (RunMemories). */
+	static int openOrder() { return !on() && java.nio.file.Files.exists(file()) ? 1 : 0; }
+
+	static void forgetOpenOrder() {
+		try { if (!on()) java.nio.file.Files.deleteIfExists(file()); } catch (java.io.IOException ignored) {}
+	}
+
+	static void forgetRun() {
+		portalRoom = lastSky = lastPos = null;
+		lastSkyDim = null;
+		wetPos = null;
+		lastMovedAt = retryAt = scanWaitFrom = nextThrow = wetMovedAt = 0;
+	}
 
 	/**
 	 * Before the fight of Follow's chain: monsters it cannot win against are run from (ObtainSafe.outmatched), and the
