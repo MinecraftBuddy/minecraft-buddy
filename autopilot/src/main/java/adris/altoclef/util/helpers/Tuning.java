@@ -23,6 +23,9 @@ public final class Tuning {
             java.util.Map.entry("cream_wild", 1.0),
             java.util.Map.entry("fireproof_camp", 1.0),
             java.util.Map.entry("fireproof_side", 1.0),
+            // (on by his word, 9 Nov 2026: a restart of the chunk search keeps what it explored through a fight; the A/B block
+            // realfort-pair-keep ended inconclusive on the spawner seen, its side numbers all the same way. ChunkCommitRules)
+            java.util.Map.entry("chunk_search_keep", 1.0),
             // (the route, steering 118: the fire resistance trade before the fortress)
             java.util.Map.entry("fr_trade", 1.0),
             // (confirmed 8 Nov 2026, realfort-pair-tsure2 at look 2: a potion 17 against 30 of 59 pairs, z 2.84)

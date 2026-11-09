@@ -21,7 +21,7 @@ public final class ChunkCommitRules {
         return committed && inList && !givenUp && !loaded;
     }
 
-    // Tuning chunk_search_keep, off by default: whether a restart of the chunk search keeps what it had (its searcher, the
+    // Tuning chunk_search_keep, on by default since 9 Nov 2026: whether a restart of the chunk search keeps what it had (its searcher, the
     // chunks it explored). a fight or another chain breaking in restarts the search task, and the restart used to wipe it:
     // a fortress whose chunks had gone out of load range was searched for from nothing again. on: kept while the dimension
     // is the one it was gathered in and there is something to keep; a new order (a new instance) or another dimension
