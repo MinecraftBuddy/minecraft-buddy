@@ -106,7 +106,7 @@ adris.altoclef.util.helpers.OceanRule#PLAYER unreviewed at 33b6aca: a time stamp
 adris.altoclef.util.helpers.PearlHuntHook#stampedAt unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
 adris.altoclef.util.helpers.PhantomScoops#clickedAt,dim,epoch,x,y,z unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
 adris.altoclef.util.helpers.RimRetreat#_firm,_lastLook unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
-adris.altoclef.util.helpers.RunMemory#MEMORIES the registry of the run memories itself
+adris.altoclef.util.helpers.RunMemory#MEMORIES,lastToken the registry of the run memories itself, and the run token cleared last
 adris.altoclef.util.helpers.RunZones#INSTANCE unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
 adris.altoclef.util.helpers.ShieldRaise#_handTold,_raises,_told unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
 adris.altoclef.util.helpers.SnowballAim#lastOwnThrow unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was

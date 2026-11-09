@@ -39,9 +39,37 @@ public final class RunMemory {
         return new ArrayList<>(MEMORIES.values());
     }
 
-    // the switch as the file says it now (the rig writes it just before the order)
+    // the run token cleared last: an order that sees the same token again (the rig's ORDER2, a second order in the same run)
+    // keeps what the run's first order learnt
+    private static double lastToken;
+
+    // the switch as the file says it now (the rig writes it just before the run). 0: off. 1: every order starts fresh.
+    // above 1: a run token (the rig writes the run's start in seconds), and only the first order that sees a token starts
+    // fresh
     public static boolean freshRun() {
         return Tuning.now(SWITCH, 0) > 0;
+    }
+
+    // whether the switch names a run this client has not started fresh yet (no change): an order left open at a disconnect
+    // belongs to an earlier run then, and is not taken up; within the same run (a kick, a lost connection) it is
+    public static synchronized boolean newRun() {
+        double value = Tuning.now(SWITCH, 0);
+        return value > 0 && (value <= 1 || value != lastToken);
+    }
+
+    // whether this order clears: the switch on, and for a run token only once per token
+    static synchronized boolean clearsNow(double value) {
+        if (value <= 0) {
+            return false;
+        }
+        if (value <= 1) {
+            return true;
+        }
+        if (value == lastToken) {
+            return false;
+        }
+        lastToken = value;
+        return true;
     }
 
     // each memory's size, in the order registered; -1 for one whose size could not be read (no game, a world going away)
@@ -63,9 +91,13 @@ public final class RunMemory {
     // and with fresh_run on all of it forgotten. the fields of the measure line: each memory's size under "memory", the
     // positions known per block, the farthest wart known, Baritone's regions in RAM and region files on disk, and cleared
     public static Map<String, Object> orderStart(String source) {
-        boolean fresh = freshRun();
+        double value = Tuning.now(SWITCH, 0);
+        boolean fresh = clearsNow(value);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("source", source);
+        if (value > 1 && !fresh) {
+            out.put("same_run", true);
+        }
         out.put("memory", sizes());
         try {
             out.putAll(RunMemoryFork.measure());

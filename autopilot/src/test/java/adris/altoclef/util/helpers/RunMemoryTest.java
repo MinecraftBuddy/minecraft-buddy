@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 // the registry of the run memories: a size per name, every clear run, one that throws hides neither the rest nor their sizes.
@@ -48,5 +49,17 @@ public class RunMemoryTest {
                 "land_steers", "legit_mine_y", "route", "obtain_sweep")) {
             assertTrue(n + " registered", names.contains(n));
         }
+    }
+
+    @Test
+    public void aRunTokenClearsOncePerRun() {
+        // off, and 1 clears every order
+        assertFalse(RunMemory.clearsNow(0));
+        assertTrue(RunMemory.clearsNow(1));
+        assertTrue(RunMemory.clearsNow(1));
+        // a token: the run's first order clears, its ORDER2 does not, the next run's first order does
+        assertTrue(RunMemory.clearsNow(1762718400));
+        assertFalse(RunMemory.clearsNow(1762718400));
+        assertTrue(RunMemory.clearsNow(1762719300));
     }
 }

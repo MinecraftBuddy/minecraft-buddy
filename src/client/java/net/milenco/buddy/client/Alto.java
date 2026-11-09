@@ -473,9 +473,12 @@ final class Alto {
 
 	// ---------- the run's memory (the autopilot's RunMemory) ----------
 
-	/** The autopilot's fresh_run switch as its file says now: each run a first visit (the practice rig). Off without it. */
-	static boolean freshRun() {
-		return present() && adris.altoclef.util.helpers.RunMemory.freshRun();
+	/**
+	 * The autopilot's fresh_run switch (each run a first visit, the practice rig) on and naming a run not yet started fresh:
+	 * an order left open at a disconnect belongs to an earlier run. Off without the autopilot.
+	 */
+	static boolean freshNewRun() {
+		return present() && adris.altoclef.util.helpers.RunMemory.newRun();
 	}
 
 	private static boolean memoriesIn;

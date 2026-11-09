@@ -144,9 +144,9 @@ final class Obtain {
 		if (on()) { if (exec != null) exec.stop(); exec = null; step = null; return; }
 		try {
 			if (!java.nio.file.Files.exists(file())) return;
-			if (Alto.freshRun()) {
+			if (Alto.freshNewRun()) {
 				java.nio.file.Files.deleteIfExists(file());
-				Exchange.emit("obtain", "action", "not resumed", "why", "a fresh run");
+				Exchange.emit("obtain", "action", "not resumed", "why", "an earlier run's order");
 				return;
 			}
 			JsonObject o = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(file())).getAsJsonObject();
