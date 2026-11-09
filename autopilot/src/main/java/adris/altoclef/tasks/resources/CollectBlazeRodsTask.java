@@ -1024,6 +1024,28 @@ public class CollectBlazeRodsTask extends ResourceTask {
         return net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath();
     }
 
+    // what a cube left for "floor" over air is, for the count line (route jar 9, 9 Nov 2026: realfort-route-6's errand
+    // count lines left cubes for "floor" 648 times, 450 of them over air, and the cream came in 5 of 16 runs at phase 4):
+    // "edge" a block under the cube's box with its middle over air (a wide cube on a bridge's rim), "high" ground within 12
+    // under its middle but further than the walk-down looked (a cube jumping high), "deep" none within 12 (falling, or over
+    // the open nether)
+    static String creamAirKind(AltoClef mod, MagmaCube cube, boolean anyLevel) {
+        var world = mod.getWorld();
+        var box = cube.getBoundingBox();
+        int y = net.minecraft.util.Mth.floor(box.minY - 0.01);
+        for (int x = net.minecraft.util.Mth.floor(box.minX); x <= net.minecraft.util.Mth.floor(box.maxX - 1e-6); x++) {
+            for (int z = net.minecraft.util.Mth.floor(box.minZ); z <= net.minecraft.util.Mth.floor(box.maxZ - 1e-6); z++) {
+                BlockPos p = new BlockPos(x, y, z);
+                if (!world.getBlockState(p).getCollisionShape(world, p).isEmpty()) return "edge";
+            }
+        }
+        BlockPos at = creamCubeAt(mod, cube, anyLevel);
+        for (int i = 2; i <= 12; i++) {
+            if (!world.getBlockState(at.below(i)).isAir()) return "high";
+        }
+        return "deep";
+    }
+
     // the alone rule's verdict on a cube (Tuning route_cube_alone), null with the rule off or the cube fit by it
     static String cubeAloneWhyNot(AltoClef mod, MagmaCube cube) {
         double radius = adris.altoclef.util.helpers.RouteRules.cubeAlone();
@@ -1062,6 +1084,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         java.util.List<Integer> dys = new java.util.ArrayList<>();
         // (route jar 8: what the cubes left for "floor" stand over, so the floor rule's refusals can be told apart)
         java.util.Map<String, Integer> under = new java.util.TreeMap<>();
+        java.util.Map<String, Integer> air = new java.util.TreeMap<>();
         for (MagmaCube c : mod.getEntityTracker().getTrackedEntities(MagmaCube.class)) {
             if (!c.isAlive()) continue;
             double d = c.distanceTo(us);
@@ -1082,11 +1105,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
             if (no == null && errand && !CollectMagmaCreamTask.wayTo(mod, c)) no = "no walk";
             if (no == null) fit++;
             else why.merge(no, 1, Integer::sum);
-            if ("floor".equals(no)) under.merge(creamFloorKind(mod, c, errand), 1, Integer::sum);
+            if ("floor".equals(no)) {
+                String kind = creamFloorKind(mod, c, errand);
+                under.merge(kind, 1, Integer::sum);
+                // (route jar 9: an air floor told apart, its size and whether the server says it is on the ground)
+                if ("air".equals(kind)) air.merge(creamAirKind(mod, c, errand) + (c.onGround() ? "-ground" : "") + "-s" + c.getSize(), 1, Integer::sum);
+            }
             if ((errand || "level".equals(no)) && dys.size() < 8) dys.add((int) Math.round(c.getY() - us.getY()));
         }
         Debug.logInternal("cream: " + near + " cubes within " + (int) range + " (" + fit + " fit" + (why.isEmpty() ? "" : ", left " + why)
-                + (under.isEmpty() ? "" : ", the floor's " + under) + (dys.isEmpty() ? "" : ", dy " + dys) + "), " + far + " more within 64, " + small + " tiny; rods " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
+                + (under.isEmpty() ? "" : ", the floor's " + under) + (air.isEmpty() ? "" : ", air " + air) + (dys.isEmpty() ? "" : ", dy " + dys) + "), " + far + " more within 64, " + small + " tiny; rods " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
     }
 
     // the buddy's fork, Tuning brew_errand, on by default since the route (steering 118): the cream and the wart before the spawner fight, so the first two
