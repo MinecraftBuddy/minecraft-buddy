@@ -486,6 +486,11 @@ final class Alto {
 		return present() && adris.altoclef.util.helpers.Tuning.get("tick_log", 0) > 0;
 	}
 
+	/** The autopilot's sight_log switch: things seen on the way written as events (Sightings, the practice rig). */
+	static boolean sightLog() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("sight_log", 0) > 0;
+	}
+
 	private static boolean memoriesIn;
 
 	/**

@@ -29,5 +29,8 @@ final class RunMemories {
 		new Memory("failures", () -> Failures.remembered(), () -> Failures.forgetRun(), C + "Failures#COUNTS", C + "Failures#BLOCKED",
 			C + "Failures#STRIKES"),
 		// the cells a walk got no closer to
-		new Memory("bad_stands", () -> Work.badStands(), () -> Work.forgetBadStands(), C + "Work#badStand"));
+		new Memory("bad_stands", () -> Work.badStands(), () -> Work.forgetBadStands(), C + "Work#badStand"),
+		// the slimes and swamps seen on the way (Sightings), a log for the rig, this run only
+		new Memory("sightings", () -> Sightings.remembered(), () -> Sightings.forgetRun(), C + "Sightings#SEEN",
+			C + "Sightings#SWAMPS"));
 }

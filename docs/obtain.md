@@ -314,6 +314,10 @@ longest tick of those 20 in ms (the whole client tick, the autopilot's work and 
 the ticks a second it managed and its frames a second. A practice rig reads it to tell a slow machine from slow work; off
 by default.
 
+With `sight_log=1` there too, the buddy writes one `seen` event for each slime and each swamp newly in view during an order:
+where, the slime's size, how far, the biome. A practice rig reads them to see how often a slime comes by on the way; the
+buddy does nothing with them, and what was seen is forgotten with the run's other memories. Off by default.
+
 ## Notes for developers
 
 - The client jar carries `data/minecraft` (recipes, loot tables, tags): no recipe has to come from the server, which

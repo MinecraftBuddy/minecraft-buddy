@@ -567,6 +567,7 @@ public class AfkHelperClient implements ClientModInitializer {
 		Profiles.tick(mc);
 		Details.tick(mc);
 		World3d.tick(mc);
+		Sightings.tick(mc);
 
 		long now = System.currentTimeMillis();
 		// first take out the jobs that are due, only then run them:
