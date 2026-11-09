@@ -73,6 +73,18 @@ public final class Tuning {
             java.util.Map.entry("route_errand_near", 80.0),
             java.util.Map.entry("route_wart_walk", 1.0),
             java.util.Map.entry("route_cube_id", 1.0),
+            // (route jar 7, 9 Nov 2026: the errand's cube hunt takes a cube of size 2 alone within 6 with the buddy at 14 hp
+            // or more, 0 any cube; the trade walks off a magma cube within 6, 0 it stands; the last 3 of the stand's stone
+            // never go into a box while no stand is made, 0 cobblestone first; the hiding place goes in and out by one
+            // range, 20, 0 in by 32; a potion thrown by lava is fetched from a cell with no lava beside it, 0 given up; the
+            // splash potion thrown over the mob defense when the way's rule lets it go burning, 0 by the rods task alone.
+            // RouteRules, BlazeFightRules, ItemPickupRules, FireResTrade.burnThrow)
+            java.util.Map.entry("route_cube_alone", 6.0),
+            java.util.Map.entry("route_trade_cube", 6.0),
+            java.util.Map.entry("brew_keep_stone", 3.0),
+            java.util.Map.entry("hide_one_range", 1.0),
+            java.util.Map.entry("route_potion_edge", 1.0),
+            java.util.Map.entry("route_way_throw", 1.0),
             java.util.Map.entry("route_exit", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),

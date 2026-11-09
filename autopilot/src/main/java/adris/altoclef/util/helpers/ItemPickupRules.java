@@ -202,6 +202,45 @@ public final class ItemPickupRules {
         return false;
     }
 
+    // (Tuning route_potion_edge, route jar 7) a stand to grab a drop by lava from: a cell the drop is in pickup reach of, dry
+    // and standable, with no lava in it, under it, nor in the four cells beside it at the feet and the floor's level (the
+    // step that lands in it). lava on a diagonal or further is the walk's business, never one step off. the stand nearest
+    // the drop, null with none. lavaBlocksPickup asks more (no lava within a block on any side, two levels), which left a
+    // fire resistance potion thrown on a lava pool's edge lying for good while the trade handed its last 7 ingots
+    public static int[] edgeStand(Terrain t, Lava lava, double x, double y, double z) {
+        int bx = (int) Math.floor(x);
+        int by = (int) Math.floor(y);
+        int bz = (int) Math.floor(z);
+        int[] best = null;
+        double bestD = Double.POSITIVE_INFINITY;
+        for (int sx = bx - 1; sx <= bx + 1; sx++) {
+            if (Math.abs(x - (sx + 0.5)) > REACH_XZ) continue;
+            for (int sz = bz - 1; sz <= bz + 1; sz++) {
+                if (Math.abs(z - (sz + 0.5)) > REACH_XZ) continue;
+                for (int sy = by - 3; sy <= by + 1; sy++) {
+                    if (y < sy - REACH_BELOW || y > sy + REACH_ABOVE) continue;
+                    if (!standable(t, sx, sy, sz) || !edgeSafe(lava, sx, sy, sz)) continue;
+                    double d = Math.pow(x - (sx + 0.5), 2) + Math.pow(z - (sz + 0.5), 2) + Math.pow(y - sy, 2);
+                    if (d < bestD) {
+                        bestD = d;
+                        best = new int[]{sx, sy, sz};
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    // no lava in the cell, under it, or a step beside it (feet level and the floor's level)
+    static boolean edgeSafe(Lava lava, int x, int y, int z) {
+        if (lava.at(x, y, z) || lava.at(x, y - 1, z) || lava.at(x, y + 1, z)) return false;
+        int[][] sides = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int[] s : sides) {
+            if (lava.at(x + s[0], y, z + s[1]) || lava.at(x + s[0], y - 1, z + s[1])) return false;
+        }
+        return true;
+    }
+
     private static boolean standable(Terrain t, int x, int y, int z) {
         return t.solid(x, y - 1, z) && t.open(x, y, z) && t.open(x, y + 1, z);
     }

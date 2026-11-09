@@ -140,17 +140,20 @@ gate lacks is fetched by safer steps first, all of it planned together.
      widens until all the gold is handed. It stops early only after ten minutes with no piglin known (one seen free to
      take gold in the last minute and a half), or twenty with piglins about and none taking gold. A piglin is passed
      over only while a hoglin is within 12 blocks of it or of the buddy: by a piglin just seen free the buddy waits, and
-     fights a hoglin that comes. A piglin the buddy cannot get to in a minute is left alone. A magma cube seen on the
-     way is killed for its cream.
+     fights a hoglin that comes. A piglin the buddy cannot get to in a minute is left alone. With a magma cube within 6
+     blocks the buddy hands no gold and walks away from the cubes first. A potion thrown beside lava is fetched from a
+     block with no lava next to it. A magma cube seen on the way is killed for its cream.
   3. To the fortress for a nether wart and a magma cream, both. A magma cube in sight is hunted first, and kept after
      until it is dead or out of reach; then a nether wart the buddy knows of, however far off: the buddy walks straight
      to it and breaks it, and gives it up only after a minute with no step closer, or half a minute beside it unbroken.
      With nothing in sight at the fortress, the buddy walks round the spawner in three rings, 20, 40 and 60 blocks out,
      to see more of it. This ends with both in the bag, or when the rings are walked or ten minutes pass at the fortress
-     (within 80 blocks of the spawner) with neither found.
+     (within 80 blocks of the spawner) with neither found. For its cream the buddy hunts only a medium magma cube with
+     no other cube within 6 blocks of it, and only at 14 health or more; it leaves a field of cubes alone.
   4. The first two blaze rods, at the spawner with no pillbox while the potion is kept. The potion goes down when the
      blazes come at the spawner, not for a blaze on the way.
-  5. Shut in the pillbox by the spawner, the brew of three potions of fire resistance.
+  5. Shut in the pillbox by the spawner, the brew of three potions of fire resistance. Until the brewing stand is
+     made, the last three cobblestone (or blackstone) in the bag are kept for it and never built into a box.
   6. The rest of the rods under the brewed potions. The order's count stays in the bag; the two rods for the stand
      and its fuel come on top.
   7. Back to the overworld through the nearest portal seen. The order is done there. With no portal known, it ends in
@@ -158,7 +161,7 @@ gate lacks is fetched by safer steps first, all of it planned together.
   When the gold gives no potion, the buddy fetches the cream and the wart, gets the first two rods without the potion,
   then brews as above. Without the cream or the wart, there is no brew: the rest of the rods come without it. A potion
   kept for the blazes goes down on the way only when life is at stake: in lava for two seconds or at 12 health, or
-  burning at 10. At the spawner it goes down in lava at once, or when the buddy burns and the health falls. No pillbox
+  burning at 10, a thrown one in the middle of a fight too. At the spawner it goes down in lava at once, or when the buddy burns and the health falls. No pillbox
   goes up where nearly every blaze would see it built: the buddy builds one out of the spawner's range where one fits,
   and otherwise fights from the open. A ghast's fireball is punched back only while it is more than about three blocks
   off; closer, the shield goes up. With a ghast in sight, or one seen in the last three seconds, the buddy neither

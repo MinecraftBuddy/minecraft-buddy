@@ -173,6 +173,13 @@ public class WorldSurvivalChain extends SingleTaskChain {
                 && holdEscape(escape.clearOfLava(mod), mod.getWorld().getGameTime() - _lastLavaTick)) {
             return 100;
         }
+        // (route jar 7, Tuning route_way_throw: burning on the way at the way rule's health, the splash potion goes down over
+        // the mob defense, FireResTrade.burnThrow)
+        Task burn = adris.altoclef.tasks.resources.FireResTrade.burnThrow(mod);
+        if (burn != null) {
+            setTask(burn);
+            return 100;
+        }
 
         // Sand or gravel landed on us. it is 1 damage every half second for as long as our eyes are in it, so it goes
         // before anything polite. the task knows to dig rather than step aside when the block is the one we stand in

@@ -10,6 +10,18 @@ public final class BlazeFightRules {
     public static final double MELEE_RANGE = 3;
     // past this a blaze is background noise for a fight: not worth a look, not worth the walk. it can still hit us, see FIRE_RANGE
     public static final double SIGHT_RANGE = 20;
+
+    // how far a shooter with a line on us counts toward a hiding place (BlazeFight's crowd score). the way out of hiding
+    // counts every shooter within SIGHT_RANGE, the way in counted those with a line within BlazeCover.SIGHT, 32: blazes
+    // at 26 to 30 blocks put the buddy into a pocket and out of it 19 times in 180 s (route jar 6's run 6, row L32). with
+    // Tuning hide_one_range (on by default, route jar 7) both ways count to SIGHT_RANGE; off, the way in counts to 32
+    public static double hideRange() {
+        return hideRange(Tuning.get("hide_one_range", 0) > 0);
+    }
+
+    public static double hideRange(boolean oneRange) {
+        return oneRange ? SIGHT_RANGE : BlazeCover.SIGHT;
+    }
     // a blaze shoots whatever it has a line on inside its follow range, 48 in the 26.3 jar. the spread gets wide out there but
     // fireballs still land, and the burn does the rest
     public static final double FIRE_RANGE = 48;

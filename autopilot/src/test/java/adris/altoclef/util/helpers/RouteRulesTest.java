@@ -319,4 +319,68 @@ public class RouteRulesTest {
         assertTrue(BlazePillbox.tooOpen(0.9));
         assertFalse(BlazePillbox.tooOpen(0.5));
     }
+
+    // route jar 7: the errand's hunt takes a cube of size 2 alone, with the buddy's health up (route_cube_alone)
+    @Test
+    public void theCubeHuntTakesASmallCubeAloneWithTheHealthUp() {
+        assertNull(RouteRules.cubeWhyNot(2, 0, 20));
+        assertEquals("big", RouteRules.cubeWhyNot(4, 0, 20));
+        assertEquals("crowd", RouteRules.cubeWhyNot(2, 1, 20));
+        // (run 13: the next cube 4 blocks off at 10 hp and at 6)
+        assertEquals("hp", RouteRules.cubeWhyNot(2, 0, 10));
+        assertNull(RouteRules.cubeWhyNot(2, 0, RouteRules.CUBE_HP));
+    }
+
+    @Test
+    public void theCubeHeldIsLetGoAtLowHealthOrInACrowd() {
+        assertNull(RouteRules.cubeLetGo(1, 20));
+        assertEquals("the buddy at 10 hp", RouteRules.cubeLetGo(0, 10));
+        assertEquals("2 more cubes by it", RouteRules.cubeLetGo(2, 20));
+    }
+
+    // route jar 7: the trade walks off a cube within the distance, on till it is the distance and 4 more off (route_trade_cube)
+    @Test
+    public void theTradeWalksOffACubeTillClear() {
+        assertTrue(RouteRules.tradeCubeAway(false, 5.5, 6));
+        assertFalse(RouteRules.tradeCubeAway(false, 7, 6));
+        assertTrue(RouteRules.tradeCubeAway(true, 9.5, 6));
+        assertFalse(RouteRules.tradeCubeAway(true, 10.5, 6));
+        assertFalse(RouteRules.tradeCubeAway(false, Double.POSITIVE_INFINITY, 6));
+        // (0: the switch off, the trade stands)
+        assertFalse(RouteRules.tradeCubeAway(true, 1, 0));
+    }
+
+    // route jar 7: the last 3 of the stand's stone never go into a box while no stand is made (brew_keep_stone)
+    @Test
+    public void theStandsStoneIsKeptTillTheStandIsMade() {
+        assertTrue(RouteRules.stonePlaceable(false, 4, 3));
+        assertFalse(RouteRules.stonePlaceable(false, 3, 3));
+        assertFalse(RouteRules.stonePlaceable(false, 0, 3));
+        assertTrue(RouteRules.stonePlaceable(true, 3, 3));
+        assertTrue(RouteRules.stonePlaceable(false, 3, 0));
+    }
+
+    // route jar 7, row L32: the hiding place goes in and out by one range (hide_one_range)
+    @Test
+    public void theHideCountsShootersByOneRangeBothWays() {
+        assertEquals(BlazeFightRules.SIGHT_RANGE, BlazeFightRules.hideRange(true), 0);
+        assertEquals(BlazeCover.SIGHT, BlazeFightRules.hideRange(false), 0);
+    }
+
+    // route jar 7, row L33: a potion by lava is fetched from a stand with no lava a step beside it (route_potion_edge)
+    @Test
+    public void aPotionByLavaIsFetchedFromAStandWithNoLavaBesideIt() {
+        // the floor's four diagonal cells round the drop's are lava: every grab spot has lava within a block, the old rule
+        // gives the drop up; the drop's own cell has lava only on its diagonals
+        LavaWorld w = LavaWorld.flat(63).set(9, 63, 9, LavaWorld.Cell.LAVA).set(11, 63, 11, LavaWorld.Cell.LAVA)
+                .set(9, 63, 11, LavaWorld.Cell.LAVA).set(11, 63, 9, LavaWorld.Cell.LAVA);
+        assertTrue(ItemPickupRules.lavaBlocksPickup(10.5, 64.1, 10.5, w, w));
+        int[] stand = ItemPickupRules.edgeStand(w, w, 10.5, 64.1, 10.5);
+        assertEquals(10, stand[0]);
+        assertEquals(64, stand[1]);
+        assertEquals(10, stand[2]);
+        // a one wide strip with lava on both sides: no stand, given up as before
+        LavaWorld strip = LavaWorld.flat(63).fill(11, 63, -5, 25, 63, 25, LavaWorld.Cell.LAVA).fill(-5, 63, -5, 9, 63, 25, LavaWorld.Cell.LAVA);
+        assertNull(ItemPickupRules.edgeStand(strip, strip, 10.5, 64.1, 10.5));
+    }
 }

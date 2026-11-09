@@ -70,11 +70,36 @@ final class BlazePillboxTask extends Task {
         this.cell = new BlockPos(plan.cell()[0], plan.cell()[1], plan.cell()[2]);
     }
 
-    // the blocks in the bag a box is built of (BLOCKS), all kinds together
+    // the blocks in the bag a box is built of (BLOCKS), all kinds together, less the stone kept for the stand (keptStone)
     static int blocksInBag(AltoClef mod) {
         int n = 0;
         for (Block b : BLOCKS) n += mod.getItemStorage().getItemCount(b.asItem());
-        return n;
+        return Math.max(0, n - keptStone(mod));
+    }
+
+    // the stone a brewing stand is made of (any of these, three of it with a rod)
+    static boolean standStone(net.minecraft.world.item.Item item) {
+        return item == net.minecraft.world.item.Items.COBBLESTONE || item == net.minecraft.world.item.Items.BLACKSTONE
+                || item == net.minecraft.world.item.Items.COBBLED_DEEPSLATE;
+    }
+
+    static int standStoneInBag(AltoClef mod) {
+        return mod.getItemStorage().getItemCount(net.minecraft.world.item.Items.COBBLESTONE)
+                + mod.getItemStorage().getItemCount(net.minecraft.world.item.Items.BLACKSTONE)
+                + mod.getItemStorage().getItemCount(net.minecraft.world.item.Items.COBBLED_DEEPSLATE);
+    }
+
+    // (Tuning brew_keep_stone, route jar 7, RouteRules.stonePlaceable) the stand's stone in the bag no box may take now
+    static int keptStone(AltoClef mod) {
+        int keep = adris.altoclef.util.helpers.RouteRules.keepStone();
+        if (keep <= 0 || mod.getItemStorage().hasItem(net.minecraft.world.item.Items.BREWING_STAND)) return 0;
+        return Math.min(keep, standStoneInBag(mod));
+    }
+
+    // whether the stand's stone may go into a box now
+    static boolean stoneOk(AltoClef mod) {
+        return adris.altoclef.util.helpers.RouteRules.stonePlaceable(mod.getItemStorage().hasItem(net.minecraft.world.item.Items.BREWING_STAND),
+                standStoneInBag(mod), adris.altoclef.util.helpers.RouteRules.keepStone());
     }
 
     // what the brew of fire resistance is made with and in (BrewFireResistanceTask): never a box's block. a brew box's wall cell
@@ -95,11 +120,24 @@ final class BlazePillboxTask extends Task {
 
     // the block a click places: the first of BLOCKS in the bag, never one the brew needs; null with none
     static net.minecraft.world.item.Item buildingBlock(java.util.function.Predicate<net.minecraft.world.item.Item> inBag) {
+        return buildingBlock(inBag, true);
+    }
+
+    // stoneOk false: never the stand's stone either (Tuning brew_keep_stone, keptStone)
+    static net.minecraft.world.item.Item buildingBlock(java.util.function.Predicate<net.minecraft.world.item.Item> inBag, boolean stoneOk) {
         for (Block b : BLOCKS) {
             net.minecraft.world.item.Item item = b.asItem();
-            if (!brewItem(item) && inBag.test(item)) return item;
+            if (!brewItem(item) && (stoneOk || !standStone(item)) && inBag.test(item)) return item;
         }
         return null;
+    }
+
+    // the blocks the builder may place now: BLOCKS, without the stand's stone while it is kept
+    private static Block[] placeable(AltoClef mod) {
+        if (stoneOk(mod)) return BLOCKS;
+        java.util.List<Block> out = new java.util.ArrayList<>();
+        for (Block b : BLOCKS) if (!standStone(b.asItem())) out.add(b);
+        return out.toArray(new Block[0]);
     }
 
     BlockPos cell() {
@@ -522,7 +560,7 @@ final class BlazePillboxTask extends Task {
     // with or without the shield, corner23d and corner23f. the builder only when no face is solid. with brew_box on a click
     // goes out only with its block in hand (held, InteractWithBlockTask.onlyWith): a brewing stand is never a block of the box
     private static Task click(AltoClef mod, BlockPos pos, boolean stayPut) {
-        net.minecraft.world.item.Item item = buildingBlock(i -> mod.getItemStorage().hasItem(i));
+        net.minecraft.world.item.Item item = buildingBlock(i -> mod.getItemStorage().hasItem(i), stoneOk(mod));
         var level = mod.getWorld();
         if (item != null) {
             adris.altoclef.util.ItemTarget it = new adris.altoclef.util.ItemTarget(item, 1);
@@ -555,7 +593,9 @@ final class BlazePillboxTask extends Task {
                 }
             }
         }
-        return new PlaceBlockTask(pos, BLOCKS, true, false);
+        // (the builder's throwaways include cobblestone: none while the stand's stone is kept)
+        boolean stone = stoneOk(mod);
+        return new PlaceBlockTask(pos, stone ? BLOCKS : placeable(mod), stone, false);
     }
 
     // the face between pos and its neighbour pos + d (the neighbour's face toward pos) has the eye on pos's side: a click can hit it

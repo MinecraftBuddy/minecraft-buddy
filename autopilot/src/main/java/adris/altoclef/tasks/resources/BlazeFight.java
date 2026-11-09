@@ -272,7 +272,8 @@ final class BlazeFight {
                 if (BlazeFightRules.shooter(kind) && points == null) {
                     if (player.distanceTo(e) <= BlazeFightRules.SIGHT_RANGE) score += BlazeFightRules.danger(kind, size, true);
                 } else if (BlazeFightRules.shooter(kind)) {
-                    if (player.distanceTo(e) > BlazeCover.SIGHT) continue;
+                    // (Tuning hide_one_range, route jar 7: in by the range the way out counts, BlazeFightRules.hideRange)
+                    if (player.distanceTo(e) > BlazeFightRules.hideRange()) continue;
                     boolean line = false;
                     for (Vec3 pt : points) {
                         if (pt.distanceTo(e.getEyePosition()) <= BlazeCover.SIGHT && adris.altoclef.util.helpers.GhastCover.clear(mod.getWorld(), e.getEyePosition(), pt, player)) {

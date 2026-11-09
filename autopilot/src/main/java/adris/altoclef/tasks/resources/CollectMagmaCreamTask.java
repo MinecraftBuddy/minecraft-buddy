@@ -88,6 +88,11 @@ public class CollectMagmaCreamTask extends ResourceTask {
             String no = CollectBlazeRodsTask.creamCubeWhyNot(mod, _held, true);
             if ("lava".equals(no) || "sea".equals(no)) why = "by " + no;
         }
+        // (Tuning route_cube_alone, route jar 7: let go with the buddy's health down or a crowd by it, RouteRules.cubeLetGo)
+        double alone = adris.altoclef.util.helpers.RouteRules.cubeAlone();
+        if (why == null && alone > 0) {
+            why = adris.altoclef.util.helpers.RouteRules.cubeLetGo(CollectBlazeRodsTask.cubesBy(mod, _held, alone), us.getHealth());
+        }
         if (why == null) return _held;
         LET_GO.add(_held.getId());
         adris.altoclef.Debug.logInternal(String.format(java.util.Locale.ROOT, "cream: the cube at %s let go, %s, after %.0f s",

@@ -136,6 +136,72 @@ public final class RouteRules {
         return Tuning.get("route_cube_id", 0) > 0;
     }
 
+    // ---- magma cubes (route jar 7, 9 Nov 2026). route jar 6 lost 3 of 11 runs to magma cubes before phase 3. the cream hunt
+    // on the trade's search took one cube after another in a field of them by a lava shore, at 10 hp and at 6, the next cube 4
+    // blocks off the moment a fight ended: 26 cubes killed and dead (run 13). the errand's hunt (the trade's search and the
+    // brew errand; Tuning route_cube_alone, the radius, CUBE_ALONE by default, 0 off) takes a cube of size 2 only (a big one
+    // splits into two to four that split again: a crowd of its own making), with no other cube of any size within the radius
+    // of it, and the buddy at CUBE_HP or more; the cube held is let go below CUBE_HP or with CUBE_CROWD others by it
+    public static final double CUBE_ALONE = 6;
+    public static final double CUBE_HP = 14;
+    public static final int CUBE_CROWD = 2;
+
+    public static double cubeAlone() {
+        return Tuning.get("route_cube_alone", 0);
+    }
+
+    // why a cube is not hunted by the alone rule (the count line's words), null when it may be: its size, the other cubes
+    // within the radius of it, the buddy's health
+    public static String cubeWhyNot(int size, int othersNear, double health) {
+        if (size > 2) return "big";
+        if (othersNear > 0) return "crowd";
+        if (health < CUBE_HP) return "hp";
+        return null;
+    }
+
+    // why the cube held is let go by the alone rule, null while it is hunted on
+    public static String cubeLetGo(int othersNear, double health) {
+        if (health < CUBE_HP) return String.format(java.util.Locale.ROOT, "the buddy at %.0f hp", health);
+        if (othersNear >= CUBE_CROWD) return othersNear + " more cubes by it";
+        return null;
+    }
+
+    // the trade steps off magma cubes (Tuning route_trade_cube, the distance, TRADE_CUBE by default, 0 off). run 7 handed
+    // ingot after ingot with a big cube coming; it hit, the mob defense stood and fought it with calm piglins and zombified
+    // piglins within 3, so every full charge was thrown away (the sweep would anger them) and the early swings did little
+    // through the cube's armour: 54 charges thrown away, nothing killed, 20 hp to 0 in 45 s. with a cube within the distance
+    // the trade hands nothing and walks off TRADE_CUBE_RUN from the cubes, on till none is within the distance and
+    // TRADE_CUBE_CLEAR more; then it goes back to the piglins
+    public static final double TRADE_CUBE = 6;
+    public static final double TRADE_CUBE_CLEAR = 4;
+    public static final double TRADE_CUBE_RUN = 12;
+
+    public static double tradeCube() {
+        return Tuning.get("route_trade_cube", 0);
+    }
+
+    // whether the trade walks off the cubes now: away, whether it already does; nearest, the nearest cube (infinite for none)
+    public static boolean tradeCubeAway(boolean away, double nearest, double near) {
+        if (near <= 0) return false;
+        return nearest <= (away ? near + TRADE_CUBE_CLEAR : near);
+    }
+
+    // ---- the stone for the brewing stand (Tuning brew_keep_stone, the count, STAND_STONE by default, 0 off). the pillboxes
+    // built cobblestone first, so the brew box was shut with no stone left for the stand (three of it, with a rod): "the
+    // stand not made inside in 30 s, opening", the box opened, the buddy out in the open for stone and the fire resistance
+    // gone while it looked (route jar 6's runs 1 and 10, both dead to blazes). with no stand in the bag the last of the
+    // stand's stone (cobblestone, blackstone, cobbled deepslate, all kinds together) is never a box's block
+    public static final int STAND_STONE = 3;
+
+    public static int keepStone() {
+        return (int) Math.round(Tuning.get("brew_keep_stone", 0));
+    }
+
+    // whether a block of the stand's stone may go into a box: the stand in the bag, or more of the stone than kept
+    public static boolean stonePlaceable(boolean standInBag, int stoneInBag, int keep) {
+        return keep <= 0 || standInBag || stoneInBag > keep;
+    }
+
     // ---- the potion kept for the spawner fight (Tuning route_hold, phases 3 and 4; route jar 2). the first route jar let it go
     // for any blaze within 16, so it went down on the walk to the pillbox with a blaze 12 off and ran out with one rod; and
     // it kept it while the buddy burned on a lava rim at 17 hp, so the buddy fell back in with none. whether a fire resistance

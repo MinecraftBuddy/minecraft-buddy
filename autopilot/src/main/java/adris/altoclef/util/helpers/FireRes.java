@@ -200,6 +200,14 @@ public final class FireRes {
         return true;
     }
 
+    // (Tuning route_way_throw, route jar 7) the way's rule lets the kept potion go now: the route's say fresh, on the way
+    // (before the spawner fight), and RouteRules.wayLetGo said why (its line said by holdsRoute). false off the way
+    public static boolean wayLets(LivingEntity e, double blaze, boolean asked, long now) {
+        boolean way = RouteRules.holdFightOn() && RouteRules.holdWayOn() && !routeFight;
+        if (!way || Tuning.get("route_hold", 0) <= 0 || now < routeAt || now - routeAt > WAY_FRESH) return false;
+        return !holdsRoute(e, blaze, asked, now);
+    }
+
     // whether a fire resistance potion that would go down now (FireResRules.wantsToDrink said yes) waits for the blazes, with
     // a line once per fire episode. always false with the switch off. blaze: the nearest one, infinite for none
     public static boolean holdsTraded(LivingEntity e, double blaze, boolean asked, long now) {

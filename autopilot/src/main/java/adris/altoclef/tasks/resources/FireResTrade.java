@@ -9,6 +9,7 @@ import adris.altoclef.tasks.movement.GetToXZTask;
 import adris.altoclef.tasks.movement.GetWithinRangeOfBlockTask;
 import adris.altoclef.tasks.movement.IdleTask;
 import adris.altoclef.tasks.movement.PickupDroppedItemTask;
+import adris.altoclef.tasks.movement.RunAwayFromPositionTask;
 import adris.altoclef.tasks.movement.TimeoutWanderTask;
 import adris.altoclef.tasks.speedrun.gamer.RunState;
 import adris.altoclef.tasks.speedrun.gamer.phases.NetherPhase;
@@ -22,6 +23,7 @@ import adris.altoclef.util.helpers.FireResTradeRules.Form;
 import adris.altoclef.util.helpers.FireResTradeRules.Spot;
 import adris.altoclef.util.helpers.ItemPickupRules;
 import adris.altoclef.util.helpers.LookHelper;
+import adris.altoclef.util.helpers.RouteRules;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.Tuning;
 import adris.altoclef.util.slots.Slot;
@@ -47,6 +49,7 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Blaze;
+import net.minecraft.world.entity.monster.cubemob.MagmaCube;
 import net.minecraft.world.entity.monster.hoglin.Hoglin;
 import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.entity.monster.piglin.PiglinAi;
@@ -427,9 +430,16 @@ public final class FireResTrade {
             return _equip;
         }
         _equip = null;
+        // (Tuning route_trade_cube, route jar 7: a magma cube near and the trade hands nothing, it walks off the cubes first,
+        // RouteRules.tradeCubeAway)
+        Task offCubes = cubeAway(mod, now);
+        if (offCubes != null) return offCubes;
         // what a piglin threw first: a potion on the ground can burn in lava or be out of reach in a moment
         if (drop.isPresent()) {
             boolean pearl = drop.get().getItem().is(Items.ENDER_PEARL);
+            // (Tuning route_potion_edge, route jar 7: a potion by lava is fetched from its stand with no lava beside it)
+            Task edge = pearl ? null : edgeFetch(mod, drop.get(), now);
+            if (edge != null) return edge;
             if (_pickup == null || _pickupPearls != takesPearls) {
                 List<ItemTarget> targets = new ArrayList<>(List.of(new ItemTarget(Items.POTION, 64), new ItemTarget(Items.SPLASH_POTION, 64),
                         new ItemTarget(Items.LINGERING_POTION, 64)));
@@ -546,6 +556,27 @@ public final class FireResTrade {
         return _lavaThrow;
     }
 
+    // Tuning route_way_throw, on by default (route jar 7): on the way (before the spawner fight) a splash or lingering fire
+    // resistance potion goes down by the survival chain, over the mob defense, the moment the way's rule lets it go burning
+    // out of the lava (RouteRules.wayLetGo). the throw lived in the rods task, and the mob defense held the tick from the
+    // first blow to the death: route jar 6's run 3 ran from two wither skeletons and a blaze burning at 8 hp with the splash
+    // potion in the bag, the rule's say never asked, and died 7 s later. null when not now
+    private static ThrowAtFeetTask _burnThrow;
+
+    public static Task burnThrow(AltoClef mod) {
+        LocalPlayer player = mod.getPlayer();
+        if (player == null || Tuning.get("route_way_throw", 0) <= 0) return null;
+        if (_burnThrow != null && _burnThrow.isActive() && !_burnThrow.isFinished(mod)) return _burnThrow;
+        _burnThrow = null;
+        if (!player.isOnFire() || player.isInLava() || FireRes.has(player) || count(mod, Form.DRINK) > 0 || count(mod, Form.THROW) == 0) return null;
+        long now = mod.getWorld().getGameTime();
+        double blaze = nearestBlaze(mod);
+        if (!FireRes.wayLets(player, blaze, FireRes.asked(now), now)) return null;
+        _burnThrow = new ThrowAtFeetTask(blaze);
+        Debug.logInternal(String.format(Locale.ROOT, "strategy trade: burning at %.1f hp on the way, the splash potion thrown at the feet over the fight", player.getHealth()));
+        return _burnThrow;
+    }
+
     // (route jar 3) a splash potion's throw under way and not yet thrown: the food chain starts no bite meanwhile
     public static boolean throwDue(long now) {
         return ThrowAtFeetTask.due(now);
@@ -641,9 +672,102 @@ public final class FireResTrade {
     // once, so the barter goes on
     private boolean lavaGivenUp(ItemEntity item, String what) {
         if (!ItemPickupRules.lavaBlocksPickup(item)) return false;
+        // (Tuning route_potion_edge, route jar 7: a potion with a stand by it that has no lava beside it is fetched from there,
+        // edgeFetch)
+        if (potionEdgeOn() && "potion".equals(what) && edgeStandOf(item) != null) return false;
         _dropsGivenUp.add(item.getId());
         Debug.logInternal("strategy trade: the " + what + " on the ground given up (next to lava, the pickup leaves it)");
         return true;
+    }
+
+    // ---- the potion by lava (Tuning route_potion_edge, on by default; route jar 7). route jar 6's run 6: a piglin 3 blocks off
+    // threw the splash potion by lava at ingot 57, the pickup left it ("next to lava") and the trade went on until all 64 gold
+    // was gone, no potion. now one whose every grab spot is next to lava (ItemPickupRules.lavaBlocksPickup) is fetched by a
+    // walk to its stand with no lava beside it (ItemPickupRules.edgeStand); standing there picks it up. no ingot is handed
+    // meanwhile (a drop on the ground comes first). given up after EDGE_FETCH_S, or at once with no such stand
+    static final double EDGE_FETCH_S = 20;
+    private int _edgeItem = -1;
+    private long _edgeAt;
+    private adris.altoclef.tasks.movement.GetToBlockTask _edgeWalk;
+    private BlockPos _edgeStand;
+
+    private static boolean potionEdgeOn() {
+        return Tuning.get("route_potion_edge", 0) > 0;
+    }
+
+    private static BlockPos edgeStandOf(ItemEntity item) {
+        int[] s = ItemPickupRules.edgeStand(ItemPickupRules.terrain(item.level()), ItemPickupRules.lava(item.level()), item.getX(), item.getY(), item.getZ());
+        return s == null ? null : new BlockPos(s[0], s[1], s[2]);
+    }
+
+    // the walk to a potion by lava, null when the plain pickup takes it (or it is given up now)
+    private Task edgeFetch(AltoClef mod, ItemEntity item, long now) {
+        if (!potionEdgeOn() || !ItemPickupRules.lavaBlocksPickup(item)) {
+            _edgeItem = -1;
+            return null;
+        }
+        if (_edgeItem != item.getId() || now < _edgeAt) {
+            _edgeItem = item.getId();
+            _edgeAt = now;
+            _edgeWalk = null;
+            _edgeStand = null;
+        }
+        BlockPos stand = edgeStandOf(item);
+        String why = stand == null ? "no stand without lava beside it any more"
+                : now - _edgeAt > EDGE_FETCH_S * 20 ? "not got in " + Math.round(EDGE_FETCH_S) + " s" : null;
+        if (why != null) {
+            _dropsGivenUp.add(item.getId());
+            _edgeItem = -1;
+            Debug.logInternal("strategy trade: the potion by lava given up (" + why + ")");
+            return null;
+        }
+        if (!stand.equals(_edgeStand)) {
+            Debug.logInternal(String.format(Locale.ROOT, "strategy trade: the potion by lava fetched from %s, no lava beside it (%.0f blocks off)",
+                    stand.toShortString(), item.distanceTo(mod.getPlayer())));
+            _edgeStand = stand;
+            _edgeWalk = new adris.altoclef.tasks.movement.GetToBlockTask(stand, false);
+        }
+        _hud = "Fetching the piglin's fire resistance potion from the lava's edge";
+        return _edgeWalk;
+    }
+
+    // ---- magma cubes by the trade (Tuning route_trade_cube, the distance; route jar 7, RouteRules.tradeCubeAway): with a cube
+    // within the distance the trade hands nothing and walks off the cubes, TRADE_CUBE_RUN from where they stand (the run's
+    // goal made again every CUBE_RUN_TICKS as they move), on till none is within the distance and TRADE_CUBE_CLEAR more
+    static final long CUBE_RUN_TICKS = 40;
+    private boolean _cubeAway;
+    private Task _cubeRun;
+    private long _cubeRunAt;
+
+    private Task cubeAway(AltoClef mod, long now) {
+        double near = RouteRules.tradeCube();
+        if (!routeOn() || near <= 0) {
+            _cubeAway = false;
+            return null;
+        }
+        LocalPlayer player = mod.getPlayer();
+        List<BlockPos> cubes = new ArrayList<>();
+        double nearest = Double.POSITIVE_INFINITY;
+        for (MagmaCube cube : mod.getEntityTracker().getTrackedEntities(MagmaCube.class)) {
+            if (!cube.isAlive()) continue;
+            double d = cube.distanceTo(player);
+            if (d <= near + RouteRules.TRADE_CUBE_CLEAR + RouteRules.TRADE_CUBE_RUN) cubes.add(cube.blockPosition());
+            nearest = Math.min(nearest, d);
+        }
+        boolean away = RouteRules.tradeCubeAway(_cubeAway, nearest, near);
+        if (away != _cubeAway) {
+            Debug.logInternal(away ? String.format(Locale.ROOT, "strategy trade: a magma cube %.0f blocks off, walking off the cubes (%d about) before the next ingot", nearest, cubes.size())
+                    : "strategy trade: clear of the magma cubes, back to the piglins");
+            _cubeAway = away;
+            _cubeRun = null;
+        }
+        if (!away) return null;
+        if (_cubeRun == null || _cubeRun.isFinished(mod) || now - _cubeRunAt >= CUBE_RUN_TICKS || now < _cubeRunAt) {
+            _cubeRun = new RunAwayFromPositionTask(RouteRules.TRADE_CUBE_RUN, cubes.toArray(new BlockPos[0]));
+            _cubeRunAt = now;
+        }
+        _hud = "Walking off the magma cubes";
+        return _cubeRun;
     }
 
     // one line per ender pearl that came into the bag during the trade, whatever picked it up

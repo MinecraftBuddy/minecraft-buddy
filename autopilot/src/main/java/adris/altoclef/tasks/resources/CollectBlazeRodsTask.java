@@ -981,7 +981,26 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // the kill task's own lava check (lava by us, by the cube, or on the line between): without it a cube passed here, the
         // kill held 8 s and banned it, and the ban's end picked it again, eleven times in three minutes (live watch, 7 Nov 2026)
         if (adris.altoclef.util.helpers.LavaShore.approachBlocked(cells, us.getX(), us.getY(), us.getZ(), cube.getX(), cube.getY(), cube.getZ())) return "shore";
+        // (Tuning route_cube_alone, route jar 7: the errand's hunt takes a cube of size 2 alone, with the buddy's health up,
+        // RouteRules.cubeWhyNot; asked last, so the held cube's lava and sea let-go still sees those first)
+        if (anyLevel) return cubeAloneWhyNot(mod, cube);
         return null;
+    }
+
+    // the alone rule's verdict on a cube (Tuning route_cube_alone), null with the rule off or the cube fit by it
+    static String cubeAloneWhyNot(AltoClef mod, MagmaCube cube) {
+        double radius = adris.altoclef.util.helpers.RouteRules.cubeAlone();
+        if (radius <= 0) return null;
+        return adris.altoclef.util.helpers.RouteRules.cubeWhyNot(cube.getSize(), cubesBy(mod, cube, radius), mod.getPlayer().getHealth());
+    }
+
+    // the other live magma cubes of any size within radius of a cube
+    static int cubesBy(AltoClef mod, MagmaCube cube, double radius) {
+        int n = 0;
+        for (MagmaCube other : mod.getEntityTracker().getTrackedEntities(MagmaCube.class)) {
+            if (other != cube && other.isAlive() && other.distanceTo(cube) <= radius) n++;
+        }
+        return n;
     }
 
     private static double creamRange() {
