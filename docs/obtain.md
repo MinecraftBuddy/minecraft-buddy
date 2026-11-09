@@ -143,9 +143,11 @@ gate lacks is fetched by safer steps first, all of it planned together.
      fights a hoglin that comes. A piglin the buddy cannot get to in a minute is left alone. A magma cube seen on the
      way is killed for its cream.
   3. To the fortress for a nether wart and a magma cream, both. A magma cube in sight is hunted first, and kept after
-     until it is dead or out of reach; then a nether wart the buddy knows of. With nothing in sight at the fortress, the
-     buddy walks round the spawner in three rings, 20, 40 and 60 blocks out, to see more of it. This ends with both in
-     the bag, or when the rings are walked or ten minutes pass with neither found.
+     until it is dead or out of reach; then a nether wart the buddy knows of, however far off: the buddy walks straight
+     to it and breaks it, and gives it up only after a minute with no step closer, or half a minute beside it unbroken.
+     With nothing in sight at the fortress, the buddy walks round the spawner in three rings, 20, 40 and 60 blocks out,
+     to see more of it. This ends with both in the bag, or when the rings are walked or ten minutes pass at the fortress
+     (within 80 blocks of the spawner) with neither found.
   4. The first two blaze rods, at the spawner with no pillbox while the potion is kept. The potion goes down when the
      blazes come at the spawner, not for a blaze on the way.
   5. Shut in the pillbox by the spawner, the brew of three potions of fire resistance.

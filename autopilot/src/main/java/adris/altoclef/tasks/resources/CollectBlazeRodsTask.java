@@ -137,6 +137,19 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private final java.util.Set<BlockPos> _wartGaveUp = new java.util.HashSet<>();
     private String _errandActSaid;
     private boolean _noBrewSaid;
+    // ---- the wart walk (Tuning route_wart_walk, route jar 6; RouteRules.wartWalkOn): the walk to the wart held (_wartAt) and
+    // its break, the nearest the buddy has been to it, the walk's own ticks since a step closer and within the break's range,
+    // the tick it last ran (-1: not yet; a gap past BrewErrandRules.GAP_MAX means another task had the buddy, and the
+    // nearest counts again from there), and when it last said how far it is. the dead end's clock first running near the
+    // spawner, said once (route_errand_near)
+    private adris.altoclef.tasks.movement.GetWithinRangeOfBlockTask _wartWalk;
+    private adris.altoclef.tasks.construction.DestroyBlockTask _wartBreak;
+    private double _wartBest;
+    private long _wartStall;
+    private long _wartNear;
+    private long _wartLastTick = -1;
+    private long _wartSaidAt;
+    private boolean _errandNearSaid;
     // ---- the route through the nether (RouteRules, steering 118 to 120): the last phase said; whether this task is an order of
     // rods of its own (the catalogue's: the gamer's nether phase goes on to a plan of its own, with no exit here); the no-potion
     // line asked; the cream hunt on the trade's search and whether one is under way; the brew's pillbox not to be planned again
@@ -1053,6 +1066,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _errandCreamSeen = cream;
             _errandWartSeen = wart;
             _errandSinceGot = 0;
+            _errandNearSaid = false;
             _errandPoint = 0;
             _errandPointAt = null;
             _errandActSaid = null;
@@ -1164,7 +1178,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
         _errandCreamSeen = cream;
         _errandWartSeen = wart;
         boolean spawner = _foundBlazeSpawner != null;
-        if (spawner) _errandSinceGot = adris.altoclef.util.helpers.BrewErrandRules.own(_errandSinceGot, gap);
+        // (Tuning route_errand_near, on by default: the dead end's clock runs only within that many blocks of the spawner, so
+        // the walk to the fortress is not its time; 0 is route jar 5's clock, anywhere once the spawner is known)
+        double near = adris.altoclef.util.helpers.Tuning.get("route_errand_near", adris.altoclef.util.helpers.RouteRules.ERRAND_NEAR);
+        double toSpawner = spawner ? mod.getPlayer().position().distanceTo(Vec3.atCenterOf(_foundBlazeSpawner)) : Double.POSITIVE_INFINITY;
+        if (adris.altoclef.util.helpers.RouteRules.errandClockRuns(spawner, toSpawner, near)) {
+            if (near > 0 && !_errandNearSaid) {
+                _errandNearSaid = true;
+                Debug.logInternal("brew errand: within " + (int) near + " of the spawner after " + secs(now - _errandAt) + " s, the dead end's clock runs ("
+                        + (int) Math.round(toSpawner) + " blocks off)");
+            }
+            _errandSinceGot = adris.altoclef.util.helpers.BrewErrandRules.own(_errandSinceGot, gap);
+        }
         if (wantCream) logCreamCubes(mod, true);
         String why = !kit ? "the kit missing" : adris.altoclef.util.helpers.RouteRules.errandDeadEnd(_errandPoint, _errandSinceGot,
                 adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.Tuning.get("route_errand_dead_s", adris.altoclef.util.helpers.RouteRules.ERRAND_DEAD_S)));
@@ -1189,7 +1214,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             }
         }
         if (wantWart) {
-            Task fetch = wartFetch(mod, gap);
+            Task fetch = wartFetch(mod, now, gap);
             if (fetch != null) return fetch;
         }
         if (!spawner) {
@@ -1200,11 +1225,20 @@ public class CollectBlazeRodsTask extends ResourceTask {
     }
 
     // the wart the tracker knows (any distance), or a wart lying within WART_RANGE: fetched, a block not reached in WART_HOLD_S
-    // of the fetch's own ticks given up (the tracker told, so the mining passes it over too). null with none to fetch
-    private Task wartFetch(AltoClef mod, long gap) {
+    // of the fetch's own ticks given up (the tracker told, so the mining passes it over too). null with none to fetch.
+    // (Tuning route_wart_walk, on by default: a drop counts only one the buddy can get to; the block picked is held till it is
+    // got or given up, walked to and broken by the errand itself, wartWalk; the mining task only for a drop)
+    private Task wartFetch(AltoClef mod, long now, long gap) {
         var me = mod.getPlayer();
-        boolean drop = dropNear(mod, Items.NETHER_WART, WART_RANGE);
-        Optional<BlockPos> block = mod.getBlockTracker().getNearestTracking(me.position(), p -> !_wartGaveUp.contains(p), Blocks.NETHER_WART);
+        boolean walk = adris.altoclef.util.helpers.RouteRules.wartWalkOn();
+        boolean drop = walk ? mod.getEntityTracker().getClosestItemDrop(me.position(), Items.NETHER_WART)
+                .filter(d -> d.distanceTo(me) <= WART_RANGE && mod.getEntityTracker().isEntityReachable(d)).isPresent()
+                : dropNear(mod, Items.NETHER_WART, WART_RANGE);
+        // (the wart held stays the goal while it stands, as far as the tracker and a loaded chunk can tell: the nearest changed
+        // block by block in the room as the buddy moved)
+        boolean keep = walk && _wartAt != null && !_wartGaveUp.contains(_wartAt) && mod.getBlockTracker().blockIsValid(_wartAt, Blocks.NETHER_WART);
+        Optional<BlockPos> block = keep ? Optional.of(_wartAt)
+                : mod.getBlockTracker().getNearestTracking(me.position(), p -> !_wartGaveUp.contains(p), Blocks.NETHER_WART);
         if (!drop && block.isEmpty()) {
             _wartAt = null;
             return null;
@@ -1213,8 +1247,20 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (at != null && !at.equals(_wartAt)) {
             _wartAt = at;
             _wartTicks = 0;
-            Debug.logInternal("brew errand: the nether wart at " + at.toShortString() + ", " + (int) Math.round(me.position().distanceTo(Vec3.atCenterOf(at)))
-                    + " blocks off" + (drop ? ", a wart lying near too" : ""));
+            double d = me.position().distanceTo(Vec3.atCenterOf(at));
+            _wartBest = d;
+            _wartStall = 0;
+            _wartNear = 0;
+            _wartWalk = null;
+            _wartBreak = null;
+            _wartSaidAt = now;
+            Debug.logInternal("brew errand: the nether wart at " + at.toShortString() + ", " + (int) Math.round(d)
+                    + " blocks off" + (drop ? ", a wart lying near too" : walk ? ", walking to it" : ""));
+        }
+        if (!drop && _wartAt != null && walk) {
+            Task step = wartWalk(mod, now, gap);
+            // (given up: the next wart at once, or none)
+            return step != null ? step : wartFetch(mod, now, 0);
         }
         if (!drop && _wartAt != null) {
             _wartTicks = adris.altoclef.util.helpers.BrewErrandRules.own(_wartTicks, gap);
@@ -1231,6 +1277,65 @@ public class CollectBlazeRodsTask extends ResourceTask {
         errandSays("a nether wart");
         setDebugState("Brew errand: a nether wart");
         return _errandWart;
+    }
+
+    // Tuning route_wart_walk (RouteRules.wartWalkOn): the walk to the wart held, straight to within WART_STAND of it wherever it
+    // is (the mining task takes only a block in a loaded chunk, and wandered for one it knew 174 blocks off), then its break
+    // once within WART_BREAK_NEAR with its chunk loaded. given up only when its stand is not reached (RouteRules.wartGiveUp);
+    // one not reached takes the others of its room with it. null when given up
+    private Task wartWalk(AltoClef mod, long now, long gap) {
+        var me = mod.getPlayer();
+        BlockPos at = _wartAt;
+        double d = me.position().distanceTo(Vec3.atCenterOf(at));
+        // (another task had the buddy in between, a fight or a cube: the nearest counts again from where the walk goes on)
+        if (_wartLastTick < 0 || now < _wartLastTick || now - _wartLastTick > adris.altoclef.util.helpers.BrewErrandRules.GAP_MAX) _wartBest = d;
+        _wartLastTick = now;
+        boolean near = mod.getChunkTracker().isChunkLoaded(at) && d <= adris.altoclef.util.helpers.RouteRules.WART_BREAK_NEAR;
+        if (adris.altoclef.util.helpers.RouteRules.wartCloser(_wartBest, d)) {
+            _wartBest = d;
+            _wartStall = 0;
+        } else if (!near) {
+            _wartStall = adris.altoclef.util.helpers.BrewErrandRules.own(_wartStall, gap);
+        }
+        if (near) _wartNear = adris.altoclef.util.helpers.BrewErrandRules.own(_wartNear, gap);
+        long stallCap = adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_STALL_S);
+        String why = adris.altoclef.util.helpers.RouteRules.wartGiveUp(_wartStall, _wartNear, stallCap,
+                adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_BREAK_S));
+        if (why != null) {
+            _wartGaveUp.add(at);
+            mod.getBlockTracker().requestBlockUnreachable(at, 0, "the brew errand's wart: " + why);
+            int room = 0;
+            if (_wartStall >= stallCap) {
+                for (BlockPos p : mod.getBlockTracker().getKnownLocations(Blocks.NETHER_WART)) {
+                    if (Math.sqrt(p.distSqr(at)) <= adris.altoclef.util.helpers.RouteRules.WART_ROOM && _wartGaveUp.add(p)) room++;
+                }
+            }
+            Debug.logInternal("brew errand: the wart at " + at.toShortString() + " given up, " + why + " (" + (int) Math.round(d) + " blocks off, nearest "
+                    + (int) Math.round(_wartBest) + ")" + (room > 0 ? ", and " + room + " more in its room" : ""));
+            _wartAt = null;
+            _errandWart = null;
+            _wartWalk = null;
+            _wartBreak = null;
+            return null;
+        }
+        if (near) {
+            if (_wartBreak == null) {
+                _wartBreak = new adris.altoclef.tasks.construction.DestroyBlockTask(at);
+                Debug.logInternal("brew errand: at the nether wart at " + at.toShortString() + ", breaking it (" + (int) Math.round(d) + " blocks off)");
+            }
+            errandSays("a nether wart: the break");
+            setDebugState("Brew errand: breaking the nether wart");
+            return _wartBreak;
+        }
+        if (_wartWalk == null) _wartWalk = new adris.altoclef.tasks.movement.GetWithinRangeOfBlockTask(at, adris.altoclef.util.helpers.RouteRules.WART_STAND);
+        if (now - _wartSaidAt >= 600 || now < _wartSaidAt) {
+            _wartSaidAt = now;
+            Debug.logInternal("brew errand: walking to the wart at " + at.toShortString() + ", " + (int) Math.round(d) + " blocks off (nearest " + (int) Math.round(_wartBest)
+                    + ", " + secs(_wartStall) + " s without a step closer)");
+        }
+        errandSays("a nether wart: the walk");
+        setDebugState("Brew errand: walking to the nether wart");
+        return _wartWalk;
     }
 
     // the walk round the spawner in rings while nothing is in sight: a point reached (ERRAND_POINT_NEAR of its column) or given

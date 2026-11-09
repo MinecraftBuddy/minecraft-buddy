@@ -149,6 +149,11 @@ public class CollectMagmaCreamTask extends ResourceTask {
                     if (held != null) {
                         MagmaCube target = held;
                         setDebugState("Killing the magma cube held");
+                        // (Tuning route_cube_id: a kill task of the cube's own id, so the runner never keeps the last cube's
+                        // task, whose rule matched only that cube, for the next one, RouteRules.cubeByIdOn)
+                        if (adris.altoclef.util.helpers.RouteRules.cubeByIdOn()) {
+                            return new KillAndLootTask(target, new ItemTarget(Items.MAGMA_CREAM, neededCream));
+                        }
                         return new KillAndLootTask(MagmaCube.class, e -> e == target && e.isAlive(), new ItemTarget(Items.MAGMA_CREAM, neededCream));
                     }
                 } else if (mod.getEntityTracker().getClosestEntity(us.position(), fit, MagmaCube.class).isPresent()) {

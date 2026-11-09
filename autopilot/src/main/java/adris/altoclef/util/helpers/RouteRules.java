@@ -80,6 +80,62 @@ public final class RouteRules {
         return null;
     }
 
+    // ---- the dead end's clock at the fortress only (Tuning route_errand_near, on by default; route jar 6, 9 Nov 2026). route
+    // jar 5's clock ran from the spawner first known, wherever the buddy was: route jar 5's run 1 began the errand 205 blocks
+    // from the spawner, drifted 620 blocks off on the wart's wander and met the 600 s dead end without ever standing at the
+    // fortress. now it runs only within ERRAND_NEAR blocks of the spawner: the outer ring is 60 blocks out and the walk
+    // between its points bulges past it, and a fortress's wart rooms and halls lie mostly within that of its spawner. the
+    // ring walk's own point clock still runs anywhere, so a buddy that never gets near still meets the rings' dead end
+    public static final double ERRAND_NEAR = 80;
+
+    // whether the dead end's clock runs this tick: the spawner known and the buddy within near blocks of it. near 0 or less
+    // is route jar 5's way: anywhere once the spawner is known
+    public static boolean errandClockRuns(boolean spawnerKnown, double toSpawner, double near) {
+        if (!spawnerKnown) return false;
+        return near <= 0 || toSpawner <= near;
+    }
+
+    // ---- the wart walk (Tuning route_wart_walk, on by default; route jar 6). route jar 5 handed a wart the tracker knew to the
+    // general mining task, which takes only a block in a loaded chunk: a wart room 174 blocks off was none to it, so it
+    // wandered (11 times in 10 minutes), and the 90 s clock gave up one wart of the room after another while the buddy
+    // drifted away from it. now the errand walks to the wart itself: one block held till it is got or given up, a walk to
+    // within WART_STAND of it, and the break once within WART_BREAK_NEAR with its chunk loaded; the drop is picked up as
+    // before. a wart is given up only when its stand is not reached: no step closer (the nearest the buddy has been, down
+    // by WART_STEP) in WART_STALL_S of the walk's own ticks, or not broken in WART_BREAK_S within WART_BREAK_NEAR. a wart not
+    // reached takes the others within WART_ROOM of it with it: one room, one way in
+    public static final int WART_STAND = 2;
+    public static final double WART_STEP = 1;
+    public static final double WART_STALL_S = 60;
+    public static final double WART_BREAK_NEAR = 5;
+    public static final double WART_BREAK_S = 30;
+    public static final double WART_ROOM = 8;
+
+    public static boolean wartWalkOn() {
+        return Tuning.get("route_wart_walk", 0) > 0;
+    }
+
+    // a step closer to the wart: the distance now (blocks) at least WART_STEP below the nearest so far
+    public static boolean wartCloser(double best, double now) {
+        return now <= best - WART_STEP;
+    }
+
+    // why the wart held is given up, null to go on. stallTicks: the walk's own ticks since its last step closer, out of the
+    // break's range; nearTicks: its own ticks within it, the block still standing; the caps in game ticks
+    public static String wartGiveUp(long stallTicks, long nearTicks, long stallCap, long breakCap) {
+        if (nearTicks >= breakCap) return "not broken in " + Math.round(breakCap / 20.0) + " s at its stand";
+        if (stallTicks >= stallCap) return "its stand not reached, no step closer in " + Math.round(stallCap / 20.0) + " s";
+        return null;
+    }
+
+    // ---- the cube held, hunted by its id (Tuning route_cube_id, on by default; route jar 6). the hunt's kill task was made
+    // with a rule for the one cube held, but the task runner keeps a running child that compares equal, and two kill tasks
+    // for cubes compared equal: the second cube held was hunted with the first one's rule, found nothing and wandered (route
+    // jar 5's run 1: a cube 47 blocks off, the buddy wandering the other way). made by the cube's id, each cube's task is
+    // its own
+    public static boolean cubeByIdOn() {
+        return Tuning.get("route_cube_id", 0) > 0;
+    }
+
     // ---- the potion kept for the spawner fight (Tuning route_hold, phases 3 and 4; route jar 2). the first route jar let it go
     // for any blaze within 16, so it went down on the walk to the pillbox with a blaze 12 off and ran out with one rod; and
     // it kept it while the buddy burned on a lava rim at 17 hp, so the buddy fell back in with none. whether a fire resistance

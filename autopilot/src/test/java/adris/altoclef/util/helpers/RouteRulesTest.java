@@ -208,6 +208,44 @@ public class RouteRulesTest {
     }
 
     @Test
+    public void theDeadEndsClockRunsOnlyNearTheSpawner() {
+        double near = RouteRules.ERRAND_NEAR;
+        // (no spawner known: the fortress search, no clock either way)
+        assertFalse(RouteRules.errandClockRuns(false, 0, near));
+        assertFalse(RouteRules.errandClockRuns(false, 0, 0));
+        // (route jar 5's run 1: the errand began 205 blocks off and drifted to 620; none of that is the clock's)
+        assertFalse(RouteRules.errandClockRuns(true, 205, near));
+        assertFalse(RouteRules.errandClockRuns(true, 620, near));
+        // (the outer ring, 60 out, and the walk round it)
+        assertTrue(RouteRules.errandClockRuns(true, 60, near));
+        assertTrue(RouteRules.errandClockRuns(true, 80, near));
+        assertFalse(RouteRules.errandClockRuns(true, 80.5, near));
+        // (0: route jar 5's way, anywhere once the spawner is known)
+        assertTrue(RouteRules.errandClockRuns(true, 620, 0));
+    }
+
+    @Test
+    public void aStepCloserToTheWartIsABlockOffTheNearestSoFar() {
+        assertTrue(RouteRules.wartCloser(174, 173));
+        assertFalse(RouteRules.wartCloser(174, 173.5));
+        // (a detour that takes the buddy further off is no step, the nearest stays)
+        assertFalse(RouteRules.wartCloser(174, 190));
+    }
+
+    @Test
+    public void aWartIsGivenUpOnlyWhenItsStandIsNotReached() {
+        long stall = Math.round(RouteRules.WART_STALL_S * 20);
+        long brk = Math.round(RouteRules.WART_BREAK_S * 20);
+        // (route jar 5 gave a wart up after 90 s whatever the walk did: a walk with a step closer now and then goes on)
+        assertNull(RouteRules.wartGiveUp(0, 0, stall, brk));
+        assertNull(RouteRules.wartGiveUp(stall - 1, 0, stall, brk));
+        assertEquals("its stand not reached, no step closer in 60 s", RouteRules.wartGiveUp(stall, 0, stall, brk));
+        // (at its stand with the block still standing)
+        assertNull(RouteRules.wartGiveUp(0, brk - 1, stall, brk));
+        assertEquals("not broken in 30 s at its stand", RouteRules.wartGiveUp(0, brk, stall, brk));
+    }
+
+    @Test
     public void thePotionWaitsForTheSpawnerFightNotForABlazeOnTheWay() {
         double holdHp = 8;
         // (a blaze 12 off on the walk to the spawner, not hitting: route jar 1 drank here)

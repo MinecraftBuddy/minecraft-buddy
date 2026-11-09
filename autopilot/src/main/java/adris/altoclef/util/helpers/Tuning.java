@@ -66,6 +66,13 @@ public final class Tuning {
             // for them till a dead end; the potion kept through phase 4 for the spawner fight, gone at once in lava or burning
             // with the health falling; the fire-proof camp in phase 4 while the potion is kept)
             java.util.Map.entry("route_errand", 1.0),
+            // (route jar 6, 9 Nov 2026: the errand's dead end counts only time within 80 of the spawner, 0 from the spawner
+            // known anywhere; the errand walks to the wart it knows and breaks it itself, given up only when its stand is not
+            // reached, 0 the mining task and the 90 s clock; the cube held is hunted by a kill task of its own id, 0 one rule
+            // kept across cubes. RouteRules)
+            java.util.Map.entry("route_errand_near", 80.0),
+            java.util.Map.entry("route_wart_walk", 1.0),
+            java.util.Map.entry("route_cube_id", 1.0),
             java.util.Map.entry("route_exit", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
