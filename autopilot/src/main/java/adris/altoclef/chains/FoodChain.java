@@ -554,6 +554,10 @@ public class FoodChain extends SingleTaskChain {
     // everything that makes the eat branch back off. cheap enough to read from getPriority, needsToEat() uses the cached answer
     private boolean eatingBlocked(AltoClef mod) {
         if (WorldHelper.isInNetherPortal(mod)) return true;
+        // (the buddy's fork: the forced drills' fight holds the hand, its bow drawn; it lets go for a meal of its own below
+        // DangerForceChain.MEAL_HP. a bite swapped the food in, the bow swapped back the same tick, and the bite backed off
+        // every four seconds, 9 Nov 2026)
+        if (DangerForceChain.holdsTheHand()) return true;
         for (BlockPos playerIn : WorldHelper.getBlocksTouchingPlayer(mod)) {
             if (_dragonBreathTracker.isTouchingDragonBreath(playerIn)) return true;
         }
@@ -739,6 +743,11 @@ public class FoodChain extends SingleTaskChain {
 
     public boolean hasFood() {
         return _hasFood;
+    }
+
+    // the food a meal would pick now (the forced fight asks whether it is in the hotbar)
+    public Optional<Item> pickedFood() {
+        return _cachedPerfectFood;
     }
 
     public void shouldStop(boolean shouldStopInput) {

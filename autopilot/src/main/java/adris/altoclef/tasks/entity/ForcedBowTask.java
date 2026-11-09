@@ -9,7 +9,6 @@ import baritone.api.utils.input.Input;
 import baritone.behavior.CombatAim;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ClipContext;
@@ -21,10 +20,14 @@ import net.minecraft.world.phys.Vec3;
 // only, so a blaze hovering out of reach or a ghast was never reached while the meter's K counted a walk up to it). for a
 // flyer out of the sword's reach with a clear line, DangerForceChain shoots it with the kit's bow: the head turned by the
 // combat aim (a few degrees a tick, like a hand on a mouse, never written straight), the bow drawn by holding the use key
-// and let go once fully drawn with the aim on the point above the mob that the arrow's drop asks for and no block on the
+// and let go once fully drawn with the arrow's way (the look, less its drop) through the mob's box and no block on the
 // line, one arrow at a time. the fork ticks at the top of the client tick, so the draw and the let go reach the server at
 // its start, as every swing does. never a shot through a block: no line, no draw, and a draw under way is held (a key let
-// up mid draw looses the arrow) until the line is back or the chain takes the hand for the sword, whose swap ends the draw
+// up mid draw looses the arrow) until the line is back or the chain takes the hand for the sword, whose swap ends the draw.
+// a new target keeps the draw (retarget): the aim swings over as a player's would. (9 Nov 2026: in the ladder's first block
+// no arrow left in 14 fights. the buddy's own bow, Bow.startTick in the mod, let go of every bow draw it had not begun at
+// the start of each tick, one tick into the draw; and the target flipping between two blazes every few seconds threw the
+// draw away with the task)
 public class ForcedBowTask extends Task {
     // a bow at full draw (vanilla: 20 ticks of use)
     static final int FULL_DRAW = 20;
@@ -36,12 +39,24 @@ public class ForcedBowTask extends Task {
     static final double GRAVITY = 0.05;
     static final double DROP_FUDGE = 1.1;
 
-    private final Entity _target;
+    private Entity _target;
     private long _restUntil = Long.MIN_VALUE;
     private int _shots;
+    // draws begun, for the shot's line: many draws to a shot is a draw that keeps being cut short
+    private int _draws;
+    private boolean _wasDrawing;
 
     public ForcedBowTask(Entity target) {
         _target = target;
+    }
+
+    // another mob for the same bow: the draw under way is kept, the aim goes over to it
+    public void retarget(Entity target) {
+        _target = target;
+    }
+
+    public Entity target() {
+        return _target;
     }
 
     // a bow and an arrow in the bag (and the bow not switched off: tuning key danger_bow=0, melee only and the meter's K
@@ -98,6 +113,33 @@ public class ForcedBowTask extends Task {
         return new float[]{(float) Math.toDegrees(Math.atan2(-dx, dz)), (float) -Math.toDegrees(Math.atan2(dy, flat))};
     }
 
+    // the look as a unit vector, as Entity.calculateViewVector
+    static double[] direction(float yaw, float pitch) {
+        double p = Math.toRadians(pitch);
+        double y = Math.toRadians(-yaw);
+        double flat = Math.cos(p);
+        return new double[]{Math.sin(y) * flat, -Math.sin(p), Math.cos(y) * flat};
+    }
+
+    // whether an arrow loosed now along the look meets the mob: the look carried out to the mob's middle across the ground,
+    // lowered by the arrow's drop over that way (aimPoint's), lands inside its box (minX, minY, minZ, maxX, maxY, maxZ).
+    // pure for the test
+    static boolean onTarget(double[] eye, float yaw, float pitch, double[] box) {
+        double[] d = direction(yaw, pitch);
+        double cx = (box[0] + box[3]) / 2 - eye[0];
+        double cz = (box[2] + box[5]) / 2 - eye[2];
+        double flat = Math.sqrt(cx * cx + cz * cz);
+        double dFlat = Math.sqrt(d[0] * d[0] + d[2] * d[2]);
+        if (dFlat < 1e-6) return false;
+        double t = flat / dFlat;
+        double ticks = flat / ARROW_SPEED;
+        double drop = 0.5 * GRAVITY * ticks * ticks * DROP_FUDGE;
+        double x = eye[0] + d[0] * t;
+        double y = eye[1] + d[1] * t - drop;
+        double z = eye[2] + d[2] * t;
+        return x >= box[0] && x <= box[3] && y >= box[1] && y <= box[4] && z >= box[2] && z <= box[5];
+    }
+
     @Override
     protected void onStart(AltoClef mod) {
         _restUntil = Long.MIN_VALUE;
@@ -121,6 +163,8 @@ public class ForcedBowTask extends Task {
         Vec3 aim = new Vec3(point[0], point[1], point[2]);
         mod.getControllerExtras().aimAt(_target, CombatAim.Priority.KILL_TASK, aim);
         boolean drawing = player.isUsingItem() && player.getUseItem().is(Items.BOW);
+        if (drawing && !_wasDrawing) _draws++;
+        _wasDrawing = drawing;
         if (!clear(mod, eyeV, c) || !clear(mod, eyeV, aim)) {
             // no line: no draw begun and none loosed (a draw under way stays held); the chain closes in after a while
             setDebugState("no line");
@@ -135,19 +179,21 @@ public class ForcedBowTask extends Task {
         // keep the key down while the draw runs (another owner's release may have lifted it)
         mod.getInputControls().hold(Input.CLICK_RIGHT, this);
         if (player.getTicksUsingItem() < FULL_DRAW) return null;
-        float[] want = rotationTo(eye, point);
-        double distance = eyeV.distanceTo(c);
-        // on the point: within half a block at the mob's distance, at least 0.8 and at most 3 degrees
-        double tol = Mth.clamp(Math.toDegrees(Math.atan2(0.5, Math.max(1, distance))), 0.8, 3.0);
-        if (Math.abs(Mth.wrapDegrees(want[0] - player.getYRot())) > tol || Math.abs(want[1] - player.getXRot()) > tol) {
+        // (the rotation the server last heard, which the arrow leaves by: the let go goes out before this tick's turn)
+        baritone.api.utils.Rotation sent = mod.getClientBaritone().getLookBehavior().serverRotation()
+                .orElseGet(() -> new baritone.api.utils.Rotation(player.getYRot(), player.getXRot()));
+        if (!onTarget(eye, sent.getYaw(), sent.getPitch(), new double[]{box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ})) {
             setDebugState("aiming");
             return null;
         }
-        mod.getInputControls().releaseOwnedBy(this);
+        // a plain release: every claim on the key goes, so a shield's hold on it (the mob defense raises one against a
+        // fireball, and with the bow in the main hand that holds the draw) cannot keep the arrow on the string
+        mod.getInputControls().release(Input.CLICK_RIGHT);
         _restUntil = now + REST_TICKS;
         _shots++;
         Debug.logInternal("danger: bow shot " + _shots + " at " + BuiltInRegistries.ENTITY_TYPE.getKey(_target.getType()).getPath()
-                + " " + DangerMeter.num(distance) + " off");
+                + " " + DangerMeter.num(eyeV.distanceTo(c)) + " off, " + _draws + " draws");
+        setDebugState("loosed");
         return null;
     }
 

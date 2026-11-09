@@ -105,7 +105,10 @@ final class Bow {
 		if (p == null || mc.gameMode == null) { drawing = false; return; }
 		boolean using = p.isUsingItem() && p.getUseItem().is(Items.BOW);
 		if (!d || !p.getMainHandItem().is(Items.BOW) || AfkHelperClient.biting() || p.containerMenu != p.inventoryMenu) {
-			if (drawing || using) {
+			// while Soprano has the order a draw the buddy did not begin is Soprano's (the forced drills' bow): left alone, as
+			// Shield leaves Soprano's shield. this let go of it at the start of every tick, one tick into the draw, so no
+			// arrow ever left (9 Nov 2026)
+			if (drawing || (using && !Alto.on())) {
 				HeldKeys.set(mc.options.keyUse, false);
 				if (using) mc.gameMode.releaseUsingItem(p);
 			}
