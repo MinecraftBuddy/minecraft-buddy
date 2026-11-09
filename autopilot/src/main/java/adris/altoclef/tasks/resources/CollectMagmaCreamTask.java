@@ -37,7 +37,32 @@ public class CollectMagmaCreamTask extends ResourceTask {
         double range = adris.altoclef.util.helpers.Tuning.get("cream_range", CollectBlazeRodsTask.CREAM_RANGE);
         return e -> e instanceof MagmaCube c && c.isAlive() && c.getSize() > 1 && c.distanceTo(us) <= range
                 && CollectBlazeRodsTask.creamCubeWhyNot(mod, c, errand) == null
-                && (!errand || mod.getEntityTracker().isEntityReachable(c) && !LET_GO.contains(c.getId()));
+                && (!errand || mod.getEntityTracker().isEntityReachable(c) && !LET_GO.contains(c.getId()) && wayTo(mod, c));
+    }
+
+    // (Tuning route_cube_way, route jar 8, the errand's hunt only: a hunt begins only with a walk from the buddy to a stand of the
+    // cube, CubeWay; half of route jar 7's hunts were let go "out of reach (no way to it)". the verdict per cube is kept
+    // WAY_TICKS, so the search runs at most once in that per cube)
+    static final long WAY_TICKS = 40;
+    private static final java.util.Map<Integer, long[]> WAY = new java.util.LinkedHashMap<>() {
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<Integer, long[]> eldest) {
+            return size() > 256;
+        }
+    };
+
+    static boolean wayTo(AltoClef mod, MagmaCube cube) {
+        if (!adris.altoclef.util.helpers.CubeWay.on() || mod.getClientBaritone().getPlayerContext() == null) return true;
+        long now = mod.getWorld().getGameTime();
+        long[] seen = WAY.get(cube.getId());
+        if (seen != null && now >= seen[0] && now - seen[0] < WAY_TICKS) return seen[1] != 0;
+        var us = mod.getPlayer();
+        var cells = baritone.pathing.movement.CliffAvoidance.of(new baritone.utils.BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
+        net.minecraft.core.BlockPos at = cube.blockPosition();
+        boolean ok = adris.altoclef.util.helpers.CubeWay.way(cells, us.getBlockX(), net.minecraft.util.Mth.floor(us.getY() + 0.1251), us.getBlockZ(),
+                at.getX(), at.getY(), at.getZ());
+        WAY.put(cube.getId(), new long[]{now, ok ? 1 : 0});
+        return ok;
     }
 
     // a cube to hunt in sight, or its cream on the ground within the hunt's range

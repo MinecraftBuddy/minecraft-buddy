@@ -88,4 +88,25 @@ public class GhastCoverTest {
         // a last one that is no ground with room any more is passed over for the nearest
         assertArrayEquals(new int[]{0, 64, 2}, GhastCover.ground(c, c, 0, 64, 12, new int[]{0, 64, 5}, 32, 16));
     }
+
+    // route jar 8: the same ghast again within 30 s of a release doubles the wait (t1 run 11: 10 to 12 shelters in 3 minutes)
+    @Test
+    public void theSameGhastAgainDoublesTheWait() {
+        assertTrue(GhastCover.streak(true, 100, 0) == 1);
+        assertTrue(GhastCover.streak(true, 100, 1) == 2);
+        // at most two doublings: 10, 20, 40 s
+        assertTrue(GhastCover.streak(true, 100, 2) == 2);
+        assertTrue(GhastCover.holdTicks(200, 0) == 200);
+        assertTrue(GhastCover.holdTicks(200, 1) == 400);
+        assertTrue(GhastCover.holdTicks(200, 2) == 800);
+        assertTrue(GhastCover.holdTicks(200, 5) == 800);
+        // another ghast, or the same one more than 30 s after the release: the plain wait
+        assertTrue(GhastCover.streak(false, 100, 1) == 0);
+        assertTrue(GhastCover.streak(true, GhastCover.AGAIN_TICKS + 1, 1) == 0);
+        assertTrue(GhastCover.streak(true, -5, 1) == 0);
+        // the wait ends once the ghast is dead or 64 or more off
+        assertTrue(GhastCover.ghastGone(false, 10));
+        assertTrue(GhastCover.ghastGone(true, 64));
+        assertFalse(GhastCover.ghastGone(true, 40));
+    }
 }

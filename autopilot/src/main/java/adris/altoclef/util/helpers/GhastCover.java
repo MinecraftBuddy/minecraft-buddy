@@ -29,6 +29,38 @@ public final class GhastCover {
     // half a game minute for the walk to cover
     static final int WALK_TICKS = 600;
 
+    // ---- the wait doubled (Tuning ghast_wait_double, on by default; route jar 8, 9 Nov 2026). the shelter let go after ten game
+    // seconds out of the ghast's sight, and the walk (the trade, the errand's walk to the wart) stepped back into its line:
+    // 10 to 12 times in 3 minutes, some 90 to 130 s lost each time (realfort-route-5's t1 run 11). on a release the ghast and
+    // the cover are kept; the same ghast sending the buddy into cover again within AGAIN_TICKS of a release doubles the wait
+    // out of its sight, at most DOUBLINGS times (10, 20, 40 s), the old cover taken again while that ghast cannot see it; and
+    // any wait ends once the ghast is dead or GONE or more off. the stay's own cap (two minutes) holds over all of it, far
+    // under the 20 minute stall clock
+    public static final long AGAIN_TICKS = 600;
+    public static final int DOUBLINGS = 2;
+    public static final double GONE = 64;
+
+    public static boolean doubleOn() {
+        return Tuning.get("ghast_wait_double", 0) > 0;
+    }
+
+    // the doublings for a new shelter: one more than the last release's (at most DOUBLINGS) when the same ghast sends the buddy
+    // in again within AGAIN_TICKS of that release (sinceRelease, game ticks), else none
+    public static int streak(boolean sameGhast, long sinceRelease, int last) {
+        if (!sameGhast || sinceRelease < 0 || sinceRelease > AGAIN_TICKS) return 0;
+        return Math.min(last + 1, DOUBLINGS);
+    }
+
+    // the wait out of the ghast's sight before a release: base doubled streak times
+    public static long holdTicks(long base, int streak) {
+        return base << Math.max(0, Math.min(streak, DOUBLINGS));
+    }
+
+    // the ghast that sent the buddy into cover is no more reason to wait: dead, or GONE or more off
+    public static boolean ghastGone(boolean alive, double distance) {
+        return !alive || distance >= GONE;
+    }
+
     private long _since = -1;
     private Task _go;
     private long _goSince;

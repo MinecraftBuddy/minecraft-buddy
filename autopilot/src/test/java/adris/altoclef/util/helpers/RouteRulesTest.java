@@ -1,5 +1,6 @@
 package adris.altoclef.util.helpers;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -382,5 +383,87 @@ public class RouteRulesTest {
         // a one wide strip with lava on both sides: no stand, given up as before
         LavaWorld strip = LavaWorld.flat(63).fill(11, 63, -5, 25, 63, 25, LavaWorld.Cell.LAVA).fill(-5, 63, -5, 9, 63, 25, LavaWorld.Cell.LAVA);
         assertNull(ItemPickupRules.edgeStand(strip, strip, 10.5, 64.1, 10.5));
+    }
+
+    // route jar 8: the errand's wart only within route_wart_near of the spawner (t4 run 38 walked for one 10132 off)
+    @Test
+    public void aWartFarFromTheSpawnerIsNoTarget() {
+        assertTrue(RouteRules.wartInReach(149, RouteRules.WART_NEAR));
+        assertTrue(RouteRules.wartInReach(150, RouteRules.WART_NEAR));
+        assertFalse(RouteRules.wartInReach(10132, RouteRules.WART_NEAR));
+        // (0: any distance, route jar 7's way)
+        assertTrue(RouteRules.wartInReach(10132, 0));
+    }
+
+    // route jar 8: the dead end's clock counts game time whoever has the tick (t8 run 27 fought 16.7 minutes with no dead end)
+    @Test
+    public void theErrandsClockCountsGameTimeWhoeverHasTheTick() {
+        // a fight that held the tick 400 ticks: all of it with the switch, the old own-tick cap without
+        assertEquals(400, RouteRules.errandClockStep(400, true));
+        assertEquals(BrewErrandRules.GAP_MAX, RouteRules.errandClockStep(400, false));
+        assertEquals(1, RouteRules.errandClockStep(1, true));
+        // a clock that went back counts nothing
+        assertEquals(0, RouteRules.errandClockStep(-50, true));
+        // 600 s of game time at the fortress is the dead end, whatever had the ticks
+        long clock = 0;
+        for (int i = 0; i < 30; i++) clock += RouteRules.errandClockStep(400, true);
+        assertEquals("neither got in 600 s at the fortress", RouteRules.errandDeadEnd(3, clock, BrewErrandRules.ticks(RouteRules.ERRAND_DEAD_S)));
+    }
+
+    // route jar 8: the rings from 32 out, 16 apart, out of the spawner's blazes' reach; 0 the old 20, 40, 60
+    @Test
+    public void theRingsLieOutOfTheBlazesReach() {
+        assertEquals(32, RouteRules.ringRadius(1, RouteRules.RING_OUT), 0);
+        assertEquals(48, RouteRules.ringRadius(2, RouteRules.RING_OUT), 0);
+        assertEquals(64, RouteRules.ringRadius(3, RouteRules.RING_OUT), 0);
+        assertTrue(RouteRules.ringRadius(3, RouteRules.RING_OUT) < RouteRules.ERRAND_NEAR);
+        assertEquals(20, RouteRules.ringRadius(1, 0), 0);
+        assertEquals(60, RouteRules.ringRadius(3, 0), 0);
+        // every point of every ring at least 32 from the spawner, the first one on the buddy's side
+        for (int k = 0; k < RouteRules.ERRAND_POINTS; k++) {
+            int[] p = RouteRules.errandPoint(k, 100, 200, 0, RouteRules.RING_OUT);
+            assertTrue(Math.hypot(p[0] - 100, p[1] - 200) >= RouteRules.RING_OUT - 1);
+        }
+        assertArrayEquals(new int[]{132, 200}, RouteRules.errandPoint(0, 100, 200, 0, RouteRules.RING_OUT));
+        assertArrayEquals(RouteRules.errandPoint(5, 100, 200, 0.3), RouteRules.errandPoint(5, 100, 200, 0.3, 0));
+    }
+
+    // route jar 8: in phase 3 a blaze within a blow's reach is hit, one with a line on the buddy walked away from
+    @Test
+    public void inPhase3ABlazeIsHitOnlyInReachAndOtherwiseLeft() {
+        assertEquals("hit", RouteRules.awayAct(2.0, true));
+        assertEquals("hit", RouteRules.awayAct(3.3, false));
+        assertEquals("away", RouteRules.awayAct(12, true));
+        assertNull(RouteRules.awayAct(12, false));
+    }
+
+    // a yard: floor at y 63 everywhere (feet at 64), a wall at x 10 from y 64 up to y 69, a ledge past it, nothing else
+    private static baritone.pathing.movement.CliffAvoidance.Cells yardWithWall(boolean stairs) {
+        return (x, y, z) -> {
+            if (y <= 63) return baritone.pathing.movement.CliffAvoidance.Cell.SOLID;
+            // a ledge on the far side: x 11 and up has its floor at y 68 (feet at 69)
+            if (x >= 11 && y <= 68) return baritone.pathing.movement.CliffAvoidance.Cell.SOLID;
+            if (x == 10 && y <= 69) return baritone.pathing.movement.CliffAvoidance.Cell.SOLID;
+            // stairs up along z 0: one block a step from x 5 to x 9 (y 64 to 68), then onto the wall's top at x 10 (feet at 70)
+            if (stairs && z == 0 && x >= 5 && x <= 9 && y <= 64 + (x - 5)) return baritone.pathing.movement.CliffAvoidance.Cell.SOLID;
+            return baritone.pathing.movement.CliffAvoidance.Cell.OPEN;
+        };
+    }
+
+    // route jar 8: a cube hunt begins only with a walk to its stand (half of route jar 7's hunts were let go "no way to it")
+    @Test
+    public void aCubeIsHuntedOnlyWithAWalkToItsStand() {
+        var flat = yardWithWall(false);
+        // on the same floor, 20 off: a walk
+        assertTrue(CubeWay.way(flat, 0, 64, 0, -20, 64, 5));
+        // up on the ledge behind a wall six high: no walk
+        assertFalse(CubeWay.way(flat, 0, 64, 0, 15, 69, 0));
+        // a jumping cube over its ground is judged by that ground
+        assertTrue(CubeWay.way(flat, 0, 64, 0, -20, 66, 5));
+        // with stairs up the wall, a walk: onto the wall's top and down one onto the ledge
+        assertTrue(CubeWay.way(yardWithWall(true), 0, 64, 0, 15, 69, 0));
+        // the stand: within 2.5 of the cube's column and a block of its ground
+        assertTrue(CubeWay.stand(2, 64, 1, 0, 64, 0));
+        assertFalse(CubeWay.stand(3, 64, 0, 0, 66, 0));
     }
 }

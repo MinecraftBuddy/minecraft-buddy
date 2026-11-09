@@ -144,12 +144,14 @@ gate lacks is fetched by safer steps first, all of it planned together.
      blocks the buddy hands no gold and walks away from the cubes first. A potion thrown beside lava is fetched from a
      block with no lava next to it. A magma cube seen on the way is killed for its cream.
   3. To the fortress for a nether wart and a magma cream, both. A magma cube in sight is hunted first, and kept after
-     until it is dead or out of reach; then a nether wart the buddy knows of, however far off: the buddy walks straight
-     to it and breaks it, and gives it up only after a minute with no step closer, or half a minute beside it unbroken.
-     With nothing in sight at the fortress, the buddy walks round the spawner in three rings, 20, 40 and 60 blocks out,
-     to see more of it. This ends with both in the bag, or when the rings are walked or ten minutes pass at the fortress
-     (within 80 blocks of the spawner) with neither found. For its cream the buddy hunts only a medium magma cube with
-     no other cube within 6 blocks of it, and only at 14 health or more; it leaves a field of cubes alone.
+     until it is dead or out of reach; then a nether wart the buddy knows of within 150 blocks of the spawner: the buddy
+     walks straight to it and breaks it, and gives it up only after a minute with no step closer, or half a minute
+     beside it unbroken. With nothing in sight at the fortress, the buddy walks round the spawner in three rings, 32, 48
+     and 64 blocks out, to see more of it. This ends with both in the bag, or when the rings are walked or ten minutes
+     pass at the fortress (within 80 blocks of the spawner) with neither found, fights included. For its cream the buddy
+     hunts only a medium magma cube it can walk to, with no other cube within 6 blocks of it, and only at 14 health or
+     more; it leaves a field of cubes alone. The buddy does not camp at the spawner yet: a blaze that sees it is walked
+     away from, and only one within a sword's reach is hit.
   4. The first two blaze rods, at the spawner with no pillbox while the potion is kept. The potion goes down when the
      blazes come at the spawner, not for a blaze on the way.
   5. Shut in the pillbox by the spawner, the brew of three potions of fire resistance. Until the brewing stand is
@@ -166,8 +168,9 @@ gate lacks is fetched by safer steps first, all of it planned together.
   and otherwise fights from the open. A ghast's fireball is punched back only while it is more than about three blocks
   off; closer, the shield goes up. With a ghast in sight, or one seen in the last three seconds, the buddy neither
   bridges nor stands by a drop of about ten blocks or more, or over lava: it goes back to solid ground with room on all
-  sides, four blocks from any drop, and waits there until the ghast is gone or out of sight for ten seconds, two minutes
-  at most.
+  sides, four blocks from any drop, and waits there until the ghast is dead, 64 blocks off or out of sight for ten
+  seconds, two minutes at most. The same ghast sending the buddy back into cover within half a minute doubles that wait,
+  to 20 and then 40 seconds, in the same cover.
 - **The End**: a bow with arrows on top.
 
 A piece of the kit may take ten game minutes and three more for each ingot; a piece that did not come is not asked again

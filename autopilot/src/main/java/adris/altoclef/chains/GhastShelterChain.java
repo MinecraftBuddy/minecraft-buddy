@@ -73,6 +73,14 @@ public class GhastShelterChain extends SingleTaskChain {
     private boolean _stayingSeen;
     // the cover a rest began at: during the rest the rim's trigger never takes it again (it would rest again at once)
     private BlockPos _restedFrom;
+    // (Tuning ghast_wait_double, route jar 8, GhastCover.streak) the ghast that sent the buddy into this cover and the doublings
+    // of its wait; the last release's ghast, tick, cover and doublings, kept through the reset
+    private Ghast _coverGhast;
+    private int _streak;
+    private Ghast _releasedGhast;
+    private long _releasedAt = Long.MIN_VALUE;
+    private BlockPos _releasedCover;
+    private int _releasedStreak;
 
     static boolean bridgeOn() {
         return adris.altoclef.util.helpers.Tuning.get("ghast_bridge", 0) > 0;
@@ -177,14 +185,25 @@ public class GhastShelterChain extends SingleTaskChain {
                 return PRIORITY;
             }
             if (there) {
+                // (Tuning ghast_wait_double: the wait doubled for the same ghast again, and over once it is dead or far off)
+                boolean dbl = GhastCover.doubleOn();
+                long hold = dbl ? GhastCover.holdTicks(HOLD_TICKS, _streak) : HOLD_TICKS;
+                boolean gone = dbl && _coverGhast != null && GhastCover.ghastGone(_coverGhast.isAlive() && !_coverGhast.isRemoved(), _coverGhast.distanceTo(player))
+                        && (!_before || nearestGhast(mod, NEAR) == null);
+                if (gone) {
+                    Debug.logInternal("ghast shelter: the ghast " + (_coverGhast.isAlive() && !_coverGhast.isRemoved() ? Math.round(_coverGhast.distanceTo(player)) + " off" : "dead")
+                            + ", the " + (_before ? "crossing" : "order") + " goes on");
+                    release(now);
+                    return Float.NEGATIVE_INFINITY;
+                }
                 if (_before && nearestGhast(mod, NEAR) != null) {
                     _clearSince = Long.MIN_VALUE;
                 } else if (_clearSince == Long.MIN_VALUE) {
                     _clearSince = now;
-                } else if (now - _clearSince >= HOLD_TICKS) {
-                    Debug.logInternal(_before ? "ghast shelter: no ghast near for ten game seconds, the crossing goes on"
-                            : "ghast shelter: out of its sight for ten game seconds, the order goes on");
-                    reset();
+                } else if (now - _clearSince >= hold) {
+                    Debug.logInternal(_before ? "ghast shelter: no ghast near for " + hold / 20 + " game seconds, the crossing goes on"
+                            : "ghast shelter: out of its sight for " + hold / 20 + " game seconds, the order goes on");
+                    release(now);
                     return Float.NEGATIVE_INFINITY;
                 }
             }
@@ -260,10 +279,24 @@ public class GhastShelterChain extends SingleTaskChain {
             back = cover != null;
             if (cover == null) say(now, "no cover from it and no solid ground with room within " + GROUND_RADIUS + (exposed ? ", on a rim" : ", a crossing ahead"));
         }
+        // (Tuning ghast_wait_double: the same ghast again within 30 s of a release: the wait doubled, and the cover of that
+        // release taken again while the ghast cannot see it, GhastCover.streak)
+        boolean dbl = GhastCover.doubleOn();
+        int streak = dbl && _releasedAt != Long.MIN_VALUE ? GhastCover.streak(near == _releasedGhast, now - _releasedAt, _releasedStreak) : 0;
+        if (streak > 0 && !fightCorner && _releasedCover != null && !_releasedCover.equals(cover)
+                && player.blockPosition().distSqr(_releasedCover) <= (double) GROUND_RADIUS * GROUND_RADIUS
+                && !GhastCover.seesCell(level, near.getEyePosition(), _releasedCover, player)) {
+            cover = _releasedCover;
+            back = false;
+        }
         if (cover == null || resting && cover.equals(_restedFrom)) return Float.NEGATIVE_INFINITY;
         _before = before;
         _since = now;
         walkTo(cover, fightCorner, now);
+        _coverGhast = near;
+        _streak = streak;
+        if (streak > 0) Debug.logInternal("ghast shelter: the same ghast again " + (now - _releasedAt) / 20 + " s after a release, the wait out of its sight "
+                + GhastCover.holdTicks(HOLD_TICKS, streak) / 20 + " s" + (cover.equals(_releasedCover) ? ", the same cover" : ""));
         Debug.logInternal("ghast shelter: " + (before ? "a crossing over the sea" + (bridge ? " or a deep drop" : "") + " ahead in the sight of a ghast at "
                         : "on a rim or over the sea in the sight of a ghast at ")
                 + near.blockPosition().toShortString() + (exposed && ghast == null ? " (seen " + (now - _seenAt) / 20.0 + " s ago)" : "")
@@ -320,6 +353,15 @@ public class GhastShelterChain extends SingleTaskChain {
             return null;
         }
         return new BlockPos(c[0], c[1], c[2]);
+    }
+
+    // the shelter let go after its wait: the ghast, the tick, the cover and the doublings kept for the next one (ghast_wait_double)
+    private void release(long now) {
+        _releasedGhast = _coverGhast;
+        _releasedAt = now;
+        _releasedCover = _cover;
+        _releasedStreak = _streak;
+        reset();
     }
 
     private void rest(long now) {
@@ -400,6 +442,8 @@ public class GhastShelterChain extends SingleTaskChain {
         _before = false;
         _fightCorner = false;
         _stayingSeen = false;
+        _coverGhast = null;
+        _streak = 0;
     }
 
     @Override

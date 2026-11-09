@@ -127,6 +127,83 @@ public final class RouteRules {
         return null;
     }
 
+    // ---- the wart near the spawner (Tuning route_wart_near, the distance, WART_NEAR by default, 0 off; route jar 8, 9 Nov 2026).
+    // the block tracker keeps the wart of earlier runs on the same lane, and route jar 6's walk goes to any of it: realfort-
+    // route-5's t4 run 38 walked for a wart 10132 blocks off that run 1 of its lane broke, t2 run 9 for one 3465 off and died
+    // in lava on the way; the walk's give-up never fires on a long walk that keeps getting closer. a fortress's wart rooms
+    // lie well within 150 of its spawner, so a wart farther from the spawner the errand works from (from the buddy while
+    // none is known) is no target; the tracker's memory is kept as it is
+    public static final double WART_NEAR = 150;
+
+    public static double wartNear() {
+        return Tuning.get("route_wart_near", 0);
+    }
+
+    // whether a wart this far from the anchor (the spawner, else the buddy) may be the errand's target
+    public static boolean wartInReach(double fromAnchor, double near) {
+        return near <= 0 || fromAnchor <= near;
+    }
+
+    // ---- phase 3 out of the blaze camp (route jar 8). realfort-route-5 lost 8 of 31 runs in phase 3 to the spawner's blazes
+    // and their wither skeletons, 16 to 65 blocks from the spawner, 7 of 8 with the potion still kept for phase 4: the fight
+    // and the hiding place took the tick, so the errand's clock (its own ticks) stood still and its dead end never came. t8's
+    // run 27 walked its 24th ring point at 04:37:00, fought for 16.7 minutes with no dead end, burned at 04:53:37; the dead
+    // end was said after the death.
+    // (Tuning route_errand_clock, on by default) the dead end's clock counts game time each tick while the errand is the
+    // order, whoever has the tick, and the dead end is asked each tick before the fight's
+    public static boolean errandClockOn() {
+        return Tuning.get("route_errand_clock", 0) > 0;
+    }
+
+    // the clock's step this tick: game time since the last tick it was asked (gap), whole with the switch on, at most
+    // BrewErrandRules.GAP_MAX (the errand's own ticks) with it off; a clock that went back counts nothing
+    public static long errandClockStep(long gap, boolean gameTime) {
+        if (gap <= 0) return 0;
+        return gameTime ? gap : Math.min(gap, BrewErrandRules.GAP_MAX);
+    }
+
+    // (Tuning route_ring_out, the first ring's radius, RING_OUT by default, 0 off) the rings round the spawner out of its blazes'
+    // reach: ring 1 was 20 out, where the fight counts a blaze with a line on the buddy a threat (BlazeFightRules.SIGHT_RANGE 20)
+    // and blazes drift some 8 to 12 from the spawner they came from. from 32 out, RING_OUT_STEP apart (32, 48, 64: the
+    // outer ring stays inside ERRAND_NEAR's 80, where the dead end's clock runs), a blaze by the spawner is 20 or more off
+    public static final double RING_OUT = 32;
+    public static final double RING_OUT_STEP = 16;
+
+    public static double ringOut() {
+        return Tuning.get("route_ring_out", 0);
+    }
+
+    // the radius of ring (1 first): from first, step apart with the switch on (first above 0), else ERRAND_RING_STEP * ring
+    public static double ringRadius(int ring, double first) {
+        if (first <= 0) return ERRAND_RING_STEP * ring;
+        return first + RING_OUT_STEP * (ring - 1);
+    }
+
+    // the k-th point of the errand's walk as errandPoint, the rings from first out (ringRadius)
+    public static int[] errandPoint(int k, double sx, double sz, double from, double first) {
+        int ring = 1 + Math.floorMod(k, ERRAND_POINTS) / ERRAND_RING_POINTS;
+        double r = ringRadius(ring, first);
+        double a = from + Math.floorMod(k, ERRAND_RING_POINTS) * (2 * Math.PI / ERRAND_RING_POINTS);
+        return new int[]{(int) Math.round(sx + r * Math.cos(a)), (int) Math.round(sz + r * Math.sin(a))};
+    }
+
+    // (Tuning route_errand_away, on by default) while the errand is the order the camp at the spawner is not taken: no hiding
+    // place, no chase. a blaze with a line on the buddy within the fight's sight is walked away from, out of its range, and
+    // only one within AWAY_BLOW is hit (self-defence: a blaze that close bites, and running from it gives it free shots)
+    public static final double AWAY_BLOW = 3.3;
+
+    public static boolean errandAwayOn() {
+        return Tuning.get("route_errand_away", 0) > 0;
+    }
+
+    // what the fight does with a blaze while the errand holds it off: "hit" one within the blow's reach, "away" from one with a
+    // line on the buddy (seen), null to leave it be
+    public static String awayAct(double distance, boolean seesBuddy) {
+        if (distance <= AWAY_BLOW) return "hit";
+        if (seesBuddy) return "away";
+        return null;
+    }
+
     // ---- the cube held, hunted by its id (Tuning route_cube_id, on by default; route jar 6). the hunt's kill task was made
     // with a rule for the one cube held, but the task runner keeps a running child that compares equal, and two kill tasks
     // for cubes compared equal: the second cube held was hunted with the first one's rule, found nothing and wandered (route

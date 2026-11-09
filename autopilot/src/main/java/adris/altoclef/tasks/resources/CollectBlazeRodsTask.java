@@ -150,6 +150,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private long _wartLastTick = -1;
     private long _wartSaidAt;
     private boolean _errandNearSaid;
+    // the game tick the route's errand's clock last ran (route_errand_clock, errandClockTick; -1: not yet)
+    private long _errandClockAt = -1;
     // ---- the route through the nether (RouteRules, steering 118 to 120): the last phase said; whether this task is an order of
     // rods of its own (the catalogue's: the gamer's nether phase goes on to a plan of its own, with no exit here); the no-potion
     // line asked; the cream hunt on the trade's search and whether one is under way; the brew's pillbox not to be planned again
@@ -559,6 +561,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
                         : _campSpot != null ? "no box fits, the camp at " + _campSpot.toShortString() : "no box fits, by the spawner"));
             }
         }
+        // (Tuning route_errand_clock, route jar 8: the errand's clock and dead end each tick, whoever has it next)
+        errandClockTick(mod);
+        // (Tuning route_errand_away, route jar 8: in phase 3 no camp at the spawner and no chase, a blaze on the buddy walked
+        // away from, one in a blow's reach hit, BlazeFight.errand)
+        _fight.errand(_errandOn && adris.altoclef.util.helpers.RouteRules.errandOn() && adris.altoclef.util.helpers.RouteRules.errandAwayOn());
         // blazes first: kill the one we picked, run when it goes badly. null is "nobody to fight"
         boolean building = _pillbox != null && !_pillbox.isFinished(mod);
         // (the cell is the fight's corner from its first block on, the wall nearest the spawner: a run then goes into it, not out
@@ -959,19 +966,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // cubes in reach were nearly all on another level, brew2-s8-1, 5 Nov 2026)
         if (!anyLevel && (cube.getY() < us.getY() - adris.altoclef.util.helpers.Tuning.get("cream_down", 2)
                 || cube.getY() > us.getY() + adris.altoclef.util.helpers.Tuning.get("cream_up", 3))) return "level";
-        BlockPos at = cube.blockPosition();
-        // (a cube in the air is judged by the ground it jumped from: with the air under it as its floor, a jumping cube failed
-        // "floor" every other tick and the hunt let go and took it again, route jar 1's ping-pong; Tuning route_errand)
-        if (anyLevel && !cube.onGround() && adris.altoclef.util.helpers.RouteRules.errandOn()) {
-            for (int i = 0; i < 4 && mod.getWorld().getBlockState(at.below()).isAir(); i++) at = at.below();
-        }
+        BlockPos at = creamCubeAt(mod, cube, anyLevel);
         Block floor = mod.getWorld().getBlockState(at.below()).getBlock();
         // (Tuning cream_wild: also a cube met on the way to the fortress, on any sturdy ground but magma; the rules for lava, the
         // sea and drops below still hold. Off by default: in the fortress the floor is its bricks)
         boolean bricks = floor == Blocks.NETHER_BRICKS || floor == Blocks.NETHER_BRICK_SLAB || floor == Blocks.NETHER_BRICK_STAIRS;
         boolean wild = adris.altoclef.util.helpers.Tuning.get("cream_wild", 0) > 0 && floor != Blocks.MAGMA_BLOCK
                 && mod.getWorld().getBlockState(at.below()).isFaceSturdy(mod.getWorld(), at.below(), net.minecraft.core.Direction.UP);
-        if (!bricks && !wild) return "floor";
+        // (Tuning route_cream_ground, off by default, route jar 8's B arm: the errand's hunt takes a cube on any ground with a
+        // solid top but magma, a slab, a stair, a fence or soul sand among them, not only a sturdy face; the rules below hold)
+        boolean ground = anyLevel && creamGroundOn() && floor != Blocks.MAGMA_BLOCK
+                && !mod.getWorld().getBlockState(at.below()).getCollisionShape(mod.getWorld(), at.below()).isEmpty();
+        if (!bricks && !wild && !ground) return "floor";
         for (BlockPos p : BlockPos.betweenClosed(at.offset(-3, -3, -3), at.offset(3, 1, 3))) {
             if (mod.getWorld().getBlockState(p).getBlock() == Blocks.LAVA) return "lava";
         }
@@ -985,6 +991,37 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // RouteRules.cubeWhyNot; asked last, so the held cube's lava and sea let-go still sees those first)
         if (anyLevel) return cubeAloneWhyNot(mod, cube);
         return null;
+    }
+
+    // Tuning route_cream_ground (off by default; route jar 8, 9 Nov 2026): the B arm of the cream's A/B block. realfort-route-5's
+    // count lines left cubes in range for "floor" 1023 times. cream_wild already takes any sturdy ground but magma, so a
+    // "floor" is a cube over lava or air, on magma, or on ground with no sturdy top (a slab, a stair, a fence, soul sand):
+    // with the switch the errand's hunt takes the last kind too, and a jumping cube is judged by the ground up to
+    // CubeWay.GROUND_DOWN under it (4 without); the lava, sea, drop, shore, crowd and alone checks and the 14 hp rule hold
+    static boolean creamGroundOn() {
+        return adris.altoclef.util.helpers.Tuning.get("route_cream_ground", 0) > 0;
+    }
+
+    // the cell a cube is judged at: its own, a jumping one's (any level, the route's errand) the air cell over the ground it
+    // jumped from. with the air under it as its floor, a jumping cube failed "floor" every other tick and the hunt let go and
+    // took it again, route jar 1's ping-pong; Tuning route_errand
+    static BlockPos creamCubeAt(AltoClef mod, MagmaCube cube, boolean anyLevel) {
+        BlockPos at = cube.blockPosition();
+        if (anyLevel && !cube.onGround() && adris.altoclef.util.helpers.RouteRules.errandOn()) {
+            int down = creamGroundOn() ? adris.altoclef.util.helpers.CubeWay.GROUND_DOWN : 4;
+            for (int i = 0; i < down && mod.getWorld().getBlockState(at.below()).isAir(); i++) at = at.below();
+        }
+        return at;
+    }
+
+    // what a cube left for "floor" stands over, for the count line: lava, air, magma, or the block's id
+    static String creamFloorKind(AltoClef mod, MagmaCube cube, boolean anyLevel) {
+        BlockPos at = creamCubeAt(mod, cube, anyLevel).below();
+        var state = mod.getWorld().getBlockState(at);
+        if (state.getBlock() == Blocks.LAVA) return "lava";
+        if (state.isAir()) return "air";
+        if (state.getBlock() == Blocks.MAGMA_BLOCK) return "magma";
+        return net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath();
     }
 
     // the alone rule's verdict on a cube (Tuning route_cube_alone), null with the rule off or the cube fit by it
@@ -1023,6 +1060,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         int near = 0, fit = 0, far = 0, small = 0;
         java.util.Map<String, Integer> why = new java.util.TreeMap<>();
         java.util.List<Integer> dys = new java.util.ArrayList<>();
+        // (route jar 8: what the cubes left for "floor" stand over, so the floor rule's refusals can be told apart)
+        java.util.Map<String, Integer> under = new java.util.TreeMap<>();
         for (MagmaCube c : mod.getEntityTracker().getTrackedEntities(MagmaCube.class)) {
             if (!c.isAlive()) continue;
             double d = c.distanceTo(us);
@@ -1039,12 +1078,15 @@ public class CollectBlazeRodsTask extends ResourceTask {
             String no = creamCubeWhyNot(mod, c, errand);
             if (no == null && errand && !mod.getEntityTracker().isEntityReachable(c)) no = "no way";
             if (no == null && errand && CollectMagmaCreamTask.LET_GO.contains(c.getId())) no = "let go";
+            // (Tuning route_cube_way, route jar 8: no walk to its stand, CubeWay)
+            if (no == null && errand && !CollectMagmaCreamTask.wayTo(mod, c)) no = "no walk";
             if (no == null) fit++;
             else why.merge(no, 1, Integer::sum);
+            if ("floor".equals(no)) under.merge(creamFloorKind(mod, c, errand), 1, Integer::sum);
             if ((errand || "level".equals(no)) && dys.size() < 8) dys.add((int) Math.round(c.getY() - us.getY()));
         }
         Debug.logInternal("cream: " + near + " cubes within " + (int) range + " (" + fit + " fit" + (why.isEmpty() ? "" : ", left " + why)
-                + (dys.isEmpty() ? "" : ", dy " + dys) + "), " + far + " more within 64, " + small + " tiny; rods " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
+                + (under.isEmpty() ? "" : ", the floor's " + under) + (dys.isEmpty() ? "" : ", dy " + dys) + "), " + far + " more within 64, " + small + " tiny; rods " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
     }
 
     // the buddy's fork, Tuning brew_errand, on by default since the route (steering 118): the cream and the wart before the spawner fight, so the first two
@@ -1176,16 +1218,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
     }
 
-    // Tuning route_errand, on by default (route jar 2, RouteRules): the route's phase 3. the cream and the wart are wanted at once
-    // (the wart only while water bottles want one); what is in sight is taken: a magma cube first (it moves, the wart stays;
-    // CollectMagmaCreamTask holds the cube it picks), then the wart the tracker knows (a block not reached in
-    // RouteRules.WART_HOLD_S is given up for the next). before the spawner is known nothing else: the fortress search goes on,
-    // and finds the cubes and the wart rooms on its way. once it is known, with nothing in sight, the buddy walks round it in
-    // rings (RouteRules.errandPoint) so more of the fortress comes into view, its cubes at other heights among it. the errand
-    // ends with both in the bag, or at a dead end (RouteRules.errandDeadEnd: the rings walked with nothing left, or
-    // route_errand_dead_s with neither got at the fortress); then the route goes on to the first two rods, under the potion
-    // while one is kept, and without the brew if the cream or the wart is missing (RouteRules.NO_BREW)
-    private Task routeErrand(AltoClef mod, long now, long gap, int cream, int wart, int water, boolean kit) {
+    // the route's errand's dead end clock: an item got starts it again, step (game ticks) is added while the buddy is within
+    // route_errand_near of the spawner, and a dead end ends the errand (the no-brew line). true when it ended now. where:
+    // words for the line, what had the tick (empty: the errand itself)
+    private boolean errandClock(AltoClef mod, long now, long step, int cream, int wart, int water, boolean kit, String where) {
         boolean wantCream = cream == 0;
         boolean wantWart = water > 0 && wart == 0;
         if (cream > _errandCreamSeen || wart > _errandWartSeen) {
@@ -1207,18 +1243,58 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 Debug.logInternal("brew errand: within " + (int) near + " of the spawner after " + secs(now - _errandAt) + " s, the dead end's clock runs ("
                         + (int) Math.round(toSpawner) + " blocks off)");
             }
-            _errandSinceGot = adris.altoclef.util.helpers.BrewErrandRules.own(_errandSinceGot, gap);
+            _errandSinceGot += step;
         }
-        if (wantCream) logCreamCubes(mod, true);
         String why = !kit ? "the kit missing" : adris.altoclef.util.helpers.RouteRules.errandDeadEnd(_errandPoint, _errandSinceGot,
                 adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.Tuning.get("route_errand_dead_s", adris.altoclef.util.helpers.RouteRules.ERRAND_DEAD_S)));
-        if (why != null) {
-            Debug.logInternal("brew errand: a dead end (" + why + ") after " + secs(now - _errandAt) + " s, cream " + cream + ", wart " + wart);
-            _errandOn = false;
-            _errandEnded = true;
-            noteNoBrew(mod, wantCream && wantWart ? "no cream, no wart" : wantCream ? "no cream" : "no wart");
-            return null;
+        if (why == null) return false;
+        Debug.logInternal("brew errand: a dead end (" + why + ") after " + secs(now - _errandAt) + " s" + where + ", cream " + cream + ", wart " + wart);
+        _errandOn = false;
+        _errandEnded = true;
+        noteNoBrew(mod, wantCream && wantWart ? "no cream, no wart" : wantCream ? "no cream" : "no wart");
+        return true;
+    }
+
+    // Tuning route_errand_clock, on by default (route jar 8, RouteRules.errandClockOn): while the route's errand is the order its
+    // clock counts game time and its dead end is asked every tick, before the fight's, so a fight or a hiding place that takes
+    // the tick (route jar 7's t8 run 27: 16.7 minutes of fighting after the last ring point, the dead end said after the death)
+    // no longer holds the route in phase 3. a dead end met here goes on to phase 4 at once (the trade over)
+    private void errandClockTick(AltoClef mod) {
+        if (!_errandOn || _errandEnded || !adris.altoclef.util.helpers.RouteRules.errandOn() || !adris.altoclef.util.helpers.RouteRules.errandClockOn()) {
+            _errandClockAt = -1;
+            return;
         }
+        long now = mod.getWorld().getGameTime();
+        long gap = _errandClockAt < 0 || now < _errandClockAt ? 0 : now - _errandClockAt;
+        _errandClockAt = now;
+        int water = PotionHelper.count(mod, Potions.WATER);
+        boolean kit = adris.altoclef.util.helpers.BrewErrandRules.kit(water + PotionHelper.count(mod, Potions.AWKWARD));
+        String where = _fight.mode() != BlazeFightRules.Mode.CAMP || _fight.hidePlace() != null ? " (the blaze fight had the tick)" : "";
+        if (errandClock(mod, now, adris.altoclef.util.helpers.RouteRules.errandClockStep(gap, true), mod.getItemStorage().getItemCount(Items.MAGMA_CREAM),
+                mod.getItemStorage().getItemCount(Items.NETHER_WART), water, kit, where)
+                && (_frTrade == null || !_frTrade.live())) {
+            routePhase(adris.altoclef.util.helpers.RouteRules.RODS2);
+        }
+    }
+
+    // Tuning route_errand, on by default (route jar 2, RouteRules): the route's phase 3. the cream and the wart are wanted at once
+    // (the wart only while water bottles want one); what is in sight is taken: a magma cube first (it moves, the wart stays;
+    // CollectMagmaCreamTask holds the cube it picks), then the wart the tracker knows (a block not reached in
+    // RouteRules.WART_HOLD_S is given up for the next). before the spawner is known nothing else: the fortress search goes on,
+    // and finds the cubes and the wart rooms on its way. once it is known, with nothing in sight, the buddy walks round it in
+    // rings (RouteRules.errandPoint) so more of the fortress comes into view, its cubes at other heights among it. the errand
+    // ends with both in the bag, or at a dead end (RouteRules.errandDeadEnd: the rings walked with nothing left, or
+    // route_errand_dead_s with neither got at the fortress); then the route goes on to the first two rods, under the potion
+    // while one is kept, and without the brew if the cream or the wart is missing (RouteRules.NO_BREW)
+    private Task routeErrand(AltoClef mod, long now, long gap, int cream, int wart, int water, boolean kit) {
+        boolean wantCream = cream == 0;
+        boolean wantWart = water > 0 && wart == 0;
+        // (Tuning route_errand_clock, route jar 8: the clock and the dead end asked each tick before the fight's, errandClockTick)
+        boolean early = adris.altoclef.util.helpers.RouteRules.errandClockOn();
+        if (!early && errandClock(mod, now, adris.altoclef.util.helpers.RouteRules.errandClockStep(gap, false), cream, wart, water, kit, "")) return null;
+        if (early && errandClock(mod, now, 0, cream, wart, water, kit, "")) return null;
+        if (wantCream) logCreamCubes(mod, true);
+        boolean spawner = _foundBlazeSpawner != null;
         _errandHolds = true;
         if (homeHolds()) {
             homeSkip("the brew errand");
@@ -1243,7 +1319,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         return errandWalk(mod, gap);
     }
 
-    // the wart the tracker knows (any distance), or a wart lying within WART_RANGE: fetched, a block not reached in WART_HOLD_S
+    // the wart the tracker knows (within route_wart_near of the spawner), or a wart lying within WART_RANGE: fetched, a block not reached in WART_HOLD_S
     // of the fetch's own ticks given up (the tracker told, so the mining passes it over too). null with none to fetch.
     // (Tuning route_wart_walk, on by default: a drop counts only one the buddy can get to; the block picked is held till it is
     // got or given up, walked to and broken by the errand itself, wartWalk; the mining task only for a drop)
@@ -1255,9 +1331,15 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 : dropNear(mod, Items.NETHER_WART, WART_RANGE);
         // (the wart held stays the goal while it stands, as far as the tracker and a loaded chunk can tell: the nearest changed
         // block by block in the room as the buddy moved)
-        boolean keep = walk && _wartAt != null && !_wartGaveUp.contains(_wartAt) && mod.getBlockTracker().blockIsValid(_wartAt, Blocks.NETHER_WART);
+        // (Tuning route_wart_near, route jar 8: only a wart within that many blocks of the spawner the errand works from, of the
+        // buddy while none is known; the tracker keeps the wart of earlier runs, 10132 blocks off in t4's run 38,
+        // RouteRules.wartInReach)
+        double wartNear = adris.altoclef.util.helpers.RouteRules.wartNear();
+        Vec3 anchor = _foundBlazeSpawner != null ? Vec3.atCenterOf(_foundBlazeSpawner) : me.position();
+        java.util.function.Predicate<BlockPos> inReach = p -> adris.altoclef.util.helpers.RouteRules.wartInReach(anchor.distanceTo(Vec3.atCenterOf(p)), wartNear);
+        boolean keep = walk && _wartAt != null && !_wartGaveUp.contains(_wartAt) && inReach.test(_wartAt) && mod.getBlockTracker().blockIsValid(_wartAt, Blocks.NETHER_WART);
         Optional<BlockPos> block = keep ? Optional.of(_wartAt)
-                : mod.getBlockTracker().getNearestTracking(me.position(), p -> !_wartGaveUp.contains(p), Blocks.NETHER_WART);
+                : mod.getBlockTracker().getNearestTracking(me.position(), p -> !_wartGaveUp.contains(p) && inReach.test(p), Blocks.NETHER_WART);
         if (!drop && block.isEmpty()) {
             _wartAt = null;
             return null;
@@ -1374,12 +1456,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         if (_errandPoint >= adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS) return null;
         if (next) {
-            _errandPointAt = adris.altoclef.util.helpers.RouteRules.errandPoint(_errandPoint, sp.getX(), sp.getZ(), _errandFrom);
+            // (Tuning route_ring_out, route jar 8: the rings from 32 out, out of the spawner's blazes' reach, RouteRules.ringRadius)
+            double first = adris.altoclef.util.helpers.RouteRules.ringOut();
+            _errandPointAt = adris.altoclef.util.helpers.RouteRules.errandPoint(_errandPoint, sp.getX(), sp.getZ(), _errandFrom, first);
             _errandPointTicks = 0;
             _errandWalk = new adris.altoclef.tasks.movement.GetToXZTask(_errandPointAt[0], _errandPointAt[1], adris.altoclef.util.helpers.RouteRules.ERRAND_POINT_NEAR);
             int ring = 1 + _errandPoint / adris.altoclef.util.helpers.RouteRules.ERRAND_RING_POINTS;
             Debug.logInternal("brew errand: nothing in sight, looking round the fortress: point " + (_errandPoint + 1) + " of " + adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS
-                    + " at " + _errandPointAt[0] + " " + _errandPointAt[1] + " (ring " + ring + ", " + (int) (adris.altoclef.util.helpers.RouteRules.ERRAND_RING_STEP * ring)
+                    + " at " + _errandPointAt[0] + " " + _errandPointAt[1] + " (ring " + ring + ", " + (int) adris.altoclef.util.helpers.RouteRules.ringRadius(ring, first)
                     + " blocks round the spawner), " + secs(_errandSinceGot) + " s at the fortress with nothing got");
         }
         errandSays("looking round the fortress");

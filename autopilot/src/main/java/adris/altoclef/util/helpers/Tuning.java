@@ -85,6 +85,19 @@ public final class Tuning {
             java.util.Map.entry("hide_one_range", 1.0),
             java.util.Map.entry("route_potion_edge", 1.0),
             java.util.Map.entry("route_way_throw", 1.0),
+            // (route jar 8, 9 Nov 2026: the errand takes a wart within 150 of the spawner (of the buddy with none known), 0 at
+            // any distance; the errand's dead end counted in game time each tick while it is the order, whoever has the tick,
+            // 0 by its own ticks; the rings round the spawner from 32 out, 16 apart, 0 from 20, 20 apart; in phase 3 no camp,
+            // hiding place or chase at the spawner, a blaze with a line on the buddy walked away from and one within 3.3 hit,
+            // 0 the fight as at the camp; a ghast that sends the buddy into cover again within 30 s of a release doubles the
+            // wait out of its sight, 0 ten seconds each time; a cube hunted only with a walk to its stand, 0 any. RouteRules,
+            // GhastCover, CubeWay)
+            java.util.Map.entry("route_wart_near", 150.0),
+            java.util.Map.entry("route_errand_clock", 1.0),
+            java.util.Map.entry("route_ring_out", 32.0),
+            java.util.Map.entry("route_errand_away", 1.0),
+            java.util.Map.entry("ghast_wait_double", 1.0),
+            java.util.Map.entry("route_cube_way", 1.0),
             java.util.Map.entry("route_exit", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
