@@ -119,3 +119,6 @@ adris.altoclef.util.slots.CraftingTableSlot#INPUT_SLOTS a constant table (the sc
 adris.altoclef.util.slots.PlayerSlot#ARMOR_SLOTS,CRAFT_INPUT_SLOTS a constant table (the scan sees an array store beside a read of it)
 adris.altoclef.world.FrameGeometry#OFFSETS a constant table (the scan sees an array store beside a read of it)
 adris.altoclef.world.StrongholdEstimator#RING_COUNTS a constant table (the scan sees an array store beside a read of it)
+adris.altoclef.chains.DangerForceChain#_hand whether the forced fight holds the hand this tick (the count ladder's drills only), set every tick
+adris.altoclef.util.helpers.DangerShadow#detail the forced drills' look at the last reading, made again at every reading (danger_force on only)
+adris.altoclef.util.helpers.FleeWay#TURNS a constant table of headings (the scan sees an array beside a read of it)
