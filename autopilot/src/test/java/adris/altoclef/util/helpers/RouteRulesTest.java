@@ -471,4 +471,19 @@ public class RouteRulesTest {
         assertTrue(CubeWay.stand(2, 64, 1, 0, 64, 0));
         assertFalse(CubeWay.stand(3, 64, 0, 0, 66, 0));
     }
+
+    @Test
+    public void aZoneWalkedAwayFromLastsItsTimeAndIsRenewed() {
+        RouteRules.clearAwayZones();
+        RouteRules.noteAway(100, 200, 1000);
+        assertTrue(RouteRules.inAwayZone(110, 210, 1000));
+        assertFalse(RouteRules.inAwayZone(130, 230, 1000));
+        assertTrue(RouteRules.inAwayZone(100, 200, 1000 + RouteRules.AWAY_ZONE_TICKS));
+        assertFalse(RouteRules.inAwayZone(100, 200, 1001 + RouteRules.AWAY_ZONE_TICKS));
+        // the same blaze a little further on: one zone, renewed
+        RouteRules.noteAway(104, 200, 1500);
+        assertTrue(RouteRules.inAwayZone(100, 200, 1501 + RouteRules.AWAY_ZONE_TICKS - 1));
+        RouteRules.reset();
+        assertFalse(RouteRules.inAwayZone(100, 200, 1500));
+    }
 }

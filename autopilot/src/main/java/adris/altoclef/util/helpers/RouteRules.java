@@ -382,11 +382,53 @@ public final class RouteRules {
     private static volatile boolean exitGaveUp;
     private static volatile boolean outSaid;
 
-    // a new order of rods: nothing of the last one's exit
+    // a new order of rods: nothing of the last one's exit, nor of its zones walked away from
     public static void reset() {
         exitBegun = false;
         exitGaveUp = false;
         outSaid = false;
+        clearAwayZones();
+    }
+
+    // ---- the zones walked away from (Tuning route_away_zone, on by default; route jar 12, 9 Nov 2026, look 35, row L37). the
+    // walk away from blazes with a line on the buddy (route_errand_away) went out to 24, and the errand's next ring point on
+    // the blazes' side pulled it back inside 20: about 75 s back and forth near one spot, climbing to y 111 (t8 route-6 run
+    // 7), 40 walk-aways in 3 minutes in rounds' B (t9 run 7.B). each blaze walked away from leaves a zone of AWAY_ZONE round
+    // it for AWAY_ZONE_TICKS (renewed while the walk goes on); a ring point inside a live zone is passed over
+    public static final double AWAY_ZONE = 24;
+    public static final long AWAY_ZONE_TICKS = 600;
+    // at most this many zones kept: the oldest goes
+    public static final int AWAY_ZONES_KEPT = 16;
+    private static final java.util.ArrayDeque<double[]> AWAY_ZONES = new java.util.ArrayDeque<>();
+
+    public static boolean awayZoneOn() {
+        return Tuning.get("route_away_zone", 0) > 0;
+    }
+
+    // a blaze at (x, z) walked away from at game tick now: its zone, or the one already there within half a zone, renewed
+    public static synchronized void noteAway(double x, double z, long now) {
+        for (double[] zone : AWAY_ZONES) {
+            if (Math.hypot(zone[0] - x, zone[1] - z) <= AWAY_ZONE / 2) {
+                zone[0] = x;
+                zone[1] = z;
+                zone[2] = now + AWAY_ZONE_TICKS;
+                return;
+            }
+        }
+        if (AWAY_ZONES.size() >= AWAY_ZONES_KEPT) AWAY_ZONES.pollFirst();
+        AWAY_ZONES.addLast(new double[]{x, z, now + AWAY_ZONE_TICKS});
+    }
+
+    // whether (x, z) lies in a zone still live at game tick now
+    public static synchronized boolean inAwayZone(double x, double z, long now) {
+        for (double[] zone : AWAY_ZONES) {
+            if (zone[2] >= now && Math.hypot(zone[0] - x, zone[1] - z) <= AWAY_ZONE) return true;
+        }
+        return false;
+    }
+
+    public static synchronized void clearAwayZones() {
+        AWAY_ZONES.clear();
     }
 
     public static void exitBegins() {

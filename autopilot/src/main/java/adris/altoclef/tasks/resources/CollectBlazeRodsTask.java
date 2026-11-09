@@ -1520,6 +1520,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 next = true;
             }
         }
+        long tick = mod.getWorld().getGameTime();
+        boolean zones = adris.altoclef.util.helpers.RouteRules.awayZoneOn();
+        // (Tuning route_away_zone, route jar 12: the point walked to now inside a zone walked away from is passed over too)
+        if (!next && zones && adris.altoclef.util.helpers.RouteRules.inAwayZone(_errandPointAt[0], _errandPointAt[1], tick)) {
+            Debug.logInternal("brew errand: point " + (_errandPoint + 1) + " at " + _errandPointAt[0] + " " + _errandPointAt[1] + " lies where the buddy walked away from blazes, passed over");
+            _errandPoint++;
+            next = true;
+        }
         // (Tuning route_errand_rounds: the rings walked that many times, RouteRules.errandRounds)
         int points = adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS * adris.altoclef.util.helpers.RouteRules.errandRounds();
         if (_errandPoint >= points) return null;
@@ -1527,6 +1535,15 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // (Tuning route_ring_out, route jar 8: the rings from 32 out, out of the spawner's blazes' reach, RouteRules.ringRadius)
             double first = adris.altoclef.util.helpers.RouteRules.ringOut();
             _errandPointAt = adris.altoclef.util.helpers.RouteRules.errandPoint(_errandPoint, sp.getX(), sp.getZ(), _errandFrom, first);
+            // (Tuning route_away_zone: points in a zone walked away from are passed over, at most one round of them)
+            int passed = 0;
+            while (zones && passed < adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS && _errandPoint + 1 < points
+                    && adris.altoclef.util.helpers.RouteRules.inAwayZone(_errandPointAt[0], _errandPointAt[1], tick)) {
+                _errandPoint++;
+                passed++;
+                _errandPointAt = adris.altoclef.util.helpers.RouteRules.errandPoint(_errandPoint, sp.getX(), sp.getZ(), _errandFrom, first);
+            }
+            if (passed > 0) Debug.logInternal("brew errand: " + passed + " point(s) passed over where the buddy walked away from blazes");
             _errandPointTicks = 0;
             _errandWalk = new adris.altoclef.tasks.movement.GetToXZTask(_errandPointAt[0], _errandPointAt[1], adris.altoclef.util.helpers.RouteRules.ERRAND_POINT_NEAR);
             int ring = 1 + Math.floorMod(_errandPoint, adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS) / adris.altoclef.util.helpers.RouteRules.ERRAND_RING_POINTS;

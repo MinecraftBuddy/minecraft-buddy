@@ -848,6 +848,10 @@ final class BlazeFight {
         }
         // (Tuning route_errand_away: in phase 3 a blaze with a line on the buddy is walked away from, in CAMP)
         boolean away = errand && mode == Mode.CAMP && !packClose && !threats.isEmpty();
+        // (Tuning route_away_zone, route jar 12: each blaze walked away from leaves a zone the errand's ring walk passes over)
+        if (away && adris.altoclef.util.helpers.RouteRules.awayZoneOn()) {
+            for (Blaze b : threats) adris.altoclef.util.helpers.RouteRules.noteAway(b.getX(), b.getZ(), now);
+        }
         if (away != awayOn) {
             awayOn = away;
             double closest = Double.POSITIVE_INFINITY;

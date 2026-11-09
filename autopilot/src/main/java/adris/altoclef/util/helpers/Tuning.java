@@ -99,6 +99,8 @@ public final class Tuning {
             java.util.Map.entry("route_errand_clock", 1.0),
             java.util.Map.entry("route_ring_out", 32.0),
             java.util.Map.entry("route_errand_away", 1.0),
+            // (route jar 12, row L37: the ring points in a zone walked away from are passed over, RouteRules.noteAway)
+            java.util.Map.entry("route_away_zone", 1.0),
             java.util.Map.entry("ghast_wait_double", 1.0),
             java.util.Map.entry("route_cube_way", 1.0),
             java.util.Map.entry("route_exit", 1.0),
