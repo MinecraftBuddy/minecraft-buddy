@@ -31,6 +31,7 @@ import baritone.cache.CachedWorld;
 import baritone.utils.BaritoneProcessHelper;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
@@ -68,6 +69,7 @@ public final class ExploreProcess extends BaritoneProcessHelper implements IExpl
     private int frontierAge;
     private int emptyScans;
     private final GoalHold goalHold = new GoalHold();
+    private final Unreachable unreachable = new Unreachable();
 
     public ExploreProcess(Baritone baritone) {
         super(baritone);
@@ -147,6 +149,12 @@ public final class ExploreProcess extends BaritoneProcessHelper implements IExpl
     public PathingCommand onTick(boolean calcFailed, boolean isSafeToCancel) {
         if (calcFailed) {
             logDirect("Failed");
+            if (banOn()) {
+                unreachable.inWorld(System.identityHashCode(ctx.world()));
+                if (unreachable.failed()) {
+                    logDirect("No path to the rings' goal again: " + unreachable.banned() + " chunks passed over from now on");
+                }
+            }
             if (Baritone.settings().notificationOnExploreFinished.value) {
                 logNotification("Exploration failed", true);
             }
@@ -277,6 +285,11 @@ public final class ExploreProcess extends BaritoneProcessHelper implements IExpl
         int count = Math.min(filter.countRemain(), Baritone.settings().exploreChunkSetMinimumSize.value);
         List<BlockPos> centers = new ArrayList<>();
         int renderDistance = Baritone.settings().worldExploringChunkOffset.value;
+        boolean ban = banOn();
+        if (ban) {
+            unreachable.inWorld(System.identityHashCode(ctx.world()));
+        }
+        List<Long> aimed = new ArrayList<>();
         for (int dist = distanceCompleted; ; dist++) {
             for (int dx = -dist; dx <= dist; dx++) {
                 int zval = dist - Math.abs(dx);
@@ -287,6 +300,10 @@ public final class ExploreProcess extends BaritoneProcessHelper implements IExpl
                         throw new IllegalStateException(String.format(
                                 "Offset %s %s has distance %s, expected %s",
                                 dx, dz, trueDist, dist));
+                    }
+                    long key = ChunkPos.pack(chunkX + dx, chunkZ + dz);
+                    if (ban && unreachable.banned(key)) {
+                        continue;
                     }
                     switch (filter.isAlreadyExplored(chunkX + dx, chunkZ + dz)) {
                         case UNKNOWN:
@@ -311,12 +328,14 @@ public final class ExploreProcess extends BaritoneProcessHelper implements IExpl
                         centerZ += offset;
                     }
                     centers.add(new BlockPos(centerX, 0, centerZ));
+                    aimed.add(key);
                 }
             }
             if (dist % 10 == 0) {
                 count = Math.min(filter.countRemain(), Baritone.settings().exploreChunkSetMinimumSize.value);
             }
             if (centers.size() >= count) {
+                unreachable.aimAt(aimed);
                 return centers.stream().map(pos -> createGoal(pos.getX(), pos.getZ())).toArray(Goal[]::new);
             }
             if (centers.isEmpty()) {
@@ -339,6 +358,63 @@ public final class ExploreProcess extends BaritoneProcessHelper implements IExpl
                 return super.heuristic(x, y, z) + GoalYLevel.calculate(Baritone.settings().exploreMaintainY.value, y);
             }
         };
+    }
+
+    // the buddy's fork, Tuning explore_ban (on by default, 9 Nov 2026): a chunk the plain rings aimed at and no path reached
+    // twice counts as explored in that world. in the nether a goal across the lava sea gave "No path found", the explore let
+    // go, the wander started it again round the same origin and the rings chose the same chunks: 97 times in 20 game minutes,
+    // back to firm ground from the bridge's end 51 times, the fortress never found (realfort-route-8 run 4; route-6's stalls
+    // in phase 3 the same). with the ban the next ring turns to chunks a path can reach
+    static boolean banOn() {
+        return adris.altoclef.util.helpers.Tuning.get("explore_ban", 1) > 0;
+    }
+
+    // the chunks of the rings' last goal and how often a path to them failed; a new world or dimension starts empty. pure
+    static final class Unreachable {
+
+        static final int FAILS = 2;
+        private final Long2IntOpenHashMap fails = new Long2IntOpenHashMap();
+        private long[] aimed = new long[0];
+        private int world;
+        private boolean anyWorld;
+
+        void inWorld(int id) {
+            if (!anyWorld || id != world) {
+                anyWorld = true;
+                world = id;
+                fails.clear();
+                aimed = new long[0];
+            }
+        }
+
+        void aimAt(List<Long> chunks) {
+            aimed = chunks.stream().mapToLong(Long::longValue).toArray();
+        }
+
+        // a path to the last goal failed: true when a chunk of it reached FAILS now
+        boolean failed() {
+            boolean now = false;
+            for (long c : aimed) {
+                if (fails.addTo(c, 1) + 1 == FAILS) {
+                    now = true;
+                }
+            }
+            return now;
+        }
+
+        boolean banned(long chunk) {
+            return fails.get(chunk) >= FAILS;
+        }
+
+        int banned() {
+            int n = 0;
+            for (int v : fails.values()) {
+                if (v >= FAILS) {
+                    n++;
+                }
+            }
+            return n;
+        }
     }
 
     // one command kept and handed out again, so a tick of walking at the same goal costs nothing but the isInGoal

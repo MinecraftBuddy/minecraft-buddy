@@ -101,6 +101,8 @@ public final class Tuning {
             java.util.Map.entry("route_errand_away", 1.0),
             // (route jar 12, row L37: the ring points in a zone walked away from are passed over, RouteRules.noteAway)
             java.util.Map.entry("route_away_zone", 1.0),
+            // (route jar 13, 9 Nov 2026: chunks the explore's rings failed to reach twice are passed over, ExploreProcess.Unreachable)
+            java.util.Map.entry("explore_ban", 1.0),
             java.util.Map.entry("ghast_wait_double", 1.0),
             java.util.Map.entry("route_cube_way", 1.0),
             java.util.Map.entry("route_exit", 1.0),
