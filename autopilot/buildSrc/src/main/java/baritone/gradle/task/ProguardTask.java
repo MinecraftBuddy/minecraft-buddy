@@ -65,6 +65,13 @@ public class ProguardTask extends BaritoneGradleTask {
         super.doFirst();
         super.verifyArtifacts();
 
+        // -PunoptimizedOnly: only the unoptimized jar, the one the practice rigs run. ProGuard's optimize passes took 25
+        // minutes and more on a slow core (a netcup Lite box, 9 Nov 2026) for jars the rigs never load
+        if (getProject().hasProperty("unoptimizedOnly")) {
+            processArtifact();
+            return;
+        }
+
         // "Haha brady why don't you make separate tasks"
         downloadProguard();
         extractProguard();

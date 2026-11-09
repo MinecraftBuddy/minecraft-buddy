@@ -55,11 +55,13 @@ public class CreateDistTask extends BaritoneGradleTask {
             Files.createDirectory(dir);
         }
 
-        // Copy build jars to dist/
-        // TODO: dont copy files that dont exist
-        Files.copy(this.artifactApiPath, api, REPLACE_EXISTING);
-        Files.copy(this.artifactStandalonePath, standalone, REPLACE_EXISTING);
-        Files.copy(this.artifactUnoptimizedPath, unoptimized, REPLACE_EXISTING);
+        // Copy build jars to dist/, those that exist: -PunoptimizedOnly makes only the unoptimized one
+        Path[][] copies = {{this.artifactApiPath, api}, {this.artifactStandalonePath, standalone}, {this.artifactUnoptimizedPath, unoptimized}};
+        for (Path[] copy : copies) {
+            if (Files.exists(copy[0])) {
+                Files.copy(copy[0], copy[1], REPLACE_EXISTING);
+            }
+        }
 
         // Calculate all checksums and format them like "shasum"
         List<String> shasum = Files.list(getRootRelativeFile("dist/"))
