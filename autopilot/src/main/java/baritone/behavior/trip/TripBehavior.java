@@ -263,7 +263,7 @@ public final class TripBehavior extends Behavior {
             CalculationContext real = kind == Trip.Ask.FASTER ? WhatIfContext.real(baritone) : null;
             BetterBlockPos start = baritone.getPathingBehavior().pathStart();
             int have = baritone.getInventoryBehavior().spareThrowawayCount();
-            long budget = s.failureTimeoutMS.value;
+            long budget = adris.altoclef.util.helpers.WallScale.ms(s.failureTimeoutMS.value);
             long id = trip.id;
             Goal goal = trip.goal;
             WHAT_IF.execute(() -> {

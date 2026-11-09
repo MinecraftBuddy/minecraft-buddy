@@ -806,11 +806,11 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         long primaryTimeout;
         long failureTimeout;
         if (current == null) {
-            primaryTimeout = Baritone.settings().primaryTimeoutMS.value;
-            failureTimeout = Baritone.settings().failureTimeoutMS.value;
+            primaryTimeout = adris.altoclef.util.helpers.WallScale.ms(Baritone.settings().primaryTimeoutMS.value);
+            failureTimeout = adris.altoclef.util.helpers.WallScale.ms(Baritone.settings().failureTimeoutMS.value);
         } else {
-            primaryTimeout = Baritone.settings().planAheadPrimaryTimeoutMS.value;
-            failureTimeout = Baritone.settings().planAheadFailureTimeoutMS.value;
+            primaryTimeout = adris.altoclef.util.helpers.WallScale.ms(Baritone.settings().planAheadPrimaryTimeoutMS.value);
+            failureTimeout = adris.altoclef.util.helpers.WallScale.ms(Baritone.settings().planAheadFailureTimeoutMS.value);
         }
         AbstractNodeCostSearch pathfinder = createPathfinder(start, goal, current == null ? null : current.getPath(), context);
         if (!Objects.equals(pathfinder.getGoal(), goal)) { // will return the exact same object if simplification didn't happen
