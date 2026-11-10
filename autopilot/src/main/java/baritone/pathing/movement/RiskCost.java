@@ -18,7 +18,9 @@
 package baritone.pathing.movement;
 
 import adris.altoclef.util.helpers.PlaceWord;
+import adris.altoclef.util.helpers.RiskField;
 import adris.altoclef.util.helpers.Tuning;
+import baritone.api.pathing.goals.Goal;
 import baritone.api.pathing.movement.ActionCosts;
 import baritone.utils.ExperimentalMovement;
 
@@ -31,6 +33,10 @@ import baritone.utils.ExperimentalMovement;
 //     (risk_lambda_curve), from the health at the search's start. a death costs risk_death ticks whatever the health: a
 //     knock into the lava sea costs the run, not hp. CalculationContext's cliffEdges and lavaEdges (Tuning
 //     nether_lava_edges) do not apply under the table: its keys say what each place costs in each dimension
+// the mobs (S137 step 2): Tuning risk_mobs 1 adds lambda times the hp the live mob field (RiskField) expects the mobs to
+// take while we are in the node, at the tick we get there. the field is the newest version at the search's start, the
+// health the search's; a mob the goal is at (the one we go to fight) is left out. the walk checks the rest of its path
+// against each new version (RiskWatch). off, the field is still priced along the chosen path for the search line
 // A* only, as CliffAvoidance is, never calculateCost: the executor's per tick recheck would cancel a good path over it
 public final class RiskCost {
 
@@ -46,6 +52,10 @@ public final class RiskCost {
     // the longest a single move counts as time spent in its place. a move's cost is its time, except where the search adds a
     // price that is not time (a block from a short bag, BridgeBudget); a second is about a bridge step with its block placed
     public static final double EXPOSURE_CAP = 20;
+    // how far ahead the field guesses where a melee mob can be, in seconds: DangerMeter's horizon
+    public static final double MOB_HORIZON = 3;
+    // sight lines a search may cast for the shooters; past it a cell in a shooter's range counts as seen
+    public static final double MOB_RAYS = 20000;
 
     // the table's defaults: v0 as rates, so a word the rig has not measured costs at a walk's time and full health what
     // CliffAvoidance charged it (rim 18.75 hp a minute, sea 300, fortress rim a third of rim, lava as rim). outside the
@@ -64,6 +74,12 @@ public final class RiskCost {
         final double[] perTick;
         public final int table;
         public final double lambda;
+        // the mob field as this search sees it, null when it has no mob that counts; priced in the search only under
+        // risk_mobs, with lambda at the search's health. charged: the ticks each mob added to the search's moves
+        public RiskField.Pricer mobs;
+        public boolean mobsPriced;
+        public double mobLambda;
+        double[] charged;
 
         Search(int table, double lambda, double[] perTick, PlaceWord.Memo words) {
             this.table = table;
@@ -74,6 +90,35 @@ public final class RiskCost {
     }
 
     public static Search start(CalculationContext context) {
+        return start(context, null, 0);
+    }
+
+    // goal: the search's (a mob at it is not priced), offset: the ticks before its start node is reached
+    public static Search start(CalculationContext context, Goal goal, double offset) {
+        Search search = places(context);
+        RiskField.Version field = RiskField.current();
+        RiskField.Pricer mobs = pricer(context, field, goal, offset);
+        if (mobs == null) {
+            return search;
+        }
+        search.mobs = mobs;
+        search.mobsPriced = Tuning.get("risk_mobs", 0) >= 1;
+        search.mobLambda = lambda(context.health, Tuning.get("risk_lambda", LAMBDA), Tuning.get("risk_lambda_curve", 1));
+        search.charged = new double[mobs.size()];
+        return search;
+    }
+
+    // a version of the mob field as a search (or the walk) toward this goal prices it; null when no mob in it counts
+    public static RiskField.Pricer pricer(CalculationContext context, RiskField.Version field, Goal goal, double offset) {
+        if (field.world() != context.world || field.sources().isEmpty()) {
+            return null;
+        }
+        RiskField.Pricer mobs = new RiskField.Pricer(field, CliffAvoidance.of(context.bsi), offset,
+                Tuning.get("risk_mob_horizon", MOB_HORIZON) * 20, (int) Tuning.get("risk_mob_rays", MOB_RAYS), s -> atGoal(goal, s));
+        return mobs.isEmpty() ? null : mobs;
+    }
+
+    private static Search places(CalculationContext context) {
         int table = (int) Tuning.get("risk_table", 0);
         if (table != 1) {
             return new Search(0, 0, null, null);
@@ -100,6 +145,53 @@ public final class RiskCost {
         return search.perTick[search.words.index(fortress, x, y, z)] * Math.min(moveCost, EXPOSURE_CAP);
     }
 
+    // what the mobs add to a move into (x, y, z) that ends `arrival` ticks after the search's start: lambda times the hp they
+    // are expected to take while we are there (the move's time, at most EXPOSURE_CAP). nothing without risk_mobs
+    public static double mobs(Search search, int x, int y, int z, double moveCost, double arrival) {
+        if (!search.mobsPriced) {
+            return 0;
+        }
+        return search.mobLambda * search.mobs.hp(x, y, z, arrival, Math.min(moveCost, EXPOSURE_CAP), search.charged);
+    }
+
+    // the same hp, uncounted and priced or not: for the search line and the walk
+    public static double mobHp(Search search, int x, int y, int z, double moveCost, double arrival) {
+        if (search.mobs == null) {
+            return 0;
+        }
+        return search.mobs.hp(x, y, z, arrival, Math.min(moveCost, EXPOSURE_CAP), null);
+    }
+
+    // the mobs that added at least minTicks to the search's moves: the ones that steered it
+    public static int[] shaped(Search search, double minTicks) {
+        if (search == null || search.charged == null || !search.mobsPriced) {
+            return new int[0];
+        }
+        return java.util.stream.IntStream.range(0, search.charged.length)
+                .filter(i -> search.mobLambda * search.charged[i] >= minTicks)
+                .map(search.mobs::id).toArray();
+    }
+
+    // a mob the goal is at, or next to: the one a fight walks up to is no hazard of the way there
+    public static boolean atGoal(Goal goal, RiskField.Source mob) {
+        if (goal == null) {
+            return false;
+        }
+        // (a fight's goal stands a block or two off the mob, whatever its reach)
+        int r = Math.max(2, (int) Math.ceil(mob.row().reach())) + 1;
+        int mx = (int) Math.floor(mob.x()), my = (int) Math.floor(mob.y()), mz = (int) Math.floor(mob.z());
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dy = -r; dy <= r; dy++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (goal.isInGoal(mx + dx, my + dy, mz + dz)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     // for the search's log line: which table priced it, and lambda under the table
     public static String describe(Search search) {
         return search.table != 1 ? "" : String.format(java.util.Locale.ROOT, " table 1 lambda %.0f", search.lambda);
@@ -107,7 +199,7 @@ public final class RiskCost {
 
     // ticks an hp at this health (hp plus absorption): base at FULL, (FULL / hp) to the curve's power below it, and less
     // above it with absorption. an hp at 10 is worth twice one at 20 with the curve at 1; 0 makes it flat
-    static double lambda(double health, double base, double curve) {
+    public static double lambda(double health, double base, double curve) {
         return base * Math.pow(FULL / Math.max(1, health), curve);
     }
 

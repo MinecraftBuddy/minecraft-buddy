@@ -97,7 +97,9 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
         int numEmptyChunk = 0;
         boolean isFavoring = !favoring.isEmpty();
         // a fresh one every search, see CliffAvoidance.Memo: the place prices and the health they are set at too (RiskCost)
-        RiskCost.Search risk = RiskCost.start(calcContext);
+        // and the mob field's newest version, for the mobs' part (S137 step 2); kept for the search line and the walk
+        RiskCost.Search risk = RiskCost.start(calcContext, goal, riskOffset);
+        this.risk = risk;
         int timeCheckInterval = 1 << 6;
         int pathingMaxChunkBorderFetch = Baritone.settings().pathingMaxChunkBorderFetch.value; // grab all settings beforehand so that changing settings during pathing doesn't cause a crash or unpredictable behavior
         double minimumImprovement = Baritone.settings().minimumImprovementRepropagation.value ? MIN_IMPROVEMENT : 0;
@@ -208,10 +210,14 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
                 // and in the nether, don't hug a drop that a knockback could walk us off: the place's risk, see RiskCost. after
                 // the favoring too, it's what the place costs and not the move
                 actionCost += RiskCost.penalty(calcContext, risk, res.x, res.y, res.z, res.cost);
+                // and what the mobs can take from us there, at the tick we get there: the moves' own time, not their cost
+                double arrival = currentNode.ticks + res.cost;
+                actionCost += RiskCost.mobs(risk, res.x, res.y, res.z, res.cost, arrival);
                 double tentativeCost = currentNode.cost + actionCost;
                 if (neighbor.cost - tentativeCost > minimumImprovement) {
                     neighbor.previous = currentNode;
                     neighbor.cost = tentativeCost;
+                    neighbor.ticks = arrival;
                     neighbor.combinedCost = tentativeCost + neighbor.estimatedCostToGoal;
                     if (neighbor.isOpen()) {
                         openSet.update(neighbor);

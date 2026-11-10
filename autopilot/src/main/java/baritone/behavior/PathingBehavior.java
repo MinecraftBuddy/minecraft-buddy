@@ -35,6 +35,7 @@ import baritone.pathing.movement.CliffAvoidance;
 import baritone.pathing.movement.Movement;
 import baritone.pathing.movement.MovementHelper;
 import baritone.pathing.movement.RiskCost;
+import baritone.pathing.path.RiskWatch;
 import baritone.pathing.movement.FailedMoves;
 import baritone.pathing.movement.SwimStalls;
 import baritone.pathing.path.PathExecutor;
@@ -815,6 +816,9 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
             failureTimeout = adris.altoclef.util.helpers.WallScale.ms(Baritone.settings().planAheadFailureTimeoutMS.value);
         }
         AbstractNodeCostSearch pathfinder = createPathfinder(start, goal, current == null ? null : current.getPath(), context);
+        // (the buddy's fork, S137 step 2: a search that plans ahead starts where the walk will be when the path ends, so the mob
+        // field prices its nodes that much later)
+        pathfinder.riskOffset = current == null ? 0 : ticksRemainingInSegment(true).orElse(0.0);
         if (!Objects.equals(pathfinder.getGoal(), goal)) { // will return the exact same object if simplification didn't happen
             logDebug("Simplifying " + goal.getClass() + " to GoalXZ due to distance");
         }
@@ -847,7 +851,7 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                     + start.getZ() + " goal " + (goal == null ? "none" : goal.getClass().getSimpleName()) + " to " + end + " result "
                     + r.getType() + " ms " + ms + " nodes " + path.map(p -> p.getNumNodesConsidered()).orElse(-1) + " len "
                     + path.map(p -> p.length()).orElse(0) + " " + (ahead ? "ahead" : "standstill") + (pf.exhausted() ? " exhausted" : "")
-                    + path.map(p -> placesOf(p, pf.context())).orElse(""));
+                    + path.map(p -> placesOf(p, pf.context(), pf.risk())).orElse(""));
         } catch (RuntimeException ignored) {
             // (a log line never takes a search down)
         }
@@ -857,10 +861,10 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
     // search charged the moves into them (RiskCost.penalty, in ticks; the table and lambda after it under risk_table 1), so a
     // path's predicted risk can be set against the hp it cost. on the search's thread, once it is done; nothing on the line
     // when it fails)
-    private static String placesOf(IPath path, CalculationContext context) {
+    private static String placesOf(IPath path, CalculationContext context, RiskCost.Search searched) {
         try {
             var cells = CliffAvoidance.of(context.bsi);
-            var risk = RiskCost.start(context);
+            var risk = searched != null ? searched : RiskCost.start(context);
             java.util.Map<String, Integer> count = new java.util.TreeMap<>();
             java.util.List<BetterBlockPos> at = path.positions();
             for (BetterBlockPos p : at) {
@@ -868,14 +872,29 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                 count.merge(adris.altoclef.util.helpers.PlaceWord.of(cells, fort, p.x, p.y, p.z), 1, Integer::sum);
             }
             double penalty = 0;
+            // (S137 step 2: and the hp the mob field expects the path to cost, each node at the tick the walk gets there)
+            double mobHp = 0;
+            double arrival = 0;
             var moves = path.movements();
             for (int i = 0; i < moves.size() && i + 1 < at.size(); i++) {
                 BetterBlockPos p = at.get(i + 1);
-                penalty += RiskCost.penalty(context, risk, p.x, p.y, p.z, moves.get(i).getCost());
+                double cost = moves.get(i).getCost();
+                arrival += cost;
+                penalty += RiskCost.penalty(context, risk, p.x, p.y, p.z, cost);
+                mobHp += RiskCost.mobHp(risk, p.x, p.y, p.z, cost, arrival);
             }
             StringBuilder line = new StringBuilder(" places");
             count.forEach((word, n) -> line.append(' ').append(word).append(' ').append(n));
-            return line.append(" penalty ").append(Math.round(penalty)).append(RiskCost.describe(risk)).toString();
+            line.append(" penalty ").append(Math.round(penalty)).append(RiskCost.describe(risk));
+            if (risk.mobs != null) {
+                // mobs: the field's mobs this search saw, the path's expected hp from them, and under risk_mobs the
+                // lambda and the sight lines the search cast
+                line.append(String.format(java.util.Locale.ROOT, " mobs %d hp %.1f", risk.mobs.size(), mobHp));
+                if (risk.mobsPriced) {
+                    line.append(String.format(java.util.Locale.ROOT, " priced lambda %.0f rays %d", risk.mobLambda, risk.mobs.rays));
+                }
+            }
+            return line.toString();
         } catch (RuntimeException e) {
             return "";
         }
@@ -908,6 +927,9 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                 }
             }
             Optional<PathExecutor> executor = calcResult.getPath().map(p -> new PathExecutor(PathingBehavior.this, p));
+            // (S137 step 2: the mobs that steered this search, for the walk's check against the mob field)
+            executor.ifPresent(e -> e.shapedBy(RiskCost.shaped(pathfinder.risk(),
+                    adris.altoclef.util.helpers.Tuning.get("risk_replan_less", RiskWatch.LESS))));
             if (current == null) {
                 if (executor.isPresent()) {
                     if (executor.get().getPath().positions().contains(expectedSegmentStart)) {

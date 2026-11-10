@@ -145,6 +145,14 @@ public class PathExecutor implements IPathExecutor, Helper {
     private List<List<Vec3>> boatLanes;
     private long boatRunsComputedAt;
 
+    // (the buddy's fork, S137 step 2) the rest of the path against each new version of the mob field
+    private RiskWatch riskWatch = new RiskWatch();
+
+    // the mobs that steered the search this path came from (RiskCost.shaped)
+    public void shapedBy(int[] mobs) {
+        riskWatch.shapedBy(mobs);
+    }
+
     public PathExecutor(PathingBehavior behavior, IPath path) {
         this.behavior = behavior;
         this.ctx = behavior.ctx;
@@ -406,6 +414,9 @@ public class PathExecutor implements IPathExecutor, Helper {
             // that means that this isn't a cache error, it's just part of the path interfering with a later part
             logDebug("Original cost " + currentMovementOriginalCostEstimate + " current cost " + currentCost + ". Cancelling.");
             cancel();
+            return true;
+        }
+        if (canCancel && riskChanged()) {
             return true;
         }
         if (shouldPause()) {
@@ -1661,6 +1672,25 @@ public class PathExecutor implements IPathExecutor, Helper {
         return FailedMoves.climbable(ctx.world().getBlockState(pos).getBlock());
     }
 
+    // (S137 step 2) much more risk on the rest of the path than when the walk began on it, or a mob that steered it gone: plan
+    // again from here (RiskWatch). a check never takes the walk down
+    private boolean riskChanged() {
+        String why;
+        try {
+            why = riskWatch.check(path, pathPosition, behavior.secretInternalGetCalculationContext(), ctx.playerFeet(), ctx.world().getGameTime());
+        } catch (RuntimeException e) {
+            return false;
+        }
+        if (why == null) {
+            return false;
+        }
+        logDebug("The risk on the rest of the path changed: " + why + ". Cancelling.");
+        adris.altoclef.Debug.logInternal("risk replan: " + why);
+        releasedWhy = "risk replan";
+        cancel();
+        return true;
+    }
+
     private void cancel() {
         if (releasedWhy.isEmpty()) {
             releasedWhy = "path cancelled";
@@ -1692,6 +1722,7 @@ public class PathExecutor implements IPathExecutor, Helper {
                         path.getDest(), next.getPath().getDest()));
             }
             PathExecutor ret = new PathExecutor(behavior, path);
+            ret.riskWatch = riskWatch.carry(next.riskWatch.shaped());
             ret.pathPosition = pathPosition;
             ret.currentMovementOriginalCostEstimate = currentMovementOriginalCostEstimate;
             ret.costEstimateIndex = costEstimateIndex;
@@ -1769,6 +1800,7 @@ public class PathExecutor implements IPathExecutor, Helper {
             }
             logDebug("Discarding earliest segment movements, length cut from " + path.length() + " to " + newPath.length());
             PathExecutor ret = new PathExecutor(behavior, newPath);
+            ret.riskWatch = riskWatch.carry(new int[0]);
             ret.pathPosition = pathPosition - cutoffAmt;
             ret.currentMovementOriginalCostEstimate = currentMovementOriginalCostEstimate;
             if (costEstimateIndex != null) {

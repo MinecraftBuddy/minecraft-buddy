@@ -144,6 +144,7 @@ public final class DangerShadow {
         if (player == null || level == null) {
             lastSource = null;
             pendingKind = null;
+            RiskField.clear(0);
             return;
         }
         tick++;
@@ -176,6 +177,7 @@ public final class DangerShadow {
         wasDead = dead;
         hp2 = dead ? 0 : hp1;
         hp1 = dead ? 0 : hp;
+        if (dead || !watched) RiskField.clear(level.getGameTime());
         if (dead) return;
         if (!watched) {
             last = DangerMeter.none(hp);
@@ -259,6 +261,8 @@ public final class DangerShadow {
         // (each mob's entity, for the forced drills' threats)
         List<Mob> bodies = new ArrayList<>();
         Map<Integer, Double> afterNow = new HashMap<>();
+        // (S137 step 2: the mobs that want us, where they are, for the path search's mob field)
+        List<RiskField.Source> field = new ArrayList<>();
         for (Entity e : level.entitiesForRendering()) {
             if (!(e instanceof Mob mob) || !mob.isAlive()) continue;
             double distance = mob.distanceTo(player);
@@ -292,8 +296,12 @@ public final class DangerShadow {
                 }
             }
             if (want > 0) afterNow.put(mob.getId(), distance);
+            if (want > 0 && row != null) {
+                field.add(new RiskField.Source(mob.getId(), row, mob.getX(), mob.getY(), mob.getZ(), want, DangerMeter.scale(row, us), way));
+            }
         }
         pendingAfter = afterNow;
+        RiskField.offer(now, level, fireRes, field);
         List<Hazard> hazards = hazards(level, player);
         threats = forced ? threats(us, mobs, bodies, hazards) : List.of();
         Reading reading = DangerMeter.read(us, mobs, hazards);

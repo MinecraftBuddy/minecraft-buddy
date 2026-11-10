@@ -80,6 +80,16 @@ public abstract class AbstractNodeCostSearch implements IPathFinder, Helper {
     // the search ended because there was nothing left to expand, not because of a timeout or a cancel. only A* sets it
     protected volatile boolean exhausted;
 
+    // (the buddy's fork, S137 step 2) the ticks before the start node is reached, for the mob field: the ticks left on the
+    // path being walked when this search plans ahead from its end. set before the search runs
+    public double riskOffset;
+    // and the search's risk prices once it has started, for the search line and the walk. the search's thread
+    protected baritone.pathing.movement.RiskCost.Search risk;
+
+    public final baritone.pathing.movement.RiskCost.Search risk() {
+        return risk;
+    }
+
     private volatile boolean waitedOn;
 
     /**

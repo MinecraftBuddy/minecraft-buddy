@@ -1,10 +1,15 @@
 package baritone.pathing.movement;
 
+import adris.altoclef.util.helpers.MobThreat;
 import adris.altoclef.util.helpers.PlaceWord;
+import adris.altoclef.util.helpers.RiskField;
+import baritone.api.pathing.goals.GoalBlock;
 import baritone.api.pathing.movement.ActionCosts;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class RiskCostTest {
     private static final double WALK = ActionCosts.WALK_ONE_BLOCK_COST;
@@ -73,5 +78,14 @@ public class RiskCostTest {
         double[] hp = {-5, 0, 0, 0, 0, 0, 0};
         double[] cost = RiskCost.perTick(80, hp, NO_DEATHS, RiskCost.DEATH_TICKS);
         for (double c : cost) assertEquals(0, c, 0);
+    }
+
+    @Test
+    public void aMobTheGoalIsAtIsNoHazardOfTheWay() {
+        RiskField.Source zombie = new RiskField.Source(1, MobThreat.of("zombie", 1), 10.5, 64, 0.5, 1, 1, true);
+        // a fight's goal two blocks off the mob
+        assertTrue(RiskCost.atGoal(new GoalBlock(12, 64, 0), zombie));
+        assertFalse(RiskCost.atGoal(new GoalBlock(20, 64, 0), zombie));
+        assertFalse(RiskCost.atGoal(null, zombie));
     }
 }

@@ -70,6 +70,12 @@ public final class PathNode {
      */
     public double favor;
 
+    /**
+     * (the buddy's fork, S137 step 2) The ticks the moves from the start to here take along the cheapest way found so far: the
+     * cost without its prices, so the mob field knows when we would be here
+     */
+    public double ticks;
+
     public PathNode(int x, int y, int z, Goal goal) {
         this.previous = null;
         this.cost = ActionCosts.COST_INF;
