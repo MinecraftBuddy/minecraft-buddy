@@ -500,4 +500,37 @@ public class RouteRulesTest {
         RouteRules.reset();
         assertFalse(RouteRules.inAwayZone(100, 200, 1500));
     }
+
+    @Test
+    public void aZoneIsAWallButForTheWalkerInItAndOnlyWhileLive() {
+        RouteRules.clearAwayZones();
+        RouteRules.noteAway(100, 200, 1000);
+        // a walker outside: a node inside the zone is a wall, one outside is not
+        assertTrue(RouteRules.awayWall(110, 210, 1000, 150, 200));
+        assertFalse(RouteRules.awayWall(130, 230, 1000, 150, 200));
+        // the walker inside the zone (the walk away, the way out): no wall
+        assertFalse(RouteRules.awayWall(110, 210, 1000, 105, 200));
+        // the zone run out: no wall
+        assertFalse(RouteRules.awayWall(110, 210, 1001 + RouteRules.AWAY_ZONE_TICKS, 150, 200));
+        // two zones: the walker in one, a node in the other is still a wall
+        RouteRules.noteAway(160, 200, 1000);
+        assertTrue(RouteRules.awayWall(170, 200, 1000, 100, 200));
+        RouteRules.reset();
+        assertFalse(RouteRules.awayWall(110, 210, 1000, 150, 200));
+    }
+
+    @Test
+    public void aTargetInAZoneIsPassedOverOnlyWhileTheWallsLive() {
+        RouteRules.clearAwayZones();
+        RouteRules.noteAway(100, 200, 1000);
+        assertFalse(RouteRules.awayPassOver(110, 210, 1000));
+        RouteRules.awayWallLive(true);
+        assertTrue(RouteRules.awayPassOver(110, 210, 1000));
+        assertFalse(RouteRules.awayPassOver(130, 230, 1000));
+        assertFalse(RouteRules.awayPassOver(110, 210, 1001 + RouteRules.AWAY_ZONE_TICKS));
+        // a new order: the zones and the walls gone
+        RouteRules.reset();
+        assertFalse(RouteRules.awayWallLive());
+        assertFalse(RouteRules.awayPassOver(110, 210, 1000));
+    }
 }

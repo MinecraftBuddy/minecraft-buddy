@@ -122,3 +122,4 @@ adris.altoclef.world.StrongholdEstimator#RING_COUNTS a constant table (the scan 
 adris.altoclef.chains.DangerForceChain#_hand whether the forced fight holds the hand this tick (the count ladder's drills only), set every tick
 adris.altoclef.util.helpers.DangerShadow#detail the forced drills' look at the last reading, made again at every reading (danger_force on only)
 adris.altoclef.util.helpers.FleeWay#TURNS a constant table of headings (the scan sees an array beside a read of it)
+adris.altoclef.util.helpers.RouteRules#awayWallLive set by the rods task every tick from its switch and the phase it is in; no memory of the world

@@ -143,6 +143,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // nearest counts again from there), and when it last said how far it is. the dead end's clock first running near the
     // spawner, said once (route_errand_near)
     private adris.altoclef.tasks.movement.GetWithinRangeOfBlockTask _wartWalk;
+    // the last wart said to be passed over for a zone (Tuning route_away_wall), so the line comes once a wart
+    private BlockPos _wartZonedSaid;
     private adris.altoclef.tasks.construction.DestroyBlockTask _wartBreak;
     private double _wartBest;
     private long _wartStall;
@@ -370,7 +372,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         noteZoneInputs(mod);
         mod.getBehaviour().avoidWalkingThrough(p -> _zoneNether
                 && (RunZones.INSTANCE.blocks(p.getX(), p.getZ(), _zoneNow, _zoneX, _zoneZ, _goalX, _goalZ)
-                || _deathZones.blocks(p.getX(), p.getZ(), _zoneNow, _zoneX, _zoneZ, _goalX, _goalZ)));
+                || _deathZones.blocks(p.getX(), p.getZ(), _zoneNow, _zoneX, _zoneZ, _goalX, _goalZ)
+                // (Tuning route_away_wall: the zones walked away from, while the errand runs; the buddy's own zone stays open)
+                || adris.altoclef.util.helpers.RouteRules.awayWallLive()
+                && adris.altoclef.util.helpers.RouteRules.awayWall(p.getX() + 0.5, p.getZ() + 0.5, _zoneNow, _zoneX + 0.5, _zoneZ + 0.5)));
     }
 
     // the buddy's fork: the rods lost on the ground, counted every tick (a pickup's ticks skip onResourceTick)
@@ -581,7 +586,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
         errandClockTick(mod);
         // (Tuning route_errand_away, route jar 8: in phase 3 no camp at the spawner and no chase, a blaze on the buddy walked
         // away from, one in a blow's reach hit, BlazeFight.errand)
-        _fight.errand(_errandOn && adris.altoclef.util.helpers.RouteRules.errandOn() && adris.altoclef.util.helpers.RouteRules.errandAwayOn());
+        boolean errandAway = _errandOn && adris.altoclef.util.helpers.RouteRules.errandOn() && adris.altoclef.util.helpers.RouteRules.errandAwayOn();
+        _fight.errand(errandAway);
+        // (Tuning route_away_wall, route jar 16's B arm: while the errand runs, the zones walked away from are walls for every
+        // walk but the one the buddy stands in, and a wart or a cube in one is passed over, RouteRules.awayWall)
+        boolean wall = errandAway && adris.altoclef.util.helpers.RouteRules.awayZoneOn() && adris.altoclef.util.helpers.RouteRules.awayWallOn();
+        if (wall != adris.altoclef.util.helpers.RouteRules.awayWallLive()) {
+            adris.altoclef.util.helpers.RouteRules.awayWallLive(wall);
+            Debug.logInternal(wall ? "route: phase 3, the zones walked away from are walls for the walks, a wart or a cube in one passed over"
+                    : "route: the zones walked away from no walls now");
+        }
         // blazes first: kill the one we picked, run when it goes badly. null is "nobody to fight"
         boolean building = _pillbox != null && !_pillbox.isFinished(mod);
         // (the cell is the fight's corner from its first block on, the wall nearest the spawner: a run then goes into it, not out
@@ -979,6 +993,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     static String creamCubeWhyNot(AltoClef mod, MagmaCube cube, boolean anyLevel) {
         var us = mod.getPlayer();
         if (us == null) return "level";
+        // (Tuning route_away_wall: in phase 3 a cube in a zone walked away from is passed over while the zone lives)
+        if (anyLevel && adris.altoclef.util.helpers.RouteRules.awayPassOver(cube.getX(), cube.getZ(), mod.getWorld().getGameTime())) return "zone";
         // (Tunings cream_down and cream_up: how far below and above our feet a cube may be, 2 and 3 by default. in the fortress the
         // cubes in reach were nearly all on another level, brew2-s8-1, 5 Nov 2026)
         if (!anyLevel && (cube.getY() < us.getY() - adris.altoclef.util.helpers.Tuning.get("cream_down", 2)
@@ -1422,9 +1438,17 @@ public class CollectBlazeRodsTask extends ResourceTask {
         double wartNear = adris.altoclef.util.helpers.RouteRules.wartNear();
         Vec3 anchor = _foundBlazeSpawner != null ? Vec3.atCenterOf(_foundBlazeSpawner) : me.position();
         java.util.function.Predicate<BlockPos> inReach = p -> adris.altoclef.util.helpers.RouteRules.wartInReach(anchor.distanceTo(Vec3.atCenterOf(p)), wartNear);
-        boolean keep = walk && _wartAt != null && !_wartGaveUp.contains(_wartAt) && inReach.test(_wartAt) && mod.getBlockTracker().blockIsValid(_wartAt, Blocks.NETHER_WART);
+        // (Tuning route_away_wall: a wart in a zone walked away from is passed over while the zone lives, RouteRules.awayPassOver)
+        long wartNow = mod.getWorld().getGameTime();
+        java.util.function.Predicate<BlockPos> unzoned = p -> !adris.altoclef.util.helpers.RouteRules.awayPassOver(p.getX() + 0.5, p.getZ() + 0.5, wartNow);
+        if (walk && _wartAt != null && !unzoned.test(_wartAt) && !_wartAt.equals(_wartZonedSaid)) {
+            _wartZonedSaid = _wartAt;
+            Debug.logInternal("route: the wart at " + _wartAt.toShortString() + " is in a zone walked away from, passed over for now");
+        }
+        boolean keep = walk && _wartAt != null && !_wartGaveUp.contains(_wartAt) && inReach.test(_wartAt) && unzoned.test(_wartAt)
+                && mod.getBlockTracker().blockIsValid(_wartAt, Blocks.NETHER_WART);
         Optional<BlockPos> block = keep ? Optional.of(_wartAt)
-                : mod.getBlockTracker().getNearestTracking(me.position(), p -> !_wartGaveUp.contains(p) && inReach.test(p), Blocks.NETHER_WART);
+                : mod.getBlockTracker().getNearestTracking(me.position(), p -> !_wartGaveUp.contains(p) && inReach.test(p) && unzoned.test(p), Blocks.NETHER_WART);
         if (!drop && block.isEmpty()) {
             _wartAt = null;
             return null;
