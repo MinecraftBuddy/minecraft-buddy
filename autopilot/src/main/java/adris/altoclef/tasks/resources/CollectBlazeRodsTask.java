@@ -2864,10 +2864,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // despawned: 87 of the 533 rods lost on 10 Nov, all at five minutes, "rods fetched 0". rod_fetch, the lure's own fetch
         // without the potion, was rejected on 6 Nov)
         if (me != null && rodFetchFireproofOn() && _fight.mode() != BlazeFightRules.Mode.RUN
-                && BlazeFight.fireResTicks(me) >= ROD_OLD_FR_TICKS && _fight.nearestBlaze() > BlazeFightRules.PICKUP_CLEAR_RANGE
-                && mod.getEntityTracker().getClosestItemDrop(me.position(), Items.BLAZE_ROD)
-                .filter(d -> d.getAge() >= ROD_OLD_TICKS && d.distanceTo(me) <= ROD_OLD_RANGE && d.getY() <= me.getY() + ROD_CLIMB).isPresent()) {
-            return false;
+                && BlazeFight.fireResTicks(me) >= ROD_OLD_FR_TICKS && _fight.nearestBlaze() > BlazeFightRules.PICKUP_CLEAR_RANGE) {
+            java.util.Optional<net.minecraft.world.entity.item.ItemEntity> old = mod.getEntityTracker().getClosestItemDrop(me.position(), Items.BLAZE_ROD)
+                    .filter(d -> d.getAge() >= ROD_OLD_TICKS && d.distanceTo(me) <= ROD_OLD_RANGE && d.getY() <= me.getY() + ROD_CLIMB);
+            if (old.isPresent()) {
+                // (one line a rod, for the readers: the rule's own count)
+                if (old.get().getId() != _oldRodLogged) {
+                    _oldRodLogged = old.get().getId();
+                    Debug.logInternal(String.format(java.util.Locale.ROOT, "rods: fetching a rod lying %d s, %.1f off, under the potion%s",
+                            old.get().getAge() / 20, old.get().distanceTo(me), _fight.cornerHold() ? ", the corner held" : ""));
+                }
+                return false;
+            }
         }
         // (and while the corner holds: the lure fetches the rods near it on a leash; the pickup's walk has none)
         // (Tuning open_attack: not while it holds, there is no lure to fetch them)
@@ -2878,6 +2886,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     static final int ROD_OLD_TICKS = 1200;
     static final double ROD_OLD_RANGE = 16;
     static final int ROD_OLD_FR_TICKS = 400;
+
+    private int _oldRodLogged = -1;
 
     static boolean rodFetchFireproofOn() {
         return adris.altoclef.util.helpers.Tuning.get("rod_fetch_fireproof", 0) > 0;
