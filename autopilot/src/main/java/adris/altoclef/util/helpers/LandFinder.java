@@ -196,7 +196,21 @@ public final class LandFinder {
                 || state.is(net.minecraft.world.level.block.Blocks.BLUE_ICE) || state.is(net.minecraft.world.level.block.Blocks.FROSTED_ICE);
     }
 
-    // noIce: land whose top is no ice either (an iceberg or a frozen sea is no land to dig in)
+    // how deep under a top (or the feet) ice or water makes the place no land to dig in: an iceberg's top is snow over packed ice
+    public static final int ICE_DEPTH = 5;
+
+    // ice or water in the depth blocks under pos (pos.below() down)
+    public static boolean iceUnder(Level level, BlockPos pos, int depth) {
+        for (int i = 1; i <= depth; i++) {
+            BlockState b = level.getBlockState(pos.below(i));
+            if (ice(b) || !b.getFluidState().isEmpty()) return true;
+        }
+        return false;
+    }
+
+    // noIce: land with no ice and no water in the ICE_DEPTH blocks under its top either (an iceberg or a frozen sea is no land
+    // to dig in: the top of an iceberg counted as land, and the staircase from it stepped down onto the ice again, the walk to
+    // land and the next step taking turns twice a second for an hour, 10 Nov 2026)
     public static BlockPos nearestLand(AltoClef mod, BlockPos feet, int reach, boolean noIce) {
         Level level = mod.getWorld();
         for (int r = 2; r <= reach; r += r < 64 ? 2 : 4) {
@@ -208,7 +222,8 @@ public final class LandFinder {
                     if (!level.hasChunk(x >> 4, z >> 4)) continue;
                     int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
                     BlockState ground = level.getBlockState(new BlockPos(x, top - 1, z));
-                    if (ground.getFluidState().isEmpty() && ground.isSolid() && !(noIce && ice(ground))) return new BlockPos(x, top, z);
+                    if (ground.getFluidState().isEmpty() && ground.isSolid() && !(noIce && (ice(ground) || iceUnder(level, new BlockPos(x, top, z), ICE_DEPTH))))
+                        return new BlockPos(x, top, z);
                 }
             }
         }

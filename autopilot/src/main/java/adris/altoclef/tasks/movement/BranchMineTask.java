@@ -179,9 +179,11 @@ public class BranchMineTask extends Task {
         }
         // on ice no staircase or tunnel starts either: baritone breaks no ice and no packed ice by water, and a staircase down
         // through an iceberg in a frozen ocean stood walled in at y 61, every step, the 32 blocks along and the wander "no
-        // path", for thirty game minutes with no gold (the overworld route's gold, box 1, 10 Nov 2026). land with no ice on
-        // top first (none within reach: as before)
-        if (adris.altoclef.util.helpers.LandFinder.ice(mod.getWorld().getBlockState(feet.below()))) {
+        // path", for thirty game minutes with no gold (the overworld route's gold, box 1, 10 Nov 2026). land with no ice or
+        // water under its top first (none within reach: as before). ice anywhere in the few blocks under the feet counts: on
+        // the snow of an iceberg's top the rule saw no ice, the staircase stepped down onto it, and the two took turns
+        if (adris.altoclef.util.helpers.LandFinder.ice(mod.getWorld().getBlockState(feet.below()))
+                || iceColumn(mod, feet)) {
             if (_iceLand == null || now - _iceLandSince > 600 || feet.closerThan(_iceLand, 1.5)) {
                 _iceLand = adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, ICE_LAND_REACH, true);
                 _iceLandSince = now;
@@ -557,6 +559,16 @@ public class BranchMineTask extends Task {
     }
 
     // the nearest place to stand on dry ground, ring by ring out to 64 blocks in what is loaded, by the height map
+    // ice in the column under the feet (LandFinder.ICE_DEPTH down), water not counted: a staircase over a lake's floor is
+    // the water rule's and the liquid steps' business
+    private static boolean iceColumn(AltoClef mod, BlockPos feet) {
+        var level = mod.getWorld();
+        for (int i = 1; i <= adris.altoclef.util.helpers.LandFinder.ICE_DEPTH; i++) {
+            if (adris.altoclef.util.helpers.LandFinder.ice(level.getBlockState(feet.below(i)))) return true;
+        }
+        return false;
+    }
+
     private static BlockPos nearestLand(AltoClef mod, BlockPos feet) {
         return adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, 64);
     }
