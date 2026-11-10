@@ -491,6 +491,18 @@ final class ObtainSafe {
 		return false;
 	}
 
+	/**
+	 * A bed lying on the ground within r blocks: one Soprano has just broken to take back. In that moment the bag held none
+	 * and no bed stood, and the night's hole stopped the whole order (a gold order of the overworld route, after a night
+	 * that did not pass: ten game minutes with no order and no hole on an iceberg, 10 Nov 2026).
+	 */
+	static boolean bedDropNear(LocalPlayer p, int r) {
+		var box = p.getBoundingBox().inflate(r, 3, r);
+		for (var e : p.level().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box))
+			if (AfkHelperClient.itemId(e.getItem()).endsWith("_bed")) return true;
+		return false;
+	}
+
 	/** A night it may try a bed: one in the bag, the overworld, nothing hostile about, and the server lets a night pass. */
 	static boolean bedNight(LocalPlayer p) {
 		return System.currentTimeMillis() > bedRefusedUntil && hasBed(p) && p.level().dimension().equals(Level.OVERWORLD)

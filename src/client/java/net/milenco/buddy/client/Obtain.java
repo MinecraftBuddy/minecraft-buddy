@@ -951,7 +951,8 @@ final class Obtain {
 	private static boolean holeNight(LocalPlayer p) {
 		// (a bed Soprano has just put down counts too: it puts its bed down to sleep, the bag held none that moment, and the
 		// hole shut it in for the night with the bed beside it, over a quarter of an order in holes)
-		if (!ObtainSafe.needsShelter(p) || ObtainSafe.hasBed(p) || ObtainSafe.bedNear(p, 6)) return false;
+		// (and a bed on the ground Soprano is taking back: ObtainSafe.bedDropNear)
+		if (!ObtainSafe.needsShelter(p) || ObtainSafe.hasBed(p) || ObtainSafe.bedNear(p, 6) || ObtainSafe.bedDropNear(p, 6)) return false;
 		long t = Math.floorMod(p.level().getOverworldClockTime(), 24000L);
 		// (from 11500, before sunset, as the buddy's own hole always did: from 12500, to give Soprano's evening its time, a
 		// food step ran into the dusk and it dug in among the night's first spiders and skeletons)
