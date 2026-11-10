@@ -93,13 +93,10 @@ public abstract class Slot {
         if (screen instanceof CraftingScreen) {
             return ContainerType.CRAFTING_TABLE;
         }
-        // (the buddy's fork, 10 Nov 2026: the stand's screen was read as the player's own, so its window slots 5 to 8, the bag's
-        // 9 to 12, were taken for armour and left out. with a full bag the brew's powder, wart or cream lands there, and the
-        // brew said "no blaze powder", "missing nether wart" or "no magma cream left" with it in the bag, for eight minutes,
-        // then gave up and opened the box: 3 of the 8 route-12 runs that failed phase 5 with everything at phase 4)
-        if (screen instanceof BrewingStandScreen) {
-            return ContainerType.BREWING_STAND;
-        }
+        // (the stand's screen stays read as the player's own, its window slots 5 to 8, the bag's 9 to 12, left out as armour.
+        // read through the stand's own slots (fork 8197cb83, 10 Nov 2026) the brew stalled after the cream: the stand clicked
+        // again and again and never opened, 20 game minutes in the shut box, 7 of 14 runs of realfort-p4-cream5-mc2 against
+        // 2 of 42 before. a full bag that puts the brew's things in those four slots is to be met another way)
         return ContainerType.PLAYER;
     }
 
