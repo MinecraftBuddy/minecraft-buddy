@@ -40,7 +40,9 @@ public final class Alt {
 		// places a block against it instead of opening it. The builder crouches itself at an edge.
 		// The mod being on, not AFK mode: on some servers the alt runs with AFK mode off.
 		// Nor while following someone: crouched the alt falls behind, and crouches again once beside the player.
-		boolean want = c.altCrouched && c.altCrouchAlong && AfkHelperClient.active() && !Jobs.anyOn(Jobs.Job.FOLLOW) && !Follow.walking();
+		// Nor while the panel steers: this key, pressed at the start of every tick, kept the alt crouched whatever the page
+		// held, at a sneak's pace. The crouch comes back when the page lets go.
+		boolean want = c.altCrouched && c.altCrouchAlong && AfkHelperClient.active() && !Steer.active() && !Jobs.anyOn(Jobs.Job.FOLLOW) && !Follow.walking();
 		if (want) { HeldKeys.set(mc.options.keyShift, true); crouchKeyHeld = true; }
 		else if (crouchKeyHeld) { HeldKeys.set(mc.options.keyShift, false); crouchKeyHeld = false; }
 	}
@@ -212,7 +214,8 @@ public final class Alt {
 		AfkConfig c = AfkConfig.get();
 		// the mod being on, not AFK mode, as with crouching: the alt may run with AFK mode off
 		// not while following: the walk jumps where the way goes up, and a held key made the alt hop the whole way
-		boolean want = c.altJumping && AfkHelperClient.active() && !Jobs.anyOn(Jobs.Job.FOLLOW) && !Follow.walking();
+		// nor while the panel steers: the page's own jump key decides then
+		boolean want = c.altJumping && AfkHelperClient.active() && !Steer.active() && !Jobs.anyOn(Jobs.Job.FOLLOW) && !Follow.walking();
 		if (want) { HeldKeys.set(mc.options.keyJump, true); jumpKeyHeld = true; }
 		else if (jumpKeyHeld) { HeldKeys.set(mc.options.keyJump, false); jumpKeyHeld = false; }
 	}

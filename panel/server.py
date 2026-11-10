@@ -54,7 +54,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LOG_TYPES = {"chat", "chat_sent", "follow", "corpse guard", "carrier", "tap", "base", "torch", "furnaces", "helper", "drop",
              "forget", "profile", "error", "connection", "player_join", "player_leave", "death_cause", "teleport",
              "steer", "placement", "build", "buildstatus", "switch", "doing", "chore", "goto", "guard",
-             "mode", "setting", "pen"}
+             "mode", "setting", "pen", "mod_started"}
 QUIET_ACTIONS = {"sees", "clickable", "status", "trace"}
 # a real player's name: the figures of a plugin (FancyNpcs) join and leave the player list under names of colour codes
 PLAYER = re.compile(r"^[A-Za-z0-9_.]{2,17}$")
@@ -205,9 +205,22 @@ def parsed(raw):
 CHAT_FEED = {"chat", "chat_sent", "sent", "telegram"}
 
 
-def in_feed(e):
-    """Which of the page's two feeds a line of the history goes to, as the page sorts them (take() in index.html)."""
-    return "chat" if e.get("type") in CHAT_FEED else "act"
+def comes_or_goes(e):
+    """The buddy's own coming and going: the game started, joined, left, kicked or the connection lost (the first try to
+    get back only, not every one while the server is down). As joinLine() in index.html."""
+    if e.get("type") == "mod_started":
+        return True
+    a = e.get("action")
+    return e.get("type") == "connection" and (a in ("connected", "logged out", "quitting for a new session")
+                                              or (a == "try again" and e.get("attempt") == 1))
+
+
+def in_feeds(e):
+    """Which of the page's two feeds a line of the history goes to, as the page sorts them (take() in index.html): the
+    buddy's own coming and going to both."""
+    if e.get("type") in CHAT_FEED:
+        return ("chat",)
+    return ("chat", "act") if comes_or_goes(e) else ("act",)
 
 
 def shown(line):
@@ -1183,7 +1196,7 @@ class Panel(BaseHTTPRequestHandler):
                                 e = json.loads(l)
                             except ValueError:
                                 e = None
-                            if isinstance(e, dict) and (feed is None or in_feed(e) == feed):
+                            if isinstance(e, dict) and (feed is None or feed in in_feeds(e)):
                                 got.append((pos, e))
                         pos += len(l) + 1
                     if len(got) > need - len(out):

@@ -562,6 +562,10 @@ public class AfkHelperClient implements ClientModInitializer {
 	}
 
 	// ---------- tick ----------
+	/** In a world at the last tick, and the ticks without one since. */
+	private boolean inWorld = false;
+	private int outTicks = 0;
+
 	private void onTick(Minecraft mc) {
 		tick++;
 		Profiles.tick(mc);
@@ -582,9 +586,15 @@ public class AfkHelperClient implements ClientModInitializer {
 
 		LocalPlayer p = mc.player;
 		if (p == null || mc.level == null) {
+			// Off the server for two seconds (a leave, a kick, a lost connection; a change of world on a network takes
+			// less): state.json says so now. It used to wait for the panel's next ask, up to ten seconds in which the
+			// panel showed the buddy as still there.
+			if (inWorld && ++outTicks >= 40) { inWorld = false; Details.offline(); }
 			if (tick % 20 == 0) offlineCommands();
 			return;
 		}
+		inWorld = true;
+		outTicks = 0;
 		if (!AfkConfig.get().modEnabled) { Jobs.stop("mod off"); return; }
 		Modules.tick();
 

@@ -11,7 +11,7 @@ Everything outside the game talks to the mod through files in the exchange folde
 | `buddy.json` | the settings |
 | `commands.jsonl` | commands to the mod, a JSON line each (appended) |
 | `events.jsonl` | what the mod reports, a JSON line each; emptied at every start of the game |
-| `state.json`, `map.json` | the buddy's state and the map, while the panel asks for them |
+| `state.json`, `map.json` | the buddy's state and the map, while the panel asks for them. In the game the state is written when it changes and at least every two seconds (`beat`, in milliseconds), so that its time `t` tells whether the game is alive; off a server it says `"online": false`, two seconds after leaving and at every ask |
 | `steer.json` | the panel's keys while you steer |
 | `follow.json` | whom to follow and whether to stay, kept over a restart |
 | `chests.json`, `fields.json`, `furnaces.json`, `base.json` | the chests, fields, furnaces and bed the buddy knows, per server and player |

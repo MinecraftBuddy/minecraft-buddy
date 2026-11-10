@@ -18,6 +18,10 @@ buddy is doing **now**. Its buttons:
 Under the buttons stands the buddy's version, with an arrow when a newer release is out. A click on it then updates
 (see [Installing](install.md#updates)).
 
+While the buddy is not in the game, the map, the 3D view and the chat say why: the buddy is off the server, the game is
+starting or has stopped, or the page has lost the panel (as during an update). What they show is the last the buddy
+saw, so it turns grey. A chat line is not sent and stays in the box, and Take control waits until the buddy is back.
+
 On a phone the parts come one at a time, chosen in a bar at the bottom (Map, Inventory, Chat, Settings). On a computer
 the chat stays in view while the rest of the page scrolls.
 
@@ -113,7 +117,8 @@ While you play:
 - `Esc` stops, and you watch again. **← Overview** and **Done** close the window.
 - In the inventory, what is on the cursor goes back when you shut it; a click on the world beside it throws what is on
   the cursor.
-- No job moves the buddy while you play. On a touch screen: the buttons, and drag on the view to turn.
+- No job moves the buddy while you play, and only your keys count: a buddy that crouched along with you (**Crouch**)
+  stands up, and crouches again when you stop. On a touch screen: the buttons, and drag on the view to turn.
 
 One person plays at a time. While someone else plays, a click on the view says who (by address), that person's open
 inventory shows over the view, and nothing you click reaches the game, nor do clicks in the overview's inventory.
@@ -153,7 +158,8 @@ clicked in for a minute.
   buttons (follow, stay, follow again, go home, stop following, ping). While you type a `/command`, the game's
   suggestions, and the server's, stand above the box: `Tab` takes the next, `Shift`+`Tab` the one before, a click that
   one. Nothing is sent before `Enter`. A message to the bot in Telegram from someone not in Trusted players shows here
-  in red, with that person's Telegram user id.
+  in red, with that person's Telegram user id. The buddy's own coming and going stands here in yellow: the game
+  started, joined, left, or off the server after a kick or a lost connection, with what the server said.
 - **Activity**: everything the buddy reports.
 - **Problems**: what went wrong, the same trouble in one row with how often, when last and where.
 - **Players**: who is online and since when, kept across the buddy's reconnects ("at least since" for players who were

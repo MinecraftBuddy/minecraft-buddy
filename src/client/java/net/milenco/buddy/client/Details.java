@@ -52,8 +52,10 @@ final class Details {
 	private Details() {}
 
 	private static final Gson GSON = new Gson();
-	private static long wantedUntil, nextWrite;
+	private static long wantedUntil, nextWrite, wroteAt;
 	private static String last = "";
+	/** The longest the state in the game stays unwritten while the panel wants it, in milliseconds. */
+	private static final long BEAT = 2000;
 
 	static void command(String cmd, JsonObject o, Minecraft mc) {
 		LocalPlayer p = mc.player;
@@ -268,10 +270,15 @@ final class Details {
 		Map<String, Object> pen = Pen.details(p);
 		if (pen != null) s.put("pen", pen);
 		String json = GSON.toJson(s);
-		if (json.equals(last)) return;
+		// Unchanged: written again every two seconds all the same, and the state says so (beat). Its time then tells the
+		// panel that the game is alive: a buddy standing still where the time of day stands still wrote nothing between
+		// the panel's asks, ten seconds apart, and a game that had stopped looked the same for as long.
+		if (json.equals(last) && now - wroteAt < BEAT) return;
 		last = json;
+		wroteAt = now;
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("t", now);
+		out.put("beat", BEAT);
 		out.putAll(s);
 		try {
 			Path f = Paths.get(AfkConfig.get().exchangeDir).resolve("state.json"), tmp = f.resolveSibling("state.json.tmp");

@@ -3,6 +3,17 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.26
+
+- Take control: a buddy that crouched along with you (**Crouch**) no longer stays crouched, at a sneak's pace, while
+  you play. Only your keys count, and the buddy crouches again when you stop.
+- While the buddy is not in the game, the map, the 3D view and the chat say why and turn grey: off the server, the game
+  starting or stopped, or no connection to the panel (as during an update). A chat line typed then is not sent and
+  stays in the box, and Take control waits until the buddy is back.
+- The chat shows the buddy's own coming and going in yellow: the game started, joined, left, or off the server after a
+  kick or a lost connection, with what the server said.
+- A buddy that leaves the server shows as offline in the panel within a few seconds, not up to ten.
+
 ## 0.5.25
 
 - Settings, Status shows the version on one line: an update link when a newer one is out, and the release notes.

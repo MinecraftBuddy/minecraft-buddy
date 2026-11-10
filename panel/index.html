@@ -328,6 +328,8 @@ padding:3px 7px 4px;font-size:14px;line-height:1.35;pointer-events:none;text-ali
 .lines .srv .x { color: var(--soft); }
 .lines .err .x { color: var(--bad-text); }
 .lines .ev .x { color: var(--muted); }
+/* the buddy's own coming and going, yellow as the game's line of a player who joins or leaves */
+.lines .join .x { color: var(--warn); }
 /* a server line drawn as the game draws it: its colours, its spaces, and what a click on a piece does */
 .lines .x.rich { white-space: pre-wrap; }
 .lines .ck { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
@@ -340,6 +342,13 @@ padding:3px 7px 4px;font-size:14px;line-height:1.35;pointer-events:none;text-ali
 .older::before, .older::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .say { padding: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
 .say form { display: flex; gap: 8px; } .say input { flex: 1; min-width: 0; }
+/* The buddy is not in the game (off the server, the game starting or stopped, no connection to the panel): said over the
+   map and the 3D view and above the chat box. What those show is the last the buddy saw, so it goes dim and grey. */
+.away { display: flex; align-items: center; gap: 10px; box-sizing: border-box; background: rgba(14,17,20,.94); border: 1px solid var(--warn); border-radius: 8px; padding: 8px 12px; color: var(--text); font-size: 13.5px; line-height: 1.4; }
+.away span { flex: 1; min-width: 0; }
+.mapbox > .away, #pad > .away { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; width: max-content; max-width: calc(100% - 24px); }
+.mapbox.off > #map, .mapbox.off > .map3d, #pad.off > #w3view, #pad.off > #padsky { filter: grayscale(.85) brightness(.5); }
+#pad.off > .hint, #pad.off > .cross, #pad.off > .w3load, .mapbox.off .w3load { display: none; }
 /* what Tab offers after a /command, above the box, as the game lists it */
 .cmdtips { display: flex; flex-direction: column; background: rgba(0,0,0,.82); border-radius: 6px; padding: 4px 0; font: 14px/1.5 var(--mono); max-width: 100%; align-self: flex-start; }
 .cmdtips[hidden] { display: none; }
@@ -643,6 +652,7 @@ dialog#rawdlg td code { word-break: break-all; }
       <div class="mapbox" id="mapbox">
         <canvas id="map" data-nm aria-label="Map around {n}"></canvas>
         <div class="map3d" id="map3d" hidden></div>
+        <div class="away" role="status" hidden><span></span><button type="button" class="btn small go" hidden>Join</button></div>
         <span class="cmp n">N</span><span class="cmp e">E</span><span class="cmp s">S</span><span class="cmp w">W</span>
         <div class="coords" id="coords">–</div>
         <div class="mclock" id="mclock" title="The time in the game"></div>
@@ -710,6 +720,7 @@ dialog#rawdlg td code { word-break: break-all; }
       <div class="lines" id="feed-players" hidden></div>
       <div class="say">
         <div class="cmdtips" id="cmdtips" hidden></div>
+        <div class="away" role="status" hidden><span></span><button type="button" class="btn small go" hidden>Join</button></div>
         <form id="say">
           <label for="text" class="sr" data-nm="html">Chat as {n}</label>
           <input id="text" type="text" maxlength="256" autocomplete="off" data-nm placeholder="Chat as {n}, or type a /command">
@@ -867,6 +878,7 @@ dialog#rawdlg td code { word-break: break-all; }
       mouse looks, <kbd>Space</kbd> jumps, <kbd>Shift</kbd> sneaks, <kbd>R</kbd> sprints, left click hits or breaks, right click uses,
       <kbd>1</kbd>–<kbd>9</kbd> or wheel picks a slot, <kbd>Q</kbd> drops, <kbd>F</kbd> swaps hands, <kbd>E</kbd> inventory,
       <kbd>T</kbd> or <kbd>/</kbd> chat, <kbd>Tab</kbd> player list, <kbd>F5</kbd> camera. <kbd>Esc</kbd> stops.</div></div>
+      <div class="away" role="status" hidden><span></span><button type="button" class="btn small go" hidden>Join</button></div>
       <div class="w3load" id="w3load" role="status" hidden><div class="w3loadcard"><b data-part="title">Loading the 3D view</b><div class="w3bar"><i data-part="bar"></i></div><span data-part="step">Starting…</span></div></div></div>
     <div id="w3hover" class="card w3hover"></div>
     <div class="fireov" id="fireov" hidden></div>
@@ -1761,8 +1773,10 @@ async function state() {
     const r = await fetch('/api/state?page=' + PAGE + ($('driver').hidden ? '' : '&watch=1'));
     if (r.status === 401) { location.reload(); return; } // the owner's session ran out or the password changed: the login page
     const s = await r.json();
+    okAt = Date.now();
     if (s.empty) return;
     S = s;
+    if (s.t !== seenT) { seenT = s.t; seenAt = Date.now(); }
     CTL = s.control || {held: false};
     // the server may choose the buddy's slot (a middle click picks the block's item from the hotbar): the page takes it over,
     // unless you just chose one yourself and the state does not know it yet
@@ -1821,6 +1835,47 @@ async function state() {
     quickButtons(s);
     drawMap();
   } catch (e) { $('dot').className = 'dot'; }
+  finally { away(); }
+}
+/* ---------- the buddy not in the game ---------- */
+/* Why the buddy is not in the game right now, '' while the buddy is: off the server, the game starting or stopped, or this
+   page without a connection to the panel. The map, the 3D view and the chat keep what the buddy saw last, which read as
+   now; so each says this over it, and nothing is sent to a game that is not there.
+   The game writes its state at least every two seconds while a page asks, and says so (beat); off a server, and in a mod
+   from before that, only at the panel's ask every ten seconds. A state that stays the same for much longer is of a game
+   that is starting, has stopped or hangs. Counted on this page's own clock from the last change, and six seconds shorter
+   for the first one after the page opened or came back (nothing was asked meanwhile, and the game answers the first ask
+   at once). The panel is gone when no state came for five seconds, whether the asks fail or hang. */
+let okAt = Date.now(), updating = false, seenT = 0, seenAt = Date.now() - 6000;
+const noPanel = () => Date.now() - okAt > 5000;
+const gameSilent = () => !!S && Date.now() - seenAt > (S.online && S.beat ? 10000 : 25000);
+function awayText() {
+  if (noPanel()) return updating ? nm('Updating: {n} and this page are back in a minute or two.') : 'No connection to the panel. This page keeps trying.';
+  if (!S) return '';
+  if (gameSilent()) return nm('{N}\'s game does not answer: it is starting or has stopped.');
+  if (!S.online) return nm(S.stay_offline ? '{N} is off the server until you press Join.' : '{N} is not on a server.');
+  return '';
+}
+function away() {
+  if (document.hidden) return;
+  const t = awayText(), canJoin = !!t && !noPanel() && !gameSilent() && !!S.stay_offline;
+  for (const el of document.querySelectorAll('.away')) {
+    if (el.firstElementChild.textContent !== t) el.firstElementChild.textContent = t;
+    el.lastElementChild.hidden = !canJoin;
+    el.hidden = !t;
+  }
+  $('mapbox').classList.toggle('off', !!t);
+  $('pad').classList.toggle('off', !!t);
+  // the header too, where the last state still said online
+  const head = noPanel() ? 'No connection to the panel' : gameSilent() ? nm('{N}\'s game does not answer') : '';
+  if (head) { $('dot').className = 'dot'; $('status').textContent = head; $('connstate').textContent = head; }
+  // the controls go back: the keys would go nowhere, and the buddy is not held when the game returns
+  if (t && steer.on) giveBack();
+}
+for (const el of document.querySelectorAll('.away')) {
+  // a click on it is not one on the map or the view under it
+  for (const k of ['click', 'pointerdown', 'mousedown']) el.addEventListener(k, ev => ev.stopPropagation());
+  el.lastElementChild.addEventListener('click', () => join());
 }
 
 /* ---------- what the buddy is missing (Needs in the mod): its key, and the number its text carries ---------- */
@@ -2196,7 +2251,26 @@ $('feed-chat').addEventListener('click', async ev => {
   try { await post('/api/say', {text: line}); note('Sent: ' + line); } catch (e) { note('Not sent: ' + e.message); }
 });
 const SKIP = new Set(['t', 'type', 'action', 'x', 'y', 'z']);
+/* The buddy's own coming and going as a line, or null: the game started, joined, left, kicked or the connection lost (the
+   first try to get back only, not every one while the server is down). In the chat too, as the game tells of a player who
+   joins or leaves: without it the chat read on as if the buddy had been there all along. As comes_or_goes() in server.py. */
+function joinLine(e) {
+  if (e.type === 'mod_started') return nm('{N}\'s game started.');
+  if (e.type !== 'connection') return null;
+  if (e.action === 'connected') return nm('{N} joined ') + (e.server || 'the server') + '.';
+  if (e.action === 'logged out') return nm('{N} left the server') + (e.reason === 'panel' || e.reason === 'stays away' ? ' and stays off until you press Join.' : e.reason ? ': ' + e.reason + '.' : '.');
+  if (e.action === 'try again' && e.attempt === 1) {
+    // a kick or a lost connection, with what the server said
+    let why = String(e.reason || '').split(/\s+/).join(' ').trim().replace(/\.$/, '');
+    if (why.length > 300) why = why.slice(0, 300) + '…';
+    return nm('{N} is off the server') + (why ? ': ' + why : '') + '. ' + (typeof e.left_s === 'number' ? 'Joins again in ' + e.left_s + ' seconds.' : 'Joins again automatically.');
+  }
+  if (e.action === 'quitting for a new session') return nm('{N} could not join ') + e.attempts + ' times in a row and restarts the game.';
+  return null;
+}
+const joinHtml = (e, text) => '<div class="l join"><time>' + clock(e.t) + '</time><span><span class="x">' + esc(text) + '</span></span></div>';
 function eventText(e) {
+  const j = joinLine(e); if (j) return j;
   if (e.type === 'error') return 'Error: ' + (e.msg || e.notice || JSON.stringify(e));
   if (e.type === 'player_join') return e.name + ' joined' + (e.online !== undefined ? ' (' + e.online + ' online)' : '');
   if (e.type === 'player_leave') return e.name + ' left' + (e.online !== undefined ? ' (' + e.online + ' online)' : '');
@@ -2233,7 +2307,9 @@ function problems() {
   $('probtop').innerHTML = recent.slice(0, 3).map(row).join('');
   $('probcard').hidden = !recent.length;
 }
-function take(lines, where, fresh) {
+/* only: the one feed these lines were asked for (scrolled back), so that a line of both feeds is not put in the other
+   one too, where it comes again with that feed's own older lines */
+function take(lines, where, fresh, only) {
   const chat = [], act = [];
   for (const e of lines) {
     if (e.type === 'chat' || typed(e) || e.type === 'telegram') {
@@ -2242,7 +2318,11 @@ function take(lines, where, fresh) {
       if (typed(e) && where === 'start' && echoShown(e)) continue;
       chat.push({e, html: chatHtml(e)});
     }
-    else act.push(actHtml(e));
+    else {
+      const j = joinLine(e);
+      if (j && only !== 'act') chat.push({e, html: joinHtml(e, j)});
+      if (only !== 'chat') act.push(actHtml(e));
+    }
     if (isProblem(e)) addProblem(e);
     if (['placement', 'build', 'buildstatus'].includes(e.type) && where === 'end') { lastBuild = eventText(e); $('schlog').textContent = clock(e.t) + '  ' + lastBuild; }
   }
@@ -2298,7 +2378,7 @@ async function older(feed) {
   try {
     const j = await (await fetch('/api/log?before=' + oldest[feed] + '&feed=' + feed)).json();
     more = j.start > 0 && j.start < oldest[feed];
-    take(j.lines, 'start'); oldest[feed] = j.start;
+    take(j.lines, 'start', false, feed); oldest[feed] = j.start;
   } catch (e) {}
   loadingOld[feed] = false;
   if (more && !$('feed-' + feed).hidden && $('feed-' + feed).scrollTop < 40) older(feed);
@@ -2354,6 +2434,8 @@ $('say').addEventListener('submit', async ev => {
   ev.preventDefault();
   const t = $('text').value.trim();
   if (!t) return;
+  // not in the game: the line would go nowhere, so it stays in the box
+  if (awayText()) { note('Not sent. ' + awayText()); return; }
   tabReset();
   try { await post('/api/say', {text: t}); $('text').value = ''; } catch (e) { note('Not sent: ' + e.message); }
 });
@@ -2429,6 +2511,7 @@ function busyText() {
 }
 function takeControl() {
   if (steer.on) return;
+  if (awayText()) { note(awayText()); return; }
   if (someoneElse()) { note(busyText()); return; }
   steer.on = true; steer.session = Math.random().toString(36).slice(2); steer.keys.clear(); steer.yaw = 0; steer.pitch = 0; steer.uses = 0;
   // where the buddy looked when you took over: the mod turns the buddy to that plus what you moved, so the page can draw it at once
@@ -2551,7 +2634,7 @@ $('closedrive').addEventListener('click', closeDrive);
 $('backdrive').addEventListener('click', () => { closeDrive(); if (location.hash !== '#overview' && location.hash) location.hash = '#overview'; });
 $('driver').addEventListener('click', ev => { if (ev.target === $('driver')) closeDrive(); });
 const pad = $('pad');
-pad.addEventListener('click', ev => { if (W3 && W3.mode() !== 'drive') return; if (ev.target.closest('#keystoggle')) return; if (Date.now() - threwAt < 1000) return; if (someoneElse() && !steer.on) { note(busyText()); return; } if (playUi) hideUi(); takeControl(); if (pad.requestPointerLock && matchMedia('(pointer:fine)').matches) pad.requestPointerLock(); });
+pad.addEventListener('click', ev => { if (W3 && W3.mode() !== 'drive') return; if (ev.target.closest('#keystoggle')) return; if (Date.now() - threwAt < 1000) return; if (awayText()) { note(awayText()); return; } if (someoneElse() && !steer.on) { note(busyText()); return; } if (playUi) hideUi(); takeControl(); if (pad.requestPointerLock && matchMedia('(pointer:fine)').matches) pad.requestPointerLock(); });
 document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && steer.on && !playUi && $('gscreen').hidden) giveBack(); });
 document.addEventListener('mousemove', ev => {
   if (!steer.on || document.pointerLockElement !== pad) return;
@@ -2606,7 +2689,7 @@ window.addEventListener('blur', () => { if (steer.on) { steer.keys.clear(); send
 // browser ran the page's timers once a minute at most or not at all, so all of it is fetched again at once (the 3D view
 // catches up by itself, under its bar)
 let beat = Date.now();
-function cameBack() { beat = Date.now(); state(); map(); tiles(); log(); players(); }
+function cameBack() { beat = okAt = Date.now(); seenAt = Date.now() - 6000; state(); map(); tiles(); log(); players(); }
 document.addEventListener('visibilitychange', () => { if (document.hidden) giveBack(); else cameBack(); });
 addEventListener('pageshow', ev => { if (ev.persisted) cameBack(); });
 document.addEventListener('resume', cameBack);
@@ -3096,6 +3179,7 @@ async function imageUpdate(b, was, latest) {
   try { await post('/api/image-update', {}); }
   catch (e) { note('Not done: ' + e.message); b.disabled = chip.disabled = false; versionCheck(); return; }
   note('Checking for a newer image…');
+  updating = true; // the page away meanwhile is the update, and is told so
   const until = Date.now() + 240000;
   while (Date.now() < until) {
     await new Promise(r => setTimeout(r, 3000));
@@ -3104,6 +3188,7 @@ async function imageUpdate(b, was, latest) {
     const u = g.docker && g.docker.update;
     if (u && u.done) { if (!$('settings').hidden) { G = g; gRender(); } note(imageUpdateText(u)); break; }
   }
+  updating = false;
   b.disabled = chip.disabled = false;
   versionCheck();
   if (!$('settings').hidden) gameLoad();
@@ -3800,6 +3885,7 @@ setInterval(() => {
 // four times a second while you play or watch the buddy in Take control (a chest the buddy opens shows as it fills)
 setInterval(() => { if (Date.now() < fastUntil || steer.on || !$('driver').hidden) state(); }, 250);
 setInterval(state, 1000);
+setInterval(away, 1000); // by itself too: an ask that hangs never ends in state()
 setInterval(log, 1500);
 setInterval(map, 2000);
 setInterval(tiles, 5000);
