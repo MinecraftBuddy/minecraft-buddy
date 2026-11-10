@@ -222,6 +222,28 @@ public final class RouteRules {
 
     // what the fight does with a blaze while the errand holds it off: "hit" one within the blow's reach, "away" from one with a
     // line on the buddy (seen), null to leave it be
+    // ---- Tuning route_errand_risk (off by default; steering 146.2, 10 Nov 2026): in phase 3 a blaze is fought without the
+    // potion when the fight is safe by the danger ladder's own numbers, else walked away from as before (awayAct). the ladder's
+    // blaze drills (forced fight against forced flee, full health, a way out): with 1 to 4 blazes the fight never died (14
+    // pairs), with 5 0 of 8, 6 2 of 8, 7 4 of 8, 8 3 of 8. so: at most RISK_BLAZES blazes within RISK_RANGE, no wither
+    // skeleton within RISK_WITHER, the health at RISK_HP or more, not burning or withered; a blaze fought is one within
+    // RISK_RANGE, its rods picked up as any
+    public static final int RISK_BLAZES = 4;
+    public static final double RISK_RANGE = 16;
+    public static final double RISK_WITHER = 8;
+    public static final double RISK_HP = 14;
+
+    public static boolean errandRiskOn() {
+        return Tuning.get("route_errand_risk", 0) > 0;
+    }
+
+    // whether phase 3 fights now: blazes alive within RISK_RANGE, wither skeletons within RISK_WITHER, the health, and burning or
+    // withered (a hurt that keeps going)
+    public static boolean errandFights(int blazes, int witherSkeletons, double health, boolean hurting) {
+        return blazes <= Tuning.get("route_errand_risk_blazes", RISK_BLAZES) && witherSkeletons == 0
+                && health >= Tuning.get("route_errand_risk_hp", RISK_HP) && !hurting;
+    }
+
     public static String awayAct(double distance, boolean seesBuddy) {
         if (distance <= AWAY_BLOW) return "hit";
         if (seesBuddy) return "away";

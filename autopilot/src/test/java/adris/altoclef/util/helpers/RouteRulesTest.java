@@ -585,4 +585,15 @@ public class RouteRulesTest {
         assertEquals("15:00", RouteRules.clock(900 * 20));
         assertEquals("3:05", RouteRules.clock(185 * 20));
     }
+
+    // route_errand_risk: the ladder's bound, 4 blazes; a wither skeleton near, low health or a hurt that goes on: no fight
+    @Test
+    public void errandFightsByTheLaddersNumbers() {
+        assertTrue(RouteRules.errandFights(1, 0, 20, false));
+        assertTrue(RouteRules.errandFights(4, 0, 14, false));
+        assertFalse(RouteRules.errandFights(5, 0, 20, false));
+        assertFalse(RouteRules.errandFights(2, 1, 20, false));
+        assertFalse(RouteRules.errandFights(2, 0, 13.5, false));
+        assertFalse(RouteRules.errandFights(2, 0, 20, true));
+    }
 }

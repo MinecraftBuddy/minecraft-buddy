@@ -80,6 +80,8 @@ final class BlazeFight {
     // bow's task kept for the whole fight with that weapon (a new one each tick let go of the draw), and since when the target
     // stopped qualifying while the bow was in hand: the draw is held through a short loss of the line)
     private final List<Blaze> shootable = new ArrayList<>();
+    // (Tuning route_errand_risk) whether phase 3's fight was on at the last line
+    private boolean errandFightNow;
     private boolean targetShootable;
     private adris.altoclef.tasks.entity.ForcedBowTask bowTask;
     private boolean bowNow;
@@ -1350,8 +1352,25 @@ final class BlazeFight {
             noteLetGo("past the leash, " + Math.round(target.position().distanceTo(Vec3.atBottomCenterOf(corner))) + " from the corner", player);
             target = null;
         }
+        // (Tuning route_errand_risk: in phase 3 the fight is on when it is safe by the ladder's numbers, RouteRules.errandFights)
+        boolean riskFight = false;
+        if (errand && adris.altoclef.util.helpers.RouteRules.errandRiskOn()) {
+            int near = 0;
+            for (Blaze blaze : blazes) {
+                if (blaze.isAlive() && player.distanceTo(blaze) <= adris.altoclef.util.helpers.RouteRules.RISK_RANGE) near++;
+            }
+            int withers = witherSkeletonsNear(mod, player.position(), adris.altoclef.util.helpers.RouteRules.RISK_WITHER);
+            boolean hurting = (player.isOnFire() && !adris.altoclef.util.helpers.FireRes.has(player)) || player.hasEffect(MobEffects.WITHER);
+            riskFight = adris.altoclef.util.helpers.RouteRules.errandFights(near, withers, player.getHealth(), hurting);
+            if (riskFight != errandFightNow && near > 0) {
+                Debug.logInternal(String.format(java.util.Locale.ROOT, "rods: phase 3, %s: %d blaze(s) within %.0f, %d wither skeleton(s) within %.0f, %.1f hp%s",
+                        riskFight ? "the fight is safe, fighting" : "the fight is not safe, walking away", near, adris.altoclef.util.helpers.RouteRules.RISK_RANGE,
+                        withers, adris.altoclef.util.helpers.RouteRules.RISK_WITHER, player.getHealth(), hurting ? ", hurting" : ""));
+                errandFightNow = riskFight;
+            }
+        }
         // (Tuning route_errand_away: in phase 3 the one we are after is let go past a blow's reach, no chase)
-        if (errand && target != null && adris.altoclef.util.helpers.RouteRules.awayAct(player.distanceTo(target), false) == null) {
+        if (errand && !riskFight && target != null && adris.altoclef.util.helpers.RouteRules.awayAct(player.distanceTo(target), false) == null) {
             noteLetGo("phase 3, out of a blow's reach", player);
             target = null;
         }
@@ -1393,7 +1412,9 @@ final class BlazeFight {
                         // come to the camp. the fireballs do little then, and the chase to blaze after blaze ended "no path"
                         // and a ban each, 54 in five minutes with blazes in sight and no rod, steering 67)
                         // (Tuning route_errand_away: in phase 3 only a blaze within a blow's reach, RouteRules.awayAct)
-                        && (!errand || "hit".equals(adris.altoclef.util.helpers.RouteRules.awayAct(distance, false)))
+                        // (Tuning route_errand_risk: a fight that is safe takes one within RISK_RANGE)
+                        && (!errand || (riskFight ? distance <= adris.altoclef.util.helpers.RouteRules.RISK_RANGE
+                        : "hit".equals(adris.altoclef.util.helpers.RouteRules.awayAct(distance, false))))
                         && (fireproofHold(player) <= 0 || distance <= fireproofHold(player))
                         && (fireproofReach(player) <= 0 || blaze.getY() - player.getY() <= fireproofReach(player))
                         && (open || rushNow || !cornerHold || blaze == target || distance <= BITE_RANGE || (blaze.getEyePosition().distanceTo(cornerEye) <= CORNER_REACH
