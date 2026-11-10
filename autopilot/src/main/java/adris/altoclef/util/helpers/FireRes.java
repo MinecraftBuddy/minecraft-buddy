@@ -136,8 +136,17 @@ public final class FireRes {
 
     // said every tick of phases 3 and 4 (route_hold_fight) or of the errand (route jar 1); fightBegun: RouteRules.fightBegun
     public static void routeHolds(long now, boolean fightBegun) {
+        routeHolds(now, fightBegun, true);
+    }
+
+    // ready: RouteRules.fightReady at the spawner fight (Tuning route_drink_ready; true with the switch off)
+    private static volatile boolean routeReady = true;
+    private static volatile long routeUnreadyAt = Long.MIN_VALUE / 2;
+
+    public static void routeHolds(long now, boolean fightBegun, boolean ready) {
         routeAt = now;
         routeFight = fightBegun;
+        routeReady = ready;
     }
 
     // (Tuning route_hold_way, on by default, route jar 3: RouteRules.wayLetGo) on the way the say lasts WAY_FRESH: the mob
@@ -180,7 +189,17 @@ public final class FireRes {
                 burnAt = now;
             }
             boolean falling = RouteRules.healthFalling(onFire, burnBest, e.getHealth());
-            String why = RouteRules.holdLetGo(asked, inLava, onFire, falling, e.getHealth(), hp, routeFight, blaze <= FireResRules.BLAZE_RANGE);
+            // (Tuning route_drink_ready: a blaze within 16 lets it go at the spawner fight only once one can be fought)
+            boolean near = blaze <= FireResRules.BLAZE_RANGE;
+            if (near && routeFight && !routeReady) {
+                near = false;
+                if (FireResTradeRules.newEpisode(routeUnreadyAt, now)) {
+                    Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion waits for a blaze to fight (none in sight within %.0f, not at the camp; nearest blaze %s)",
+                            RouteRules.DRINK_SIGHT, FireResTradeRules.distance(blaze)));
+                }
+                routeUnreadyAt = now;
+            }
+            String why = RouteRules.holdLetGo(asked, inLava, onFire, falling, e.getHealth(), hp, routeFight, near);
             if (why != null) {
                 if (FireResTradeRules.newEpisode(routeLetAt, now)) {
                     Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion goes down, %s (%.1f hp%s, nearest blaze %s)", why,

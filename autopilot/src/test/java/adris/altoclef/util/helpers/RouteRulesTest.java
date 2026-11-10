@@ -278,6 +278,18 @@ public class RouteRulesTest {
     }
 
     @Test
+    public void withDrinkReadyThePotionWaitsForABlazeThatCanBeFought() {
+        // (inside the brick under the spawner, the blazes 8-10 off behind it: none in sight, not at the camp)
+        assertFalse(RouteRules.fightReady(false, Double.POSITIVE_INFINITY));
+        // (a blaze in sight but over the void 13-16 off, at a bridge's end)
+        assertFalse(RouteRules.fightReady(false, 14));
+        // (a blaze 6 off in the open, or the buddy on the spawner's top)
+        assertTrue(RouteRules.fightReady(false, 6));
+        assertTrue(RouteRules.fightReady(false, RouteRules.DRINK_SIGHT));
+        assertTrue(RouteRules.fightReady(true, Double.POSITIVE_INFINITY));
+    }
+
+    @Test
     public void thePotionGoesAtOnceInLavaOrBurningWithTheHealthFalling() {
         double holdHp = 8;
         assertEquals("in lava", RouteRules.holdLetGo(false, true, true, false, 17, holdHp, false, false));

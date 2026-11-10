@@ -104,6 +104,9 @@ public final class Tuning {
             // (10 Nov 2026, a fix: a roof row block whose click has no face in sight steps to its cell's middle first,
             // BlazePillboxTask; the brew box's roof over the stand's cell)
             java.util.Map.entry("roof_face_step", 1.0),
+            // (10 Nov 2026, a fix: a brew box in the fight's pillbox opens its own look out again and the buddy stays in the
+            // pillbox, BrewBoxTask; it broke another wall and the lure aimed at the walled look out, look 40)
+            java.util.Map.entry("brew_open_lookout", 1.0),
             // (route jar 13, 9 Nov 2026: chunks the explore's rings failed to reach twice are passed over, ExploreProcess.Unreachable)
             java.util.Map.entry("explore_ban", 1.0),
             java.util.Map.entry("ghast_wait_double", 1.0),

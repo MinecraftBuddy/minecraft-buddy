@@ -445,7 +445,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // tick so a fight on the way does not end the wait; at the spawner a blaze lets it go, RouteRules.holdPotion)
         if (adris.altoclef.util.helpers.RouteRules.holdFightOn() && (_errandOn || _routePhase == adris.altoclef.util.helpers.RouteRules.RODS2)) {
             double toSpawner = _foundBlazeSpawner == null ? Double.POSITIVE_INFINITY : mod.getPlayer().position().distanceTo(Vec3.atCenterOf(_foundBlazeSpawner));
-            adris.altoclef.util.helpers.FireRes.routeHolds(mod.getWorld().getGameTime(), adris.altoclef.util.helpers.RouteRules.fightBegun(_routePhase, toSpawner));
+            boolean begun = adris.altoclef.util.helpers.RouteRules.fightBegun(_routePhase, toSpawner);
+            // (Tuning route_drink_ready, off by default: at the spawner fight the potion waits for a blaze that can be fought)
+            boolean ready = true;
+            if (begun && adris.altoclef.util.helpers.RouteRules.drinkReadyOn()) {
+                var me = mod.getPlayer();
+                boolean atCamp = _foundBlazeSpawner.above().closerToCenterThan(me.position(), CAMP_RADIUS)
+                        || (_campSpot != null && _campSpot.closerToCenterThan(me.position(), CAMP_RADIUS));
+                ready = adris.altoclef.util.helpers.RouteRules.fightReady(atCamp, atCamp ? 0 : nearestSeenBlaze(mod, me));
+            }
+            adris.altoclef.util.helpers.FireRes.routeHolds(mod.getWorld().getGameTime(), begun, ready);
         }
         noteRods(mod);
         campDry(mod);
@@ -2929,6 +2938,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
             }
         } catch (java.util.ConcurrentModificationException e) {
             return _fight.nearestBlaze();
+        }
+        return best;
+    }
+
+    // the nearest live blaze in the buddy's line of sight within RouteRules.DRINK_SIGHT (infinite with none): Tuning
+    // route_drink_ready's blaze that can be fought
+    private double nearestSeenBlaze(AltoClef mod, net.minecraft.world.entity.player.Player me) {
+        double best = Double.POSITIVE_INFINITY;
+        try {
+            for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+                if (!b.isAlive()) continue;
+                double d = b.distanceTo(me);
+                if (d <= adris.altoclef.util.helpers.RouteRules.DRINK_SIGHT && d < best && me.hasLineOfSight(b)) best = d;
+            }
+        } catch (java.util.ConcurrentModificationException e) {
+            return Double.POSITIVE_INFINITY;
         }
         return best;
     }

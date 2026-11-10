@@ -332,6 +332,24 @@ public final class RouteRules {
         return Tuning.get("route_hold_fight", 0) > 0;
     }
 
+    // ---- Tuning route_drink_ready (off by default; 10 Nov 2026): at the spawner fight the kept potion goes down only once a
+    // blaze can be fought: one within DRINK_SIGHT in the buddy's line of sight, or the buddy at its camp (the spawner's top or
+    // the camp's spot). the drink came on a blaze within 16 alone, and the 180 s went by with no swing: inside the brick under
+    // the spawner digging up (the blazes 8-10 off behind it), at a bridge's end with the blazes over the void, every chase
+    // "no path" and a two-minute ban (cascade realfort-p4-cream7 runs 2, 5 and 18; 'potion_idle' in 32 phase-4 losses).
+    // the safety drinks (in lava, burning with the health falling, on fire at the hold's health) are not touched
+    public static final double DRINK_SIGHT = 8;
+
+    public static boolean drinkReadyOn() {
+        return Tuning.get("route_drink_ready", 0) > 0;
+    }
+
+    // whether the spawner fight can begin under the potion now: atCamp (on the spawner's top or the camp's spot), seenBlaze the
+    // distance to the nearest blaze in the line of sight (infinite with none)
+    public static boolean fightReady(boolean atCamp, double seenBlaze) {
+        return atCamp || seenBlaze <= DRINK_SIGHT;
+    }
+
     // ---- the potion on the way (Tuning route_hold_way, on by default; route jar 3, 8 Nov 2026). route jar 2 let it go on the
     // way for any burn with the health half a heart down: run 1 stepped into a lava pool's edge on the fortress search at 20
     // hp (out at once, 18.1 hp) and run 2 took one fireball in a blaze fight in phase 3 (17.4 hp); both reached the spawner
