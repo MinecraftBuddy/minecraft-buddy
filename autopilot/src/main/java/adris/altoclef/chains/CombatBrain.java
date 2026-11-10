@@ -545,6 +545,14 @@ final class CombatBrain {
             // how far the run got, asked before the step: an end chained into a new run has moved the origin by the time we say so
             int blocks = (int) Math.round(Math.hypot(player.getX() - _commit.originX(), player.getZ() - _commit.originZ()));
             _commit.perchFacts(perchFacts(mod, player, mobs, foes, now));
+            // (Tuning box_stamp_fight, on: a fix, 10 Nov 2026. the standing pillbox's stamp, by which a walker by its wall that never
+            // hits is no progress, came from the rods task's tick alone, which a fight takes: 40 ticks into every fight from the box
+            // the rule was off, and a wither skeleton outside the wall held the buddy 18 game minutes in its cell, unhurt, the
+            // order stalled (realfort-route-17 run 19). the buddy's feet in the standing box keep the stamp fresh)
+            if (adris.altoclef.util.helpers.Tuning.get("box_stamp_fight", 0) > 0
+                    && adris.altoclef.util.helpers.BlazeShelter.inStandingBox(player.blockPosition())) {
+                adris.altoclef.util.helpers.BlazeShelter.boxStands(now);
+            }
             Event event = _commit.step(new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
                     way(mod, mobs, foes).withRim(rim).withLavaClose(lavaClose), armed(mod, foes), tryingToMove(mod, player), creeperRepeat, body(mod, dimension),
                     boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player)));

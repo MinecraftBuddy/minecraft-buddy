@@ -110,6 +110,8 @@ public final class Tuning {
             // (10 Nov 2026, a fix: before the stand's screen opens, the brew's things leave the bag's slots 9 to 12, which
             // that screen reads as armour, BrewRules.hiddenMove)
             java.util.Map.entry("brew_hidden_out", 1.0),
+            // (10 Nov 2026, a fix: the standing pillbox's stamp kept fresh by a fight while the buddy stands in it, CombatBrain)
+            java.util.Map.entry("box_stamp_fight", 1.0),
             // (route jar 13, 9 Nov 2026: chunks the explore's rings failed to reach twice are passed over, ExploreProcess.Unreachable)
             java.util.Map.entry("explore_ban", 1.0),
             java.util.Map.entry("ghast_wait_double", 1.0),
