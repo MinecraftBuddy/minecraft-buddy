@@ -39,6 +39,7 @@ class RunMemoriesGuardTest {
 		Map.entry("ObtainSafe#nextWatch,edging,braced", "a clock or a flag of the tick under way"),
 		Map.entry("Alto#KIT_FAILED", "reset by Obtain.start (Alto.kitReset) for every order"),
 		Map.entry("Alto#orderDanger", "set by Obtain.start for every order"),
+		Map.entry("ObtainRoute#on,overworld,through,phase,furnaceHeld,TRIED", "reset by Obtain.start (ObtainRoute.reset) for every order"),
 		Map.entry("Alto#present,up,holder,told,toldWait,toldSince,delegated,seenUp,gone,gateOpen,shuts,lastDoing,doingLook,scaledFor,"
 			+ "memoriesIn",
 			"whether the autopilot is there and holds the buddy now: the link to it, not knowledge of the world"),

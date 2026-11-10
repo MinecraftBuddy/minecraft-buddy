@@ -584,6 +584,15 @@ final class Alto {
 	static final int NETHER_FOOD = 160;
 
 	/**
+	 * The food points a food run gathers: NETHER_FOOD for an order into the nether while in the overworld, 60 otherwise.
+	 * On the route (ObtainRoute) the nether's only from its portal phase on, where the food for the nether is topped up;
+	 * the deep's before it.
+	 */
+	static int foodUnits(net.minecraft.client.player.LocalPlayer p) {
+		return kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() && !routeBefore(p, ObtainRoute.M3_4) ? NETHER_FOOD : 60;
+	}
+
+	/**
 	 * A nether portal being built: a portal build anywhere in Soprano's task stack, or a frame half built nearby (a whole
 	 * one by the way home is a portal, not a build). doing() sees
 	 * only the outer task and the deepest, and the deepest is a click or a block placed, so portalUnderWay() missed it: the
@@ -802,6 +811,9 @@ final class Alto {
 	}
 
 	private static Run kit(net.minecraft.client.player.LocalPlayer p, java.util.function.Predicate<String> skip) {
+		// an order into the nether begun in the overworld fetches its kit by the route's phases (ObtainRoute) until it is out
+		// of the overworld; the old kit from then on, as for any order
+		if (ObtainRoute.on() && routeWalks(p)) return routeKit(p, skip);
 		var gh = new Obtain.GameHave(p);
 		java.util.List<String> armour = new java.util.ArrayList<>();
 		java.util.List<adris.altoclef.util.ItemTarget> rest = new java.util.ArrayList<>();
@@ -940,6 +952,203 @@ final class Alto {
 		if (redstone && !skip.test("kit redstone"))
 			return new Run("kit redstone", 8 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("redstone", 1)));
 		return null;
+	}
+
+	// ---------- the route through the overworld (ObtainRoute) ----------
+
+	/** The order's danger is known (Obtain.deepOrder): the route on for an order into the nether begun in the overworld. */
+	static void routeBegin(net.minecraft.client.player.LocalPlayer p, ObtainKit.Danger danger) {
+		ObtainRoute.begin(danger == ObtainKit.Danger.NETHER, routeBag(p), Alto::routeSay);
+	}
+
+	/** The route still walks: out of the overworld it is behind the buddy for the rest of the order. */
+	private static boolean routeWalks(net.minecraft.client.player.LocalPlayer p) {
+		if (!p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) ObtainRoute.out();
+		return ObtainRoute.walking();
+	}
+
+	/** On the route, in the overworld, and not yet at that phase (the food rules). */
+	private static boolean routeBefore(net.minecraft.client.player.LocalPlayer p, int phase) {
+		return ObtainRoute.before(phase) && p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD);
+	}
+
+	/**
+	 * A phase's line: in the autopilot's log, where the rig reads the nether's route lines too ("route: phase m2.1 armour";
+	 * the nether's "route: phase N" never matches it), and as an event.
+	 */
+	private static void routeSay(int phase, String state) {
+		String line = ObtainRoute.BEGUN.equals(state) ? ObtainRoute.line(phase) : ObtainRoute.shortLine(phase);
+		if (present()) adris.altoclef.Debug.logInternal(line);
+		Exchange.emit("obtain", "action", "route phase", "phase", ObtainRoute.PHASES.get(phase), "word", ObtainRoute.WORDS.get(phase),
+			"state", state);
+	}
+
+	/** The bag as the route reads it: carried with the off hand (every wear), and what is worn. */
+	private static ObtainRoute.Bag routeBag(net.minecraft.client.player.LocalPlayer p) {
+		return new ObtainRoute.Bag() {
+			public int inv(String item) { return ObtainSteps.count(p, item); }
+
+			public String wornIn(String slot) {
+				var s = worn(p, slot);
+				return s.isEmpty() ? "" : AfkHelperClient.itemId(s);
+			}
+
+			public int invEnding(String suffix) {
+				int n = 0;
+				var in = p.getInventory();
+				for (int i = 0; i < 36; i++) { var s = in.getItem(i); if (!s.isEmpty() && AfkHelperClient.itemId(s).endsWith(suffix)) n += s.getCount(); }
+				var o = p.getOffhandItem();
+				if (!o.isEmpty() && AfkHelperClient.itemId(o).endsWith(suffix)) n += o.getCount();
+				return n;
+			}
+
+			public int cheapPicks() { return Alto.cheapPicks(p); }
+
+			public boolean bedNear() { return ObtainSafe.bedNear(p, 6); }
+
+			public boolean deepUnder() { return ObtainSafe.deepUnder(p); }
+
+			public boolean restMissing() { return !routeRest(p, new java.util.ArrayList<>()).isEmpty(); }
+		};
+	}
+
+	/**
+	 * The kit by the route's phases: the next piece of the phase under way, each the task the old kit has for it, and null
+	 * only once the portal's phase has nothing left to ask, when the whole order builds the frame from the bag, lights it
+	 * and goes through. A piece is asked again at once when it did not come, three tries in all (ObtainRoute), not left for
+	 * ten minutes as in the old kit: a null between two pieces would start the whole order, which goes its own way from
+	 * the bag it has. A spare shield while the one in hand is at its last uses comes first, as in the old kit.
+	 */
+	private static Run routeKit(net.minecraft.client.player.LocalPlayer p, java.util.function.Predicate<String> skip) {
+		Run spare = spareShield(p, skip);
+		if (spare != null) return spare;
+		ObtainRoute.Bag bag = routeBag(p);
+		ObtainRoute.Piece pc = ObtainRoute.next(bag, Alto::routeSay);
+		return pc == null ? null : routePiece(p, bag, pc.name()).piece(pc.key());
+	}
+
+	/** The task of a piece of the route. */
+	private static Run routePiece(net.minecraft.client.player.LocalPlayer p, ObtainRoute.Bag bag, String name) {
+		switch (name) {
+			case "wood": {
+				// a table and a wooden pickaxe when there are none, and sixteen logs while the wood is short: the bill crafts the
+				// first two of its logs
+				java.util.List<adris.altoclef.util.ItemTarget> bill = new java.util.ArrayList<>();
+				if (ObtainSteps.count(p, "crafting_table") < 1) bill.add(new adris.altoclef.util.ItemTarget("crafting_table", 1));
+				if (!ObtainRoute.met(ObtainRoute.M1_1, bag, false)) bill.add(new adris.altoclef.util.ItemTarget("wooden_pickaxe", 1));
+				if (ObtainRoute.wood(bag) < ObtainRoute.WOOD) bill.add(new adris.altoclef.util.ItemTarget("log", 16));
+				return new Run("kit wood", 10 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					bill.toArray(adris.altoclef.util.ItemTarget[]::new))));
+			}
+			case "stone pickaxes": {
+				int stone = ObtainSteps.count(p, "stone_pickaxe") + Math.max(0, 3 - cheapPicks(p));
+				return new Run("kit stone pickaxes", 8 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					new adris.altoclef.util.ItemTarget("stone_pickaxe", stone), new adris.altoclef.util.ItemTarget("crafting_table", 1),
+					new adris.altoclef.util.ItemTarget("stick", 12))));
+			}
+			case "stone sword":
+				return new Run("kit a stone sword", 5 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					new adris.altoclef.util.ItemTarget("stone_sword", 1))));
+			case "furnace":
+				return new Run("kit a furnace", 5 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					new adris.altoclef.util.ItemTarget("furnace", 1))));
+			case "food":
+				// eight steaks' worth: the phase is met with eight food in the bag
+				return food(64);
+			case "bed":
+				// (asked with no sheep about too: the route's bed is the first night's, wherever the sheep are)
+				return new Run("kit a bed", 8 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("bed", 1)));
+			case "sand":
+				return new Run("kit sand", 5 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("sand", 3)));
+			case "shield":
+				return new Run("equip shield", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(
+					new adris.altoclef.util.ItemTarget("shield", 1))));
+			case "copper_chestplate", "copper_leggings", "copper_boots":
+				return new Run("equip " + name, (6 + 2 * ingots(name.substring("copper_".length()))) * 60_000L,
+					() -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget(name, 1))));
+			case "iron_chestplate", "iron_leggings", "iron_boots":
+				return new Run("equip " + name, pieceMinutes(name) * 60_000L,
+					() -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget(name, 1))));
+			case "water bucket":
+				return new Run("kit water bucket", 15 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("water_bucket", 1)));
+			case "iron pickaxes": {
+				// to two of iron or better: three ingots each
+				int up = ObtainSteps.count(p, "iron_pickaxe") + ObtainSteps.count(p, "diamond_pickaxe") + ObtainSteps.count(p, "netherite_pickaxe");
+				int more = Math.max(1, 2 - up), iron = ObtainSteps.count(p, "iron_pickaxe") + more;
+				return new Run("kit iron pickaxes", (10 + 3 * 3 * more) * 60_000L, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					new adris.altoclef.util.ItemTarget("iron_pickaxe", iron))));
+			}
+			case "iron sword":
+				return new Run("kit iron sword", (10 + 3 * 2) * 60_000L, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					new adris.altoclef.util.ItemTarget("iron_sword", 1))));
+			case "diamonds": {
+				// the pickaxe and the sword still missing, in one bill: one trip down to the diamonds' depth
+				java.util.List<adris.altoclef.util.ItemTarget> bill = new java.util.ArrayList<>();
+				java.util.List<String> names = new java.util.ArrayList<>();
+				if (ObtainSteps.count(p, "diamond_pickaxe") + ObtainSteps.count(p, "netherite_pickaxe") < 1) {
+					bill.add(new adris.altoclef.util.ItemTarget("diamond_pickaxe", 1));
+					names.add("diamond pickaxe");
+				}
+				if (ObtainSteps.count(p, "diamond_sword") + ObtainSteps.count(p, "netherite_sword") < 1) {
+					bill.add(new adris.altoclef.util.ItemTarget("diamond_sword", 1));
+					names.add("diamond sword");
+				}
+				return new Run("kit " + String.join(", ", names), 30 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					bill.toArray(adris.altoclef.util.ItemTarget[]::new))));
+			}
+			case "redstone":
+				return new Run("kit redstone", 8 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("redstone", 1)));
+			case "obsidian":
+				return new Run("kit obsidian", 30 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("obsidian", 10)));
+			case "gold": {
+				// the trade's 64 and the two helmets' ten, so that making the helmets leaves the 64
+				int need = ObtainRoute.goldNeed(bag);
+				return new Run("kit gold", 40 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("gold_ingot", need)));
+			}
+			case "golden helmet":
+				return new Run("equip golden_helmet", (10 + 3 * 5) * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(
+					new adris.altoclef.util.ItemTarget("golden_helmet", 1))));
+			case "spare golden helmet": {
+				// (Soprano counts the bag, not what is worn: the bag's count and one more)
+				int helmets = ObtainSteps.count(p, "golden_helmet") + 1;
+				return new Run("kit a spare golden helmet", 10 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					new adris.altoclef.util.ItemTarget("golden_helmet", helmets))));
+			}
+			case "flint and steel":
+				return new Run("kit flint and steel", 10 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					new adris.altoclef.util.ItemTarget("flint_and_steel", 1))));
+			case "rest": {
+				java.util.List<String> names = new java.util.ArrayList<>();
+				java.util.List<adris.altoclef.util.ItemTarget> rest = routeRest(p, names);
+				return new Run("kit " + String.join(", ", names), 20 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					rest.toArray(adris.altoclef.util.ItemTarget[]::new))));
+			}
+			case "water bottles":
+				return new Run("kit water bottles", 10 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("water_bottle", 3)));
+			default:
+				throw new IllegalStateException("no task for the route's piece " + name);
+		}
+	}
+
+	/**
+	 * The rest of the nether's kit as the old kit bills it (a good sword, torches, blocks, the diamond sword with its two
+	 * diamonds in the bag), less what the route asks as pieces of their own: flint and steel and the spare golden helmet.
+	 */
+	private static java.util.List<adris.altoclef.util.ItemTarget> routeRest(net.minecraft.client.player.LocalPlayer p, java.util.List<String> names) {
+		java.util.List<adris.altoclef.util.ItemTarget> rest = new java.util.ArrayList<>();
+		int blocks = 0;
+		for (ObtainKit.Need n : ObtainKit.missingAll(kitDanger(p), new Obtain.GameHave(p))) {
+			switch (n.name()) {
+				case "good sword" -> { rest.add(new adris.altoclef.util.ItemTarget("iron_sword", 1)); names.add("iron sword"); }
+				case "torches" -> { rest.add(new adris.altoclef.util.ItemTarget("torch", 16)); names.add("torches"); }
+				case "blocks" -> blocks = Math.max(blocks, 16);
+				case "more blocks" -> blocks = Math.max(blocks, 48);
+				case "nether sword" -> { if (ObtainSteps.count(p, "diamond") >= 2) { rest.add(new adris.altoclef.util.ItemTarget("diamond_sword", 1)); names.add("diamond sword"); } }
+				default -> { }
+			}
+		}
+		if (blocks > 0) { rest.add(new adris.altoclef.util.ItemTarget("cobblestone", blocks)); names.add("blocks"); }
+		return rest;
 	}
 
 	/** A piece of golden armour worn: the piglins leave the buddy be. */
@@ -1095,11 +1304,15 @@ final class Alto {
 		int score = foodScore(true);
 		// and hurt or hungry with too little to eat now (raw chicken is food once a food step cooks it, nobody else does)
 		boolean hungryNow = foodScore(false) < 12 && (p.getHealth() < 14 || p.getFoodData().getFoodLevel() < 14);
+		// on the route (ObtainRoute) before its surface phase only when hungry now: the food is a piece of that phase, after
+		// the wood and the stone
+		if (routeBefore(p, ObtainRoute.M1_3)) return hungryNow;
 		// (48 under the sky for an order into the nether, while still in the overworld: food in the nether is a hoglin in a
 		// crimson forest, and a food search there among them and the piglins killed it)
 		// (72 when it gathered to 96 for the nether: under 48 it went in with some fifty and ate it in a fortress; three
 		// quarters of NETHER_FOOD since, the rule for every stock of the kit)
-		boolean nether = kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal();
+		// (on the route the deep's stock until its portal phase, where the food for the nether is topped up)
+		boolean nether = kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() && !routeBefore(p, ObtainRoute.M3_4);
 		int sky = nether ? NETHER_FOOD * 3 / 4 : 24;
 		// (and at the way in, wherever the frame goes up: one in a mineshaft at y 7 never saw the sky, the buddy went into the
 		// nether with 19 points, turned home for food at once under blaze fire, and died to zombies in a village at night,
@@ -1130,7 +1343,12 @@ final class Alto {
 		private int shutsAtStart;
 		private static final long WAIT_UP = 120_000;
 
+		/** The route's piece this step is (ObtainRoute's key), or null: its end counts one of the piece's tries. */
+		private String piece;
+
 		Run(String what, long limit, java.util.function.Supplier<Object> make) { this.what = what; this.limit = limit; this.make = make; }
+
+		Run piece(String key) { piece = key; return this; }
 
 		boolean food() { return what.startsWith("collect food"); }
 
@@ -1142,6 +1360,14 @@ final class Alto {
 
 		@Override
 		ObtainSteps.Result tick(net.minecraft.client.Minecraft mc, net.minecraft.client.player.LocalPlayer p, long now) {
+			ObtainSteps.Result r = run(mc, p, now);
+			// a piece of the route counts a try when its task ends by itself, done or not: one the order stops (for food, the
+			// night's hole) is asked again without one
+			if (piece != null && (r == ObtainSteps.Result.DONE || r == ObtainSteps.Result.FAIL)) ObtainRoute.tried(piece);
+			return r;
+		}
+
+		private ObtainSteps.Result run(net.minecraft.client.Minecraft mc, net.minecraft.client.player.LocalPlayer p, long now) {
 			// the gate shut since the task began (the mod off, another server, the panel's hands): it was cancelled then, and
 			// begins again now, not taken for done
 			if (startedAt >= 0 && shutsAtStart != shuts) {

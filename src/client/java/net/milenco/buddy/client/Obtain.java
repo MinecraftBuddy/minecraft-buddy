@@ -253,6 +253,8 @@ final class Obtain {
 		Alto.orderDanger = ObtainKit.Danger.DEEP;
 		Alto.kitReset();
 		LocalPlayer p = AfkHelperClient.mc().player;
+		// the route through the overworld off until the order's danger is known (deepOrder), and where the order began
+		ObtainRoute.reset(p != null && p.level().dimension().equals(Level.OVERWORLD));
 		if (on()) stop("a new order");
 		// what this order starts with, one event, and on a fresh run (the practice rig) all of it forgotten first
 		Alto.orderStart();
@@ -858,7 +860,7 @@ final class Obtain {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:food", 1, null, 0, List.of(), "food by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
-				exec = Alto.food(Alto.kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() ? Alto.NETHER_FOOD : 60);
+				exec = Alto.food(Alto.foodUnits(p));
 				Exchange.emit("obtain", "action", "step", "step", "food by Soprano after coming home, " + Alto.foodScore(true) + " points in the bag", "way", "soprano:food");
 				return true;
 			}
@@ -877,7 +879,7 @@ final class Obtain {
 				// (to NETHER_FOOD for an order into the nether, while still in the overworld: in a fortress the blazes' fire keeps it
 				// healing, and healing at a full bar eats; 52 points went in forty real seconds there, and the food search that
 				// followed in the nether ended in lava)
-				exec = Alto.food(Alto.kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() ? Alto.NETHER_FOOD : 60);
+				exec = Alto.food(Alto.foodUnits(p));
 				Exchange.emit("obtain", "action", "step", "step", "food by Soprano, " + Alto.foodScore(true) + " points in the bag", "way", "soprano:food");
 				return true;
 			}
@@ -995,6 +997,8 @@ final class Obtain {
 			deep = d;
 			Alto.orderDanger = d ? most : ObtainKit.Danger.DEEP;
 			Exchange.emit("obtain", "action", "order danger", "item", item, "deep", d, "danger", most.name());
+			// an order into the nether begun in the overworld walks the route's phases there (ObtainRoute)
+			Alto.routeBegin(p, most);
 		}
 		return deep;
 	}
