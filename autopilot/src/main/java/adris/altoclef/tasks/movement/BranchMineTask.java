@@ -56,6 +56,10 @@ public class BranchMineTask extends Task {
     private BlockPos _awayStep;
     private BlockPos _land;
     private long _landSince;
+    // land with no ice on top, for a branch mine begun on ice, and how far it is looked for
+    private BlockPos _iceLand;
+    private long _iceLandSince;
+    static final int ICE_LAND_REACH = 96;
     // a tunnel of its own, straight on at that height, where baritone's mine will not start: the endless wander that stood
     // here led it into caves without armour
     private BlockPos _tunnel;
@@ -171,6 +175,22 @@ public class BranchMineTask extends Task {
             if (_land != null) {
                 setDebugState("Out of the water first, to dry land at " + _land.toShortString());
                 return new GetToBlockTask(_land);
+            }
+        }
+        // on ice no staircase or tunnel starts either: baritone breaks no ice and no packed ice by water, and a staircase down
+        // through an iceberg in a frozen ocean stood walled in at y 61, every step, the 32 blocks along and the wander "no
+        // path", for thirty game minutes with no gold (the overworld route's gold, box 1, 10 Nov 2026). land with no ice on
+        // top first (none within reach: as before)
+        if (adris.altoclef.util.helpers.LandFinder.ice(mod.getWorld().getBlockState(feet.below()))) {
+            if (_iceLand == null || now - _iceLandSince > 600 || feet.closerThan(_iceLand, 1.5)) {
+                _iceLand = adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, ICE_LAND_REACH, true);
+                _iceLandSince = now;
+                if (_iceLand != null) adris.altoclef.Debug.logInternal("branch mine: on ice at " + feet.toShortString() + ", to land at " + _iceLand.toShortString() + " first");
+            }
+            if (_iceLand != null) {
+                stopMine(mod);
+                setDebugState("Off the ice first, to land at " + _iceLand.toShortString());
+                return new GetToBlockTask(_iceLand);
             }
         }
         // the deep dark: sculk within ten blocks and it digs away from it, level, for 48 blocks before it goes on. a staircase

@@ -97,6 +97,7 @@ adris.altoclef.util.helpers.CubeWay#SIDES a constant table (the scan sees an arr
 adris.altoclef.util.helpers.DangerShadow#after,errors,hp1,hp2,last,lastRods,lastSource,patience,pendingAfter,pendingAt,pendingBefore,pendingKind,pendingLow,spots,spotsAt,spotsTick,threats,tick,track,wasDead unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
 adris.altoclef.util.helpers.DeathStash#lastLavaHit,lastSeen unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
 adris.altoclef.util.helpers.FireRes#anyHeldAt,askedAt,boxDrunkAt,boxHeldAt,burnAt,burnBest,heldAt,lavaAt,lavaSince,routeAt,routeFight,routeHeldAt,routeLetAt,spawnerAt,spawnerSeen,tradedAt,tradedSpawner unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.util.helpers.FireRes#routeReady,routeUnreadyAt the rods task's say of this tick (route_drink_ready) and the time of its log line: said anew every tick of the spawner fight, no memory of the world
 adris.altoclef.util.helpers.FuelPolicy#keepLogs,keepPlanks,preferCoal unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
 adris.altoclef.util.helpers.ItemHelper#BED,COPPER_BLOCKS,DIAMOND_ARMORS,GOLDEN_ARMORS,HOSTILE_MOB_DROPS,IRON_ARMORS,LOG,NETHERITE_ARMORS,PLANKS,RAW_FOODS,WOOD_SIGN,WOOL,_fuelTimeMap tables worked out once from the game's data or constants, the same every run
 adris.altoclef.util.helpers.LavaShore#SIDES a constant table (the scan sees an array store beside a read of it)

@@ -186,6 +186,18 @@ public final class LandFinder {
     // the nearest loaded column whose top (leaves left out) is a solid block and no fluid, within reach, or null. rings of
     // two blocks near by, of four further out
     public static BlockPos nearestLand(AltoClef mod, BlockPos feet, int reach) {
+        return nearestLand(mod, feet, reach, false);
+    }
+
+    // the ice kinds baritone does not break (MovementHelper.avoidBreaking: ice always, packed ice by water): a branch mine's
+    // staircase down through them stood walled in
+    public static boolean ice(BlockState state) {
+        return state.is(net.minecraft.world.level.block.Blocks.ICE) || state.is(net.minecraft.world.level.block.Blocks.PACKED_ICE)
+                || state.is(net.minecraft.world.level.block.Blocks.BLUE_ICE) || state.is(net.minecraft.world.level.block.Blocks.FROSTED_ICE);
+    }
+
+    // noIce: land whose top is no ice either (an iceberg or a frozen sea is no land to dig in)
+    public static BlockPos nearestLand(AltoClef mod, BlockPos feet, int reach, boolean noIce) {
         Level level = mod.getWorld();
         for (int r = 2; r <= reach; r += r < 64 ? 2 : 4) {
             int s = r < 64 ? 2 : 4;
@@ -196,7 +208,7 @@ public final class LandFinder {
                     if (!level.hasChunk(x >> 4, z >> 4)) continue;
                     int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
                     BlockState ground = level.getBlockState(new BlockPos(x, top - 1, z));
-                    if (ground.getFluidState().isEmpty() && ground.isSolid()) return new BlockPos(x, top, z);
+                    if (ground.getFluidState().isEmpty() && ground.isSolid() && !(noIce && ice(ground))) return new BlockPos(x, top, z);
                 }
             }
         }
