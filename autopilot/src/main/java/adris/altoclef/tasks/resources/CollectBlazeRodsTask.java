@@ -365,6 +365,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // the aura swinging and shielding at a blaze 6 blocks off pauses the path we need to get out of its sight, only
         // the ones next to us are for it
         mod.getBehaviour().addForceFieldExclusion(entity -> entity instanceof Blaze && mod.getPlayer().distanceTo(entity) > 3.5);
+        // (Tuning fireproof_bow: the kit's bow and arrows are the fight's, never thrown out to make room; four lanes did on 10 Nov 2026)
+        if (adris.altoclef.util.helpers.BlazeFightRules.fireproofBowOn()) mod.getBehaviour().addProtectedItems(Items.BOW, Items.ARROW);
         // no bridging or pillaring while fighting or running, see BlazeFight.noPlacing
         mod.getBehaviour().avoidBlockPlacing(_fight::noPlacing);
         // (the buddy's fork: the pocket's walls stay: the walk at a blaze behind one broke it, and the hole let the room see in,

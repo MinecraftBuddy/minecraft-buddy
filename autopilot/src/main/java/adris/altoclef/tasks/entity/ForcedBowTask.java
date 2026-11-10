@@ -81,14 +81,14 @@ public class ForcedBowTask extends Task {
         return clear(mod, eye, target.getBoundingBox().getCenter());
     }
 
-    static double boxDistance(Vec3 p, AABB b) {
+    public static double boxDistance(Vec3 p, AABB b) {
         double dx = Math.max(Math.max(b.minX - p.x, 0), p.x - b.maxX);
         double dy = Math.max(Math.max(b.minY - p.y, 0), p.y - b.maxY);
         double dz = Math.max(Math.max(b.minZ - p.z, 0), p.z - b.maxZ);
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    static boolean clear(AltoClef mod, Vec3 from, Vec3 to) {
+    public static boolean clear(AltoClef mod, Vec3 from, Vec3 to) {
         return mod.getWorld().clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mod.getPlayer()))
                 .getType() == HitResult.Type.MISS;
     }

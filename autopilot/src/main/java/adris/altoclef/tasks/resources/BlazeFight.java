@@ -75,6 +75,17 @@ final class BlazeFight {
     private Blaze target;
     private boolean targetTracked;
     private boolean targetInReach;
+    // (Tuning fireproof_bow, off by default, steering 145.3: under the potion a blaze out of the sword's reach with a line to
+    // it is shot with the kit's bow, BlazeFightRules.bowTakes. the ones that qualify this tick, whether the target does, the
+    // bow's task kept for the whole fight with that weapon (a new one each tick let go of the draw), and since when the target
+    // stopped qualifying while the bow was in hand: the draw is held through a short loss of the line)
+    private final List<Blaze> shootable = new ArrayList<>();
+    private boolean targetShootable;
+    private adris.altoclef.tasks.entity.ForcedBowTask bowTask;
+    private boolean bowNow;
+    private long bowLostAt = Long.MIN_VALUE;
+    private int bowPicks;
+    static final long BOW_HOLD_TICKS = 40;
     // the target sits by a wither skeleton pack as of the last scan, so it is dropped
     private boolean packDrop;
     // a pack within PACK_PLAYER_RADIUS of us (packSize of them, around packCenter) and whether it is also inside the back off radius
@@ -840,6 +851,13 @@ final class BlazeFight {
         }
         running = next == Mode.RUN;
         mode = next;
+        // (Tuning fireproof_bow: the bow's fight ends with the KILL mode)
+        if (mode != Mode.KILL && bowNow) {
+            bowNow = false;
+            bowTask = null;
+            lastBowTarget = null;
+            bowLostAt = Long.MIN_VALUE;
+        }
         // (Tuning lure_cap: a blaze in reach is what a lure is for, its clock starts again, BlazeCapRules.LureWatch)
         if (mode == Mode.KILL) killAt = now;
         // (in the pocket with a blaze in the sword's reach: the aura's shield between swings, BlazeFightRules.pocketShieldUntil)
@@ -904,7 +922,7 @@ final class BlazeFight {
             // (a pack on top of us gets a short run. further off they are behind a wall or not coming, the walk goes on and the zone routes round them)
             case CAMP -> packClose ? new RunAwayFromHostilesTask(BlazeFightRules.PACK_BACKOFF_DISTANCE, true, () -> runCrowd(mod))
                     : away ? new RunAwayFromHostilesTask(AWAY_RUN, true, this::awayCrowd) : null;
-            case KILL -> new KillEntityTask(target);
+            case KILL -> fightTask(mod, player, now);
             // never stand still in a run: with no blaze on us the wither skeletons that kept chasing still count, only an empty
             // crowd (nobody at all) is sitting tight until the food chain and regen are done
             // (a shot that landed lately keeps the thrower in that crowd, see runCrowd, and a blaze with a line on us from far out
@@ -1276,6 +1294,8 @@ final class BlazeFight {
         }
         threats.clear();
         candidates.clear();
+        shootable.clear();
+        targetShootable = false;
         packDrop = false;
         // (the same pack check as for a blaze below, asked where we stand: the closet is the thing, not the blaze over it)
         List<double[]> nearUs = witherSkeletonSpots(mod, player.position(), BlazeFightRules.PACK_PLAYER_RADIUS);
@@ -1339,6 +1359,13 @@ final class BlazeFight {
         // (a pillbox: one that sees its look out has come round, not one that sees its cell, which no blaze sees by design: from
         // the cell no blaze was ever in reach but a biting one, stalls with blazes within four, realfort-b-bent-m run 4)
         BlockPos seeCell = pillboxPlanned && pillboxLookout != null ? pillboxLookout : corner;
+        // (Tuning fireproof_bow: the bow's inputs that are the same for every blaze; not in phase 3, on a trip out of the box or
+        // while the box goes up)
+        boolean bowOn = BlazeFightRules.fireproofBowOn() && !errand && !tripOver && !building;
+        int frTicks = bowOn ? fireResTicks(player) : 0;
+        boolean bowKit = bowOn && frTicks >= BlazeFightRules.BOW_FR_TICKS && adris.altoclef.tasks.entity.ForcedBowTask.canShoot(mod);
+        double swingReach = bowKit ? mod.getControllerExtras().swingReach() : 0;
+        Vec3 eye = player.getEyePosition();
         for (Blaze blaze : blazes) {
             if (!blaze.isAlive()) continue;
             double distance = player.distanceTo(blaze);
@@ -1373,10 +1400,24 @@ final class BlazeFight {
                         && (!BlazeCover.hidden(mod.getWorld(), List.of(blaze.getEyePosition()), seeCell.getX(), seeCell.getY(), seeCell.getZ(), player)
                         || BlazeCover.bodySeen(mod.getWorld(), player.getEyePosition(), blaze, player))));
                 if (inReach) candidates.add(blaze);
+                // (Tuning fireproof_bow: one past the sword's reach with a line to it, its rod falling where it can be picked up;
+                // the no-path ban is no input, the bow is for those. not one the corner's leash would let go the next tick)
+                if (bowKit && !(leashed() && cornerHold && blaze.position().distanceTo(Vec3.atBottomCenterOf(corner))
+                        > adris.altoclef.util.helpers.Tuning.get("corner_leash", CORNER_LEASH))) {
+                    double gap = adris.altoclef.tasks.entity.ForcedBowTask.boxDistance(eye, blaze.getBoundingBox());
+                    Vec3 centre = blaze.getBoundingBox().getCenter();
+                    if (BlazeFightRules.bowTakes(true, frTicks, true, gap, swingReach,
+                            gap > swingReach + BlazeFightRules.BOW_SLACK && adris.altoclef.tasks.entity.ForcedBowTask.clear(mod, eye, centre),
+                            floor.height(), floor.lava(), distance, neutralOnLine(mod, eye, centre))) {
+                        shootable.add(blaze);
+                        if (!inReach) candidates.add(blaze);
+                        if (blaze == target) targetShootable = true;
+                    }
+                }
             }
             if (blaze == target) {
                 targetTracked = true;
-                targetInReach = inReach;
+                targetInReach = inReach || targetShootable;
             }
             // raycasts only for the ones that could actually hit us from where they are
             if (distance <= BlazeFightRules.SIGHT_RANGE && LookHelper.seesPlayer(blaze, player, BlazeFightRules.SIGHT_RANGE)) {
@@ -1446,6 +1487,55 @@ final class BlazeFight {
         targetInReach = nearest != null;
         freeTarget = open || rushNow ? nearest : null;
     }
+
+    // (Tuning fireproof_bow) a zombified piglin on the arrow's way: hit, it and its kind turn on the buddy
+    private static boolean neutralOnLine(AltoClef mod, Vec3 eye, Vec3 to) {
+        try {
+            for (net.minecraft.world.entity.monster.zombie.ZombifiedPiglin z : mod.getEntityTracker().getTrackedEntities(
+                    net.minecraft.world.entity.monster.zombie.ZombifiedPiglin.class)) {
+                if (z.isAlive() && z.getBoundingBox().inflate(0.3).clip(eye, to).isPresent()) return true;
+            }
+        } catch (java.util.ConcurrentModificationException e) {
+            return true;
+        }
+        return false;
+    }
+
+    // (Tuning fireproof_bow) the KILL mode's task: the bow at a target out of the sword's reach that qualifies (BlazeFightRules.bowKept
+    // and bowTakes; through a short loss of the line the draw is held), else the sword's chase as before
+    private Task fightTask(AltoClef mod, LocalPlayer player, long now) {
+        if (!targetShootable && !bowNow) return new KillEntityTask(target);
+        double reach = mod.getControllerExtras().swingReach();
+        double gap = adris.altoclef.tasks.entity.ForcedBowTask.boxDistance(player.getEyePosition(), target.getBoundingBox());
+        if (targetShootable || !bowNow) bowLostAt = Long.MIN_VALUE;
+        else if (bowLostAt == Long.MIN_VALUE) bowLostAt = now;
+        boolean hold = bowNow && (bowLostAt == Long.MIN_VALUE || now - bowLostAt < BOW_HOLD_TICKS);
+        boolean bow = (targetShootable || hold) && BlazeFightRules.bowKept(bowNow, gap, reach)
+                && adris.altoclef.tasks.entity.ForcedBowTask.canShoot(mod);
+        if (bow) {
+            if (bowTask == null || bowTask.stopped()) {
+                bowTask = new adris.altoclef.tasks.entity.ForcedBowTask(target);
+            } else if (bowTask.target() != target) {
+                bowTask.retarget(target);
+            }
+            if (!bowNow || bowTask.target() != lastBowTarget) {
+                bowPicks++;
+                Debug.logInternal(String.format(java.util.Locale.ROOT, "rods: the bow at a blaze %.1f off (%.1f past the sword's reach), %s of the potion left, pick %d",
+                        player.distanceTo(target), gap - reach, effectLeft(player), bowPicks));
+            }
+            lastBowTarget = target;
+            bowNow = true;
+            return bowTask;
+        }
+        if (bowNow) Debug.logInternal(String.format(java.util.Locale.ROOT, "rods: the sword again for the blaze %.1f off (%s)",
+                player.distanceTo(target), gap <= reach ? "in reach" : targetShootable ? "no arrows" : "no shot for " + (now - bowLostAt) + " ticks"));
+        bowNow = false;
+        bowTask = null;
+        lastBowTarget = null;
+        return new KillEntityTask(target);
+    }
+
+    private Blaze lastBowTarget;
 
     // what is left of the effect, for the rush's lines
     static String effectLeft(net.minecraft.world.entity.LivingEntity player) {
