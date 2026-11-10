@@ -1513,6 +1513,12 @@ public final class CombatCommit {
             if ((hurtRun || secondShooter(shooters) || gaveUpOn(sniper, t.now())) && endermanAbout(t) == null) {
                 return startRun(t, Why.SHOT, Event.RUN_START);
             }
+            // (the buddy's fork, Tuning shooter_pack, on, a fix: a skeleton standing among wither skeletons is not walked up to,
+            // the walk ends inside their reach; a run out of the shooter's sight instead. box 2's route-19 run 51, 10 Nov 2026: a
+            // fight on a skeleton walked 14 blocks into a pack of 3 the danger meter had at flee, the run began inside it, dead)
+            if (realWeapon && shooterPackOn() && shooterInPack(candidates(t), sniper) && endermanAbout(t) == null) {
+                return startRun(t, Why.SHOT, Event.RUN_START);
+            }
             // (bare hands and pickaxes do not go and get a skeleton, they keep walking till it hurts and then it is the run above)
             if (realWeapon) return startFight(t, sniper, Why.PINNED, Event.FIGHT_START, false);
         }
@@ -1670,6 +1676,26 @@ public final class CombatCommit {
                 .filter(foe -> foe.sniper() && foe.shooting() && (!freshOnly || foe.fresh()))
                 .sorted(java.util.Comparator.comparingDouble(Foe::distance))
                 .toList();
+    }
+
+    // (Tuning shooter_pack) at least SHOOTER_PACK wither skeletons within SHOOTER_PACK_RANGE of the shooter (by their feet; a foe
+    // with no place known, all of x, y and z 0, counts as none)
+    static final int SHOOTER_PACK = 2;
+    static final double SHOOTER_PACK_RANGE = 8;
+
+    static boolean shooterPackOn() {
+        return Tuning.get("shooter_pack", 1) > 0;
+    }
+
+    static boolean shooterInPack(List<Foe> foes, Foe shooter) {
+        if (shooter.x() == 0 && shooter.y() == 0 && shooter.z() == 0) return false;
+        int n = 0;
+        for (Foe foe : foes) {
+            if (!foe.wither() || foe.id() == shooter.id() || (foe.x() == 0 && foe.y() == 0 && foe.z() == 0)) continue;
+            double dx = foe.x() - shooter.x(), dy = foe.y() - shooter.y(), dz = foe.z() - shooter.z();
+            if (dx * dx + dy * dy + dz * dz <= SHOOTER_PACK_RANGE * SHOOTER_PACK_RANGE) n++;
+        }
+        return n >= SHOOTER_PACK;
     }
 
     // two of them shooting ends the one target deal, unless they are a patrol: those we kill in turn (see withPatrol)
