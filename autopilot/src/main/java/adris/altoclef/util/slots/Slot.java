@@ -93,10 +93,14 @@ public abstract class Slot {
         if (screen instanceof CraftingScreen) {
             return ContainerType.CRAFTING_TABLE;
         }
-        // (the stand's screen stays read as the player's own, its window slots 5 to 8, the bag's 9 to 12, left out as armour.
-        // read through the stand's own slots (fork 8197cb83, 10 Nov 2026) the brew stalled after the cream: the stand clicked
-        // again and again and never opened, 20 game minutes in the shut box, 7 of 14 runs of realfort-p4-cream5-mc2 against
-        // 2 of 42 before. a full bag that puts the brew's things in those four slots is to be met another way)
+        // (the stand's screen read as the player's own leaves its window slots 5 to 8, the bag's 9 to 12, out as armour: with a
+        // full bag the brew's powder, wart or cream there is "missing" (3 of 8 route-12 runs that failed phase 5 with
+        // everything). read through the stand's own slots (fork 8197cb83) the brew stalled after the cream in 7 of 14 runs of
+        // realfort-p4-cream5-mc2 on box 2, against 2 of 42 in p4-cream3, but the fps changed between the two lines, so his
+        // rule of 10 Nov (a box result confirmed on cascade, steering 143): behind Tuning stand_slots, off, for an A/B there)
+        if (screen instanceof BrewingStandScreen && adris.altoclef.util.helpers.Tuning.get("stand_slots", 0) > 0) {
+            return ContainerType.BREWING_STAND;
+        }
         return ContainerType.PLAYER;
     }
 
