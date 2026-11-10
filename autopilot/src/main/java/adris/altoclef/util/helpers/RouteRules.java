@@ -456,6 +456,11 @@ public final class RouteRules {
     // rods task each tick), a live zone is a wall for every walk but the zone the buddy stands in (so the walk away and the
     // way out stay open), and a wart or a cube inside one is passed over until the zone runs out
     private static volatile boolean awayWallLive;
+    // the wall's radius round the blaze: its sight (BlazeFightRules.SIGHT_RANGE), under the zone's AWAY_ZONE. with the wall the
+    // zone's 24 the smoke's B (10 Nov, t7) went on 138 times in 8 min: the walk away ends once no blaze sees the buddy, at about
+    // 20, still inside the zone the buddy stands in, which is open, so the errand walked back to 19.9 each time. at 20 the
+    // buddy stands outside the wall as soon as the walk away is done
+    public static final double AWAY_WALL = BlazeFightRules.SIGHT_RANGE;
 
     public static boolean awayWallOn() {
         return Tuning.get("route_away_wall", 0) > 0;
@@ -469,10 +474,11 @@ public final class RouteRules {
         return awayWallLive;
     }
 
-    // whether (x, z) is a wall for a walk from (px, pz) at game tick now: inside a live zone the walker does not stand in.
+    // whether (x, z) is a wall for a walk from (px, pz) at game tick now: within AWAY_WALL of a live zone's blaze, and the walker
+    // not.
     // called by the path search for its nodes, so squared distances and no allocation
     public static synchronized boolean awayWall(double x, double z, long now, double px, double pz) {
-        double r2 = AWAY_ZONE * AWAY_ZONE;
+        double r2 = AWAY_WALL * AWAY_WALL;
         for (double[] zone : AWAY_ZONES) {
             if (zone[2] < now) continue;
             double dx = zone[0] - x, dz = zone[1] - z;
@@ -484,9 +490,13 @@ public final class RouteRules {
         return false;
     }
 
-    // whether a target at (x, z) is passed over now: the walls live and the target in a live zone
-    public static boolean awayPassOver(double x, double z, long now) {
-        return awayWallLive && inAwayZone(x, z, now);
+    // whether a target at (x, z) is passed over now: the walls live and the target within a live zone's wall
+    public static synchronized boolean awayPassOver(double x, double z, long now) {
+        if (!awayWallLive) return false;
+        for (double[] zone : AWAY_ZONES) {
+            if (zone[2] >= now && Math.hypot(zone[0] - x, zone[1] - z) <= AWAY_WALL) return true;
+        }
+        return false;
     }
 
     public static void exitBegins() {

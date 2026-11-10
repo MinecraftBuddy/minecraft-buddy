@@ -508,8 +508,11 @@ public class RouteRulesTest {
         // a walker outside: a node inside the zone is a wall, one outside is not
         assertTrue(RouteRules.awayWall(110, 210, 1000, 150, 200));
         assertFalse(RouteRules.awayWall(130, 230, 1000, 150, 200));
-        // the walker inside the zone (the walk away, the way out): no wall
+        // the walker inside the wall (the walk away, the way out): no wall
         assertFalse(RouteRules.awayWall(110, 210, 1000, 105, 200));
+        // the walk away done at about 20, in the zone (24) but out of the wall (20): the way back in is walled
+        assertTrue(RouteRules.awayWall(110, 210, 1000, 122, 200));
+        assertFalse(RouteRules.awayWall(117, 214, 1000, 122, 200));
         // the zone run out: no wall
         assertFalse(RouteRules.awayWall(110, 210, 1001 + RouteRules.AWAY_ZONE_TICKS, 150, 200));
         // two zones: the walker in one, a node in the other is still a wall
@@ -527,6 +530,8 @@ public class RouteRulesTest {
         RouteRules.awayWallLive(true);
         assertTrue(RouteRules.awayPassOver(110, 210, 1000));
         assertFalse(RouteRules.awayPassOver(130, 230, 1000));
+        // in the zone (24) but out of the wall (20): taken
+        assertFalse(RouteRules.awayPassOver(122, 200, 1000));
         assertFalse(RouteRules.awayPassOver(110, 210, 1001 + RouteRules.AWAY_ZONE_TICKS));
         // a new order: the zones and the walls gone
         RouteRules.reset();
