@@ -363,6 +363,30 @@ public class RouteRulesTest {
         assertNull(RouteRules.cubeWhyNot(2, 0, RouteRules.CUBE_HP));
     }
 
+    // the phase-3 block on the cream (route_cube_big): a big cube alone with the buddy at 18 hp or more, its family no crowd
+    // to each other for 60 s within 8 of where it died
+    @Test
+    public void theBigCubeIsTakenAloneWithTheHealthNearlyFull() {
+        assertEquals("big", RouteRules.cubeWhyNot(4, 0, 20, false));
+        assertNull(RouteRules.cubeWhyNot(4, 0, 20, true));
+        assertNull(RouteRules.cubeWhyNot(4, 0, RouteRules.CUBE_BIG_HP, true));
+        assertEquals("hp", RouteRules.cubeWhyNot(4, 0, 16, true));
+        assertEquals("crowd", RouteRules.cubeWhyNot(4, 1, 20, true));
+        // (a cube of size 2 keeps its own rule with the switch on)
+        assertNull(RouteRules.cubeWhyNot(2, 0, RouteRules.CUBE_HP, true));
+    }
+
+    @Test
+    public void theBigCubesFamilyHoldsNearItsDeathForAMinute() {
+        long at = 1000;
+        assertTrue(RouteRules.familyHolds(0, 64, 0, at, at, 3, 64, 4));
+        assertTrue(RouteRules.familyHolds(0, 64, 0, at, at + 20 * 60, 0, 64, 8));
+        assertFalse(RouteRules.familyHolds(0, 64, 0, at, at + 20 * 60 + 1, 0, 64, 0));
+        assertFalse(RouteRules.familyHolds(0, 64, 0, at, at + 20, 0, 64, 9));
+        assertFalse(RouteRules.familyHolds(0, 64, 0, at, at - 1, 0, 64, 0));
+        assertFalse(RouteRules.familyHolds(0, 64, 0, Long.MIN_VALUE, at, 0, 64, 0));
+    }
+
     @Test
     public void theCubeHeldIsLetGoAtLowHealthOrInACrowd() {
         assertNull(RouteRules.cubeLetGo(1, 20));

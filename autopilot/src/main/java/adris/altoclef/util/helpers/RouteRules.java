@@ -254,10 +254,51 @@ public final class RouteRules {
     // why a cube is not hunted by the alone rule (the count line's words), null when it may be: its size, the other cubes
     // within the radius of it, the buddy's health
     public static String cubeWhyNot(int size, int othersNear, double health) {
-        if (size > 2) return "big";
+        return cubeWhyNot(size, othersNear, health, false);
+    }
+
+    // big: Tuning route_cube_big, a cube of size 4 taken alone with the buddy at CUBE_BIG_HP or more
+    public static String cubeWhyNot(int size, int othersNear, double health, boolean big) {
+        if (size > 2 && !big) return "big";
         if (othersNear > 0) return "crowd";
-        if (health < CUBE_HP) return "hp";
+        if (health < (size > 2 ? CUBE_BIG_HP : CUBE_HP)) return "hp";
         return null;
+    }
+
+    // ---- the big cube (Tuning route_cube_big, off by default; the phase-3 block on the cream, 10 Nov 2026). the alone rule
+    // refuses a cube of size 4 for the crowd it splits into: realfort-route-16 left one in 32 of 60 runs, 27 of them with no
+    // cream at phase 4. a cube of size 2 or 4 drops cream 1 in 4, and a big one splits into two to four of size 2, so one big
+    // cube killed with its family brings cream about two times in three. with the switch the errand's hunt takes a big cube
+    // with no other cube within the alone radius and the buddy at CUBE_BIG_HP or more; for FAMILY_S after it dies, the cubes
+    // within FAMILY_R of where it died are no crowd to each other, so its family is hunted one by one. the hp let-go, the lava,
+    // sea, drop and shore rules hold for every cube
+    public static final double CUBE_BIG_HP = 18;
+    public static final double FAMILY_S = 60;
+    public static final double FAMILY_R = 8;
+    private static double famX, famY, famZ;
+    private static long famAt = Long.MIN_VALUE;
+
+    public static boolean cubeBigOn() {
+        return Tuning.get("route_cube_big", 0) > 0;
+    }
+
+    // the big cube held died here at game time now: its family's window begins
+    public static synchronized void bigCubeDied(double x, double y, double z, long now) {
+        famX = x;
+        famY = y;
+        famZ = z;
+        famAt = now;
+    }
+
+    // whether a cube at x, y, z is of the last big cube's family now
+    public static synchronized boolean inFamily(double x, double y, double z, long now) {
+        return familyHolds(famX, famY, famZ, famAt, now, x, y, z);
+    }
+
+    static boolean familyHolds(double fx, double fy, double fz, long at, long now, double x, double y, double z) {
+        if (at == Long.MIN_VALUE || now < at || now - at > FAMILY_S * 20) return false;
+        double dx = x - fx, dy = y - fy, dz = z - fz;
+        return dx * dx + dy * dy + dz * dz <= FAMILY_R * FAMILY_R;
     }
 
     // why the cube held is let go by the alone rule, null while it is hunted on

@@ -1133,14 +1133,21 @@ public class CollectBlazeRodsTask extends ResourceTask {
     static String cubeAloneWhyNot(AltoClef mod, MagmaCube cube) {
         double radius = adris.altoclef.util.helpers.RouteRules.cubeAlone();
         if (radius <= 0) return null;
-        return adris.altoclef.util.helpers.RouteRules.cubeWhyNot(cube.getSize(), cubesBy(mod, cube, radius), mod.getPlayer().getHealth());
+        return adris.altoclef.util.helpers.RouteRules.cubeWhyNot(cube.getSize(), cubesBy(mod, cube, radius), mod.getPlayer().getHealth(),
+                adris.altoclef.util.helpers.RouteRules.cubeBigOn());
     }
 
-    // the other live magma cubes of any size within radius of a cube
+    // the other live magma cubes of any size within radius of a cube; with Tuning route_cube_big, a cube of the last big cube's
+    // family does not count the rest of that family (RouteRules.inFamily)
     static int cubesBy(AltoClef mod, MagmaCube cube, double radius) {
+        long now = mod.getWorld().getGameTime();
+        boolean family = adris.altoclef.util.helpers.RouteRules.cubeBigOn()
+                && adris.altoclef.util.helpers.RouteRules.inFamily(cube.getX(), cube.getY(), cube.getZ(), now);
         int n = 0;
         for (MagmaCube other : mod.getEntityTracker().getTrackedEntities(MagmaCube.class)) {
-            if (other != cube && other.isAlive() && other.distanceTo(cube) <= radius) n++;
+            if (other == cube || !other.isAlive() || other.distanceTo(cube) > radius) continue;
+            if (family && adris.altoclef.util.helpers.RouteRules.inFamily(other.getX(), other.getY(), other.getZ(), now)) continue;
+            n++;
         }
         return n;
     }

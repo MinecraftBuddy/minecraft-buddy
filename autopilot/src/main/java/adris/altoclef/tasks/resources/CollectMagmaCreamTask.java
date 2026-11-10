@@ -101,6 +101,13 @@ public class CollectMagmaCreamTask extends ResourceTask {
         if (now < _heldAt) _heldAt = now;
         String why = null;
         if (!_held.isAlive() || _held.isRemoved()) {
+            // (Tuning route_cube_big: a big cube held that died begins its family's window, RouteRules.bigCubeDied)
+            if (_held.getSize() > 2 && (_held.getHealth() <= 0 || _held.isDeadOrDying())
+                    && adris.altoclef.util.helpers.RouteRules.cubeBigOn()) {
+                adris.altoclef.util.helpers.RouteRules.bigCubeDied(_held.getX(), _held.getY(), _held.getZ(), now);
+                adris.altoclef.Debug.logInternal(String.format(java.util.Locale.ROOT, "cream: the big cube at %s killed, its family hunted for %.0f s",
+                        _held.blockPosition().toShortString(), adris.altoclef.util.helpers.RouteRules.FAMILY_S));
+            }
             _held = null;
             return null;
         }
