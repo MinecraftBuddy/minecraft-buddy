@@ -124,6 +124,21 @@ public class SlotMappingTest {
         assertEquals(39, new SmithingTableSlot(8, true).getWindowSlot());
     }
 
+    @Test
+    public void brewingStandSlots() {
+        // bottles 0-2, ingredient 3, fuel 4, then inventory 5-31 and the hotbar 32-40 (BrewingStandMenu, 26.3)
+        assertEquals(3, BrewingStandSlot.INGREDIENT.getWindowSlot());
+        assertEquals(4, BrewingStandSlot.FUEL.getWindowSlot());
+        assertEquals(5, new BrewingStandSlot(9, true).getWindowSlot());
+        assertEquals(31, new BrewingStandSlot(35, true).getWindowSlot());
+        assertEquals(32, new BrewingStandSlot(0, true).getWindowSlot());
+        assertEquals(40, new BrewingStandSlot(8, true).getWindowSlot());
+        // the bag's 9 to 12 are window 5 to 8 here: read as the player's own screen they were armour, and left out
+        // (the buddy's fork, 10 Nov 2026: the powder, the wart or the cream there was "missing" at the stand)
+        assertEquals(9, new BrewingStandSlot(5, false).getInventorySlot());
+        assertEquals(12, new BrewingStandSlot(8, false).getInventorySlot());
+    }
+
     private static void roundTrip(String name, BiFunction<Integer, Boolean, Slot> make) {
         // every one of the 36 player inventory slots goes to a window slot and back to the same one
         for (int inv = 0; inv < 36; inv++) {

@@ -442,6 +442,21 @@ final class BlazePillboxTask extends Task {
             setDebugState("To the middle of the pillbox's front cell, block " + (next + 1) + " of " + plan.blocks().size());
             return null;
         }
+        // (the buddy's fork, 10 Nov 2026, Tuning roof_face_step, on by default as a fix: the same step, but only when no face the
+        // click could go against faces the eye, so the click cannot land. the brew box's roof over the stand's cell went
+        // "dir south" against B's roof from B's side of that face, would not go in three times, and the box failed after the
+        // potion had run out: 4 of the 8 route-12 runs that failed phase 5 with wart, cream and the potion at phase 4, and in
+        // p4-cream3 too. with a face in sight nothing changes, so roof_centre's suspicion (a step in every fight) does not apply)
+        if (roofRow && !stand.equals(cell) && adris.altoclef.util.helpers.Tuning.get("roof_face_step", 1) > 0
+                && !roofFaceSeen(mod, pos) && centreIn(mod, stand, HIDE_SLACK)) {
+            if (!pos.equals(faceStepSaid)) {
+                faceStepSaid = pos;
+                Debug.logInternal("pillbox: no face for the roof block at " + pos.toShortString() + " faces the eye, a step to the middle of "
+                        + stand.toShortString() + " first");
+            }
+            setDebugState("To the middle of the pillbox's front cell for its roof, block " + (next + 1) + " of " + plan.blocks().size());
+            return null;
+        }
         setDebugState("Building the pillbox, block " + (next + 1) + " of " + plan.blocks().size());
         // (a roof row block on a wall's top face wants a jump: standing, the eye is at 1.62, under that face, which no click can
         // see; at a jump's top it can, as a player builds a roof. the click stays put and the aim is set on the ground, so the
@@ -596,6 +611,23 @@ final class BlazePillboxTask extends Task {
         // (the builder's throwaways include cobblestone: none while the stand's stone is kept)
         boolean stone = stoneOk(mod);
         return new PlaceBlockTask(pos, stone ? BLOCKS : placeable(mod), stone, false);
+    }
+
+    // the last roof block a step was said for (roof_face_step), so the line comes once a block
+    private BlockPos faceStepSaid;
+
+    // a face a click for the roof row block at pos could go against, in front of the eye: the top of the block under it with the
+    // eye over it, or the face toward pos of a solid neighbour beside it with the eye on pos's side (facesEye)
+    private static boolean roofFaceSeen(AltoClef mod, BlockPos pos) {
+        var level = mod.getWorld();
+        net.minecraft.world.phys.Vec3 eye = mod.getPlayer().getEyePosition();
+        BlockPos below = pos.below();
+        if (!level.getBlockState(below).getCollisionShape(level, below).isEmpty() && eye.y > pos.getY()) return true;
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+            BlockPos by = pos.relative(d);
+            if (!level.getBlockState(by).getCollisionShape(level, by).isEmpty() && facesEye(eye, pos, d)) return true;
+        }
+        return false;
     }
 
     // the face between pos and its neighbour pos + d (the neighbour's face toward pos) has the eye on pos's side: a click can hit it
