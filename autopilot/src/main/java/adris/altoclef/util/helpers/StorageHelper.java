@@ -390,7 +390,11 @@ public class StorageHelper {
                 // the last resort stack has to be one the free slot task may actually throw, else it swaps protected stacks round for ever
                 lastResort = getLastResortSlot(_mod).filter(slot -> ItemHelper.canDropStack(_mod, getItemStackInSlot(slot)));
             }
-            boolean core = ItemValue.isCore(drop.getItem());
+            // (the buddy's fork, Tuning potion_room, on, a fix: a fire resistance potion is a core drop, it pushes a stack worth
+            // less out of a full bag. the trade's barter fills the bag, and the potions a piglin threw at ingots 98 and 154
+            // were left lying, "nothing in the bag may go" (box 2's drankjes smoke, 10 Nov 2026: 192 ingots, one potion kept))
+            boolean core = ItemValue.isCore(drop.getItem())
+                    || (Tuning.get("potion_room", 1) > 0 && FireResTradeRules.form(drop) != FireResTradeRules.Form.NONE);
             DropRoom.Decision d = DropRoom.decide(false, _pick, _pick >= 0 && dropIsNext(drop), lastResort.isPresent(), core,
                     core ? victims() : List.of());
             if (d.kind() != DropRoom.Kind.EVICT) {
@@ -408,7 +412,10 @@ public class StorageHelper {
                 Item item = stack.getItem();
                 int units = GarbageRules.keepUnits(stack);
                 // wouldWear too: wear[] only keeps the best piece per slot, a second helmet for a bare head still counts
+                // (Tuning potion_room: a protected stack is never a victim, the trade's gold while it runs; a core drop could take
+                // a second stack of gold for a surplus before)
                 boolean keep = forTheEnd[i] || _bag.wear[i] || wouldWear(_mod, stack) || AltoSettings.isImportant(item)
+                        || (Tuning.get("potion_room", 1) > 0 && _mod.getBehaviour().isProtected(item))
                         || (stack.isEnchanted() && Baritone.settings().altoDontThrowAwayEnchantedItems.value)
                         || (stack.has(DataComponents.CUSTOM_NAME) && Baritone.settings().altoDontThrowAwayCustomNameItems.value)
                         || (units > 0 && GarbageRules.keepsFood(_foodUnits, units, _floor));
