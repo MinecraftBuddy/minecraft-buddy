@@ -112,6 +112,8 @@ public final class Tuning {
             java.util.Map.entry("brew_hidden_out", 1.0),
             // (10 Nov 2026, a fix: the standing pillbox's stamp kept fresh by a fight while the buddy stands in it, CombatBrain)
             java.util.Map.entry("box_stamp_fight", 1.0),
+            // (10 Nov 2026, a fix: a chunk search kept across an interruption tries its queued chunks again, ChunkSearchTask)
+            java.util.Map.entry("chunk_search_requeue", 1.0),
             // (route jar 13, 9 Nov 2026: chunks the explore's rings failed to reach twice are passed over, ExploreProcess.Unreachable)
             java.util.Map.entry("explore_ban", 1.0),
             java.util.Map.entry("ghast_wait_double", 1.0),

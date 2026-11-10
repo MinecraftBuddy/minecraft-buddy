@@ -64,6 +64,14 @@ abstract class ChunkSearchTask extends Task {
             synchronized (_searchMutex) {
                 searchChunkOrQueueSearch(mod, startPos);
             }
+        } else if (adris.altoclef.util.helpers.Tuning.get("chunk_search_requeue", 0) > 0) {
+            // (Tuning chunk_search_requeue, on: a fix, 10 Nov 2026. a searcher kept across an interruption (chunk_search_keep)
+            // heard no load events while stopped, and a chunk that loaded meanwhile never loads again: it stayed queued and was
+            // walked to for good, the buddy standing in it on "Get to chunk .. Completing goal" for 25 min, realfort-route-18-mc2
+            // run 31. on a resume every queued chunk is tried again at the next tick, as its load event would have been)
+            synchronized (_searchMutex) {
+                _justLoaded.addAll(_searchLater);
+            }
         }
 
         _onChunkLoad = EventBus.subscribe(ChunkLoadEvent.class, evt -> {
@@ -101,6 +109,15 @@ abstract class ChunkSearchTask extends Task {
 
         // Now that we have an updated map, go to the nearest
         ChunkPos closest = getBestChunk(mod, _searchLater);
+        // (chunk_search_requeue: a best chunk already loaded, whose load event never reached us, is searched here rather than
+        // walked to while the buddy stands in it; at most a few a tick, each then out of the queue)
+        for (int i = 0; i < 4 && closest != null && adris.altoclef.util.helpers.Tuning.get("chunk_search_requeue", 0) > 0
+                && mod.getChunkTracker().isChunkLoaded(closest); i++) {
+            synchronized (_searchMutex) {
+                if (trySearchChunk(mod, closest)) _searchLater.remove(closest);
+            }
+            closest = getBestChunk(mod, _searchLater);
+        }
 
         if (closest == null) {
             _finished = true;
