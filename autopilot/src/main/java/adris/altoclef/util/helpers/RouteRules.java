@@ -227,9 +227,11 @@ public final class RouteRules {
     // blaze drills (forced fight against forced flee, full health, a way out): with 1 to 4 blazes the fight never died (14
     // pairs), with 5 0 of 8, 6 2 of 8, 7 4 of 8, 8 3 of 8. so: at most RISK_BLAZES blazes within RISK_RANGE, no wither
     // skeleton within RISK_WITHER, the health at RISK_HP or more, not burning or withered; a blaze fought is one within
-    // RISK_RANGE, its rods picked up as any
+    // RISK_RANGE (the blazes' sight), its rods picked up as any
     public static final int RISK_BLAZES = 4;
-    public static final double RISK_RANGE = 16;
+    // (the blazes' sight, BlazeFightRules.SIGHT_RANGE: at 16 a blaze 18 to 20 off with a line was walked away from as before,
+    // the smoke's loop at the edge of its sight, 234 walks in one run)
+    public static final double RISK_RANGE = BlazeFightRules.SIGHT_RANGE;
     public static final double RISK_WITHER = 8;
     public static final double RISK_HP = 14;
 
