@@ -153,10 +153,20 @@ final class BlazeFight {
         if (!on) awayOn = false;
     }
 
-    // the blazes the walk away goes from: those with a line on the buddy within SIGHT_RANGE as of the last scan
+    // the blazes the walk away goes from: those with a line on the buddy within SIGHT_RANGE as of the last scan, or while
+    // the walk is held out to AWAY_RUN (route_away_wall) the ones it began from
     private List<Entity> awayCrowd() {
-        return new ArrayList<>(threats);
+        if (!threats.isEmpty() || awayFrom.isEmpty()) return new ArrayList<>(threats);
+        List<Entity> held = new ArrayList<>();
+        for (Blaze b : awayFrom) if (b.isAlive()) held.add(b);
+        return held;
     }
+
+    // (route_away_wall) the blazes the walk away began from, and when one last saw the buddy
+    private final List<Blaze> awayFrom = new ArrayList<>();
+    private long awaySeenAt = Long.MIN_VALUE / 2;
+    // a held walk away ends once no blaze has seen the buddy for this long: behind a wall it is out of their sight anyway
+    static final long AWAY_HOLD_TICKS = 60;
 
     // the open attack holds this tick: no lure, no hiding place, no corner leash
     boolean open() {
@@ -848,6 +858,26 @@ final class BlazeFight {
         }
         // (Tuning route_errand_away: in phase 3 a blaze with a line on the buddy is walked away from, in CAMP)
         boolean away = errand && mode == Mode.CAMP && !packClose && !threats.isEmpty();
+        // (Tuning route_away_wall, with its walls: the walk away held out to AWAY_RUN. without it the walk ended the moment no
+        // blaze in SIGHT_RANGE saw the buddy, at 20.0, and at 19.9 began again: two searches a second from one block, each
+        // cancelled by the other, the buddy standing still at the edge of its sight for minutes (realfort-p3-zones run 4.B,
+        // 92 times in 180 s; A's L39 a "standing still 1.5-2 min"). now, once begun, it goes on while one of the blazes it
+        // went from is nearer than AWAY_RUN and some blaze saw the buddy within AWAY_HOLD_TICKS)
+        if (errand && mode == Mode.CAMP && !packClose && adris.altoclef.util.helpers.RouteRules.awayWallLive()) {
+            if (!threats.isEmpty()) {
+                awaySeenAt = now;
+                awayFrom.clear();
+                awayFrom.addAll(threats);
+            } else if (awayOn && now - awaySeenAt <= AWAY_HOLD_TICKS) {
+                for (Blaze b : awayFrom) {
+                    if (b.isAlive() && player.distanceTo(b) < AWAY_RUN) {
+                        away = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!away) awayFrom.clear();
         // (Tuning route_away_zone, route jar 12: each blaze walked away from leaves a zone the errand's ring walk passes over)
         if (away && adris.altoclef.util.helpers.RouteRules.awayZoneOn()) {
             for (Blaze b : threats) adris.altoclef.util.helpers.RouteRules.noteAway(b.getX(), b.getZ(), now);
