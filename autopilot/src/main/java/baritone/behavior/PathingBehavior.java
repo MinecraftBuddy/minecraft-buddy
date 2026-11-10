@@ -34,6 +34,7 @@ import baritone.pathing.movement.CalculationContext;
 import baritone.pathing.movement.CliffAvoidance;
 import baritone.pathing.movement.Movement;
 import baritone.pathing.movement.MovementHelper;
+import baritone.pathing.movement.RiskCost;
 import baritone.pathing.movement.FailedMoves;
 import baritone.pathing.movement.SwimStalls;
 import baritone.pathing.path.PathExecutor;
@@ -853,22 +854,28 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
     }
 
     // (the buddy's fork, S137: the path's nodes by kind of place (adris.altoclef.util.helpers.PlaceWord) and the place cost the
-    // search charged them (CliffAvoidance.penalty, in ticks), so a path's predicted risk can be set against the hp it cost. on
-    // the search's thread, once it is done; nothing on the line when it fails)
+    // search charged the moves into them (RiskCost.penalty, in ticks; the table and lambda after it under risk_table 1), so a
+    // path's predicted risk can be set against the hp it cost. on the search's thread, once it is done; nothing on the line
+    // when it fails)
     private static String placesOf(IPath path, CalculationContext context) {
         try {
             var cells = CliffAvoidance.of(context.bsi);
-            var memo = new CliffAvoidance.Memo();
+            var risk = RiskCost.start(context);
             java.util.Map<String, Integer> count = new java.util.TreeMap<>();
-            double penalty = 0;
-            for (BetterBlockPos p : path.positions()) {
+            java.util.List<BetterBlockPos> at = path.positions();
+            for (BetterBlockPos p : at) {
                 boolean fort = CliffAvoidance.onFortressBricks(context.get(p.x, p.y - 1, p.z));
                 count.merge(adris.altoclef.util.helpers.PlaceWord.of(cells, fort, p.x, p.y, p.z), 1, Integer::sum);
-                penalty += CliffAvoidance.penalty(context, memo, p.x, p.y, p.z);
+            }
+            double penalty = 0;
+            var moves = path.movements();
+            for (int i = 0; i < moves.size() && i + 1 < at.size(); i++) {
+                BetterBlockPos p = at.get(i + 1);
+                penalty += RiskCost.penalty(context, risk, p.x, p.y, p.z, moves.get(i).getCost());
             }
             StringBuilder line = new StringBuilder(" places");
             count.forEach((word, n) -> line.append(' ').append(word).append(' ').append(n));
-            return line.append(" penalty ").append(Math.round(penalty)).toString();
+            return line.append(" penalty ").append(Math.round(penalty)).append(RiskCost.describe(risk)).toString();
         } catch (RuntimeException e) {
             return "";
         }

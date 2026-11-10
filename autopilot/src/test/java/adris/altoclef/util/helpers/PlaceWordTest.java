@@ -91,4 +91,47 @@ public class PlaceWordTest {
     public void fortressBrickWithNothingNearIsFortress() {
         assertEquals("fortress", PlaceWord.of(new World(), true, 0, 0, 0));
     }
+
+    // the search's memo gives the same word as the plain one, node for node, asked in any order and asked again
+    @Test
+    public void theMemoGivesTheSameWord() {
+        Cell[] kinds = {Cell.OPEN, Cell.OPEN, Cell.OPEN, Cell.SOLID, Cell.SOLID, Cell.LAVA, Cell.WATER};
+        for (long seed = 1; seed <= 20; seed++) {
+            java.util.Random random = new java.util.Random(seed);
+            World world = new World();
+            for (int x = -8; x <= 8; x++) {
+                for (int z = -8; z <= 8; z++) {
+                    for (int y = -24; y <= 20; y++) {
+                        if (random.nextInt(3) == 0) world.set(x, y, z, kinds[random.nextInt(kinds.length)]);
+                    }
+                }
+            }
+            java.util.List<int[]> nodes = new java.util.ArrayList<>();
+            for (int x = -5; x <= 5; x++) {
+                for (int z = -5; z <= 5; z++) {
+                    for (int y = -4; y <= 4; y++) nodes.add(new int[]{x, y, z});
+                }
+            }
+            PlaceWord.Memo memo = new PlaceWord.Memo(world);
+            for (int round = 0; round < 2; round++) {
+                java.util.Collections.shuffle(nodes, random);
+                for (int[] n : nodes) {
+                    boolean fort = ((n[0] * 7 + n[2] * 3) & 3) == 0;
+                    assertEquals("seed " + seed + " at " + n[0] + "," + n[1] + "," + n[2],
+                            PlaceWord.index(world, fort, n[0], n[1], n[2]), memo.index(fort, n[0], n[1], n[2]));
+                }
+            }
+        }
+    }
+
+    @Test
+    public void theWordsAndTheirIndexAgree() {
+        assertEquals("sea", PlaceWord.WORDS[PlaceWord.SEA]);
+        assertEquals("fort_rim", PlaceWord.WORDS[PlaceWord.FORT_RIM]);
+        assertEquals("rim", PlaceWord.WORDS[PlaceWord.RIM]);
+        assertEquals("lava", PlaceWord.WORDS[PlaceWord.LAVA]);
+        assertEquals("fortress", PlaceWord.WORDS[PlaceWord.FORTRESS]);
+        assertEquals("open", PlaceWord.WORDS[PlaceWord.OPEN]);
+        assertEquals("cave", PlaceWord.WORDS[PlaceWord.CAVE]);
+    }
 }

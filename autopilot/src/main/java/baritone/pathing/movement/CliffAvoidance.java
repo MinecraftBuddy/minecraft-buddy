@@ -35,7 +35,7 @@ public final class CliffAvoidance {
     // fortress bridges are all there is to walk on, and the wither skeletons up there are why we'd be near the edge anyway
     public static final double FORTRESS_NODE_COST = NODE_COST / 3;
     // how far sideways a knockback is worth worrying about
-    static final int REACH = 2;
+    public static final int REACH = 2;
     // a floor this close is a short fall, further than this is the sea
     public static final int DEPTH = 8;
     // a node over the lava sea: under its floor (placed or there) nothing but air down to lava. a bridge out over the sea is a
@@ -283,7 +283,7 @@ public final class CliffAvoidance {
         return false;
     }
 
-    static boolean lavaUnder(Cells cells, int x, int y, int z) {
+    public static boolean lavaUnder(Cells cells, int x, int y, int z) {
         Cell here = cells.at(x, y, z);
         if (here == Cell.LAVA) {
             return true;

@@ -26,8 +26,8 @@ import baritone.api.utils.BetterBlockPos;
 import baritone.api.utils.SettingsUtil;
 import baritone.pathing.calc.openset.BinaryHeapOpenSet;
 import baritone.pathing.movement.CalculationContext;
-import baritone.pathing.movement.CliffAvoidance;
 import baritone.pathing.movement.Moves;
+import baritone.pathing.movement.RiskCost;
 import baritone.utils.pathing.BetterWorldBorder;
 import baritone.utils.pathing.Favoring;
 import baritone.utils.pathing.MutableMoveResult;
@@ -96,8 +96,8 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
         int numMovementsConsidered = 0;
         int numEmptyChunk = 0;
         boolean isFavoring = !favoring.isEmpty();
-        // a fresh one every search, see CliffAvoidance.Memo
-        CliffAvoidance.Memo cliffs = new CliffAvoidance.Memo();
+        // a fresh one every search, see CliffAvoidance.Memo: the place prices and the health they are set at too (RiskCost)
+        RiskCost.Search risk = RiskCost.start(calcContext);
         int timeCheckInterval = 1 << 6;
         int pathingMaxChunkBorderFetch = Baritone.settings().pathingMaxChunkBorderFetch.value; // grab all settings beforehand so that changing settings during pathing doesn't cause a crash or unpredictable behavior
         double minimumImprovement = Baritone.settings().minimumImprovementRepropagation.value ? MIN_IMPROVEMENT : 0;
@@ -205,8 +205,9 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
                 // and don't plan to stand in a nether portal unless that's the goal, see PortalAvoidance. after the favoring so
                 // a backtracking discount doesn't shrink it, it's a flat 80 ticks of standing there
                 actionCost += PortalAvoidance.penalty(goal, calcContext, res.x, res.y, res.z);
-                // and in the nether, don't hug a drop that a knockback could walk us off. flat too, so it's after the favoring
-                actionCost += CliffAvoidance.penalty(calcContext, cliffs, res.x, res.y, res.z);
+                // and in the nether, don't hug a drop that a knockback could walk us off: the place's risk, see RiskCost. after
+                // the favoring too, it's what the place costs and not the move
+                actionCost += RiskCost.penalty(calcContext, risk, res.x, res.y, res.z, res.cost);
                 double tentativeCost = currentNode.cost + actionCost;
                 if (neighbor.cost - tentativeCost > minimumImprovement) {
                     neighbor.previous = currentNode;
