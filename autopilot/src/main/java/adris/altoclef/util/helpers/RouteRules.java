@@ -229,10 +229,14 @@ public final class RouteRules {
     // skeleton within RISK_WITHER, the health at RISK_HP or more, not burning or withered; a blaze fought is one within
     // RISK_RANGE (the blazes' sight), its rods picked up as any
     public static final int RISK_BLAZES = 4;
-    // (the blazes' sight, BlazeFightRules.SIGHT_RANGE: at 16 a blaze 18 to 20 off with a line was walked away from as before,
-    // the smoke's loop at the edge of its sight, 234 walks in one run)
+    // the blazes counted within RISK_RANGE (the blazes' sight, BlazeFightRules.SIGHT_RANGE) of the buddy and of the blaze to be
+    // fought; a blaze fought is one within RISK_REACH of the buddy; no wither skeleton within RISK_WITHER of either. (look 48,
+    // box 2, 10 Nov 2026: judged from the buddy's place alone, at 20 the chase walked 15 blocks into four blazes just past
+    // the count, a magma cube held it among them and a wither skeleton came in from 24: dead. at a reach of 16 and counting
+    // round the buddy only, 2 of 6 smoke runs passed phase 3, at 20 none of 4, 3 dead)
     public static final double RISK_RANGE = BlazeFightRules.SIGHT_RANGE;
-    public static final double RISK_WITHER = 8;
+    public static final double RISK_REACH = 16;
+    public static final double RISK_WITHER = 16;
     public static final double RISK_HP = 14;
 
     public static boolean errandRiskOn() {

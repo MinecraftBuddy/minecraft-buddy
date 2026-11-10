@@ -1374,6 +1374,13 @@ final class BlazeFight {
             noteLetGo("phase 3, out of a blow's reach", player);
             target = null;
         }
+        // (Tuning route_errand_risk: the one we are after is let go the moment its place is no longer safe or it is past the
+        // reach: the chase is judged each tick, not only before the approach, look 48)
+        if (errand && riskFight && target != null && target.isAlive() && (player.distanceTo(target) > adris.altoclef.util.helpers.RouteRules.RISK_REACH
+                || !safeAround(mod, blazes, target, player))) {
+            noteLetGo("phase 3, its place not safe", player);
+            target = null;
+        }
         Vec3 cornerEye = corner == null ? null : new Vec3(corner.getX() + 0.5, corner.getY() + 1.62, corner.getZ() + 0.5);
         // (a pillbox: one that sees its look out has come round, not one that sees its cell, which no blaze sees by design: from
         // the cell no blaze was ever in reach but a biting one, stalls with blazes within four, realfort-b-bent-m run 4)
@@ -1412,8 +1419,9 @@ final class BlazeFight {
                         // come to the camp. the fireballs do little then, and the chase to blaze after blaze ended "no path"
                         // and a ban each, 54 in five minutes with blazes in sight and no rod, steering 67)
                         // (Tuning route_errand_away: in phase 3 only a blaze within a blow's reach, RouteRules.awayAct)
-                        // (Tuning route_errand_risk: a fight that is safe takes one within RISK_RANGE)
-                        && (!errand || (riskFight ? distance <= adris.altoclef.util.helpers.RouteRules.RISK_RANGE
+                        // (Tuning route_errand_risk: a fight that is safe takes one within RISK_REACH whose own place is safe too:
+                        // the blazes round it and the wither skeletons by it, RouteRules.errandFights)
+                        && (!errand || (riskFight ? distance <= adris.altoclef.util.helpers.RouteRules.RISK_REACH && safeAround(mod, blazes, blaze, player)
                         : "hit".equals(adris.altoclef.util.helpers.RouteRules.awayAct(distance, false))))
                         && (fireproofHold(player) <= 0 || distance <= fireproofHold(player))
                         && (fireproofReach(player) <= 0 || blaze.getY() - player.getY() <= fireproofReach(player))
@@ -1507,6 +1515,19 @@ final class BlazeFight {
         targetTracked = nearest != null;
         targetInReach = nearest != null;
         freeTarget = open || rushNow ? nearest : null;
+    }
+
+    // (Tuning route_errand_risk) a blaze's own place: the blazes alive within RISK_RANGE of it or of the buddy, and the wither
+    // skeletons within RISK_WITHER of it, by the same rule as the buddy's (the health and hurting are the buddy's)
+    private static boolean safeAround(AltoClef mod, List<Blaze> blazes, Blaze it, LocalPlayer player) {
+        int n = 0;
+        for (Blaze b : blazes) {
+            if (!b.isAlive()) continue;
+            if (player.distanceTo(b) <= adris.altoclef.util.helpers.RouteRules.RISK_RANGE
+                    || it.distanceTo(b) <= adris.altoclef.util.helpers.RouteRules.RISK_RANGE) n++;
+        }
+        int withers = witherSkeletonsNear(mod, it.position(), adris.altoclef.util.helpers.RouteRules.RISK_WITHER);
+        return adris.altoclef.util.helpers.RouteRules.errandFights(n, withers, player.getHealth(), false);
     }
 
     // (Tuning fireproof_bow) a zombified piglin on the arrow's way: hit, it and its kind turn on the buddy
