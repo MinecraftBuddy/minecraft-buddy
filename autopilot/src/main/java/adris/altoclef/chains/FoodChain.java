@@ -235,6 +235,15 @@ public class FoodChain extends SingleTaskChain {
         return false;
     }
 
+    // (Tuning drink_hotbar_first) the hotbar slot (0 to 8) of a fire resistance potion, -1 with none there
+    private static int fireResHotbar(AltoClef mod) {
+        var inventory = mod.getPlayer().getInventory();
+        for (int i = 0; i < 9; i++) {
+            if (isFireRes(inventory.getItem(i))) return i;
+        }
+        return -1;
+    }
+
     private static Optional<Slot> fireResSlot(AltoClef mod) {
         for (Slot slot : mod.getItemStorage().getSlotsWithItemScreen(Items.POTION)) {
             if (isFireRes(StorageHelper.getItemStackInSlot(slot))) return Optional.of(slot);
@@ -302,7 +311,15 @@ public class FoodChain extends SingleTaskChain {
         }
         if (food == Items.POTION) {
             // the stack by what is in it: a bag can hold more than one kind of potion
-            if (!isFireRes(mod.getPlayer().getMainHandItem())) fireResSlot(mod).ifPresent(slot -> mod.getSlotHandler().forceEquipSlot(slot));
+            // (the buddy's fork, Tuning drink_hotbar_first, on, a fix: a fire resistance potion already in the hotbar is selected,
+            // never one from the bag swapped over it. the bag's first potion went into the hotbar each tick the hand held
+            // something else, the one there went back to the bag, and each swap broke the drink off: with five traded potions
+            // 76 swaps in 4 s and no swallow, fireballed (box 2's drankjes smoke, 10 Nov 2026); the brew's three the same)
+            if (!isFireRes(mod.getPlayer().getMainHandItem())) {
+                int inHotbar = adris.altoclef.util.helpers.Tuning.get("drink_hotbar_first", 1) > 0 ? fireResHotbar(mod) : -1;
+                if (inHotbar >= 0) mod.getPlayer().getInventory().setSelectedSlot(inHotbar);
+                else fireResSlot(mod).ifPresent(slot -> mod.getSlotHandler().forceEquipSlot(slot));
+            }
         } else {
             mod.getSlotHandler().forceEquipItem(new Item[]{food}, true); //"true" because it's food
         }
