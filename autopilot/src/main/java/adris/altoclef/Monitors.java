@@ -70,8 +70,48 @@ public final class Monitors {
         Debug.logInternal("baritone: " + text);
     }
 
+    // (the buddy's fork, S137: the kind of place the feet are in, see PlaceWord, looked at every PLACE_EVERY ticks; a line each
+    // time the word changes, and the word on every vitals line, so the rig can split time and hp lost by place. no behaviour
+    // change)
+    private static final int PLACE_EVERY = 20;
+    private int placeTicks;
+    private String place;
+    private BlockPos placeAt;
+
+    private void place(AltoClef mod, LocalPlayer player) {
+        BlockPos at = player.blockPosition();
+        var world = mod.getWorld();
+        var floor = world.getBlockState(at.below());
+        var cells = baritone.pathing.movement.CliffAvoidance.of(new baritone.utils.BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
+        String word = adris.altoclef.util.helpers.PlaceWord.of(cells, baritone.pathing.movement.CliffAvoidance.onFortressBricks(floor),
+                at.getX(), at.getY(), at.getZ());
+        // moved a block or more since the last look, a second ago
+        boolean moving = placeAt != null && placeAt.distManhattan(at) > 0;
+        placeAt = at.immutable();
+        if (word.equals(place)) {
+            return;
+        }
+        place = word;
+        String biome = world.getBiome(at).getRegisteredName();
+        Debug.logInternal("place: " + word + " at " + at.getX() + "," + at.getY() + "," + at.getZ()
+                + " [" + WorldHelper.getCurrentDimension().name().toLowerCase(Locale.ROOT) + "] biome "
+                + biome.substring(biome.indexOf(':') + 1) + " floor " + BuiltInRegistries.BLOCK.getKey(floor.getBlock()).getPath()
+                + (moving ? " moving" : " standing"));
+    }
+
     // while the task runner is active, after it has ticked so the chain's task list is this tick's
     public void onActiveTick(AltoClef mod) {
+        if (++placeTicks >= PLACE_EVERY) {
+            placeTicks = 0;
+            try {
+                LocalPlayer player = Minecraft.getInstance().player;
+                if (player != null && mod.getWorld() != null) {
+                    place(mod, player);
+                }
+            } catch (RuntimeException e) {
+                broke("place", e);
+            }
+        }
         if (++vitalsTicks < VITALS_EVERY) {
             return;
         }
@@ -264,7 +304,9 @@ public final class Monitors {
         // side by side and drillrun keeps the tail after task=. no behaviour change)
         try {
             var reading = adris.altoclef.util.helpers.DangerShadow.last();
-            String danger = " danger=" + adris.altoclef.util.helpers.DangerShadow.level().word()
+            // (S137: and the place word, see place())
+            String danger = (place == null ? "" : " place=" + place)
+                    + " danger=" + adris.altoclef.util.helpers.DangerShadow.level().word()
                     + (reading == null ? "" : " dT=" + adris.altoclef.util.helpers.DangerMeter.num(reading.t())
                     + " risk=" + adris.altoclef.util.helpers.DangerMeter.num(reading.risk()));
             int k = line.indexOf(" chain=");

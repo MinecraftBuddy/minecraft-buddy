@@ -320,6 +320,11 @@ public abstract class AbstractNodeCostSearch implements IPathFinder, Helper {
         return isFinished;
     }
 
+    // (the buddy's fork, S137: the search's line in PathingBehavior reads the path's places through it)
+    public final CalculationContext context() {
+        return context;
+    }
+
     @Override
     public final Goal getGoal() {
         return goal;

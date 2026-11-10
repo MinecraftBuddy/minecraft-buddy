@@ -31,6 +31,7 @@ import baritone.api.utils.interfaces.IGoalRenderPos;
 import baritone.pathing.calc.AStarPathFinder;
 import baritone.pathing.calc.AbstractNodeCostSearch;
 import baritone.pathing.movement.CalculationContext;
+import baritone.pathing.movement.CliffAvoidance;
 import baritone.pathing.movement.Movement;
 import baritone.pathing.movement.MovementHelper;
 import baritone.pathing.movement.FailedMoves;
@@ -844,9 +845,32 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
             adris.altoclef.Debug.logInternal("search: #" + searches.incrementAndGet() + " from " + start.getX() + "," + start.getY() + ","
                     + start.getZ() + " goal " + (goal == null ? "none" : goal.getClass().getSimpleName()) + " to " + end + " result "
                     + r.getType() + " ms " + ms + " nodes " + path.map(p -> p.getNumNodesConsidered()).orElse(-1) + " len "
-                    + path.map(p -> p.length()).orElse(0) + " " + (ahead ? "ahead" : "standstill") + (pf.exhausted() ? " exhausted" : ""));
+                    + path.map(p -> p.length()).orElse(0) + " " + (ahead ? "ahead" : "standstill") + (pf.exhausted() ? " exhausted" : "")
+                    + path.map(p -> placesOf(p, pf.context())).orElse(""));
         } catch (RuntimeException ignored) {
             // (a log line never takes a search down)
+        }
+    }
+
+    // (the buddy's fork, S137: the path's nodes by kind of place (adris.altoclef.util.helpers.PlaceWord) and the place cost the
+    // search charged them (CliffAvoidance.penalty, in ticks), so a path's predicted risk can be set against the hp it cost. on
+    // the search's thread, once it is done; nothing on the line when it fails)
+    private static String placesOf(IPath path, CalculationContext context) {
+        try {
+            var cells = CliffAvoidance.of(context.bsi);
+            var memo = new CliffAvoidance.Memo();
+            java.util.Map<String, Integer> count = new java.util.TreeMap<>();
+            double penalty = 0;
+            for (BetterBlockPos p : path.positions()) {
+                boolean fort = CliffAvoidance.onFortressBricks(context.get(p.x, p.y - 1, p.z));
+                count.merge(adris.altoclef.util.helpers.PlaceWord.of(cells, fort, p.x, p.y, p.z), 1, Integer::sum);
+                penalty += CliffAvoidance.penalty(context, memo, p.x, p.y, p.z);
+            }
+            StringBuilder line = new StringBuilder(" places");
+            count.forEach((word, n) -> line.append(' ').append(word).append(' ').append(n));
+            return line.append(" penalty ").append(Math.round(penalty)).toString();
+        } catch (RuntimeException e) {
+            return "";
         }
     }
 

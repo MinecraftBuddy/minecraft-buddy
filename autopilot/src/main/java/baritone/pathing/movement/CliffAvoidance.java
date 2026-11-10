@@ -123,7 +123,7 @@ public final class CliffAvoidance {
         return true;
     }
 
-    static boolean onFortressBricks(BlockState floor) {
+    public static boolean onFortressBricks(BlockState floor) {
         return floor.is(Blocks.NETHER_BRICKS) || floor.is(Blocks.NETHER_BRICK_SLAB) || floor.is(Blocks.NETHER_BRICK_STAIRS);
     }
 
