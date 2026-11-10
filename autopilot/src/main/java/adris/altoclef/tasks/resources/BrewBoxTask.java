@@ -134,6 +134,26 @@ final class BrewBoxTask extends Task {
         return heal ? "heal box" : "brew box";
     }
 
+    // Tuning brew_open_lookout (on by default, a fix): a brew box in the fight's standing pillbox (brew_box 2) opens the wall it
+    // placed itself first, the pillbox's look out, and is done with the buddy still in the pillbox, as the sealed heal is. it
+    // broke another wall with a walk out beyond it and walked out: the look out stayed walled with cobblestone while the lure
+    // ("a look round the corner", 40 rounds at the cobblestone) and the door walk still aimed at it, about 38 game minutes at
+    // one rod in phase 6 (cascade realfort-p4-cream7 run 7, look 40, 10 Nov 2026)
+    private boolean lookoutFirst() {
+        return !heal && pillboxBack != null && adris.altoclef.util.helpers.Tuning.get("brew_open_lookout", 1) > 0;
+    }
+
+    // the doors all of whose cells were placed here (the walled look out), in their order
+    private List<BrewBox.Door> oursOf(List<BrewBox.Door> all) {
+        List<BrewBox.Door> ours = new ArrayList<>();
+        for (BrewBox.Door d : all) {
+            boolean every = true;
+            for (int[] c : d.cells()) every &= placed.contains(BlazeCover.key(c[0], c[1], c[2]));
+            if (every) ours.add(d);
+        }
+        return ours;
+    }
+
     // still planning (no box yet)
     boolean preparing() {
         return stage == Stage.PREP;
@@ -485,13 +505,23 @@ final class BrewBoxTask extends Task {
                     doors = BrewBox.doors(world, walk == null ? world : walk, box, placed, !standInF, sx(), sz());
                     // (the sealed heal opens its own wall again, the look out: a door all of whose blocks were placed here)
                     if (heal) {
-                        List<BrewBox.Door> ours = new ArrayList<>();
-                        for (BrewBox.Door d : doors) {
-                            boolean all = true;
-                            for (int[] c : d.cells()) all &= placed.contains(BlazeCover.key(c[0], c[1], c[2]));
-                            if (all) ours.add(d);
-                        }
+                        List<BrewBox.Door> ours = oursOf(doors);
                         if (!ours.isEmpty()) doors = ours;
+                    } else if (lookoutFirst()) {
+                        // (the brew in the fight's pillbox: its own wall first, the other walls kept behind it for a look out
+                        // that will not open)
+                        List<BrewBox.Door> ours = oursOf(doors);
+                        if (!ours.isEmpty()) {
+                            // (the pillbox's own look out column first when its door is known: a wall the box put back
+                            // elsewhere is no look out)
+                            if (pillboxLookout != null) {
+                                ours.sort(java.util.Comparator.comparingInt(d -> d.cells().get(0)[0] == pillboxLookout.getX()
+                                        && d.cells().get(0)[2] == pillboxLookout.getZ() ? 0 : 1));
+                            }
+                            List<BrewBox.Door> first = new ArrayList<>(ours);
+                            for (BrewBox.Door d : doors) if (!ours.contains(d)) first.add(d);
+                            doors = first;
+                        }
                     }
                     doorAt = 0;
                     openSince = now;
@@ -517,6 +547,13 @@ final class BrewBoxTask extends Task {
                 if (heal) {
                     Debug.logInternal("heal box: opened at " + pos(door.cells().get(0)).toShortString() + (unsealWhy != null ? " after the failed seal" : ""));
                     if (unsealWhy != null) failed = true;
+                    stage = Stage.DONE;
+                    return null;
+                }
+                // (the brew in the fight's pillbox with its own wall open again: the pillbox stands as planned, look out and
+                // door, and the buddy stays in it; the rods task's fight and walks go on from there)
+                if (lookoutFirst() && oursOf(List.of(door)).size() == 1) {
+                    Debug.logInternal("brew box: the pillbox's look out opened again at " + pos(door.cells().get(0)).toShortString() + ", the buddy stays in the pillbox");
                     stage = Stage.DONE;
                     return null;
                 }
