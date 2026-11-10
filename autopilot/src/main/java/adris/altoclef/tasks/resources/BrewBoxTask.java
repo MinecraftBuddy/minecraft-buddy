@@ -89,6 +89,9 @@ final class BrewBoxTask extends Task {
     private List<BrewBox.Door> doors;
     private int doorAt;
     private long openSince;
+    // brew_open_lookout: when the stand in F began to be taken down, and whether that was given up
+    private long standSince = Long.MIN_VALUE;
+    private boolean standGaveUp;
     private long leaveTicks;
     private long noPathTicks;
     private Task leaving;
@@ -498,6 +501,26 @@ final class BrewBoxTask extends Task {
             }
             case OPEN -> {
                 if (doors == null) {
+                    // (brew_open_lookout: in the fight's pillbox the stand in F is taken down first, so that F's front wall,
+                    // the pillbox's look out, is a door again: with the stand in F only B's three walls were, and the box
+                    // broke one of them and left the look out walled, look 40. not down in OPEN_TICKS: a wall as before)
+                    if (lookoutFirst() && level.getBlockState(pos(box.front())).is(Blocks.BREWING_STAND) && !standGaveUp) {
+                        if (standSince == Long.MIN_VALUE || now < standSince) standSince = now;
+                        if (now - standSince <= OPEN_TICKS) {
+                            if (breaking == null || !pos(box.front()).equals(breakingAt)) {
+                                breaking = new DestroyBlockTask(pos(box.front()));
+                                breakingAt = pos(box.front());
+                            }
+                            setDebugState("Taking the stand down for the look out");
+                            return breaking;
+                        }
+                        standGaveUp = true;
+                        Debug.logInternal("brew box: the stand not taken down in " + OPEN_TICKS / 20 + " s, a wall of B as before");
+                    }
+                    if (lookoutFirst() && standSince != Long.MIN_VALUE && !standGaveUp) {
+                        Debug.logInternal("brew box: the stand taken down from " + pos(box.front()).toShortString() + " for the look out");
+                    }
+                    breaking = null;
                     // (F's walls are doors too with no stand in F)
                     boolean standInF = level.getBlockState(pos(box.front())).is(Blocks.BREWING_STAND);
                     CliffAvoidance.Cells world = worldCells(level);
