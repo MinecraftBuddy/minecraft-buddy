@@ -270,4 +270,36 @@ public final class BlazeFightRules {
     public static boolean wantsCampStep(boolean haveCell, boolean arrived, int ticksUsed) {
         return haveCell && !arrived && ticksUsed < CAMP_STEP_TICKS;
     }
+
+    // ---- the bow at a blaze out of reach under fire resistance (Tuning fireproof_bow, off by default; steering 145.3, 10 Nov
+    // 2026). under the potion a blaze that sees the buddy stays where it is and shoots, and the chase walks to it: above or
+    // behind the brick under the spawner, over the void at a bridge's end, in the air, the walk fails, the blaze is banned two
+    // minutes ('no path') and the potion runs out with no swing (phase 4, 1 to 8 idle minutes in 32 deaths and stalls). such a
+    // blaze is shot with the kit's bow from where the buddy stands, while BOW_FR_TICKS or more of the effect are left
+    public static final int BOW_FR_TICKS = 200;
+    public static final double BOW_RANGE = 20;
+    public static final double BOW_FLOOR = 8;
+    // the swing reach plus this before the bow takes over, the sword within the reach itself, the choice kept between
+    public static final double BOW_SLACK = 0.5;
+
+    public static boolean fireproofBowOn() {
+        return Tuning.get("fireproof_bow", 0) > 0;
+    }
+
+    // whether a blaze is one to shoot: the switch, the effect's ticks left, a bow and arrows in the bag, the gap beyond the swing
+    // reach and the slack, a clear line, a floor under it within BOW_FLOOR that is not lava (the rod lands where it can be
+    // picked up), within BOW_RANGE, no zombified piglin on the arrow's line. a no-path ban is no input: the bow is for those
+    public static boolean bowTakes(boolean on, int fireResTicks, boolean bowAndArrows, double gap, double swingReach, boolean line,
+                                   double floorBelow, boolean overLava, double distance, boolean neutralOnLine) {
+        return on && fireResTicks >= BOW_FR_TICKS && bowAndArrows && gap > swingReach + BOW_SLACK && line
+                && floorBelow <= BOW_FLOOR && !overLava && distance <= BOW_RANGE && !neutralOnLine;
+    }
+
+    // the weapon for a blaze already a target: true the bow, false the sword; beyond the reach and the slack the bow, within the
+    // reach the sword, between them the one in hand stays
+    public static boolean bowKept(boolean bowNow, double gap, double swingReach) {
+        if (gap > swingReach + BOW_SLACK) return true;
+        if (gap <= swingReach) return false;
+        return bowNow;
+    }
 }

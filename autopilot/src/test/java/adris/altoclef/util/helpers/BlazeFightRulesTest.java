@@ -291,4 +291,32 @@ public class BlazeFightRulesTest {
         assertFalse(BlazeFightRules.zoneHides(true, false, 1.5, 2.5));
         assertFalse(BlazeFightRules.zoneHides(true, true, 10, 2.5));
     }
+
+    // fireproof_bow (steering 145.3): a blaze out of reach shot under the potion
+    @Test
+    public void theBowTakesABlazeOutOfReachUnderThePotion() {
+        assertTrue(BlazeFightRules.bowTakes(true, 1000, true, 9, 3, true, 2, false, 12, false));
+        // the switch off, no potion, the last ten seconds, no bow or arrows
+        assertFalse(BlazeFightRules.bowTakes(false, 1000, true, 9, 3, true, 2, false, 12, false));
+        assertFalse(BlazeFightRules.bowTakes(true, 0, true, 9, 3, true, 2, false, 12, false));
+        assertFalse(BlazeFightRules.bowTakes(true, 199, true, 9, 3, true, 2, false, 12, false));
+        assertFalse(BlazeFightRules.bowTakes(true, 1000, false, 9, 3, true, 2, false, 12, false));
+        // in sword reach, or within the slack
+        assertFalse(BlazeFightRules.bowTakes(true, 1000, true, 3, 3, true, 2, false, 3, false));
+        assertFalse(BlazeFightRules.bowTakes(true, 1000, true, 3.5, 3, true, 2, false, 4, false));
+        // no line, over the void or lava, too far, a zombified piglin on the line
+        assertFalse(BlazeFightRules.bowTakes(true, 1000, true, 9, 3, false, 2, false, 12, false));
+        assertFalse(BlazeFightRules.bowTakes(true, 1000, true, 9, 3, true, 9, false, 12, false));
+        assertFalse(BlazeFightRules.bowTakes(true, 1000, true, 9, 3, true, 2, true, 12, false));
+        assertFalse(BlazeFightRules.bowTakes(true, 1000, true, 9, 3, true, 2, false, 20.1, false));
+        assertFalse(BlazeFightRules.bowTakes(true, 1000, true, 9, 3, true, 2, false, 12, true));
+    }
+
+    @Test
+    public void theWeaponForABlazeKeepsItsChoiceAtTheEdge() {
+        assertTrue(BlazeFightRules.bowKept(false, 3.6, 3));
+        assertFalse(BlazeFightRules.bowKept(true, 3, 3));
+        assertTrue(BlazeFightRules.bowKept(true, 3.3, 3));
+        assertFalse(BlazeFightRules.bowKept(false, 3.3, 3));
+    }
 }
