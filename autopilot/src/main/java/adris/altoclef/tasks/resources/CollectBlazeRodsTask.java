@@ -181,6 +181,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private BlockPos _campSpotFor;
     // whether the camp was picked fire-proof (BlazeFight.fireproofCamp): a potion drunk or run out picks it again
     private boolean _campFireproof;
+    // fire resistance on the buddy at the last tick, for the line said when it begins and ends (the rig's drink time: in phase
+    // 4 the camp is fire-proof with the potion still in the bag, so no camp line marks the drink, 10 Nov 2026)
+    private boolean _fireResWas;
     // the buddy's fork: the corner camp, when the room has one (BlazeCover.corner): the camp spot is its corner, and the lure
     // looks round it from the peek cell
     private BlazeLureTask _lure;
@@ -487,6 +490,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         // (the buddy's fork, Tuning box_home, off by default: whether the standing box holds the buddy this tick, BoxHomeRules)
         homeTick(mod);
+        fireResSays(mod);
         // (the buddy's fork: the camp was picked with or without fire resistance; a potion brewed and drunk here, or one run
         // out, is a camp of the other kind, so the pick goes again and a box under way is dropped)
         // (box_home: not while the box holds; the camp of the potion is the box's open side, a step out of it)
@@ -2940,6 +2944,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
             return _fight.nearestBlaze();
         }
         return best;
+    }
+
+    // "fire resistance: on, N s" when the effect begins (its duration then), "fire resistance: off" when it ends
+    private void fireResSays(AltoClef mod) {
+        var me = mod.getPlayer();
+        if (me == null) return;
+        var fr = me.getEffect(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE);
+        boolean on = fr != null;
+        if (on == _fireResWas) return;
+        _fireResWas = on;
+        if (on) Debug.logInternal("fire resistance: on, " + fr.getDuration() / 20 + " s");
+        else Debug.logInternal("fire resistance: off");
     }
 
     // the nearest live blaze in the buddy's line of sight within RouteRules.DRINK_SIGHT (infinite with none): Tuning
