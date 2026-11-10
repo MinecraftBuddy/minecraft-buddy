@@ -64,6 +64,14 @@ public class BranchMineTask extends Task {
     private BlockPos _minePos;
     private long _mineSince;
     private static final long MINE_STILL = 600;
+    // (the buddy's fork, 10 Nov 2026, look 39: three game minutes within ten blocks of one spot, whatever the mode, is a loop.
+    // for the iron helmet the buddy stayed 50 minutes in its own pit at y 16 to 25: baritone's mine routed back up the pit's
+    // staircase, more than 8 over the band the mine stopped and the staircase down began again, every 25 s; the clocks above
+    // each start again with every turn of that round, so none ever fired. then a tunnel of its own for two game minutes, a
+    // quarter turned, out of the place; mc-test1 t10, realfort-ow-old-mc1 run 5)
+    private final adris.altoclef.util.helpers.PlaceWatch _place = new adris.altoclef.util.helpers.PlaceWatch(10, 3600, 600);
+    // the cell the walk along (the sculk's, or the 32 blocks of a stuck staircase) came from: never stepped back onto
+    private BlockPos _awayPrev;
     // the rock goes to a cheap pick and the iron one is kept for the ore. an iron pickaxe is through in 250 blocks and a staircase
     // to the diamonds takes three a step: the iron one wore out on the way down while a stone one lay in the bag, and it climbed
     // to its furnace at y 16 for the iron of a new one four times for two diamonds (the runner, 2 Nov 2026, attempt 80). with only
@@ -130,6 +138,28 @@ public class BranchMineTask extends Task {
         // the cheap pick for the rock into the hotbar, where baritone's tools can see it (it looks at the hotbar only). first of
         // all: the walk away from sculk digs too, and the iron one went on it with a stone one in the bag (attempt 84)
         HotbarTools.forBlocks(mod, Blocks.STONE, Blocks.DEEPSLATE);
+        if (_place.tick(feet.getX(), feet.getZ(), now)) {
+            stopMine(mod);
+            int turn = _dx;
+            _dx = -_dz;
+            _dz = turn;
+            _awaySteps = 0;
+            _awayStep = null;
+            _awayPrev = null;
+            _step = null;
+            _deepest = Integer.MAX_VALUE;
+            _deepestAt = now;
+            _highest = Integer.MIN_VALUE;
+            _highestAt = now;
+            _minePos = null;
+            _starts.clear();
+            _tunnelUntil = now + 2400;
+            _tunnel = null;
+            adris.altoclef.Debug.logInternal("branch mine: three game minutes within ten blocks of " + _place.x() + ", " + _place.z()
+                    + " at y " + y + ", a tunnel of its own at y " + _mineY + " for two game minutes");
+            setDebugState("Three game minutes in one place, a tunnel of its own");
+            return null;
+        }
         // in open water no staircase or tunnel starts: dry land first. it swam about the sea in steps of five blocks for
         // fifteen game minutes and never got its shield's iron (the runner, 2 Nov 2026)
         if (mod.getPlayer().isInWater() && mod.getWorld().canSeeSky(feet.above())) {
@@ -168,6 +198,7 @@ public class BranchMineTask extends Task {
             else {
                 if (_awayStep == null || feet.equals(_awayStep)) {
                     if (_awayStep != null) _awaySteps--;
+                    else _awayPrev = null;
                     // never a bridge: a way with nothing under its next cell turns, and with all four like that the walk ends.
                     // the 32 blocks along bridged a ravine thirty deep at y 49, and the staircase down from the bridge had
                     // nowhere to go (the runner, 3 Nov 2026, attempt 108)
@@ -181,6 +212,15 @@ public class BranchMineTask extends Task {
                         _awayStep = null;
                         return null;
                     }
+                    // (the buddy's fork, look 39: with a floor only the way it came, the turns sent it back, and the next step
+                    // back again: 32 to 21 counted in 4 s between two cells, the walk ending where it began. that is the end)
+                    if (feet.offset(_dx, 0, _dz).equals(_awayPrev)) {
+                        _awaySteps = 0;
+                        _awayStep = null;
+                        _awayPrev = null;
+                        return null;
+                    }
+                    _awayPrev = feet;
                     _awayStep = feet.offset(_dx, 0, _dz);
                     _awaySince = now;
                 }
