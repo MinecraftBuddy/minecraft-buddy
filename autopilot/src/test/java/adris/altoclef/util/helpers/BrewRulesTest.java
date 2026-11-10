@@ -1,6 +1,7 @@
 package adris.altoclef.util.helpers;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
@@ -54,5 +55,26 @@ public class BrewRulesTest {
         assertEquals(true, BrewRules.needsCream(BrewRules.Stage.AWKWARD));
         assertEquals(false, BrewRules.needsCream(BrewRules.Stage.FIRE));
         assertEquals(false, BrewRules.needsCream(BrewRules.Stage.NONE));
+    }
+
+    // brew_hidden_out (10 Nov 2026): a brew item in the bag's slots 9 to 12, which the stand's screen reads as armour, changes
+    // places with an empty hotbar slot, else with a hotbar thing that is neither a brew item nor kept
+    private static boolean[] at(int... slots) {
+        boolean[] b = new boolean[36];
+        for (int s : slots) b[s] = true;
+        return b;
+    }
+
+    @Test
+    public void aBrewItemHiddenInSlotsNineToTwelveGoesToTheHotbar() {
+        // (route-16 run 49: three wart in the bag, "missing nether wart" for 8 min)
+        boolean[] full = new boolean[36];
+        assertArrayEquals(new int[]{10, 4}, BrewRules.hiddenMove(at(10), at(4, 7), full));
+        // a full hotbar: the first slot that is neither a brew item nor kept
+        assertArrayEquals(new int[]{9, 2}, BrewRules.hiddenMove(at(9, 1), full, at(0)));
+        // nothing hidden, or a brew item only outside 9 to 12
+        assertNull(BrewRules.hiddenMove(at(13, 0), at(5), full));
+        // nowhere to go: every hotbar slot a brew item or kept
+        assertNull(BrewRules.hiddenMove(at(12, 0, 1, 2), full, at(3, 4, 5, 6, 7, 8)));
     }
 }

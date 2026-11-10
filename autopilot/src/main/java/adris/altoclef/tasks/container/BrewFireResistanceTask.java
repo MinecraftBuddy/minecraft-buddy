@@ -160,8 +160,58 @@ public class BrewFireResistanceTask extends ResourceTask {
             setDebugState("Getting blaze powder for the stand");
             return TaskCatalogue.getItemTask("blaze_powder", 1);
         }
+        // (Tuning brew_hidden_out: the brew's things out of the bag's slots 9 to 12 before the stand's screen opens, hiddenOut)
+        if (hiddenOut(mod)) {
+            setDebugState("Moving the brew's things where the stand's screen sees them");
+            return null;
+        }
         setDebugState(pending() ? "Back to the brewing stand" : "Brewing fire resistance");
         return _inner;
+    }
+
+    // the brew's things, as the stand's screen must see them in the bag
+    private static boolean brewItem(ItemStack s) {
+        return s.is(Items.NETHER_WART) || s.is(Items.MAGMA_CREAM) || s.is(Items.BLAZE_POWDER) || s.is(Items.REDSTONE)
+                || s.is(Items.POTION) || s.is(Items.GLASS_BOTTLE);
+    }
+
+    private int _hidWaitSince = -1;
+    private static final int HID_WAIT_TICKS = 40;
+
+    // one swap a slot action, in the player's own inventory with no screen open and the buddy standing (in the shut box); true
+    // while the buddy stops for one
+    private boolean hiddenOut(AltoClef mod) {
+        if (!BrewRules.hiddenOutOn()) return false;
+        var me = mod.getPlayer();
+        if (me.containerMenu != me.inventoryMenu || !me.inventoryMenu.getCarried().isEmpty()) return false;
+        var inv = me.getInventory();
+        boolean[] brew = new boolean[36];
+        boolean[] empty = new boolean[36];
+        boolean[] keep = new boolean[36];
+        for (int i = 0; i < 36; i++) {
+            ItemStack s = inv.getItem(i);
+            empty[i] = s.isEmpty();
+            brew[i] = !s.isEmpty() && brewItem(s);
+            keep[i] = i == inv.getSelectedSlot() || s.isDamageableItem() || s.has(net.minecraft.core.component.DataComponents.FOOD);
+        }
+        int[] mv = BrewRules.hiddenMove(brew, empty, keep);
+        if (mv == null) {
+            _hidWaitSince = -1;
+            return false;
+        }
+        // (the buddy stops for it: a stand opened first, the cream there read as gone and the brew gave up within the second.
+        // at most HID_WAIT_TICKS, then on without the move, as before)
+        int now = WorldHelper.getTicks();
+        if (!me.onGround() || me.getDeltaMovement().horizontalDistanceSqr() > 1e-3) {
+            if (_hidWaitSince < 0 || now < _hidWaitSince) _hidWaitSince = now;
+            return now - _hidWaitSince <= HID_WAIT_TICKS;
+        }
+        if (!mod.getSlotHandler().canDoSlotAction()) return true;
+        _hidWaitSince = -1;
+        Debug.logInternal("brew: " + inv.getItem(mv[0]).getCount() + "x " + adris.altoclef.util.helpers.ItemHelper.stripItemName(inv.getItem(mv[0]).getItem())
+                + " swapped from bag slot " + mv[0] + " to hotbar slot " + mv[1] + ", where the stand's screen sees it");
+        mod.getSlotHandler().clickSlot(new adris.altoclef.util.slots.PlayerSlot(mv[0]), mv[1], ContainerInput.SWAP);
+        return true;
     }
 
     @Override

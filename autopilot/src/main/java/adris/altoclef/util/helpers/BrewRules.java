@@ -54,4 +54,31 @@ public final class BrewRules {
         if (fire > 0 && redstone) return Ingredient.REDSTONE;
         return null;
     }
+
+    // ---- the bag's slots 9 to 12 and the stand's screen (Tuning brew_hidden_out, on: a fix, 10 Nov 2026). the stand's screen is
+    // read as the player's own (Slot.getCurrentContainerType; read through the stand's own slots the brew stalled, p4-cream5),
+    // so its window slots 5 to 8, the bag's 9 to 12, read as armour, and a wart, cream, powder or bottle there is missing while
+    // the stand is open. a full bag puts things there: in realfort-route-16 the brew gave up 15 to 19 s in for "no magma
+    // cream" with one in the bag (runs 7 and 22), or read "missing nether wart" for 8 min with three (run 49); phase 5 passed 3
+    // of 13 there, against 38 of 43 with a kit that left room. before the stand opens, a brew item in 9 to 12 changes places with an
+    // empty hotbar slot, else with a hotbar thing that is neither a brew item nor a weapon, tool or food
+    public static final int HIDDEN_FROM = 9;
+    public static final int HIDDEN_TO = 12;
+
+    public static boolean hiddenOutOn() {
+        return Tuning.get("brew_hidden_out", 0) > 0;
+    }
+
+    // per inventory slot 0 to 35, brew (a brew item), empty, keep (a hotbar thing not to move: a weapon, a tool, food, the hand's
+    // slot): {from, to}, the first brew item in 9 to 12 and the hotbar slot it changes places with (a number key's swap, one
+    // click, nothing on the cursor): an empty one first, else one that is neither a brew item nor kept; null with none
+    public static int[] hiddenMove(boolean[] brew, boolean[] empty, boolean[] keep) {
+        for (int from = HIDDEN_FROM; from <= HIDDEN_TO; from++) {
+            if (!brew[from]) continue;
+            for (int to = 0; to < 9; to++) if (empty[to]) return new int[]{from, to};
+            for (int to = 0; to < 9; to++) if (!brew[to] && !keep[to]) return new int[]{from, to};
+            return null;
+        }
+        return null;
+    }
 }
