@@ -373,6 +373,27 @@ public final class RouteRules {
         return Tuning.get("route_hold_fight", 0) > 0;
     }
 
+    // ---- Tuning route_trade_fire (seconds of fire resistance, 0 off; steering 150, 10 Nov 2026): the trade goes on past the
+    // first potion until the fire resistance potions in the bag last this long together (a traded one 3:00), or the gold is all
+    // handed. with that much the route skips the wart, the cream and the brew (phases 3 and 5), every rod under the traded
+    // potions; with less it goes on as before. the brew's three potions last 8:00 each, so the same fire takes about eight
+    // traded ones
+    public static int tradeFireTicks() {
+        return (int) Math.max(0, Tuning.get("route_trade_fire", 0)) * 20;
+    }
+
+    // the trade's verdict under route_trade_fire: done once the fire in the bag reaches the target, and when the gold runs out
+    // with some fire but under the target, done too (the route goes on as before with what it got); target 0: the first potion
+    public static boolean tradeEnough(int fireTicks, int targetTicks, boolean potion) {
+        return targetTicks > 0 ? fireTicks >= targetTicks : potion;
+    }
+
+    // m:ss for the lines
+    public static String clock(int ticks) {
+        int s = Math.max(0, ticks) / 20;
+        return s / 60 + ":" + (s % 60 < 10 ? "0" : "") + s % 60;
+    }
+
     // ---- Tuning route_drink_ready (off by default; 10 Nov 2026): at the spawner fight the kept potion goes down only once a
     // blaze can be fought: one within DRINK_SIGHT in the buddy's line of sight, or the buddy at its camp (the spawner's top or
     // the camp's spot). the drink came on a blaze within 16 alone, and the 180 s went by with no swing: inside the brick under

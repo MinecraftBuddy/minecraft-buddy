@@ -103,6 +103,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // the buddy's fork, Tuning fr_trade: the barter for the first fire resistance, one per order (kept through interruptions);
     // null with the tuning off
     private FireResTrade _frTrade;
+    // (Tuning route_trade_fire) the trade ended with the fire for every rod: kept for the order, said once
+    private boolean _tradeFireDone;
+
+    private boolean tradeFireDone(AltoClef mod) {
+        if (!_tradeFireDone && _frTrade != null && _frTrade.fireEnough()) {
+            _tradeFireDone = true;
+            Debug.logInternal("route: the trade gave fire resistance for " + adris.altoclef.util.helpers.RouteRules.clock(_frTrade.fireAtEnd())
+                    + " (the target " + adris.altoclef.util.helpers.RouteRules.clock(adris.altoclef.util.helpers.RouteRules.tradeFireTicks())
+                    + "): no wart, no cream, no brew");
+        }
+        return _tradeFireDone;
+    }
     // the buddy's fork, Tuning brew_errand (on by default since the route, steering 118): the cream and the wart fetched on an errand of their own before the
     // spawner fight, brewErrand. under way, ended (one per order, done or given up), the step it is on, when the errand began,
     // its last tick, the step's own ticks and its waiting ticks with nothing in sight (BrewErrandRules.own, noSight), its
@@ -448,7 +460,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
         _fight.spawner(_foundBlazeSpawner);
         // (Tuning route_hold_fight, on by default, route jar 2: the potion kept through phases 3 and 4, said before the fight's
         // tick so a fight on the way does not end the wait; at the spawner a blaze lets it go, RouteRules.holdPotion)
-        if (adris.altoclef.util.helpers.RouteRules.holdFightOn() && (_errandOn || _routePhase == adris.altoclef.util.helpers.RouteRules.RODS2)) {
+        // (Tuning route_trade_fire: the potions the trade goes on past, and the way to the fortress after it with no errand, phase 2)
+        if (adris.altoclef.util.helpers.RouteRules.holdFightOn() && (_errandOn || _routePhase == adris.altoclef.util.helpers.RouteRules.RODS2
+                || adris.altoclef.util.helpers.RouteRules.tradeFireTicks() > 0 && _routePhase == adris.altoclef.util.helpers.RouteRules.TRADE)) {
             double toSpawner = _foundBlazeSpawner == null ? Double.POSITIVE_INFINITY : mod.getPlayer().position().distanceTo(Vec3.atCenterOf(_foundBlazeSpawner));
             boolean begun = adris.altoclef.util.helpers.RouteRules.fightBegun(_routePhase, toSpawner);
             // (Tuning route_drink_ready, off by default: at the spawner fight the potion waits for a blaze that can be fought)
@@ -787,7 +801,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 boolean creamIn = adris.altoclef.util.helpers.SlimeCream.have(mod);
                 boolean wartIn = mod.getItemStorage().hasItem(Items.NETHER_WART) || PotionHelper.count(mod, Potions.WATER) == 0;
                 boolean bottles = PotionHelper.count(mod, Potions.WATER) + PotionHelper.count(mod, Potions.AWKWARD) > 0;
-                if (_brewGaveUp || !bottles || !creamIn || !wartIn) {
+                if (tradeFireDone(mod)) {
+                    // (Tuning route_trade_fire: the trade gave the fire for every rod, no brew to come)
+                    routePhase(adris.altoclef.util.helpers.RouteRules.RODS);
+                } else if (_brewGaveUp || !bottles || !creamIn || !wartIn) {
                     noteNoBrew(mod, _brewGaveUp ? "the brew given up" : !bottles ? "no bottles" : !creamIn && !wartIn ? "no cream, no wart" : !creamIn ? "no cream" : "no wart");
                     routePhase(adris.altoclef.util.helpers.RouteRules.RODS);
                 }
@@ -1224,6 +1241,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
         _errandHolds = false;
         _errandWaits = false;
         if (_errandEnded || adris.altoclef.util.helpers.Tuning.get("brew_errand", 0) <= 0) return null;
+        // (Tuning route_trade_fire: the trade gave the fire for every rod: no wart, no cream, no brew)
+        if (!_errandOn && tradeFireDone(mod)) {
+            _errandEnded = true;
+            return null;
+        }
         var player = mod.getPlayer();
         long now = mod.getWorld().getGameTime();
         boolean trade = adris.altoclef.util.helpers.Tuning.get("fr_trade", 0) > 0 && _frTrade != null;
@@ -1702,6 +1724,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 return _brew;
             }
         }
+        // (Tuning route_trade_fire: the trade gave the fire for every rod, no brew and none of its chance trips)
+        if (tradeFireDone(mod)) return null;
         int water = PotionHelper.count(mod, Potions.WATER);
         int bases = water + PotionHelper.count(mod, Potions.AWKWARD);
         // (nothing to brew, or a batch's worth already in the bag)

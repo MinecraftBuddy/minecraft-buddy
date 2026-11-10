@@ -202,6 +202,39 @@ public final class FireResTrade {
         return _state == State.ENDED && _succeeded;
     }
 
+    // (Tuning route_trade_fire) the fire in the bag when the trade ended, and whether it reached the target: the route skips the
+    // wart, the cream and the brew then
+    private int _fireAtEnd;
+
+    boolean fireEnough() {
+        int target = adris.altoclef.util.helpers.RouteRules.tradeFireTicks();
+        return target > 0 && succeeded() && _fireAtEnd >= target;
+    }
+
+    int fireAtEnd() {
+        return _fireAtEnd;
+    }
+
+    // every fire resistance potion in the bag, the hotbar and the offhand, as ticks of the effect (a stack counts each potion)
+    static int fireTicks(AltoClef mod) {
+        if (mod.getPlayer() == null) return 0;
+        Inventory inventory = mod.getPlayer().getInventory();
+        int ticks = 0;
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (FireResTradeRules.form(stack) == Form.NONE) continue;
+            net.minecraft.world.item.alchemy.PotionContents contents = stack.get(net.minecraft.core.component.DataComponents.POTION_CONTENTS);
+            if (contents == null) continue;
+            for (MobEffectInstance effect : contents.getAllEffects()) {
+                if (effect.is(MobEffects.FIRE_RESISTANCE)) {
+                    ticks += effect.getDuration() * stack.getCount();
+                    break;
+                }
+            }
+        }
+        return ticks;
+    }
+
     // this tick's step was the search for a piglin, a walk with no piglin in sight and no ingot being admired
     boolean searching() {
         return _searchStep;
@@ -238,6 +271,10 @@ public final class FireResTrade {
         int drink = count(mod, Form.DRINK);
         int thrown = count(mod, Form.THROW);
         boolean potion = drink + thrown > 0;
+        // (Tuning route_trade_fire: the trade's target is the fire in the bag, not the first potion, RouteRules.tradeEnough)
+        int fireTarget = adris.altoclef.util.helpers.RouteRules.tradeFireTicks();
+        int fire = fireTarget > 0 ? fireTicks(mod) : 0;
+        boolean enough = adris.altoclef.util.helpers.RouteRules.tradeEnough(fire, fireTarget, potion);
         double blaze = nearestBlaze(mod);
         boolean blazeNear = blaze <= FireResRules.BLAZE_RANGE;
         boolean atFortress = spawner != null && player.position().distanceTo(Vec3.atCenterOf(spawner)) <= FORTRESS_NEAR;
@@ -252,7 +289,8 @@ public final class FireResTrade {
         int gold = mod.getItemStorage().getItemCount(Items.GOLD_INGOT);
         if (_state == State.WAITING) {
             if (_firstLookAt < 0) _firstLookAt = now;
-            String why = FireResTradeRules.whyNot(gold, potion, mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
+            String why = fireTarget > 0 && enough ? "fire resistance for " + adris.altoclef.util.helpers.RouteRules.clock(fire) + " in the bag already"
+                    : FireResTradeRules.whyNot(gold, fireTarget > 0 ? false : potion, mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
             if (why == null && (atFortress || blazeNear)) why = "at the fortress already";
             if (why != null) {
                 if (now - _firstLookAt >= BEGIN_GRACE_TICKS || now < _firstLookAt) {
@@ -347,7 +385,7 @@ public final class FireResTrade {
         Item piece = goldPieceInBag(mod);
         // (Tuning route_trade: no give-up on the search's clock, the cap or the fortress; only all the gold handed, or the dead end)
         FireResTradeRules.Verdict verdict = routeOn()
-                ? FireResTradeRules.decideRoute(potion, gold, pending, worn || piece != null, _goldOutAt < 0 ? Long.MAX_VALUE : now - _goldOutAt,
+                ? FireResTradeRules.decideRoute(enough, gold, pending, worn || piece != null, _goldOutAt < 0 ? Long.MAX_VALUE : now - _goldOutAt,
                 now - _handedAt, _noneKnown, _piglinNear, held != null, _yielding, knownOn(), deadTicks(), stallTicks())
                 : FireResTradeRules.decide(potion, gold, pending, worn || piece != null, now - _begunAt,
                 _goldOutAt < 0 ? Long.MAX_VALUE : now - _goldOutAt, now - _piglinSeenAt, _piglinNear, atFortress, _yielding,
@@ -361,12 +399,27 @@ public final class FireResTrade {
             case DONE -> {
                 String form = drink > 0 && thrown > 0 ? "drinkable and splash" : drink > 0 ? "drinkable" : "splash";
                 Debug.logInternal("strategy trade: done, a potion after " + given + " ingots in " + FireResTradeRules.seconds(now - _begunAt)
-                        + " seconds (" + form + ", " + gold + " gold left)");
+                        + " seconds (" + form + ", " + gold + " gold left)" + (fireTarget > 0 ? String.format(Locale.ROOT,
+                        "; fire resistance %s in the bag, the target %s, %d drinkable and %d splash", adris.altoclef.util.helpers.RouteRules.clock(fire),
+                        adris.altoclef.util.helpers.RouteRules.clock(fireTarget), drink, thrown) : ""));
+                _fireAtEnd = fire;
                 end(player, now, true, drink, thrown);
                 FireRes.traded(now, spawner);
                 return null;
             }
             case GIVE_UP -> {
+                // (Tuning route_trade_fire: all the gold handed with some fire but under the target: done with what it got, the
+                // route goes on as before)
+                if (fireTarget > 0 && potion && FireResTradeRules.OUT_OF_GOLD.equals(verdict.reason())) {
+                    Debug.logInternal(String.format(Locale.ROOT, "strategy trade: done, a potion after %d ingots in %s seconds, all the gold handed;"
+                                    + " fire resistance %s in the bag, under the target %s, %d drinkable and %d splash", given,
+                            FireResTradeRules.seconds(now - _begunAt), adris.altoclef.util.helpers.RouteRules.clock(fire),
+                            adris.altoclef.util.helpers.RouteRules.clock(fireTarget), drink, thrown));
+                    _fireAtEnd = fire;
+                    end(player, now, true, drink, thrown);
+                    FireRes.traded(now, spawner);
+                    return null;
+                }
                 Debug.logInternal("strategy trade: given up (" + verdict.reason() + ") after " + given + " ingots in "
                         + FireResTradeRules.seconds(now - _begunAt) + " seconds, " + gold + " gold left");
                 _endWhy = FireResTradeRules.OUT_OF_GOLD.equals(verdict.reason()) ? "all the gold handed, " + given + " ingots"

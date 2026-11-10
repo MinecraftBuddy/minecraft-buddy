@@ -574,4 +574,15 @@ public class RouteRulesTest {
         assertFalse(RouteRules.awayWallLive());
         assertFalse(RouteRules.awayPassOver(110, 210, 1000));
     }
+
+    // route_trade_fire: off, the first potion is done; on, the fire in the bag against the target (a traded potion 3:00)
+    @Test
+    public void tradeEnoughCountsFireAgainstTheTarget() {
+        assertTrue(RouteRules.tradeEnough(0, 0, true));
+        assertFalse(RouteRules.tradeEnough(0, 0, false));
+        assertFalse(RouteRules.tradeEnough(4 * 3600, 900 * 20, true));
+        assertTrue(RouteRules.tradeEnough(5 * 3600, 900 * 20, true));
+        assertEquals("15:00", RouteRules.clock(900 * 20));
+        assertEquals("3:05", RouteRules.clock(185 * 20));
+    }
 }
