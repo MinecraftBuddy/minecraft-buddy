@@ -2858,9 +2858,29 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (me != null && BlazeFight.fireproofReach(me) > 0 && _fight.mode() != BlazeFightRules.Mode.RUN) {
             return _fight.nearestBlaze() <= BlazeFight.BITE_RANGE;
         }
+        // (the buddy's fork, Tuning rod_fetch_fireproof, off by default; steering 146.2b and his remark M-16085c61: under fire
+        // resistance a rod that has lain ROD_OLD_TICKS or more is fetched though the corner holds, with no blaze within the
+        // pickup's clear range and none of a climb. the fireballs do nothing then, and by a corner camp the rods lay till they
+        // despawned: 87 of the 533 rods lost on 10 Nov, all at five minutes, "rods fetched 0". rod_fetch, the lure's own fetch
+        // without the potion, was rejected on 6 Nov)
+        if (me != null && rodFetchFireproofOn() && _fight.mode() != BlazeFightRules.Mode.RUN
+                && BlazeFight.fireResTicks(me) >= ROD_OLD_FR_TICKS && _fight.nearestBlaze() > BlazeFightRules.PICKUP_CLEAR_RANGE
+                && mod.getEntityTracker().getClosestItemDrop(me.position(), Items.BLAZE_ROD)
+                .filter(d -> d.getAge() >= ROD_OLD_TICKS && d.distanceTo(me) <= ROD_OLD_RANGE && d.getY() <= me.getY() + ROD_CLIMB).isPresent()) {
+            return false;
+        }
         // (and while the corner holds: the lure fetches the rods near it on a leash; the pickup's walk has none)
         // (Tuning open_attack: not while it holds, there is no lure to fetch them)
         return BlazeFightRules.holdPickup(_fight.mode() == BlazeFightRules.Mode.RUN, _fight.nearestBlaze()) || (_fight.cornerHold() && !_fight.open());
+    }
+
+    // (Tuning rod_fetch_fireproof) a rod that old, within this far, with this much of the effect left
+    static final int ROD_OLD_TICKS = 1200;
+    static final double ROD_OLD_RANGE = 16;
+    static final int ROD_OLD_FR_TICKS = 400;
+
+    static boolean rodFetchFireproofOn() {
+        return adris.altoclef.util.helpers.Tuning.get("rod_fetch_fireproof", 0) > 0;
     }
 
     // the buddy's fork, Tuning camp_dry (game minutes, 0 off): a corner camp with no rod in that long while a blaze is within
