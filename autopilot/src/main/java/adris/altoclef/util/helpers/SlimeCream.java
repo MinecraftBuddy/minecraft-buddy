@@ -3,7 +3,7 @@ package adris.altoclef.util.helpers;
 import adris.altoclef.AltoClef;
 import net.minecraft.world.item.Items;
 
-// Tuning route_slime_cream (off by default; test slijm, steering 128, 9 Nov 2026): a slime ball in the bag stands for the
+// Tuning route_slime_cream (on by default since 11 Nov 2026, test slijm confirmed; steering 128): a slime ball in the bag stands for the
 // brew's magma cream. the route's phase 3 then fetches the wart alone, and the brew crafts the cream in the box from the
 // ball and a blaze powder of the first rods. why: the cream came in 5 of 16 runs at the blazes, 318 magma cubes killed for
 // 36 cream, and without it no brew

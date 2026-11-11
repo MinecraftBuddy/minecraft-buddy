@@ -114,6 +114,9 @@ public final class Tuning {
             java.util.Map.entry("box_stamp_fight", 1.0),
             // (10 Nov 2026, a fix: a chunk search kept across an interruption tries its queued chunks again, ChunkSearchTask)
             java.util.Map.entry("chunk_search_requeue", 1.0),
+            // (11 Nov 2026, test slijm confirmed on cascade: a slime ball in the bag stands for the brew's cream, phase 3 fetches
+            // the wart alone, SlimeCream; phase 3 passed with the ball 40 of 60 pairs, without 11)
+            java.util.Map.entry("route_slime_cream", 1.0),
             // (route jar 13, 9 Nov 2026: chunks the explore's rings failed to reach twice are passed over, ExploreProcess.Unreachable)
             java.util.Map.entry("explore_ban", 1.0),
             java.util.Map.entry("ghast_wait_double", 1.0),
