@@ -51,6 +51,18 @@ public class RouteRulesTest {
     }
 
     @Test
+    public void theBrewComesFirstWithTwoRodsUnderThePotionAndTheKit() {
+        assertTrue(RouteRules.brewFirst(true, true, true, 2, 2, true));
+        assertTrue(RouteRules.brewFirst(true, true, true, 3, 0, true));
+        // (one rod is not yet the route's two)
+        assertFalse(RouteRules.brewFirst(true, true, true, 1, 0, true));
+        assertFalse(RouteRules.brewFirst(false, true, true, 2, 2, true));
+        assertFalse(RouteRules.brewFirst(true, false, true, 2, 2, true));
+        assertFalse(RouteRules.brewFirst(true, true, false, 2, 2, true));
+        assertFalse(RouteRules.brewFirst(true, true, true, 2, 2, false));
+    }
+
+    @Test
     public void theExitFirstDefendsOnlyABlazeInReachAndDrinksWithOneNear() {
         assertTrue(RouteRules.exitDefends(2.0));
         assertFalse(RouteRules.exitDefends(8.0));

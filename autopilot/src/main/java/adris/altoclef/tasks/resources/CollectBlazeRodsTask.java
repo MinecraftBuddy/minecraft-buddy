@@ -687,7 +687,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (box_home's sealed heal walls the look out as the brew box does: the same)
         boolean healBuilding = _healBox != null && _healBox.building();
         boolean brewBuilding = (_brewBox != null && _brewBox.building()) || healBuilding;
-        _fight.building(building || brewBuilding);
+        // (Tuning route_brew_first, a fix, on by default: two rods under the potion with the brew's kit, the brew next, the fight
+        // as while a box goes up, and no hiding place below, brewFirstDue)
+        boolean brewFirst = brewFirstDue(mod);
+        _fight.building(building || brewBuilding || brewFirst);
         java.util.Set<BlockPos> exempt = building ? _pillbox.blocks() : java.util.Set.of();
         if (brewBuilding) {
             exempt = new java.util.HashSet<>(exempt);
@@ -788,7 +791,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
 
         // (the buddy's fork: a crowd about, so into a hiding place of the fight's and the looks from it, see BlazeFight.noteCrowd)
-        Task hide = _fight.hideTask(mod);
+        Task hide = brewFirst ? null : _fight.hideTask(mod);
         // (the buddy's fork, Tuning lure_cap, off by default: a hide that drew no blaze into reach for the cap is over, its
         // pocket barred, BlazeFight.hideCapped; the camp's own corner as the hiding place is dropped too, and the tick goes on
         // as with no hide)
@@ -2126,6 +2129,29 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         setDebugState("Back to the portal");
         return _exitWalk;
+    }
+
+    // (Tuning route_brew_first) whether the brew comes before the hiding place and the chase this tick: the route's brew not
+    // begun nor given up, the trade not the fire for every rod, fire resistance on, two rods and the brew's kit in the bag
+    // (RouteRules.brewFirst), a spawner known and the errand over. said once a run
+    private boolean _brewFirstSaid;
+
+    private boolean brewFirstDue(AltoClef mod) {
+        if (!adris.altoclef.util.helpers.RouteRules.brewFirstOn() || _brewSince >= 0 || _brewGaveUp || _healBox != null
+                || _foundBlazeSpawner == null || _errandOn || WorldHelper.getTicks() < _brewWaitUntil || tradeFireDone(mod)) return false;
+        int water = PotionHelper.count(mod, Potions.WATER);
+        boolean bases = water + PotionHelper.count(mod, Potions.AWKWARD) > 0 && BrewFireResistanceTask.fireRes(mod) < BrewRules.BATCH;
+        boolean wart = water == 0 || mod.getItemStorage().hasItem(Items.NETHER_WART);
+        boolean cream = adris.altoclef.util.helpers.SlimeCream.have(mod);
+        int rodsWanted = (mod.getItemStorage().hasItem(Items.BREWING_STAND) ? 0 : 1) + (mod.getItemStorage().hasItem(Items.BLAZE_POWDER) ? 0 : 1);
+        int rods = mod.getItemStorage().getItemCount(Items.BLAZE_ROD);
+        boolean due = adris.altoclef.util.helpers.RouteRules.brewFirst(adris.altoclef.util.helpers.FireRes.has(mod.getPlayer()), wart, cream,
+                rods, rodsWanted, bases);
+        if (due && !_brewFirstSaid) {
+            _brewFirstSaid = true;
+            Debug.logInternal("brew: first, " + rods + " rods under the potion: only a blaze that bites is fought and no hiding place taken till the brew begins");
+        }
+        return due;
     }
 
     // (Tuning route_exit_first) whether the exit comes first this tick: an order of rods of its own with its count in the bag,

@@ -132,6 +132,9 @@ public final class Tuning {
             // its cap counts its own ticks, a walk with no progress tries the portal's surroundings and then the next portal, and
             // a give-up stops the walk; phase 7 lost 10 of 30 runs at the spawner, RouteRules.exitFirstOn)
             java.util.Map.entry("route_exit_first", 1.0),
+            // (11 Nov 2026, a fix: two rods under the potion with the brew's kit, the brew comes before the hiding place and the
+            // chase; 4 of phase 4's 30 deaths had two rods or more under the potion and no brew begun, RouteRules.brewFirstOn)
+            java.util.Map.entry("route_brew_first", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
             // (route jar 3: on the way, before the spawner fight, the potion goes down only in lava for 2 s or at 12 hp, or

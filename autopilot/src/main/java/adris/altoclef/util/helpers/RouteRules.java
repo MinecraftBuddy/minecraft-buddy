@@ -707,6 +707,22 @@ public final class RouteRules {
         return null;
     }
 
+    // ---- the brew first (Tuning route_brew_first, a fix of 11 Nov 2026, on by default). the route's phase 5 follows the
+    // first two rods: shut in the pillbox, the brew. it began only when the fight, the run and the hiding place left a lull,
+    // and at a busy spawner that never came: 4 of phase 4's 30 deaths (route-25, route-23, drankjes2 A) had two rods or more
+    // under the potion and no brew begun, the potion run out while the buddy hid or chased. with it: two rods in the bag,
+    // fire resistance on, the wart and the cream (or the ball) in the bag and something to brew, the fight fights only a
+    // blaze that bites (as while a pillbox goes up), no hiding place is taken, and the brew's box comes next
+    public static final int BREW_FIRST_RODS = 2;
+
+    public static boolean brewFirstOn() {
+        return Tuning.get("route_brew_first", 0) > 0;
+    }
+
+    public static boolean brewFirst(boolean fireResOn, boolean wart, boolean cream, int rods, int rodsWanted, boolean bases) {
+        return fireResOn && wart && cream && bases && rods >= Math.max(BREW_FIRST_RODS, rodsWanted);
+    }
+
     // ---- the exit first (Tuning route_exit_first, a fix of 11 Nov 2026, on by default). phase 7 lost 10 of the 30 runs that
     // began it in route-25 and route-23, every one at or by the spawner: the fight, the heal and the rod pickups came before
     // the exit, so the buddy fought on to 11-17 rods; the exit's cap counted the fight's time; and a walk given up fell
