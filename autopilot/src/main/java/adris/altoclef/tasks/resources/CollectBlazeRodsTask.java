@@ -1792,6 +1792,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // (a brew begun in the nether that has lost its cream: no far search for one, back to the blazes)
             boolean creamGone = !_brew.isFinished(mod) && WorldHelper.getCurrentDimension() == Dimension.NETHER
                     && BrewFireResistanceTask.wantsCream(mod);
+            // (the route's phase 6 as soon as the brew is done, its box's drink and door or not: with the line said only once the
+            // box was through, phase 6 began up to six minutes late and its deaths were counted as the brew's, brewfirst smoke
+            // runs 1 and 5. the phase steers nothing past RODS2, so this is the count alone)
+            if (_brew.isFinished(mod) && boxed) routePhase(adris.altoclef.util.helpers.RouteRules.RODS);
             if (_brew.isFinished(mod) && !boxed) {
                 _brewSince = -1;
                 routePhase(adris.altoclef.util.helpers.RouteRules.RODS);
