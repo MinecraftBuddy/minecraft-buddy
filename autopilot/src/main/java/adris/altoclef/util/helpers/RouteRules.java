@@ -187,6 +187,26 @@ public final class RouteRules {
         return on && wantWart && kit && !begun;
     }
 
+    // ---- the potion at a guarded wart (Tuning route_wart_drink, off; his yes of 11 Nov 2026, steering 157). of 20 whole-route
+    // runs that began phase 4 without wart (11 Nov 2026, 03:00-09:00), 12 had seen it and given it up: blazes by it (the wart
+    // room by the spawner) set off phase 3's walk-away every second or two, at the edge of their sight, so the walk never got
+    // closer. the traded potion is kept for the spawner; at such a wart it goes down there instead: the walk then goes on
+    // with no walk-away (a blaze's fireball does nothing under it), the wart is taken and the spawner fight follows under the
+    // same potion. a wart counts as guarded once the walk to it has been broken off by WART_DRINK_AWAYS walk-aways, within
+    // WART_DRINK_NEAR of it
+    public static final int WART_DRINK_AWAYS = 3;
+    public static final double WART_DRINK_NEAR = 64;
+
+    public static boolean wartDrinkOn() {
+        return Tuning.get("route_wart_drink", 0) > 0;
+    }
+
+    // whether the potion goes down at the wart now: the switch on, aways walk-aways since the wart was picked, d blocks off
+    // it, a potion in the bag and none in effect
+    public static boolean wartDrinks(boolean on, int aways, double d, boolean potion, boolean underIt) {
+        return on && aways >= WART_DRINK_AWAYS && d <= WART_DRINK_NEAR && potion && !underIt;
+    }
+
     // the far pass's own dead end, null to go on: sinceTicks of game time since it began against capTicks
     public static String wartFarDeadEnd(long sinceTicks, long capTicks) {
         return sinceTicks >= capTicks ? "the far pass along the fortress, no wart got in " + Math.round(capTicks / 20.0) + " s" : null;

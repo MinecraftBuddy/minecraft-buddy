@@ -463,6 +463,19 @@ public class RouteRulesTest {
     }
 
     @Test
+    public void wartDrinkAtAGuardedWart() {
+        // (route_wart_drink) the potion goes down at a wart only with the switch on, three walk-aways, within 64, a potion
+        // in the bag and none in effect
+        assertTrue(RouteRules.wartDrinks(true, 3, 30, true, false));
+        assertTrue(RouteRules.wartDrinks(true, 250, 64, true, false));
+        assertFalse(RouteRules.wartDrinks(false, 250, 30, true, false));
+        assertFalse(RouteRules.wartDrinks(true, 2, 30, true, false));
+        assertFalse(RouteRules.wartDrinks(true, 3, 65, true, false));
+        assertFalse(RouteRules.wartDrinks(true, 3, 30, false, false));
+        assertFalse(RouteRules.wartDrinks(true, 3, 30, true, true));
+    }
+
+    @Test
     public void wartFarPass() {
         // (route_wart_far) a dead end begins the far pass only with the switch on, the wart wanted, the kit there, once
         assertTrue(RouteRules.wartFarBegins(true, true, true, false));

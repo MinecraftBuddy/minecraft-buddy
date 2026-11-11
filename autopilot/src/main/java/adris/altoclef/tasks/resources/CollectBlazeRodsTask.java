@@ -149,6 +149,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private final java.util.Set<BlockPos> _wartGaveUp = new java.util.HashSet<>();
     // (Tuning route_wart_far, RouteRules.wartFarBegins) the far pass: the game time it began (-1 none) and its brick search
     private long _wartFarAt = -1;
+    // (Tuning route_wart_drink, RouteRules.wartDrinks) the fight's walk-aways when the wart held was picked, and the wart the
+    // potion went down for (said once)
+    private int _wartAwayBase;
+    private BlockPos _wartDrankFor;
+    private boolean _wartDrunk;
     private Task _wartFarSearch;
     private String _errandActSaid;
     private boolean _noBrewSaid;
@@ -1435,6 +1440,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
         long now = mod.getWorld().getGameTime();
         long gap = _errandClockAt < 0 || now < _errandClockAt ? 0 : now - _errandClockAt;
         _errandClockAt = now;
+        // (Tuning route_wart_drink: the potion asked for a guarded wart is asked for every tick till it is down, a walk-away
+        // in between or not; the wart walk itself runs only between them)
+        if (_wartDrankFor != null && !_wartDrunk && !adris.altoclef.util.helpers.FireRes.has(mod.getPlayer())
+                && FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.DRINK) > 0) {
+            adris.altoclef.util.helpers.FireRes.ask(now);
+        }
         int water = PotionHelper.count(mod, Potions.WATER);
         boolean kit = adris.altoclef.util.helpers.BrewErrandRules.kit(water + PotionHelper.count(mod, Potions.AWKWARD));
         String where = _fight.mode() != BlazeFightRules.Mode.CAMP || _fight.hidePlace() != null ? " (the blaze fight had the tick)" : "";
@@ -1537,6 +1548,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _wartStall = 0;
             _wartNear = 0;
             _wartWalkTicks = 0;
+            _wartAwayBase = _fight.awayStarts();
             _wartWalk = null;
             _wartBreak = null;
             _wartSaidAt = now;
@@ -1577,6 +1589,30 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_wartLastTick < 0 || now < _wartLastTick || now - _wartLastTick > adris.altoclef.util.helpers.BrewErrandRules.GAP_MAX) _wartBest = d;
         _wartLastTick = now;
         boolean near = mod.getChunkTracker().isChunkLoaded(at) && d <= adris.altoclef.util.helpers.RouteRules.WART_BREAK_NEAR;
+        // (Tuning route_wart_drink, his yes of steering 157: a wart the blazes guard gets the kept potion, once; the food chain
+        // drinks it as asked, FireRes.ask, and under it the walk's clocks start again from where the buddy stands)
+        boolean underIt = adris.altoclef.util.helpers.FireRes.has(me);
+        boolean potion = FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.DRINK) > 0;
+        if (!at.equals(_wartDrankFor)) {
+            int aways = _fight.awayStarts() - _wartAwayBase;
+            if (adris.altoclef.util.helpers.RouteRules.wartDrinks(adris.altoclef.util.helpers.RouteRules.wartDrinkOn(), aways, d, potion, underIt)) {
+                _wartDrankFor = at;
+                _wartDrunk = false;
+                Debug.logInternal("brew errand: the wart at " + at.toShortString() + " is guarded (" + aways + " walk-aways), the kept potion goes down for it ("
+                        + (int) Math.round(d) + " blocks off)");
+            }
+        }
+        if (at.equals(_wartDrankFor) && !_wartDrunk) {
+            if (underIt) {
+                _wartDrunk = true;
+                _wartStall = 0;
+                _wartWalkTicks = 0;
+                _wartBest = d;
+                Debug.logInternal("brew errand: under the potion, the walk to the wart at " + at.toShortString() + " goes on (" + (int) Math.round(d) + " blocks off)");
+            } else if (potion) {
+                adris.altoclef.util.helpers.FireRes.ask(mod.getWorld().getGameTime());
+            }
+        }
         if (adris.altoclef.util.helpers.RouteRules.wartCloser(_wartBest, d)) {
             _wartBest = d;
             _wartStall = 0;

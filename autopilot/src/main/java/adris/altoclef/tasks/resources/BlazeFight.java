@@ -157,6 +157,12 @@ final class BlazeFight {
     // at the spawner, 16 to 65 blocks from it, 7 of them with the potion kept for phase 4. the rods task sets it every tick
     private boolean errand;
     private boolean awayOn;
+    // the walk-aways begun in phase 3 so far (Tuning route_wart_drink counts them per wart, RouteRules.wartDrinks)
+    private int awayStarts;
+
+    int awayStarts() {
+        return awayStarts;
+    }
     static final double AWAY_RUN = BlazeFightRules.SIGHT_RANGE + 4;
 
     void errand(boolean on) {
@@ -877,13 +883,15 @@ final class BlazeFight {
             spotWatch.reset();
         }
         // (Tuning route_errand_away: in phase 3 a blaze with a line on the buddy is walked away from, in CAMP)
-        boolean away = errand && mode == Mode.CAMP && !packClose && !threats.isEmpty();
+        // (Tuning route_wart_drink: under fire resistance in phase 3 a blaze's sight is no threat, its fireballs do nothing)
+        boolean fireproofErrand = adris.altoclef.util.helpers.RouteRules.wartDrinkOn() && adris.altoclef.util.helpers.FireRes.has(player);
+        boolean away = errand && mode == Mode.CAMP && !packClose && !threats.isEmpty() && !fireproofErrand;
         // (Tuning route_away_wall, with its walls: the walk away held out to AWAY_RUN. without it the walk ended the moment no
         // blaze in SIGHT_RANGE saw the buddy, at 20.0, and at 19.9 began again: two searches a second from one block, each
         // cancelled by the other, the buddy standing still at the edge of its sight for minutes (realfort-p3-zones run 4.B,
         // 92 times in 180 s; A's L39 a "standing still 1.5-2 min"). now, once begun, it goes on while one of the blazes it
         // went from is nearer than AWAY_RUN and some blaze saw the buddy within AWAY_HOLD_TICKS)
-        if (errand && mode == Mode.CAMP && !packClose && adris.altoclef.util.helpers.RouteRules.awayWallLive()) {
+        if (errand && mode == Mode.CAMP && !packClose && !fireproofErrand && adris.altoclef.util.helpers.RouteRules.awayWallLive()) {
             if (!threats.isEmpty()) {
                 awaySeenAt = now;
                 awayFrom.clear();
@@ -904,6 +912,7 @@ final class BlazeFight {
         }
         if (away != awayOn) {
             awayOn = away;
+            if (away) awayStarts++;
             double closest = Double.POSITIVE_INFINITY;
             for (Blaze b : threats) closest = Math.min(closest, player.distanceTo(b));
             if (away) Debug.logInternal(String.format(java.util.Locale.ROOT, "rods: phase 3, walking away from %d blaze(s) with a line on the buddy, the nearest %.1f off",
