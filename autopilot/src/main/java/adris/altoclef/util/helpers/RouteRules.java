@@ -193,9 +193,11 @@ public final class RouteRules {
     // closer. the traded potion is kept for the spawner; at such a wart it goes down there instead: the walk then goes on
     // with no walk-away (a blaze's fireball does nothing under it), the wart is taken and the spawner fight follows under the
     // same potion. a wart counts as guarded once the walk to it has been broken off by WART_DRINK_AWAYS walk-aways, within
-    // WART_DRINK_NEAR of it
+    // WART_DRINK_NEAR of it (64 in the first smoke, 11 Nov 2026: the walks the blazes held off were 82 to 137 from the wart
+    // in three of its four, the 20 runs read before gave up at 19 to 94; at 100 the walk on under the potion takes half a
+    // minute or so of its three)
     public static final int WART_DRINK_AWAYS = 3;
-    public static final double WART_DRINK_NEAR = 64;
+    public static final double WART_DRINK_NEAR = 100;
 
     public static boolean wartDrinkOn() {
         return Tuning.get("route_wart_drink", 0) > 0;

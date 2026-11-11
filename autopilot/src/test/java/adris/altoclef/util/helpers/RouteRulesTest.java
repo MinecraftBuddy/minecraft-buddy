@@ -464,13 +464,13 @@ public class RouteRulesTest {
 
     @Test
     public void wartDrinkAtAGuardedWart() {
-        // (route_wart_drink) the potion goes down at a wart only with the switch on, three walk-aways, within 64, a potion
+        // (route_wart_drink) the potion goes down at a wart only with the switch on, three walk-aways, within 100, a potion
         // in the bag and none in effect
         assertTrue(RouteRules.wartDrinks(true, 3, 30, true, false));
-        assertTrue(RouteRules.wartDrinks(true, 250, 64, true, false));
+        assertTrue(RouteRules.wartDrinks(true, 250, 100, true, false));
         assertFalse(RouteRules.wartDrinks(false, 250, 30, true, false));
         assertFalse(RouteRules.wartDrinks(true, 2, 30, true, false));
-        assertFalse(RouteRules.wartDrinks(true, 3, 65, true, false));
+        assertFalse(RouteRules.wartDrinks(true, 3, 101, true, false));
         assertFalse(RouteRules.wartDrinks(true, 3, 30, false, false));
         assertFalse(RouteRules.wartDrinks(true, 3, 30, true, true));
     }
