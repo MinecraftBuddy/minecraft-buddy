@@ -117,6 +117,9 @@ public final class Tuning {
             // (11 Nov 2026, test slijm confirmed on cascade: a slime ball in the bag stands for the brew's cream, phase 3 fetches
             // the wart alone, SlimeCream; phase 3 passed with the ball 40 of 60 pairs, without 11)
             java.util.Map.entry("route_slime_cream", 1.0),
+            // (11 Nov 2026, a fix: past phase 3 a burn with a blaze within 24 lets the kept potion go off the spawner's ten
+            // blocks too, RouteRules.wayBlazeLetGo)
+            java.util.Map.entry("route_way_blaze", 1.0),
             // (route jar 13, 9 Nov 2026: chunks the explore's rings failed to reach twice are passed over, ExploreProcess.Unreachable)
             java.util.Map.entry("explore_ban", 1.0),
             java.util.Map.entry("ghast_wait_double", 1.0),

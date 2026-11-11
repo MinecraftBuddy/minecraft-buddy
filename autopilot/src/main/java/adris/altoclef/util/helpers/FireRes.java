@@ -144,9 +144,17 @@ public final class FireRes {
     private static volatile long routeUnreadyAt = Long.MIN_VALUE / 2;
 
     public static void routeHolds(long now, boolean fightBegun, boolean ready) {
+        routeHolds(now, fightBegun, ready, fightBegun);
+    }
+
+    // pastErrand: the route past phase 3 (the first two rods on), RouteRules.wayBlazeLetGo
+    private static volatile boolean routePast = false;
+
+    public static void routeHolds(long now, boolean fightBegun, boolean ready, boolean pastErrand) {
         routeAt = now;
         routeFight = fightBegun;
         routeReady = ready;
+        routePast = pastErrand;
     }
 
     // (Tuning route_hold_way, on by default, route jar 3: RouteRules.wayLetGo) on the way the say lasts WAY_FRESH: the mob
@@ -173,6 +181,8 @@ public final class FireRes {
             long lava = lavaTicks(inLava, now);
             String why = RouteRules.wayLetGo(asked, inLava, lava, Math.round(RouteRules.WAY_LAVA_S * 20), e.isOnFire(), e.getHealth(),
                     Tuning.get("route_hold_lava_hp", RouteRules.WAY_LAVA_HP), Tuning.get("route_hold_burn_hp", RouteRules.WAY_BURN_HP));
+            // (Tuning route_way_blaze, on by default: past phase 3 a burn among the blazes is their fight, RouteRules.wayBlazeLetGo)
+            if (why == null && RouteRules.wayBlazeOn()) why = RouteRules.wayBlazeLetGo(routePast, e.isOnFire(), blaze);
             if (why != null) {
                 if (FireResTradeRules.newEpisode(routeLetAt, now)) {
                     Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion goes down on the way, %s (%.1f hp, nearest blaze %s)",

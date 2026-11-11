@@ -467,6 +467,23 @@ public final class RouteRules {
         return null;
     }
 
+    // and past phase 3 (the first two rods on) but out of the spawner's FIGHT_NEAR: a burn with a blaze within WAY_BLAZE is the
+    // blazes' fight, not the way's, so the potion goes down at once (Tuning route_way_blaze, on by default; 11 Nov 2026, a
+    // fix: a traded potion ran out on a rim 16 blocks from nine blazes, the next waited for 10 hp under the way's rule, and the
+    // buddy burned to 12.5 hp, ran off the rim and died with it in the bag). phase 3's fights keep the way's rule
+    public static final double WAY_BLAZE = 24;
+
+    public static boolean wayBlazeOn() {
+        return Tuning.get("route_way_blaze", 0) > 0;
+    }
+
+    // why the potion kept goes down now among the blazes past phase 3, null while the way's rule holds. blaze: the nearest
+    // one (blocks), infinite for none
+    public static String wayBlazeLetGo(boolean pastErrand, boolean onFire, double blaze) {
+        if (pastErrand && onFire && blaze <= WAY_BLAZE) return "on fire among the blazes (" + Math.round(blaze) + " off)";
+        return null;
+    }
+
     // the spawner fight has begun for the potion's sake: the buddy this close to the spawner (blocks), the route past phase 3
     public static final double FIGHT_NEAR = 10;
 

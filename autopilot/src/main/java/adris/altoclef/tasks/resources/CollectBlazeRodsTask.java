@@ -473,7 +473,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
                         || (_campSpot != null && _campSpot.closerToCenterThan(me.position(), CAMP_RADIUS));
                 ready = adris.altoclef.util.helpers.RouteRules.fightReady(atCamp, atCamp ? 0 : nearestSeenBlaze(mod, me));
             }
-            adris.altoclef.util.helpers.FireRes.routeHolds(mod.getWorld().getGameTime(), begun, ready);
+            adris.altoclef.util.helpers.FireRes.routeHolds(mod.getWorld().getGameTime(), begun, ready,
+                    _routePhase >= adris.altoclef.util.helpers.RouteRules.RODS2);
         }
         noteRods(mod);
         campDry(mod);

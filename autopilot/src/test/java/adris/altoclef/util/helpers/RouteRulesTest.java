@@ -346,6 +346,18 @@ public class RouteRulesTest {
     }
 
     @Test
+    public void pastPhaseThreeABurnAmongTheBlazesLetsThePotionGo() {
+        // drankjes B run 4: on a rim, on fire at 17.5 hp, the nearest of nine blazes 16 off
+        assertEquals("on fire among the blazes (16 off)", RouteRules.wayBlazeLetGo(true, true, 16.2));
+        // phase 3's fights keep the way's rule
+        assertNull(RouteRules.wayBlazeLetGo(false, true, 16.2));
+        // not on fire, or no blaze near: the way's rule
+        assertNull(RouteRules.wayBlazeLetGo(true, false, 10));
+        assertNull(RouteRules.wayBlazeLetGo(true, true, 30));
+        assertNull(RouteRules.wayBlazeLetGo(true, true, Double.POSITIVE_INFINITY));
+    }
+
+    @Test
     public void aPillboxEveryEyeSeesBuildingIsNotBuilt() {
         assertTrue(BlazePillbox.tooOpen(1.0));
         assertTrue(BlazePillbox.tooOpen(0.9));
