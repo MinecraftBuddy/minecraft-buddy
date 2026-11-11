@@ -755,6 +755,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
 
         // (the buddy's fork: a pillbox under way goes up before the hiding and the looks; the fight above comes first)
+        adoptPillbox();
         if (_pillbox != null && !_pillbox.isFinished(mod)) {
             setDebugState("Building a pillbox by the spawner");
             return _pillbox;
@@ -1925,6 +1926,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (adris.altoclef.util.helpers.Tuning.get("route_brew_pillbox", 0) <= 0 || _foundBlazeSpawner == null
                 || !adris.altoclef.util.helpers.BrewBox.inPillbox(adris.altoclef.util.helpers.Tuning.get("brew_box", 0))) return null;
         if (_pillbox != null && _pillboxCornered) return null;
+        adoptPillbox();
         if (_pillbox != null && !_pillbox.isFinished(mod)) {
             setDebugState("Building the pillbox for the brew");
             return _pillbox;
@@ -2165,6 +2167,17 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private long _campWalkStall;
     private long _campWalkAt = -1;
     private boolean _campWalkNear;
+
+    // (a fix of 11 Nov 2026) a pillbox made anew at the cell of the one still running as this task's child is the same box to the
+    // task runner, which keeps the old child (BlazePillboxTask.isEqual compares the cell): the old one, built, said so 20
+    // times a second, the new one never ran, so the box never counted as standing and the brew waited 108 s (look 54,
+    // route-27-mc2 run 9; route-12-mc3 run 53 and p3-slime-c 30.B the same). the running child is taken as the box
+    private void adoptPillbox() {
+        if (_pillbox != null && subTask() instanceof BlazePillboxTask old && old != _pillbox && old.isActive() && old.isEqual(_pillbox)) {
+            Debug.logInternal("pillbox: the box at " + _pillbox.cell().toShortString() + " is the one already under way, taken over");
+            _pillbox = old;
+        }
+    }
 
     // whether the buddy is at the camp: within campRadius of its centre, or (Tuning camp_near) at the near walk's own end, the
     // feet block within CAMP_RADIUS of the camp's block as GetWithinRangeOfBlockTask counts it. the two differ on the floor
