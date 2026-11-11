@@ -1057,7 +1057,21 @@ public final class FireResTrade {
         }
 
         boolean tradeable(AltoClef mod, Entity entity) {
-            return freeButHoglin(entity) && !hoglinNear(mod, entity);
+            return freeButHoglin(entity) && !hoglinNear(mod, entity) && !cubeNear(mod, entity);
+        }
+
+        // (Tuning route_trade_cube_pick, a fix, on by default: a piglin with a live magma cube within the trade's cube distance
+        // and its clear margin, RouteRules.tradeCube and TRADE_CUBE_CLEAR, is passed over as one by a hoglin. picked, the walk
+        // to it crossed into the cube's distance, cubeAway walked off the cubes and came back once clear: 146 turns in seven
+        // minutes with no ingot handed, the piglins 4 blocks from a cube that never moved, route-29-mc3 run 43, 11 Nov 2026)
+        private static boolean cubeNear(AltoClef mod, Entity piglin) {
+            double near = RouteRules.tradeCube();
+            if (near <= 0 || Tuning.get("route_trade_cube_pick", 1) <= 0) return false;
+            double bar = near + RouteRules.TRADE_CUBE_CLEAR;
+            for (MagmaCube cube : mod.getEntityTracker().getTrackedEntities(MagmaCube.class)) {
+                if (cube.isAlive() && cube.distanceTo(piglin) <= bar) return true;
+            }
+            return false;
         }
 
         // an adult piglin alive, not left alone and not admiring an ingot: free to take gold but for a hoglin

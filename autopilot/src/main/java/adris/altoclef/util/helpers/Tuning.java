@@ -84,6 +84,9 @@ public final class Tuning {
             // RouteRules, BlazeFightRules, ItemPickupRules, FireResTrade.burnThrow)
             java.util.Map.entry("route_cube_alone", 6.0),
             java.util.Map.entry("route_trade_cube", 6.0),
+            // (11 Nov 2026, a fix: a piglin with a magma cube within the cube distance and its clear margin is passed over, as one
+            // by a hoglin; the walk to it and the walk off the cubes took turns 146 times in seven minutes, FireResTrade.cubeNear)
+            java.util.Map.entry("route_trade_cube_pick", 1.0),
             java.util.Map.entry("brew_keep_stone", 3.0),
             java.util.Map.entry("hide_one_range", 1.0),
             java.util.Map.entry("route_potion_edge", 1.0),
