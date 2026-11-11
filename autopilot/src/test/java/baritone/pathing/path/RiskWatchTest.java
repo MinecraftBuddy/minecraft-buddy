@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -122,6 +124,8 @@ public class RiskWatchTest {
             System.setProperty("buddy.tuning", tuningWas);
         }
         RiskField.clear(0);
+        RiskField.alert(false);
+        RiskField.taskWalk(false);
     }
 
     private static MapWorld floor() {
@@ -201,5 +205,71 @@ public class RiskWatchTest {
         String more = walk.check(away, 0, ctx, FEET, clock + 1000);
         assertNotNull(more);
         assertTrue(more, more.startsWith("more"));
+    }
+
+    private static void route() throws Exception {
+        Files.writeString(Path.of(System.getProperty("buddy.tuning")), "risk_flee=1\nrisk_mobs=0\n");
+        Tuning.now("risk_mobs", 0);
+        RiskField.taskWalk(true);
+    }
+
+    // S137, a place goal by a safer route: under risk_flee a walk is watched while the meter is over calm. one planned in
+    // calm planned for no risk, so the first check that finds a mob on the rest plans again; the rest's expected hp is
+    // there for the go or flee
+    @Test
+    public void aWalkPlannedInCalmPlansAgainOnceTheMeterIsOverCalm() throws Exception {
+        route();
+        RiskField.clear(0);
+        RiskField.alert(false);
+        Ctx ctx = new Ctx(floor());
+        IPath way = path(ctx, new GoalBlock(12, 64, 0));
+        RiskWatch walk = new RiskWatch();
+        walk.planned(false);
+        // calm, a zombie on the way or not: not watched
+        RiskField.offer(1, null, false, List.of(zombie(7, 6.5, 0.5)));
+        assertNull(walk.check(way, 0, ctx, FEET, clock));
+        assertTrue(Double.isNaN(walk.expected(0)));
+        // the meter over calm: watched, and planned again at the first look
+        RiskField.alert(true);
+        String more = walk.check(way, 0, ctx, FEET, clock + 1);
+        assertNotNull(more);
+        assertTrue(more, more.startsWith("more"));
+        assertTrue(walk.expected(0) > 1);
+        // past the zombie the rest costs less
+        assertTrue(walk.expected(way.movements().size() - 1) < walk.expected(0));
+    }
+
+    @Test
+    public void aWalkThatPricedTheMobsKeepsItsOwnBaseline() throws Exception {
+        route();
+        RiskField.clear(0);
+        RiskField.alert(true);
+        RiskField.offer(1, null, false, List.of(zombie(7, 6.5, 0.5)));
+        Ctx ctx = new Ctx(floor());
+        IPath way = path(ctx, new GoalBlock(12, 64, 0));
+        RiskWatch walk = new RiskWatch();
+        walk.planned(true);
+        assertNull(walk.check(way, 0, ctx, FEET, clock));
+        assertFalse(Double.isNaN(walk.expected(0)));
+        // calm again and nothing remembered: not watched, nothing to say
+        RiskField.alert(false);
+        assertNull(walk.check(way, 0, ctx, FEET, clock + 50));
+        assertTrue(Double.isNaN(walk.expected(0)));
+        // a fight has the wheel: not the task's walk, not watched
+        RiskField.alert(true);
+        RiskField.taskWalk(false);
+        assertNull(walk.check(way, 0, ctx, FEET, clock + 55));
+        assertTrue(Double.isNaN(walk.expected(0)));
+        RiskField.taskWalk(true);
+        // a remembered mob in the field keeps the watch on in calm
+        RiskField.alert(true);
+        assertNull(walk.check(way, 0, ctx, FEET, clock + 60));
+        assertEquals(1, RiskField.remember(clock + 60));
+        RiskField.alert(false);
+        // (the field's clock is the memory's: a tick after the mob was remembered)
+        RiskField.offer(clock + 61, null, false, List.of());
+        assertTrue(RiskField.current().remembers());
+        assertNull(walk.check(way, 0, ctx, FEET, clock + 70));
+        assertFalse(Double.isNaN(walk.expected(0)));
     }
 }

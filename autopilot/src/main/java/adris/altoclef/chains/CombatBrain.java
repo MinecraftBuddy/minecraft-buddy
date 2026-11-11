@@ -143,12 +143,95 @@ final class CombatBrain {
     // end. asked only while the meter is at flee or a run is on (the commitment reads it nowhere else)
     private boolean calmHere(AltoClef mod, LocalPlayer player, long now, adris.altoclef.util.helpers.DangerMeter.Level level) {
         if (level != adris.altoclef.util.helpers.DangerMeter.Level.FLEE && _commit.mode() != Mode.RUN) return false;
+        return probe(mod, now).isInGoal(player.blockPosition());
+    }
+
+    // the flee goal as the game thread's look at the newest field
+    private GoalFlee probe(AltoClef mod, long now) {
         if (_fleeProbe == null || now < _fleeProbeAt || now - _fleeProbeAt >= PROBE_TICKS) {
             _fleeProbe = FleeTask.goal(mod);
             _fleeProbeAt = now;
         }
         _fleeProbe.refresh();
-        return _fleeProbe.isInGoal(player.blockPosition());
+        return _fleeProbe;
+    }
+
+    // (S137, a place goal by a safer route; Tuning risk_flee_route) the answer before, and when; when the wait for the
+    // walk's search began; and the answer last logged
+    private boolean _going;
+    private long _goingAt = Long.MIN_VALUE / 2;
+    private long _routeWait = -1;
+    private Boolean _routeSaid;
+    private long _routeSaidAt = Long.MIN_VALUE / 2;
+    private static final long ROUTE_SAY_TICKS = 200;
+
+    // the meter says flee, and the task is on its way to a place or at work there: whether the buddy goes (RouteRisk). asked
+    // only at flee, with no run on, and never at the last ditch (hp less the loss within the meter's horizon at the margin
+    // is a run whatever the goal)
+    private boolean goalWay(AltoClef mod, LocalPlayer player, long now, adris.altoclef.util.helpers.DangerMeter.Level level) {
+        if (level != adris.altoclef.util.helpers.DangerMeter.Level.FLEE || _commit.mode() == Mode.RUN
+                || !adris.altoclef.util.helpers.RouteRisk.on()) {
+            _routeWait = -1;
+            return false;
+        }
+        boolean going = _going && now >= _goingAt && now - _goingAt <= adris.altoclef.util.helpers.RouteRisk.GOING_TICKS;
+        boolean go = !adris.altoclef.util.helpers.DangerShadow.lastDitch() && routeGo(mod, player, now, going);
+        _going = go;
+        if (go) _goingAt = now;
+        return go;
+    }
+
+    private boolean routeGo(AltoClef mod, LocalPlayer player, long now, boolean going) {
+        Object world = mod.getWorld();
+        if (!adris.altoclef.util.helpers.TaskGoal.hasWheel(now, world)) {
+            _routeWait = -1;
+            return false;
+        }
+        double hp = player.getHealth() + player.getAbsorptionAmount();
+        var pathing = mod.getClientBaritone().getPathingBehavior();
+        baritone.pathing.path.PathExecutor current = pathing.getCurrent();
+        baritone.api.pathing.goals.Goal walking = adris.altoclef.util.helpers.TaskGoal.walking(now, world);
+        if (walking != null && current != null && adris.altoclef.util.helpers.TaskGoal.place(current.getPath().getGoal())) {
+            double way = current.riskAhead();
+            // (not checked against the field yet: the wait below)
+            if (!Double.isNaN(way)) {
+                _routeWait = -1;
+                var dest = current.getPath().getDest();
+                boolean ends = current.getPath().getGoal().isInGoal(dest.x, dest.y, dest.z);
+                return routeSay(hp, way, ends ? probe(mod, now).rate(dest.x, dest.y, dest.z) : 0, going, now, player);
+            }
+        } else {
+            // at the place: the buddy stands in the goal the task's walk had, the work there
+            long work = Math.round(adris.altoclef.util.helpers.RouteRisk.work() * 20);
+            baritone.api.pathing.goals.Goal place = adris.altoclef.util.helpers.TaskGoal.within(now, world, work);
+            BlockPos feet = player.blockPosition();
+            if (place != null && place.isInGoal(feet.getX(), feet.getY(), feet.getZ())) {
+                _routeWait = -1;
+                return routeSay(hp, 0, probe(mod, now).rate(feet.getX(), feet.getY(), feet.getZ()), going, now, player);
+            }
+            if (walking == null || (current != null && pathing.getInProgress().isEmpty())) {
+                _routeWait = -1;
+                return false;
+            }
+        }
+        // the walk's search is under way, or its path is not checked yet: a second for it
+        if (_routeWait < 0 || now < _routeWait) _routeWait = now;
+        return now - _routeWait <= adris.altoclef.util.helpers.RouteRisk.WAIT_TICKS;
+    }
+
+    // the answer for a way and the goal's rate (hp a second at the goal's cell, 0 where the way does not end at the goal),
+    // with its line when the answer changed, and every ten seconds while it stands
+    private boolean routeSay(double hp, double way, double rate, boolean going, long now, LocalPlayer player) {
+        boolean inDanger = rate >= GoalFlee.calm();
+        double stay = inDanger ? rate * adris.altoclef.util.helpers.RouteRisk.work() : 0;
+        boolean go = adris.altoclef.util.helpers.RouteRisk.go(hp, way, stay, inDanger, going);
+        if (_routeSaid == null || _routeSaid != go || now < _routeSaidAt || now - _routeSaidAt >= ROUTE_SAY_TICKS) {
+            _routeSaid = go;
+            _routeSaidAt = now;
+            Debug.logInternal(adris.altoclef.util.helpers.RouteRisk.line(go, hp, way, stay, inDanger) + ", at " + player.getBlockX() + ","
+                    + player.getBlockY() + "," + player.getBlockZ());
+        }
+        return go;
     }
     private KillEntityTask _fight;
     private final HealUpTask _healUp = new HealUpTask();
@@ -586,7 +669,8 @@ final class CombatBrain {
             // (S137 step 3, Tuning risk_flee: the danger meter decides the runs, where it reads, and the mob field says whether
             // the flee search has anywhere calmer to go than the cell the buddy is in)
             adris.altoclef.util.helpers.DangerMeter.Level steering = GoalFlee.on() ? adris.altoclef.util.helpers.DangerShadow.steering() : null;
-            _commit.meter(steering, steering != null && calmHere(mod, player, now, steering));
+            _commit.meter(steering, steering != null && calmHere(mod, player, now, steering),
+                    steering != null && goalWay(mod, player, now, steering));
             Event event = _commit.step(new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
                     way(mod, mobs, foes).withRim(rim).withLavaClose(lavaClose), armed(mod, foes), tryingToMove(mod, player), creeperRepeat, body(mod, dimension),
                     boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player)));
@@ -618,6 +702,14 @@ final class CombatBrain {
                 // a new run is a new origin, a new fight is a new target, whatever the old ones were
                 _run = null;
                 _flee = null;
+                // (the memory, Tuning risk_memory_s: a run for the danger meter gives the task's way up for what is in the
+                // mob field now. those mobs stay in the field after they lose interest, so the next search still pays for
+                // them and the walk does not go to and fro between two groups)
+                if (_commit.mode() == Mode.RUN && _commit.why() == CombatCommit.Why.DANGER
+                        && (event == Event.RUN_START || event == Event.FIGHT_TO_RUN)) {
+                    int kept = adris.altoclef.util.helpers.RiskField.remember(now);
+                    if (kept > 0) Debug.logInternal("risk memory: " + kept + " more kept (a run for the danger meter began)");
+                }
                 // the nether sweep keeps off the spot we were chased out of by a heavy hitter (nether coordinates only, the
                 // zones mean nothing in another dimension)
                 if (dimension == Dimension.NETHER && _commit.mode() == Mode.RUN && _commit.why() == CombatCommit.Why.HEAVY

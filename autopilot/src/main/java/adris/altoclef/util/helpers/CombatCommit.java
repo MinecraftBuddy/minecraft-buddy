@@ -989,20 +989,29 @@ public final class CombatCommit {
     // ground and back. none starts before this tick: the fight, the cover and the task go on
     private long blindUntil = Long.MIN_VALUE / 2;
     public static final long BLIND_TICKS = 200;
+    // (risk_flee_route) the task is on its way to a place by a route the buddy outlives, or at work there (RouteRisk, the
+    // brain says): the meter's flee starts no run. the place is a reason to get there all the same; a fight that starts is
+    // not the task's walk any more and is under the meter's level again
+    private boolean goalWay;
 
     public void meter(DangerMeter.Level level) {
         meter(level, false);
     }
 
     public void meter(DangerMeter.Level level, boolean calmHere) {
+        meter(level, calmHere, false);
+    }
+
+    public void meter(DangerMeter.Level level, boolean calmHere, boolean goalWay) {
         meter = level;
         this.calmHere = level != null && calmHere;
+        this.goalWay = level != null && goalWay;
     }
 
     // the meter at flee and somewhere calmer to go: not on ground the field prices calm, not while the field is known blind
-    // to what the meter counts
+    // to what the meter counts, and not while the task goes to its place by a route the buddy outlives
     private boolean meterFlee(Tick t) {
-        return meter == DangerMeter.Level.FLEE && !calmHere && !(t.now() >= blindUntil - BLIND_TICKS && t.now() < blindUntil);
+        return meter == DangerMeter.Level.FLEE && !calmHere && !goalWay && !(t.now() >= blindUntil - BLIND_TICKS && t.now() < blindUntil);
     }
 
     public DangerMeter.Level meter() {

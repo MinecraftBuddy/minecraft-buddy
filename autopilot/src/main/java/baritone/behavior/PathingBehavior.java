@@ -930,6 +930,10 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
             // (S137 step 2: the mobs that steered this search, for the walk's check against the mob field)
             executor.ifPresent(e -> e.shapedBy(RiskCost.shaped(pathfinder.risk(),
                     adris.altoclef.util.helpers.Tuning.get("risk_replan_less", RiskWatch.LESS))));
+            // (risk_flee_route: a path whose search did not price the mobs was planned for no risk; under risk_mobs every
+            // search prices what there is)
+            executor.ifPresent(e -> e.planned(adris.altoclef.util.helpers.Tuning.get("risk_mobs", 0) >= 1
+                    || (pathfinder.risk() != null && pathfinder.risk().mobsPriced)));
             if (current == null) {
                 if (executor.isPresent()) {
                     if (executor.get().getPath().positions().contains(expectedSegmentStart)) {

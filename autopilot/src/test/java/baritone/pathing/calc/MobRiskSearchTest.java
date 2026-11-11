@@ -116,6 +116,8 @@ public class MobRiskSearchTest {
             System.setProperty("buddy.tuning", tuningWas);
         }
         RiskField.clear(0);
+        RiskField.alert(false);
+        RiskField.taskWalk(false);
     }
 
     // a floor of stone at y 63, x -2 to 14 and z -8 to 8
@@ -183,5 +185,59 @@ public class MobRiskSearchTest {
         assertEquals(0, off.shaped().length);
         assertEquals(1, on.shaped().length);
         assertEquals(7, on.shaped()[0]);
+    }
+
+    // the search as it stands: the keys and the field are the test's
+    private static Found route(boolean priced) throws Exception {
+        Ctx ctx = new Ctx(floor());
+        BetterBlockPos start = new BetterBlockPos(0, 64, 0);
+        AStarPathFinder pf = new AStarPathFinder(start, start.x, start.y, start.z, new GoalBlock(12, 64, 0), new Favoring(null, ctx), ctx);
+        Optional<IPath> p;
+        try {
+            ctx.claimSearchCaches();
+            p = pf.calculate0(10000, 10000);
+        } finally {
+            ctx.releaseSearchCaches();
+        }
+        assertTrue(p.isPresent());
+        RiskCost.Search risk = pf.risk();
+        assertNotNull(risk.mobs);
+        assertEquals(priced, risk.mobsPriced);
+        return new Found(p.get().postProcess().positions(), risk.mobLambda, RiskCost.shaped(risk, 1));
+    }
+
+    // S137, a place goal by a safer route: under risk_flee, with risk_mobs off, the walk's search prices the mobs only while
+    // the danger meter is over calm, with the flee search's lambda, or while the field remembers a mob a route was given
+    // up for
+    @Test
+    public void underRiskFleeThePathBendsWhileTheMeterIsOverCalmOrTheFieldRemembers() throws Exception {
+        Files.writeString(Path.of(System.getProperty("buddy.tuning")), "risk_flee=1\nrisk_mobs=0\n");
+        assertEquals(1, Tuning.now("risk_flee", 0), 0);
+        RiskField.clear(0);
+        RiskField.alert(false);
+        RiskField.taskWalk(true);
+        RiskField.offer(1, null, false, List.of(new RiskField.Source(7, MobThreat.of("zombie", 1), 6.5, 64, 1.5, 1, 1, true)));
+        Found calm = route(false);
+        assertEquals("walked straight in calm: " + calm.path(), 0, mostNegativeZ(calm.path()));
+        RiskField.alert(true);
+        // (a fight's walk is as it was)
+        RiskField.taskWalk(false);
+        assertEquals(0, mostNegativeZ(route(false).path()));
+        RiskField.taskWalk(true);
+        Found danger = route(true);
+        assertTrue("did not bend away: " + danger.path(), mostNegativeZ(danger.path()) <= -2);
+        // (the test's context is at 20 hp: twice the travel search's 80 ticks an hp)
+        assertEquals(2 * RiskCost.LAMBDA, danger.mobHp(), 1e-9);
+        // calm again, the zombie remembered and out of the live field: still priced where it was
+        assertEquals(1, RiskField.remember(2));
+        RiskField.alert(false);
+        RiskField.offer(3, null, false, List.of());
+        Found kept = route(true);
+        assertTrue("did not bend away from the remembered one: " + kept.path(), mostNegativeZ(kept.path()) <= -2);
+        // the key off: step 3 as it stood
+        Files.writeString(Path.of(System.getProperty("buddy.tuning")), "risk_flee=1\nrisk_flee_route=0\n");
+        Tuning.now("risk_flee", 0);
+        RiskField.alert(true);
+        assertEquals(0, mostNegativeZ(route(false).path()));
     }
 }

@@ -153,6 +153,17 @@ public class PathExecutor implements IPathExecutor, Helper {
         riskWatch.shapedBy(mobs);
     }
 
+    // (S137, risk_flee_route) whether the search that made this path priced the mob field
+    public void planned(boolean priced) {
+        riskWatch.planned(priced);
+    }
+
+    // the hp the mob field expects the rest of this path to cost, as of the walk's last check; NaN before one, and while
+    // the walk is not watched (RiskWatch)
+    public double riskAhead() {
+        return riskWatch.expected(pathPosition);
+    }
+
     public PathExecutor(PathingBehavior behavior, IPath path) {
         this.behavior = behavior;
         this.ctx = behavior.ctx;
@@ -1686,6 +1697,13 @@ public class PathExecutor implements IPathExecutor, Helper {
         }
         logDebug("The risk on the rest of the path changed: " + why + ". Cancelling.");
         adris.altoclef.Debug.logInternal("risk replan: " + why);
+        // (the memory: a route given up for more risk is given up for what is in the field now)
+        if (why.startsWith("more")) {
+            int kept = adris.altoclef.util.helpers.RiskField.remember(ctx.world().getGameTime());
+            if (kept > 0) {
+                adris.altoclef.Debug.logInternal("risk memory: " + kept + " more kept (the walk planned again for more risk)");
+            }
+        }
         releasedWhy = "risk replan";
         cancel();
         return true;

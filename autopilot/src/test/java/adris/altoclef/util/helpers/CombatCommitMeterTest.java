@@ -294,4 +294,22 @@ public class CombatCommitMeterTest {
         assertEquals(Event.FIGHT_TO_RUN, c.step(new Tick(t + 25, 10, 30, 0, List.of(zombie(1, 1, 3)), zombie(1, 1, 3), Way.NONE, true)));
         assertEquals(Why.DANGER, c.why());
     }
+
+    // S137, a place goal by a safer route: while the task goes to its place by a way the buddy outlives (the brain says), the
+    // meter's flee starts no run. a fight that starts is not the task's walk: the brain's word is off, and the meter decides
+    @Test
+    public void onAWayTheBuddyOutlivesTheMetersFleeStartsNoRun() {
+        CombatCommit c = new CombatCommit();
+        c.meter(Level.FLEE, false, true);
+        // nothing on the buddy: the task walks on
+        assertEquals(Event.NONE, c.step(tick(NOW, 20, 0)));
+        assertEquals(Mode.NONE, c.mode());
+        // a zombie on it is fought, not run from
+        assertEquals(Event.FIGHT_START, c.step(tick(NOW + 1, 20, 0, zombie(1, 1, 3))));
+        assertEquals(Mode.FIGHT, c.mode());
+        c.meter(Level.FLEE, false, false);
+        assertEquals(Event.FIGHT_TO_RUN, c.step(new Tick(NOW + 5, 20, 0, 0, List.of(zombie(1, 1, 3), zombie(2, 2, 3)), zombie(1, 1, 3),
+                Way.NONE, true)));
+        assertEquals(Why.DANGER, c.why());
+    }
 }

@@ -124,6 +124,18 @@ public final class DangerShadow {
     // the meter read the world at its last tick: alive, in the nether or the overworld
     private static boolean reading;
 
+    // (S137, decision 7 e) the last-ditch rule, whatever the goal: hp less the loss within the horizon is at the margin
+    // (the margin as the flee level holds it). asked where the meter is at flee
+    public static boolean lastDitch() {
+        return last.hp() - last.loss() <= DangerMeter.MARGIN * (1 + DangerMeter.BAND);
+    }
+
+    // (the memory, RiskField) a remembered mob that is not loaded and whose last place is within this of the buddy is gone:
+    // dead or despawned in view. farther off it only went out of the client's sight
+    private static final double GONE_RANGE = 32;
+    // the mob behind the last hit, till the next reading remembers it
+    private static int hitBy = -1;
+
     // the last reading (the risk for a line)
     public static Reading last() {
         return last;
@@ -177,6 +189,9 @@ public final class DangerShadow {
             lastSource = null;
             pendingKind = null;
             RiskField.clear(0);
+            RiskField.alert(false);
+            RiskField.taskWalk(false);
+            TaskGoal.clear();
             reading = false;
             return;
         }
@@ -212,8 +227,20 @@ public final class DangerShadow {
         wasDead = dead;
         hp2 = dead ? 0 : hp1;
         hp1 = dead ? 0 : hp;
-        if (dead || !watched) RiskField.clear(level.getGameTime());
+        if (dead || !watched) {
+            RiskField.clear(level.getGameTime());
+            RiskField.alert(false);
+            hitBy = -1;
+        }
         reading = watched && !dead;
+        // (S137, a place goal by a safer route: where the task's own walk is headed, read while the task has the wheel)
+        boolean taskHasWheel = !dead && mod.getTaskRunner().getCurrentTaskChain() == mod.getUserTaskChain();
+        RiskField.taskWalk(taskHasWheel);
+        if (dead) {
+            TaskGoal.clear();
+        } else {
+            TaskGoal.note(level.getGameTime(), level, taskHasWheel, mod.getClientBaritone().getPathingBehavior().getGoal());
+        }
         if (dead) return;
         if (!watched) {
             last = DangerMeter.none(hp);
@@ -232,6 +259,8 @@ public final class DangerShadow {
         if (goalTrack.step(tick, goal) && goalOn() && (goalOwn > 0 || goalTrack.level() != track.level())) {
             Debug.logInternal(DangerMeter.goalLine(goalTrack.level(), goal, track.level(), reading, goalOwn) + at());
         }
+        // (risk_flee_route: over calm, the walk's searches price the mob field)
+        RiskField.alert((goalOn() ? goalTrack.level() : track.level()) != Level.CALM);
         boolean progress = progress(level, player);
         DangerMeter.Patience.Ended ended = patience.step(tick, track.level(), reading.t(), hp, progress);
         if (ended != null) Debug.logInternal(DangerMeter.patienceLine(ended));
@@ -249,6 +278,8 @@ public final class DangerShadow {
         if (source != null && source != lastSource) {
             if (pendingKind != null) flushHit(pendingLow);
             pendingKind = kindOf(source);
+            // (the memory: the mob behind a hit is one a route is given up for)
+            if (source.getEntity() instanceof Mob) hitBy = source.getEntity().getId();
             pendingBefore = Math.max(hp1, hp2);
             pendingLow = hp;
             pendingAt = tick;
@@ -360,7 +391,24 @@ public final class DangerShadow {
             }
         }
         pendingAfter = afterNow;
+        // (the memory: a remembered mob out of the live field is where it is now while the client has it; dead, or gone
+        // while the buddy is near its place, it is forgotten)
+        java.util.Set<Integer> live = new java.util.HashSet<>();
+        for (RiskField.Source s : field) live.add(s.id());
+        for (RiskField.Source kept : RiskField.remembered()) {
+            if (live.contains(kept.id())) continue;
+            Entity e = level.getEntity(kept.id());
+            if (e instanceof Mob mob && mob.isAlive()) {
+                RiskField.moved(kept.id(), mob.getX(), mob.getY(), mob.getZ());
+            } else if (e != null || player.distanceToSqr(kept.x(), kept.y(), kept.z()) <= GONE_RANGE * GONE_RANGE) {
+                RiskField.forget(kept.id());
+            }
+        }
         RiskField.offer(now, level, fireRes, field);
+        if (hitBy >= 0) {
+            if (RiskField.remember(hitBy, now)) Debug.logInternal("risk memory: 1 more kept (a hit)");
+            hitBy = -1;
+        }
         List<Hazard> hazards = hazards(level, player);
         threats = forced ? threats(us, mobs, bodies, hazards) : List.of();
         Reading reading = DangerMeter.read(us, mobs, hazards);

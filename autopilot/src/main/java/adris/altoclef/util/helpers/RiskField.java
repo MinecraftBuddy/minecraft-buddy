@@ -3,7 +3,9 @@ package adris.altoclef.util.helpers;
 import baritone.pathing.movement.CliffAvoidance.Cells;
 import it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -20,6 +22,13 @@ import java.util.function.Predicate;
 //   shots: its hp a second at that distance (the aimed share), when the cell is in its range and in sight of its eye: no
 //     block that spans its cell on the line (Cells.blocksSight; fire and a fence are no cover)
 // both times its want (DangerMeter.wantsToHurt) and its armour scale for us (DangerMeter.scale)
+// the memory (S137, a place goal by a safer route; Tuning risk_memory_s, under risk_flee): the live field forgets a mob a few
+// seconds after it stops wanting the buddy, so a route given up for one group of blazes was free again as soon as the buddy
+// looked at the next group, and the walk went to and fro between them. the mobs a route was given up for (a run for the
+// danger meter began, the walk planned again for more risk, one of them hit) are remembered: once such a mob is out of the
+// live field it stays a source at the place it was last seen, at the want it had, for risk_memory_full_s, then fading to
+// nothing at risk_memory_s. the next search still pays for the first group while it looks at the second. a mob seen dead,
+// or gone while the buddy is near its place, is forgotten at once (the game side says, DangerShadow)
 public final class RiskField {
 
     // a mob that moved less than this since the last version keeps that version
@@ -28,8 +37,13 @@ public final class RiskField {
     static final double OUR_EYE = 1.62;
 
     // a mob as the field prices it: its entity id, its row, its feet, how much it wants us (0.5 or 1), the ratio its
-    // iron-and-Normal numbers take for our armour and the difficulty, and whether it has a way to us on foot
-    public record Source(int id, MobThreat row, double x, double y, double z, double want, double scale, boolean way) {}
+    // iron-and-Normal numbers take for our armour and the difficulty, and whether it has a way to us on foot. kept: not in
+    // the live field now, remembered (the memory): its last place, its want faded
+    public record Source(int id, MobThreat row, double x, double y, double z, double want, double scale, boolean way, boolean kept) {
+        public Source(int id, MobThreat row, double x, double y, double z, double want, double scale, boolean way) {
+            this(id, row, x, y, z, want, scale, way, false);
+        }
+    }
 
     // one version of the field: its number, the game tick it was built at, the world it is of (a search in another one
     // sees no mobs), whether we had fire resistance then, and the mobs
@@ -39,6 +53,14 @@ public final class RiskField {
                 if (s.id() == id) return s;
             }
             return null;
+        }
+
+        // a mob in it is a remembered one
+        public boolean remembers() {
+            for (Source s : sources) {
+                if (s.kept()) return true;
+            }
+            return false;
         }
     }
 
@@ -53,9 +75,13 @@ public final class RiskField {
         return current;
     }
 
-    // the game thread's: the mobs that want us now. true when that made a new version
+    // the game thread's: the mobs that want us now. the remembered ones that are not among them are added (the memory).
+    // true when that made a new version
     public static synchronized boolean offer(long tick, Object world, boolean fireRes, List<Source> sources) {
         Version old = current;
+        // (another world's mobs are not this one's)
+        if (old.world() != world) memory.clear();
+        sources = withMemory(sources, tick);
         if (old.world() == world && old.fireRes() == fireRes && !differs(old.sources(), sources, MOVE)) {
             return false;
         }
@@ -63,11 +89,150 @@ public final class RiskField {
         return true;
     }
 
-    // no field: out of the dimensions the meter reads, dead, or between worlds
+    // no field: out of the dimensions the meter reads, dead, or between worlds. the memory goes with it
     public static synchronized void clear(long tick) {
+        memory.clear();
         if (current.world() != null || !current.sources().isEmpty()) {
             current = new Version(++ids, tick, null, false, List.of());
         }
+    }
+
+    // ---- the meter's word for the searches
+
+    // the danger meter is over calm (the level the runs go by, DangerShadow): under risk_flee the walk's own searches price
+    // the field then (RiskCost.route)
+    private static volatile boolean alert;
+
+    public static void alert(boolean on) {
+        alert = on;
+    }
+
+    public static boolean alert() {
+        return alert;
+    }
+
+    // the task has the wheel (TaskGoal): a search that starts now is the task's own walk, not a fight's or a run's
+    private static volatile boolean taskWalk;
+
+    public static void taskWalk(boolean on) {
+        taskWalk = on;
+    }
+
+    public static boolean taskWalk() {
+        return taskWalk;
+    }
+
+    // ---- the memory
+
+    // how long a mob a route was given up for stays in the field after it left the live one, in seconds, and how long of
+    // that at its full want (Tuning risk_memory_s, 0 is no memory, and risk_memory_full_s)
+    public static final double MEMORY_S = 180;
+    public static final double MEMORY_FULL_S = 60;
+    // the fading goes in this many steps: each step is a new version of the field, and a version a tick would have every
+    // walk check its path again each time
+    static final int FADE_STEPS = 4;
+    // at most this many are remembered, the oldest dropped first
+    static final int MEMORY_MAX = 24;
+
+    // a remembered mob: as it was last seen, and the tick it was last a reason to give a route up
+    private record Kept(Source source, long at) {}
+
+    private static final Map<Integer, Kept> memory = new HashMap<>();
+
+    public static boolean memoryOn() {
+        return Tuning.get("risk_flee", 0) >= 1 && Tuning.get("risk_memory_s", MEMORY_S) > 0;
+    }
+
+    // a route was given up for what is in the field now (a run for the danger meter began, the walk planned again for more
+    // risk): every live mob in it is remembered from this tick. the number that were not remembered before
+    public static synchronized int remember(long tick) {
+        if (!memoryOn()) return 0;
+        int fresh = 0;
+        for (Source s : current.sources()) {
+            if (s.kept()) continue;
+            if (memory.put(s.id(), new Kept(s, tick)) == null) fresh++;
+        }
+        trim();
+        return fresh;
+    }
+
+    // the same for one mob of the live field (the one that hit us). true when it was not remembered before
+    public static synchronized boolean remember(int id, long tick) {
+        if (!memoryOn()) return false;
+        Source s = current.source(id);
+        if (s == null || s.kept()) return false;
+        boolean fresh = memory.put(id, new Kept(s, tick)) == null;
+        trim();
+        return fresh;
+    }
+
+    private static void trim() {
+        while (memory.size() > MEMORY_MAX) {
+            Integer oldest = null;
+            for (Map.Entry<Integer, Kept> e : memory.entrySet()) {
+                if (oldest == null || e.getValue().at() < memory.get(oldest).at()) oldest = e.getKey();
+            }
+            memory.remove(oldest);
+        }
+    }
+
+    // the remembered mobs as last seen, for the game side's look at each: where it is now, or that it is gone
+    public static synchronized List<Source> remembered() {
+        List<Source> out = new ArrayList<>(memory.size());
+        for (Kept k : memory.values()) out.add(k.source());
+        return out;
+    }
+
+    // a remembered mob seen out of the live field: where it is now
+    public static synchronized void moved(int id, double x, double y, double z) {
+        Kept k = memory.get(id);
+        if (k == null) return;
+        Source s = k.source();
+        memory.put(id, new Kept(new Source(s.id(), s.row(), x, y, z, s.want(), s.scale(), s.way()), k.at()));
+    }
+
+    // dead, or gone while we were near its place
+    public static synchronized void forget(int id) {
+        memory.remove(id);
+    }
+
+    // the live mobs with the remembered ones that are not among them, each at its last place with its want faded. a
+    // remembered mob that is live keeps its place and its want up to date
+    private static List<Source> withMemory(List<Source> live, long tick) {
+        if (memory.isEmpty()) return live;
+        double total = memoryOn() ? Tuning.get("risk_memory_s", MEMORY_S) * 20 : 0;
+        if (total <= 0) {
+            memory.clear();
+            return live;
+        }
+        double full = Math.min(total, Math.max(0, Tuning.get("risk_memory_full_s", MEMORY_FULL_S) * 20));
+        Map<Integer, Source> byId = new HashMap<>();
+        for (Source s : live) byId.put(s.id(), s);
+        List<Source> out = new ArrayList<>(live);
+        for (Iterator<Map.Entry<Integer, Kept>> it = memory.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<Integer, Kept> e = it.next();
+            Kept k = e.getValue();
+            Source now = byId.get(e.getKey());
+            if (now != null) {
+                e.setValue(new Kept(now, k.at()));
+                continue;
+            }
+            double fade = tick < k.at() ? 0 : fade(tick - k.at(), full, total);
+            if (fade <= 0) {
+                it.remove();
+                continue;
+            }
+            Source s = k.source();
+            out.add(new Source(s.id(), s.row(), s.x(), s.y(), s.z(), s.want() * fade, s.scale(), s.way(), true));
+        }
+        return out;
+    }
+
+    // 1 up to full, then down to 0 at total in FADE_STEPS steps
+    static double fade(double age, double full, double total) {
+        if (age >= total) return 0;
+        if (age <= full) return 1;
+        return Math.ceil((total - age) / (total - full) * FADE_STEPS) / FADE_STEPS;
     }
 
     // a mob came or went, or one changed its want, its way or its scale, or moved more than a block
@@ -77,7 +242,7 @@ public final class RiskField {
         for (Source s : was) byId.put(s.id(), s);
         for (Source s : now) {
             Source o = byId.get(s.id());
-            if (o == null || o.row() != s.row() || o.want() != s.want() || o.way() != s.way()
+            if (o == null || o.row() != s.row() || o.want() != s.want() || o.way() != s.way() || o.kept() != s.kept()
                     || Math.abs(o.scale() - s.scale()) > 0.05) {
                 return true;
             }

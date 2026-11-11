@@ -44,6 +44,11 @@ import java.util.Map;
 // the field, the buddy held within 3 blocks of it till dead; the field now keeps such a mob a while, DangerShadow.LINGER).
 // a flee (S137 step 3, a path toward GoalFlee) is watched whatever risk_mobs says, for more only: a mob gone only makes more
 // cells calm, and the meter ends the run
+// a place goal by a safer route (S137, Tuning risk_flee_route): the task's walk is watched while its searches price the field
+// (RiskCost.route: the task has the wheel, and the danger meter is over calm or a remembered mob is in the field). a walk whose search did not price
+// the mobs (it was planned in calm) planned for no risk at all: its baseline is nothing, so the first check that finds over
+// risk_replan_more on the rest plans again, priced now. the rest's expected hp, as of the last check, is what the meter's
+// flee is judged against (expected, RouteRisk)
 public final class RiskWatch {
 
     // an hp at full health
@@ -66,6 +71,21 @@ public final class RiskWatch {
     // the mobs that steered the search, and where each was last seen
     private int[] shaped = new int[0];
     private final Map<Integer, double[]> lastSeen = new HashMap<>();
+    // the search that made this path priced the mobs (or priced whatever came: risk_mobs). false: it was planned for no risk
+    private boolean priced = true;
+    // per movement: the hp the rest is expected to cost as of the last check; null before one and while the walk is not
+    // watched
+    private double[] last;
+
+    void planned(boolean priced) {
+        this.priced = priced;
+    }
+
+    // the hp the mobs are expected to take on the rest of the path from pos on, as of the last check; NaN before one, and
+    // while the walk is not watched
+    double expected(int pos) {
+        return last == null ? Double.NaN : sum(last, pos);
+    }
 
     void shapedBy(int[] ids) {
         shaped = ids;
@@ -80,16 +100,21 @@ public final class RiskWatch {
         RiskWatch next = new RiskWatch();
         next.shaped = java.util.stream.IntStream.concat(java.util.Arrays.stream(shaped), java.util.Arrays.stream(more)).distinct().toArray();
         next.lastSeen.putAll(lastSeen);
+        next.priced = priced;
         return next;
     }
 
     // the reason to plan again now, or null. game thread, a tick the movement can be cancelled in
     String check(IPath path, int pos, CalculationContext context, BetterBlockPos feet, long now) {
         boolean flee = path.getGoal() instanceof GoalFlee;
-        if (!flee && Tuning.get("risk_mobs", 0) < 1) {
+        RiskField.Version field = RiskField.current();
+        if (!flee && Tuning.get("risk_mobs", 0) < 1 && !RiskCost.route(field)) {
+            // not watched now: the next watch starts over
+            last = null;
+            base = null;
+            version = -1;
             return null;
         }
-        RiskField.Version field = RiskField.current();
         if (field.id() == version) {
             return null;
         }
@@ -97,10 +122,14 @@ public final class RiskWatch {
         version = field.id();
         RiskField.Pricer pricer = RiskCost.pricer(context, field, path.getGoal(), 0);
         double[] rest = rest(path, pos, pricer);
+        last = rest;
         if (previous < 0 || base == null) {
-            base = rest;
+            // (a path planned for no risk has nothing as its baseline, and is judged at once)
+            base = priced ? rest : new double[rest.length];
             see(field);
-            return null;
+            if (priced) {
+                return null;
+            }
         }
         String why = null;
         double was = sum(base, pos);

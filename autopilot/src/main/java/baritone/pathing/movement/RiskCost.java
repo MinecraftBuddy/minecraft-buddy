@@ -41,6 +41,11 @@ import baritone.utils.ExperimentalMovement;
 // the flee search (S137 step 3): a search toward a GoalFlee prices the mobs whatever risk_mobs says, with lambda times
 // risk_flee_lambda, and binds the goal to its own view of the field (GoalFlee.Judge) before its first node: the cell it
 // starts from is no goal, nor is a rim
+// a place goal by a safer route (S137, Tuning risk_flee_route, on under risk_flee): while the danger meter is over calm, or
+// the field remembers what a route was given up for (RiskField's memory), the task's own walk prices the mobs too (a
+// search that starts while the task has the wheel), with the flee search's lambda: the walk to the task's goal takes the
+// way that costs the least hp, not the flee and the same walk back. the meter's flee then starts no run while the buddy
+// outlives that way (RouteRisk). a fight's walk and a run are as they were
 // A* only, as CliffAvoidance is, never calculateCost: the executor's per tick recheck would cancel a good path over it
 public final class RiskCost {
 
@@ -114,6 +119,10 @@ public final class RiskCost {
         // (a flee has no mob it goes to: every one counts)
         RiskField.Pricer mobs = pricer(context, field, flee != null ? null : goal, offset);
         double lambda = lambda(context.health, Tuning.get("risk_lambda", LAMBDA), Tuning.get("risk_lambda_curve", 1));
+        boolean route = flee == null && route(field);
+        if (route) {
+            lambda *= GoalFlee.lambdaFactor();
+        }
         if (flee != null) {
             lambda *= GoalFlee.lambdaFactor();
             CliffAvoidance.Cells cells = CliffAvoidance.of(context.bsi);
@@ -130,10 +139,17 @@ public final class RiskCost {
             return search;
         }
         search.mobs = mobs;
-        search.mobsPriced = flee != null || Tuning.get("risk_mobs", 0) >= 1;
+        search.mobsPriced = flee != null || route || Tuning.get("risk_mobs", 0) >= 1;
         search.mobLambda = lambda;
         search.charged = new double[mobs.size()];
         return search;
+    }
+
+    // (risk_flee_route) the task's walk prices this version of the field: the task has the wheel, and the meter is over calm
+    // or a mob in the field is a remembered one
+    public static boolean route(RiskField.Version field) {
+        return Tuning.get("risk_flee", 0) >= 1 && Tuning.get("risk_flee_route", 1) > 0 && RiskField.taskWalk()
+                && (RiskField.alert() || field.remembers());
     }
 
     // a version of the mob field as a search (or the walk) toward this goal prices it; null when no mob in it counts

@@ -120,6 +120,13 @@ public final class GoalFlee implements Goal, SnapshotGoal {
         return judge == null ? 0 : judge.heuristic(x, y, z);
     }
 
+    // hp a second the field's mobs take from the buddy standing with its feet in (x, y, z), as this thread's judge prices
+    // it (the game thread's after a refresh); 0 with none
+    public double rate(int x, int y, int z) {
+        Judge judge = judge();
+        return judge == null ? 0 : judge.rate(x, y, z);
+    }
+
     // the mob field priced at the horizon's reach, all mobs counted (a flee has no mob it goes to)
     public static RiskField.Pricer pricer(RiskField.Version field, Cells cells, double offset) {
         RiskField.Pricer mobs = new RiskField.Pricer(field, cells, offset, Tuning.get("risk_mob_horizon", RiskCost.MOB_HORIZON) * 20,
