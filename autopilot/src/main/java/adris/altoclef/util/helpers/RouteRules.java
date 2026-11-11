@@ -724,6 +724,11 @@ public final class RouteRules {
         return on && stallTicks >= Math.round(CAMP_NEAR_S * 20);
     }
 
+    // the near walk's arrival as its goal counts it (GoalNear): the feet block's offset from the camp's block within range
+    public static boolean nearArrived(int dx, int dy, int dz, int range) {
+        return dx * dx + dy * dy + dz * dz <= range * range;
+    }
+
     // ---- the brew first (Tuning route_brew_first, a fix of 11 Nov 2026, on by default). the route's phase 5 follows the
     // first two rods: shut in the pillbox, the brew. it began only when the fight, the run and the hiding place left a lull,
     // and at a busy spawner that never came: 4 of phase 4's 30 deaths (route-25, route-23, drankjes2 A) had two rods or more

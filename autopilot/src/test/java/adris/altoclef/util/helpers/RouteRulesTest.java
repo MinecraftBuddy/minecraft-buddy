@@ -59,6 +59,10 @@ public class RouteRulesTest {
         assertFalse(RouteRules.campNear(true, cap - 1));
         assertTrue(RouteRules.campNear(true, cap));
         assertFalse(RouteRules.campNear(false, cap));
+        // (the floor's diagonal beside the spawner, one down from the top: the near walk's end, and so the camp's)
+        assertTrue(RouteRules.nearArrived(1, -1, 1, 2));
+        assertTrue(RouteRules.nearArrived(2, 0, 0, 2));
+        assertFalse(RouteRules.nearArrived(2, -1, 1, 2));
     }
 
     @Test

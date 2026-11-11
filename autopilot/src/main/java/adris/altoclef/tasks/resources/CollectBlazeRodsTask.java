@@ -916,12 +916,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
             } else {
                 _doorWalkSince = -1;
             }
-            if (_campStep == null && !camp.closerToCenterThan(mod.getPlayer().position(), campRadius) && rushWalk()) {
+            if (_campStep == null && !campHere(mod, camp, campRadius) && rushWalk()) {
                 camp = _campSpot != null ? _campSpot : _foundBlazeSpawner.above();
                 campRadius = _campSpot != null ? CAMP_SPOT_RADIUS : CAMP_RADIUS;
             }
-            if (_campStep == null && camp.closerToCenterThan(mod.getPlayer().position(), campRadius)) _rushWalkTicks = 0;
-            if (_campStep == null && !camp.closerToCenterThan(mod.getPlayer().position(), campRadius)) {
+            if (_campStep == null && campHere(mod, camp, campRadius)) _rushWalkTicks = 0;
+            if (_campStep == null && !campHere(mod, camp, campRadius)) {
                 setDebugState("Going to blaze spawner (" + (RunZones.INSTANCE.active(_zoneNow) + _deathZones.active(_zoneNow)) + " zones)");
                 _toSpawner = true;
                 return campWalk(mod, camp);
@@ -2165,6 +2165,17 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private long _campWalkStall;
     private long _campWalkAt = -1;
     private boolean _campWalkNear;
+
+    // whether the buddy is at the camp: within campRadius of its centre, or (Tuning camp_near) at the near walk's own end, the
+    // feet block within CAMP_RADIUS of the camp's block as GetWithinRangeOfBlockTask counts it. the two differ on the floor
+    // diagonal beside the spawner (2.06 from the top's centre): the near walk was done there and the camp was not, so the walk
+    // would stand finished with nothing moving the buddy (the campnear smoke's read)
+    private boolean campHere(AltoClef mod, BlockPos camp, double campRadius) {
+        if (camp.closerToCenterThan(mod.getPlayer().position(), campRadius)) return true;
+        BlockPos feet = mod.getPlayer().blockPosition();
+        return _campWalkNear && camp.equals(_campWalkFor) && adris.altoclef.util.helpers.RouteRules.nearArrived(
+                feet.getX() - camp.getX(), feet.getY() - camp.getY(), feet.getZ() - camp.getZ(), (int) CAMP_RADIUS);
+    }
 
     // the walk to the camp. (Tuning camp_near, a fix of 11 Nov 2026, on by default: the camp by the spawner with no spot of its
     // own is its top block, and a walk onto it that comes no closer in RouteRules.CAMP_NEAR_S of its own ticks walks to within
