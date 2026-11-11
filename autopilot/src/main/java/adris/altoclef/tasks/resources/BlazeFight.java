@@ -898,13 +898,19 @@ final class BlazeFight {
         boolean fireproofErrand = adris.altoclef.util.helpers.RouteRules.wartDrinkOn() && adris.altoclef.util.helpers.FireRes.has(player);
         // (S137, one system: no walk away from a blaze's sight. the errand's walk prices the blazes in its search, the safer
         // route, and the danger meter says when to flee; the walk-away and the walk back were the to and fro)
-        boolean away = errand && !oneSystem && mode == Mode.CAMP && !packClose && !threats.isEmpty() && !fireproofErrand;
+        // (Tuning route_errand_noaway, off: in phase 3 no walk away from a blaze's sight either. the errand's walk goes on, a
+        // blaze within the blow is hit as before, the fight's own run at low health stays. the walk-away swapped with the walk
+        // to a wart and with the fortress search at the edge of the blazes' sight: on 11 Nov 2026 48 of 61 phase-3 deaths came
+        // in the wart search, and 28 of 65 runs that began phase 4 without a wart had seen one and never got nearer than a
+        // median 59 blocks, E1111-2100.3; look 58 swapped 130 times in 180 s)
+        boolean noAway = adris.altoclef.util.helpers.Tuning.get("route_errand_noaway", 0) > 0;
+        boolean away = errand && !oneSystem && !noAway && mode == Mode.CAMP && !packClose && !threats.isEmpty() && !fireproofErrand;
         // (Tuning route_away_wall, with its walls: the walk away held out to AWAY_RUN. without it the walk ended the moment no
         // blaze in SIGHT_RANGE saw the buddy, at 20.0, and at 19.9 began again: two searches a second from one block, each
         // cancelled by the other, the buddy standing still at the edge of its sight for minutes (realfort-p3-zones run 4.B,
         // 92 times in 180 s; A's L39 a "standing still 1.5-2 min"). now, once begun, it goes on while one of the blazes it
         // went from is nearer than AWAY_RUN and some blaze saw the buddy within AWAY_HOLD_TICKS)
-        if (errand && !oneSystem && mode == Mode.CAMP && !packClose && !fireproofErrand && adris.altoclef.util.helpers.RouteRules.awayWallLive()) {
+        if (errand && !oneSystem && !noAway && mode == Mode.CAMP && !packClose && !fireproofErrand && adris.altoclef.util.helpers.RouteRules.awayWallLive()) {
             if (!threats.isEmpty()) {
                 awaySeenAt = now;
                 awayFrom.clear();
