@@ -149,11 +149,14 @@ class ObtainRouteTest {
 		// ten obsidian
 		assertEquals(Set.of("m3.2"), met(new Kit().give("obsidian", 10), false));
 		assertEquals(Set.of(), met(new Kit().give("obsidian", 9), false));
-		// 64 gold, a golden helmet worn and a spare: two in the bag alone is not one worn
-		assertEquals(Set.of("m3.3"), met(new Kit().give("gold_ingot", 64).wear("helmet", "golden_helmet").give("golden_helmet"), false));
-		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 64).give("golden_helmet", 2), false));
-		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 63).wear("helmet", "golden_helmet").give("golden_helmet"), false));
-		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 64).wear("helmet", "golden_helmet"), false));
+		// 96 gold, a golden helmet worn and a spare: two in the bag alone is not one worn
+		assertEquals(Set.of("m3.3"), met(new Kit().give("gold_ingot", 96).wear("helmet", "golden_helmet").give("golden_helmet"), false));
+		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 96).give("golden_helmet", 2), false));
+		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 95).wear("helmet", "golden_helmet").give("golden_helmet"), false));
+		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 96).wear("helmet", "golden_helmet"), false));
+		// that and a slime ball; a ball alone is nothing
+		assertEquals(Set.of("m3.3", "m3.3b"), met(new Kit().give("gold_ingot", 96).wear("helmet", "golden_helmet").give("golden_helmet").give("slime_ball"), false));
+		assertEquals(Set.of(), met(new Kit().give("slime_ball"), false));
 		// the portal's phase is the nether, never the bag
 		assertFalse(met(m4start().give("gold_ingot", 64), true).contains("m3.4"));
 	}
@@ -363,7 +366,7 @@ class ObtainRouteTest {
 		assertEquals(List.of("m1.1/wood", "m1.2/stone pickaxes", "m1.2/stone sword", "m1.2/furnace", "m1.3/food", "m1.3/bed", "m1.3/sand",
 			"m2.1/shield", "m2.1/copper_chestplate", "m2.1/copper_leggings", "m2.1/copper_boots", "m2.1/iron_chestplate",
 			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m3.1/diamonds",
-			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/gold", "m3.3/golden helmet", "m3.3/spare golden helmet",
+			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/gold", "m3.3/golden helmet", "m3.3/spare golden helmet", "m3.3b/slime ball",
 			"m3.4/flint and steel", "m3.4/rest", "m3.4/water bottles"), names);
 		assertEquals(ObtainRoute.PHASES.size(), ObtainRoute.PIECES.size());
 	}
