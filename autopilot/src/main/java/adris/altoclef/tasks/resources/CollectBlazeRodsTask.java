@@ -193,6 +193,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private BlockPos _exitWalkTo;
     private Task _exitWalk;
     private long _exitAt = -1;
+    // (Tuning route_exit_first) the exit's own ticks and its last tick, the walk's best distance to its portal and its ticks
+    // with no progress, the way to that portal (RouteRules.exitWay), the portals passed over, the potion's line said, and the
+    // blaze in reach fought on the way
+    private long _exitTicks;
+    private long _exitTickAt = -1;
+    private Double _exitBest;
+    private long _exitStall;
+    private int _exitWay;
+    private final java.util.Set<BlockPos> _exitPassed = new java.util.HashSet<>();
+    private boolean _exitDrinkSaid;
+    private Task _exitDefend;
+    private Blaze _exitDefendFor;
 
     private BlockPos _foundBlazeSpawner = null;
     // where we camp: a cell out past the spawn area (LavaShore.campSpot), picked once per spawner. null = the room had none, so
@@ -595,6 +607,19 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_brewBox != null && _brewBox.breakingOut(mod)) {
             Task out = brewStep(mod);
             if (out != null) return out;
+        }
+        // (Tuning route_exit_first, a fix, on by default: with the order's rods in the bag the exit comes before a new brew, the
+        // camp, the pillbox and the fight; only a blaze in a blow's reach is fought on the way, exitFirst. a brew box the buddy
+        // is shut in, or breaking out of, goes first: above)
+        if (exitFirstDue(mod)) {
+            Task out = exitFirst(mod);
+            if (out != null) return out;
+            // (given up this tick: nothing more, the order ends in the nether (isFinished); the camp's walk below took the buddy
+            // back to the spawner in the give-up's own tick)
+            if (adris.altoclef.util.helpers.RouteRules.exitGaveUp()) {
+                setDebugState("Out of the nether: given up");
+                return null;
+            }
         }
         // (the buddy's fork: the brew begun outside its pillbox: in first, before the fight, BrewBoxTask.goingIn)
         if (_brewBox != null && _brewBox.goingIn(mod)) {
@@ -2000,6 +2025,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         BlockPos best = null;
         for (java.util.Iterator<BlockPos> it = _portalsSeen.iterator(); it.hasNext(); ) {
             BlockPos p = it.next();
+            // (Tuning route_exit_first: a portal no way led to is passed over, exitStep)
+            if (_exitPassed.contains(p)) continue;
             if (mod.getChunkTracker().isChunkLoaded(p) && mod.getWorld().getBlockState(p).getBlock() != Blocks.NETHER_PORTAL) {
                 Debug.logInternal("exit: the portal kept at " + p.toShortString() + " is gone");
                 it.remove();
@@ -2024,15 +2051,27 @@ public class CollectBlazeRodsTask extends ResourceTask {
             adris.altoclef.util.helpers.RouteRules.exitBegins();
             notePortals(mod);
         }
+        // (Tuning route_exit_first: the cap and the walk's stall count the exit's own ticks; a fight or a shelter in between is
+        // not the exit's time)
+        boolean first = adris.altoclef.util.helpers.RouteRules.exitFirstOn();
+        long step = first ? adris.altoclef.util.helpers.RouteRules.exitTicks(_exitTickAt, now) : 0;
+        _exitTickAt = now;
+        _exitTicks += step;
         Optional<BlockPos> tracked = adris.altoclef.tasks.movement.EnterNetherPortalTask.usablePortal(mod,
                 adris.altoclef.tasks.movement.EnterNetherPortalTask.ANY_PORTAL, me.position());
         BlockPos kept = tracked.isPresent() ? null : nearestPortalSeen(mod);
-        String why = adris.altoclef.util.helpers.RouteRules.exitGiveUp(tracked.isPresent() || kept != null, now - _exitAt,
+        String why = adris.altoclef.util.helpers.RouteRules.exitGiveUp(tracked.isPresent() || kept != null, first ? _exitTicks : now - _exitAt,
                 Math.round(adris.altoclef.util.helpers.Tuning.get("route_exit_s", adris.altoclef.util.helpers.RouteRules.EXIT_S) * 20));
         if (why != null) {
+            if (first && kept == null && !tracked.isPresent() && !_exitPassed.isEmpty()) {
+                why = "no way to the " + _exitPassed.size() + " portal" + (_exitPassed.size() == 1 ? "" : "s") + " kept";
+            }
             Debug.logInternal("exit: given up (" + why + "), the order ends in the nether at " + me.blockPosition().toShortString()
                     + " with " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD) + " rods");
             adris.altoclef.util.helpers.RouteRules.exitGivesUp();
+            // (Tuning route_exit_first: the walk under way stops with the exit. the walk the task last gave Baritone went on after
+            // the give-up, back to the spawner, and the buddy stood there till a blaze killed it, route-25 runs 4 and 27)
+            if (first) mod.getClientBaritone().getPathingBehavior().cancelEverything();
             return null;
         }
         if (tracked.isPresent()) {
@@ -2048,11 +2087,96 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (!kept.equals(_exitWalkTo)) {
             _exitWalkTo = kept;
             _exitWalk = new GetToBlockTask(kept, false);
+            _exitWay = 0;
+            _exitBest = null;
+            _exitStall = 0;
             Debug.logInternal("exit: the walk to the portal kept at " + kept.toShortString() + ", "
                     + (int) Math.round(me.position().distanceTo(Vec3.atBottomCenterOf(kept))) + " blocks off");
         }
+        // (Tuning route_exit_first: a walk that comes no closer in RouteRules.EXIT_STALL_S of its own time tries the portal's
+        // surroundings, then passes the portal over for the next kept. the walk to the cell stood 63 blocks off with 157 "no
+        // path" lines till the cap, route-25 run 4)
+        if (first) {
+            double d = me.position().distanceTo(Vec3.atBottomCenterOf(kept));
+            if (adris.altoclef.util.helpers.RouteRules.exitCloser(_exitBest, d)) {
+                _exitBest = d;
+                _exitStall = 0;
+            } else {
+                _exitStall += step;
+            }
+            int way = adris.altoclef.util.helpers.RouteRules.exitWay(_exitWay, _exitStall);
+            if (way != _exitWay) {
+                long best = Math.round(_exitBest != null ? _exitBest : d);
+                _exitWay = way;
+                _exitStall = 0;
+                _exitBest = null;
+                if (way == 1) {
+                    _exitWalk = new adris.altoclef.tasks.movement.GetWithinRangeOfBlockTask(kept, adris.altoclef.util.helpers.RouteRules.EXIT_NEAR);
+                    Debug.logInternal("exit: the walk to the portal at " + kept.toShortString() + " came no closer than " + best
+                            + " blocks in " + Math.round(adris.altoclef.util.helpers.RouteRules.EXIT_STALL_S) + " s, a walk to within "
+                            + adris.altoclef.util.helpers.RouteRules.EXIT_NEAR + " of it");
+                } else {
+                    _exitPassed.add(kept);
+                    _exitWalkTo = null;
+                    mod.getClientBaritone().getPathingBehavior().cancelEverything();
+                    Debug.logInternal("exit: no way to the portal at " + kept.toShortString() + " (" + best + " blocks off at best), passed over");
+                    return exitStep(mod);
+                }
+            }
+        }
         setDebugState("Back to the portal");
         return _exitWalk;
+    }
+
+    // (Tuning route_exit_first) whether the exit comes first this tick: an order of rods of its own with its count in the bag,
+    // in the nether, the exit not given up
+    private boolean exitFirstDue(AltoClef mod) {
+        return _bareOrder && adris.altoclef.util.helpers.RouteRules.exitOn() && adris.altoclef.util.helpers.RouteRules.exitFirstOn()
+                && !adris.altoclef.util.helpers.RouteRules.exitGaveUp() && WorldHelper.getCurrentDimension() == Dimension.NETHER
+                && super.isFinished(mod);
+    }
+
+    // (Tuning route_exit_first) the exit before the camp and the fight: a kept fire resistance goes down for the walk with a
+    // blaze near (RouteRules.exitDrinks), a blaze in a blow's reach is fought (exitDefends), else the exit's step. null when
+    // the exit gave up this tick
+    private Task exitFirst(AltoClef mod) {
+        var me = mod.getPlayer();
+        long now = mod.getWorld().getGameTime();
+        Blaze near = null;
+        double nd = Double.POSITIVE_INFINITY;
+        try {
+            for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+                if (!b.isAlive()) continue;
+                double d = b.distanceTo(me);
+                if (d < nd) {
+                    nd = d;
+                    near = b;
+                }
+            }
+        } catch (java.util.ConcurrentModificationException e) {
+            near = null;
+            nd = _fight.nearestBlaze();
+        }
+        boolean underIt = adris.altoclef.util.helpers.FireRes.has(me);
+        boolean potion = FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.DRINK) > 0;
+        if (adris.altoclef.util.helpers.RouteRules.exitDrinks(nd, potion, underIt)) {
+            if (!_exitDrinkSaid) {
+                _exitDrinkSaid = true;
+                Debug.logInternal("exit: a kept potion goes down for the walk out, a blaze " + Math.round(nd) + " blocks off");
+            }
+            adris.altoclef.util.helpers.FireRes.ask(now);
+        }
+        if (near != null && adris.altoclef.util.helpers.RouteRules.exitDefends(nd) && mod.getEntityTracker().isEntityReachable(near)) {
+            if (_exitDefend == null || _exitDefendFor != near) {
+                _exitDefendFor = near;
+                _exitDefend = new adris.altoclef.tasks.entity.KillEntityTask(near);
+            }
+            setDebugState("Out of the nether: the blaze in reach first");
+            return _exitDefend;
+        }
+        _exitDefend = null;
+        _exitDefendFor = null;
+        return exitStep(mod);
     }
 
     // the cells a brew box may not take: the fight's pillbox, its blocks and its cells
@@ -2893,6 +3017,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (a rod a step or two off is taken whatever is about: two lay 2.4 off in the door for six game minutes, the corner holding
         // the pickup back and the fight never giving the lure its turn, corner19 run 6)
         var me = mod.getPlayer();
+        // (Tuning route_exit_first: the order's rods in the bag, no more walks to rods: the pickups held the buddy at the spawner
+        // to 17 rods, route-25 run 4)
+        if (exitFirstDue(mod)) return true;
         // (the buddy's fork: none while shut in the brew box, a walk to a rod is a way out through its wall)
         if (_brewBox != null && _brewBox.holds(mod)) return true;
         if (_healBox != null && _healBox.holds(mod)) return true;

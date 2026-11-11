@@ -706,4 +706,53 @@ public final class RouteRules {
         if (sinceBegun >= capTicks) return "not out in " + Math.round(capTicks / 20.0) + " s";
         return null;
     }
+
+    // ---- the exit first (Tuning route_exit_first, a fix of 11 Nov 2026, on by default). phase 7 lost 10 of the 30 runs that
+    // began it in route-25 and route-23, every one at or by the spawner: the fight, the heal and the rod pickups came before
+    // the exit, so the buddy fought on to 11-17 rods; the exit's cap counted the fight's time; and a walk given up fell
+    // through to the camp's walk back to the spawner, the buddy idle there till dead. with it: once the order's rods are in
+    // the bag the exit comes before the camp, the fight and the pickups; a blaze within EXIT_DEFEND is still fought; the cap
+    // counts the exit's own ticks; a walk that comes no closer tries the portal's surroundings, then the next portal kept
+    public static boolean exitFirstOn() {
+        return Tuning.get("route_exit_first", 0) > 0;
+    }
+
+    // a blaze this close is fought on the way out (blocks): a blow's reach, as the pillbox's build fights only one that bites
+    public static final double EXIT_DEFEND = 3.0;
+    // with a blaze this close and no fire resistance on, a kept potion goes down for the walk out (blocks): the spawner's fight
+    // is over, and the potions left in the bag were found unused on buddies burned at the spawner (route-25 runs 4 and 27)
+    public static final double EXIT_DRINK_NEAR = 24;
+    // a walk to a portal that comes no closer than EXIT_PROGRESS in EXIT_STALL_S of its own time tries the next way
+    public static final double EXIT_STALL_S = 60;
+    public static final double EXIT_PROGRESS = 2;
+    // the portal's surroundings: a walk to within this many blocks of it, when the walk to its cell came no closer
+    public static final int EXIT_NEAR = 4;
+
+    public static boolean exitDefends(double nearestBlaze) {
+        return nearestBlaze <= EXIT_DEFEND;
+    }
+
+    public static boolean exitDrinks(double nearestBlaze, boolean potion, boolean underIt) {
+        return potion && !underIt && nearestBlaze <= EXIT_DRINK_NEAR;
+    }
+
+    // whether a walk to a portal now at distance d came closer than its best so far (null: the first look)
+    public static boolean exitCloser(Double best, double d) {
+        return best == null || d <= best - EXIT_PROGRESS;
+    }
+
+    // the exit's ticks this tick: the gap since its last tick, none after a pause longer than a second (another task had the
+    // buddy, a fight or a shelter: that time is not the exit's)
+    public static long exitTicks(long lastTick, long now) {
+        if (lastTick < 0 || now < lastTick) return 0;
+        long gap = now - lastTick;
+        return gap <= 20 ? gap : 0;
+    }
+
+    // the way to a portal kept after stallTicks of the walk's own time with no progress: 0 its cell, 1 its surroundings, 2 the
+    // portal passed over (the next kept, or none)
+    public static int exitWay(int way, long stallTicks) {
+        if (stallTicks < Math.round(EXIT_STALL_S * 20)) return way;
+        return Math.min(way + 1, 2);
+    }
 }

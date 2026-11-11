@@ -128,6 +128,10 @@ public final class Tuning {
             java.util.Map.entry("ghast_wait_double", 1.0),
             java.util.Map.entry("route_cube_way", 1.0),
             java.util.Map.entry("route_exit", 1.0),
+            // (11 Nov 2026, a fix: with the order's rods in the bag the exit comes before the camp, the fight and the pickups,
+            // its cap counts its own ticks, a walk with no progress tries the portal's surroundings and then the next portal, and
+            // a give-up stops the walk; phase 7 lost 10 of 30 runs at the spawner, RouteRules.exitFirstOn)
+            java.util.Map.entry("route_exit_first", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
             // (route jar 3: on the way, before the spawner fight, the potion goes down only in lava for 2 s or at 12 hp, or

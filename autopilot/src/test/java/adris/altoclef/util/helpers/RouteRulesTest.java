@@ -51,6 +51,33 @@ public class RouteRulesTest {
     }
 
     @Test
+    public void theExitFirstDefendsOnlyABlazeInReachAndDrinksWithOneNear() {
+        assertTrue(RouteRules.exitDefends(2.0));
+        assertFalse(RouteRules.exitDefends(8.0));
+        assertTrue(RouteRules.exitDrinks(20, true, false));
+        assertFalse(RouteRules.exitDrinks(20, true, true));
+        assertFalse(RouteRules.exitDrinks(20, false, false));
+        assertFalse(RouteRules.exitDrinks(40, true, false));
+    }
+
+    @Test
+    public void theExitCountsItsOwnTicksAndTriesTheNextWayWhenStalled() {
+        assertEquals(0, RouteRules.exitTicks(-1, 100));
+        assertEquals(1, RouteRules.exitTicks(99, 100));
+        // (a fight or a shelter had the buddy between: not the exit's time)
+        assertEquals(0, RouteRules.exitTicks(100, 400));
+        assertEquals(0, RouteRules.exitTicks(400, 100));
+        assertTrue(RouteRules.exitCloser(null, 80));
+        assertTrue(RouteRules.exitCloser(80.0, 78));
+        assertFalse(RouteRules.exitCloser(80.0, 79));
+        long stall = Math.round(RouteRules.EXIT_STALL_S * 20);
+        assertEquals(0, RouteRules.exitWay(0, stall - 1));
+        assertEquals(1, RouteRules.exitWay(0, stall));
+        assertEquals(2, RouteRules.exitWay(1, stall));
+        assertEquals(2, RouteRules.exitWay(2, stall));
+    }
+
+    @Test
     public void theOutLineOnlyAfterTheExitBeganAndOnce() {
         RouteRules.reset();
         assertFalse(RouteRules.out());
