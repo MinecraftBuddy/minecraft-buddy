@@ -141,4 +141,70 @@ public class CombatCommitMeterTest {
         c.step(tick(NOW, 9, 0, new Foe(4, 1, false, false, 3, Kind.HEAVY)));
         assertNotEquals(Mode.RUN, c.mode());
     }
+
+    // the first smoke: 130 of 161 runs for the meter were "from nothing in sight", on the spot. where the mob field prices the
+    // buddy's own cell calm the flee search has nowhere to go, and the meter at flee starts no run: the fight goes on
+    @Test
+    public void onGroundTheFieldPricesCalmTheMeterAtFleeStartsNoRun() {
+        CombatCommit c = new CombatCommit();
+        c.meter(Level.FLEE, true);
+        assertEquals(Event.FIGHT_START, c.step(tick(NOW, 20, 0, zombie(1, 1, 3))));
+        assertEquals(Mode.FIGHT, c.mode());
+        // off that ground it is a run again
+        c.meter(Level.FLEE, false);
+        assertEquals(Event.FIGHT_TO_RUN, c.step(new Tick(NOW + 5, 20, 0, 0, List.of(zombie(1, 1, 3), zombie(2, 2, 3)), zombie(1, 1, 3),
+                Way.NONE, true)));
+        assertEquals(Why.DANGER, c.why());
+        // with nothing about and the meter at flee: nothing
+        CombatCommit idle = new CombatCommit();
+        idle.meter(Level.FLEE, true);
+        assertEquals(Event.NONE, idle.step(tick(NOW, 20, 0)));
+        assertEquals(Mode.NONE, idle.mode());
+    }
+
+    // a run that came to calm ground is over after RUN_CLEAR_TICKS there though the meter still says flee, and no run for the
+    // meter starts for BLIND_TICKS after: the field does not price what the meter counts, so the next run would be a step
+    // off this ground and back (the rhythm of the first smoke: 109 of 157 runs began within 3 s of the last one's end)
+    @Test
+    public void aRunThatCameToCalmGroundEndsThereAndIsNotStartedAgainAtOnce() {
+        CombatCommit c = at(Level.FLEE);
+        c.step(tick(NOW, 20, 0, zombie(1, 1, 3)));
+        assertEquals(Mode.RUN, c.mode());
+        // on the way: no calm ground yet, the run goes on
+        for (long t = 1; t <= 20; t++) assertEquals(Event.NONE, c.step(tick(NOW + t, 20, t)));
+        // at the goal, the meter still at flee
+        c.meter(Level.FLEE, true);
+        long at = NOW + 21;
+        for (long t = 0; t < CombatCommit.RUN_CLEAR_TICKS; t++) assertEquals(Event.NONE, c.step(tick(at + t, 20, 21)));
+        assertEquals(Event.RUN_CLEAR, c.step(tick(at + CombatCommit.RUN_CLEAR_TICKS, 20, 21)));
+        assertEquals(Mode.NONE, c.mode());
+        String note = c.takeNote();
+        assertEquals(true, note != null && note.contains("still at flee"));
+        // a step off that ground with the meter at flee: no run while the field is known blind
+        long end = at + CombatCommit.RUN_CLEAR_TICKS;
+        c.meter(Level.FLEE, false);
+        for (long t = 1; t < CombatCommit.BLIND_TICKS; t += 7) {
+            c.step(tick(end + t, 20, 22));
+            assertNotEquals(Mode.RUN, c.mode());
+        }
+        // after it the meter decides again
+        c.step(tick(end + CombatCommit.BLIND_TICKS, 20, 22, zombie(1, 1, 3)));
+        assertEquals(Mode.RUN, c.mode());
+        assertEquals(Why.DANGER, c.why());
+    }
+
+    // a run the meter itself called over (calm for two seconds) leaves no such window: the next flee is a run at once
+    @Test
+    public void aRunTheMeterCalledOverLeavesTheNextFleeARun() {
+        CombatCommit c = at(Level.FLEE);
+        c.step(tick(NOW, 20, 0, zombie(1, 1, 3)));
+        c.meter(Level.CALM, true);
+        for (long t = 1; t <= CombatCommit.RUN_CLEAR_TICKS + 1; t++) c.step(tick(NOW + t, 20, t));
+        assertEquals(Mode.NONE, c.mode());
+        assertEquals(null, c.takeNote());
+        c.meter(Level.FLEE, false);
+        long later = NOW + CombatCommit.RUN_CLEAR_TICKS + 200;
+        c.step(tick(later, 20, 60, zombie(1, 1, 3)));
+        assertEquals(Mode.RUN, c.mode());
+    }
 }

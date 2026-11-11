@@ -1,6 +1,7 @@
 package adris.altoclef.util.baritone;
 
 import adris.altoclef.util.helpers.DangerMeter;
+import adris.altoclef.util.helpers.PlaceWord;
 import adris.altoclef.util.helpers.RiskField;
 import adris.altoclef.util.helpers.SafeStand;
 import adris.altoclef.util.helpers.Tuning;
@@ -10,13 +11,17 @@ import baritone.pathing.movement.RiskCost;
 import it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 import java.util.Locale;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 // the buddy's fork (S137 step 3, risk in the path search): the flee search's goal. under Tuning risk_flee every run (the combat
 // commitment's, and RunAwayFromHostilesTask's for the blaze fight, the item recovery and the forced drills) goes to the
 // nearest cell, by the way's cost, where the live mob field (RiskField) prices standing at under the calm bound
 // (risk_flee_calm, hp a second; the meter's calm, 1 hp in its 3 s horizon) and from which no knock ends in lava or a fall that
-// hurts (SafeStand). the way there costs its ticks plus lambda times the hp the mobs are expected to take on it, lambda
+// hurts (SafeStand), and that is no rim (PlaceWord's sea, fort_rim and rim: a drop within a knock, fenced or not; 70 of 151
+// runs of the first smoke ended on one, and one fell 16 blocks from it). never the cell the search starts from: that is the
+// cell being left, and a search that ends where it began is a run on the spot, asked again every tick (88% of that smoke's
+// searches). the way there costs its ticks plus lambda times the hp the mobs are expected to take on it, lambda
 // risk_flee_lambda times the travel search's (RiskCost.start): the danger on the way out is priced, whatever risk_mobs says.
 // a cell's rate is the mobs' as they can be there within the field's horizon (a melee mob's reach by then, a shooter's sight):
 // where the run ends the buddy stays, so arriving early does not make a cell calm.
@@ -46,15 +51,37 @@ public final class GoalFlee implements Goal, SnapshotGoal {
         return Tuning.get("risk_flee_lambda", LAMBDA_FACTOR);
     }
 
+    // the kind of place a cell is (PlaceWord's index), as the judge's maker reads it: a search from its own chunk copy and
+    // memo, the game thread from the live world
+    public interface Place {
+        int word(int x, int y, int z);
+    }
+
+    // a drop within a knock, over the lava sea or not, on fortress brick or not: no place to end a run
+    public static boolean rim(int word) {
+        return word == PlaceWord.SEA || word == PlaceWord.FORT_RIM || word == PlaceWord.RIM;
+    }
+
+    // the places from the cells alone, the floor taken as no fortress brick (a rim is one on any floor)
+    public static Place places(Cells cells) {
+        return (x, y, z) -> PlaceWord.index(cells, false, x, y, z);
+    }
+
     // the game thread's view of the world, and the world the field must be of (the field of another world has no mobs here)
     private final Supplier<Cells> _cells;
     private final Supplier<Object> _world;
+    private final Function<Cells, Place> _places;
     private volatile Judge _main;
     private final ThreadLocal<Judge> _bound = new ThreadLocal<>();
 
     public GoalFlee(Supplier<Cells> cells, Supplier<Object> world) {
+        this(cells, world, GoalFlee::places);
+    }
+
+    public GoalFlee(Supplier<Cells> cells, Supplier<Object> world, Function<Cells, Place> places) {
         _cells = cells;
         _world = world;
+        _places = places;
     }
 
     // the game thread, once a tick: a judge of the newest field when there is a new one
@@ -65,7 +92,7 @@ public final class GoalFlee implements Goal, SnapshotGoal {
         if (judge != null && judge.version == field && judge.owner == Thread.currentThread()) return;
         Cells cells = _cells.get();
         RiskField.Pricer mobs = field.world() == _world.get() && !field.sources().isEmpty() ? pricer(field, cells, 0) : null;
-        _main = new Judge(field, mobs, cells, calm(), 0, Thread.currentThread());
+        _main = new Judge(field, mobs, cells, calm(), 0, Thread.currentThread(), _places.apply(cells));
     }
 
     // a search's judge, on the search's thread before it makes its first node
@@ -105,8 +132,8 @@ public final class GoalFlee implements Goal, SnapshotGoal {
         return String.format(Locale.ROOT, "GoalFlee{calm %.2f hp/s}", calm());
     }
 
-    // one thread's look at the cells: the rate the mobs take there a second (memoised per cell) and whether a knock from it is
-    // safe. mobs null: no mob counts, every cell is calm and only the knock is judged
+    // one thread's look at the cells: the rate the mobs take there a second (memoised per cell), whether the cell is a rim and
+    // whether a knock from it is safe. mobs null: no mob counts, every cell is calm and only the place and the knock are judged
     public static final class Judge {
         final RiskField.Version version;
         final RiskField.Pricer mobs;
@@ -114,17 +141,33 @@ public final class GoalFlee implements Goal, SnapshotGoal {
         final double calm;
         final double lambda;
         final Thread owner;
+        final Place place;
+        // the cell a search starts from, never its goal; the game thread's judge has none
+        private boolean _hasStart;
+        private long _start;
         private final Long2DoubleOpenHashMap _rates = new Long2DoubleOpenHashMap();
         private final Long2ByteOpenHashMap _safe = new Long2ByteOpenHashMap();
 
         public Judge(RiskField.Version version, RiskField.Pricer mobs, Cells cells, double calm, double lambda, Thread owner) {
+            this(version, mobs, cells, calm, lambda, owner, places(cells));
+        }
+
+        public Judge(RiskField.Version version, RiskField.Pricer mobs, Cells cells, double calm, double lambda, Thread owner, Place place) {
             this.version = version;
             this.mobs = mobs;
             this.cells = cells;
             this.calm = calm;
             this.lambda = lambda;
             this.owner = owner;
+            this.place = place;
             _rates.defaultReturnValue(-1);
+        }
+
+        // a search's judge: the cell it starts from is no goal. before the judge is bound
+        public Judge startingAt(int x, int y, int z) {
+            _hasStart = true;
+            _start = pack(x, y, z);
+            return this;
         }
 
         // hp a second the mobs take from us standing with our feet in (x, y, z), as they can be there within the horizon
@@ -140,11 +183,12 @@ public final class GoalFlee implements Goal, SnapshotGoal {
         }
 
         public boolean calm(int x, int y, int z) {
-            if (rate(x, y, z) >= calm) return false;
             long key = pack(x, y, z);
+            if (_hasStart && key == _start) return false;
+            if (rate(x, y, z) >= calm) return false;
             byte safe = _safe.get(key);
             if (safe == 0) {
-                safe = SafeStand.unsafe(cells, x, y, z) ? (byte) 2 : (byte) 1;
+                safe = rim(place.word(x, y, z)) || SafeStand.unsafe(cells, x, y, z) ? (byte) 2 : (byte) 1;
                 _safe.put(key, safe);
             }
             return safe == 1;

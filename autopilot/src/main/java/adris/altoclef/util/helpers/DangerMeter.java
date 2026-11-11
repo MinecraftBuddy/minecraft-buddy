@@ -10,7 +10,8 @@ import java.util.Locale;
 // hazards and the buddy as plain values, so the whole meter is tested without minecraft.
 //
 // - T: the sum over mobs of want x its damage within the horizon (hp per 3 s). a melee mob counts from the moment it can reach
-//   us (distance minus reach, over its speed) and only with a way to us; a shooter counts with a line of sight within range.
+//   us (distance minus reach, over its speed) and only with a way to us, one that holds its place (a blaze's bite) only
+//   within its reach; a shooter counts with a line of sight within range.
 // - push: the hp a push into a hazard is likely to cost within the horizon. a hazard (lava, fire, a deep edge) within 3 blocks
 //   makes any mob within 3 blocks a pusher: a passive or calm one by walking into us, a hostile by its knock when the hazard
 //   lies behind us. without a hazard nothing pushes
@@ -215,7 +216,8 @@ public final class DangerMeter {
         double scale = scale(row, us);
         double melee = 0;
         if (row.melee() > 0 && (mob.way() || row.flies())) {
-            double toReach = Math.max(0, distance - row.reach()) / Math.max(0.05, row.speed());
+            // (a mob that holds its place, a blaze, bites only where it already reaches)
+            double toReach = row.holds() ? (distance <= row.reach() ? 0 : HORIZON) : Math.max(0, distance - row.reach()) / Math.max(0.05, row.speed());
             melee = row.melee() * scale * Math.max(0, HORIZON - toReach);
             // a creeper blasts once
             if (row.kind().equals("creeper")) melee = Math.min(melee, row.hit() * scale);

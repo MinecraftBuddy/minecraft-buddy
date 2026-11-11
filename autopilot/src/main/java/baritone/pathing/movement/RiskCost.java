@@ -39,7 +39,8 @@ import baritone.utils.ExperimentalMovement;
 // health the search's; a mob the goal is at (the one we go to fight) is left out. the walk checks the rest of its path
 // against each new version (RiskWatch). off, the field is still priced along the chosen path for the search line
 // the flee search (S137 step 3): a search toward a GoalFlee prices the mobs whatever risk_mobs says, with lambda times
-// risk_flee_lambda, and binds the goal to its own view of the field (GoalFlee.Judge) before its first node
+// risk_flee_lambda, and binds the goal to its own view of the field (GoalFlee.Judge) before its first node: the cell it
+// starts from is no goal, nor is a rim
 // A* only, as CliffAvoidance is, never calculateCost: the executor's per tick recheck would cancel a good path over it
 public final class RiskCost {
 
@@ -98,6 +99,15 @@ public final class RiskCost {
 
     // goal: the search's (a mob at it is not priced), offset: the ticks before its start node is reached
     public static Search start(CalculationContext context, Goal goal, double offset) {
+        return start(context, goal, offset, null);
+    }
+
+    // the same for a search from (x, y, z): a flee goal never takes that cell
+    public static Search start(CalculationContext context, Goal goal, double offset, int x, int y, int z) {
+        return start(context, goal, offset, new int[]{x, y, z});
+    }
+
+    private static Search start(CalculationContext context, Goal goal, double offset, int[] from) {
         Search search = places(context);
         RiskField.Version field = RiskField.current();
         GoalFlee flee = goal instanceof GoalFlee f ? f : null;
@@ -106,7 +116,15 @@ public final class RiskCost {
         double lambda = lambda(context.health, Tuning.get("risk_lambda", LAMBDA), Tuning.get("risk_lambda_curve", 1));
         if (flee != null) {
             lambda *= GoalFlee.lambdaFactor();
-            flee.bind(new GoalFlee.Judge(field, mobs, CliffAvoidance.of(context.bsi), GoalFlee.calm(), lambda, Thread.currentThread()));
+            CliffAvoidance.Cells cells = CliffAvoidance.of(context.bsi);
+            // (a rim is no goal: the place word of a cell, by the table's memo when the search has one)
+            PlaceWord.Memo words = search.words != null ? search.words : new PlaceWord.Memo(cells);
+            GoalFlee.Judge judge = new GoalFlee.Judge(field, mobs, cells, GoalFlee.calm(), lambda, Thread.currentThread(),
+                    (px, py, pz) -> words.index(CliffAvoidance.onFortressBricks(context.get(px, py - 1, pz)), px, py, pz));
+            if (from != null) {
+                judge.startingAt(from[0], from[1], from[2]);
+            }
+            flee.bind(judge);
         }
         if (mobs == null) {
             return search;

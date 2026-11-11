@@ -21,8 +21,11 @@ import baritone.api.pathing.movement.ActionCosts;
 import baritone.utils.BlockStateInterface;
 import it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 // in the nether the usual way to die is not the lava, it's the walk along the cliff above it: an arrow or a fireball knocks us
 // two blocks sideways and the drop is thirty blocks into the sea. so a node with a drop within two blocks of it pays a little,
@@ -184,23 +187,77 @@ public final class CliffAvoidance {
 
     public interface Cells {
         Cell at(int x, int y, int z);
+
+        // whether the cell stops a shot's line (RiskField's sight). a solid cell, for cells that know no more than that; the
+        // game's own cells (of, SafeStand.cells) ask the block: SOLID is "no cell to walk through", and that is fire too
+        default boolean blocksSight(int x, int y, int z) {
+            return at(x, y, z) == Cell.SOLID;
+        }
     }
 
     // the bsi as Cells. an unloaded chunk is solid, same as scanColumn: air there would read as the biggest cliff ever
     public static Cells of(BlockStateInterface bsi) {
-        return (x, y, z) -> {
-            if (!bsi.isLoaded(x, z)) {
-                return Cell.SOLID;
+        return new Cells() {
+            @Override
+            public Cell at(int x, int y, int z) {
+                if (!bsi.isLoaded(x, z)) {
+                    return Cell.SOLID;
+                }
+                BlockState state = bsi.get0(x, y, z);
+                if (MovementHelper.isLava(state)) {
+                    return Cell.LAVA;
+                }
+                if (MovementHelper.isWater(state)) {
+                    return Cell.WATER;
+                }
+                return MovementHelper.canWalkThrough(bsi, x, y, z, state) ? Cell.OPEN : Cell.SOLID;
             }
-            BlockState state = bsi.get0(x, y, z);
-            if (MovementHelper.isLava(state)) {
-                return Cell.LAVA;
+
+            @Override
+            public boolean blocksSight(int x, int y, int z) {
+                return !bsi.isLoaded(x, z) || cover(bsi.get0(x, y, z));
             }
-            if (MovementHelper.isWater(state)) {
-                return Cell.WATER;
-            }
-            return MovementHelper.canWalkThrough(bsi, x, y, z, state) ? Cell.OPEN : Cell.SOLID;
         };
+    }
+
+    // a block a shot does not pass, and that hides what stands behind it: its collision box spans the cell from side to side
+    // and at least half its height (a full block, soul sand, stairs, a slab). fire, a web and the plants have no box; a
+    // fence, a wall, a pane or a door has a thin one a line slips past, and counts as open: a cell that is wrongly in sight
+    // costs a longer way to cover, one that is wrongly out of sight is a place to stand that is shot at (the flee search's
+    // smoke of 11 Nov 2026: fire on the fortress walls hid the blazes from 81 of 194 lines the game had clear, and the buddy
+    // stood where it was as "calm ground"). by the state alone, so the search thread and the game thread answer the same
+    public static boolean cover(BlockState state) {
+        if (state.isAir()) {
+            return false;
+        }
+        Boolean known = COVER.get(state);
+        if (known == null) {
+            known = spansCell(state);
+            COVER.put(state, known);
+        }
+        return known;
+    }
+
+    private static final java.util.Map<BlockState, Boolean> COVER = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static boolean spansCell(BlockState state) {
+        VoxelShape shape;
+        try {
+            shape = state.getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO);
+        } catch (RuntimeException e) {
+            // a shape that needs its world to be known: no cover, the side that errs toward a longer way
+            return false;
+        }
+        if (shape.isEmpty()) {
+            return false;
+        }
+        return covers(shape.min(Direction.Axis.X), shape.max(Direction.Axis.X), shape.min(Direction.Axis.Y), shape.max(Direction.Axis.Y),
+                shape.min(Direction.Axis.Z), shape.max(Direction.Axis.Z));
+    }
+
+    // the box of a shape, in the cell's own 0 to 1: side to side both ways, and half the cell high or more
+    static boolean covers(double minX, double maxX, double minY, double maxY, double minZ, double maxZ) {
+        return minX <= 0.01 && maxX >= 0.99 && minZ <= 0.01 && maxZ >= 0.99 && maxY - minY >= 0.5;
     }
 
     // lava one cell to either side of (x, y, z) across the heading, at feet or the cell under. plain drops don't count, this is

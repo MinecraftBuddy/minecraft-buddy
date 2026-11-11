@@ -252,4 +252,22 @@ public class DangerMeterTest {
         assertEquals(DangerMeter.killTime(hoglin, sword, 10, 40), DangerMeter.killTime(hoglin, bow, 10, 40), 1e-9);
         assertEquals(DangerMeter.killTime(blaze, sword, 2.5, 20), DangerMeter.killTime(blaze, bow, 2.5, 20), 1e-9);
     }
+
+    // the flee search's first smoke: under fire resistance blazes 2.4 to 2.9 blocks off set flee eight times with no hp
+    // lost. a blaze hovers where it is and comes no closer: its bite counts within its reach (2), not as a mob on its way
+    @Test
+    public void aBlazesBiteCountsOnlyWithinItsReach() {
+        Us us = us(20, true);
+        assertEquals(0, DangerMeter.read(us, List.of(mob("blaze", 2.4, 0, 1, true, true)), List.of()).t(), 1e-9);
+        assertEquals(0, DangerMeter.read(us, List.of(mob("blaze", 2.9, 0, 1, true, true)), List.of()).t(), 1e-9);
+        // within its reach the whole horizon of biting
+        assertEquals(3.12 * DangerMeter.HORIZON, DangerMeter.read(us, List.of(mob("blaze", 1.9, 0, 1, true, true)), List.of()).t(), 1e-6);
+        // two of them 2.5 off under the potion are calm, where they read as flee at 8 hp
+        Reading two = DangerMeter.read(us(8, true), List.of(mob("blaze", 2.5, 0, 1, true, true), mob("blaze", 0, 2.5, 1, true, true)), List.of());
+        assertEquals(Level.CALM, levelFrom(Level.CALM, two));
+        // a mob that chases still counts from the moment it can be on us: a zombie 2.9 off
+        assertTrue(DangerMeter.read(us, List.of(mob("zombie", 2.9, 0, 1, true, true)), List.of()).t() > 1);
+        // and without the potion the blaze's fireballs count at any distance in sight, as they did
+        assertTrue(DangerMeter.read(us(20, false), List.of(mob("blaze", 2.9, 0, 1, true, true)), List.of()).t() > 1);
+    }
 }

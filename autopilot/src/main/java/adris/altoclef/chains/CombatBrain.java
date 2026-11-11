@@ -133,6 +133,23 @@ final class CombatBrain {
     private CommittedRunTask _run;
     // (risk_flee) the run as the flee search, one for each run
     private FleeTask _flee;
+    // (risk_flee) the flee goal asked about the buddy's own cell, and the tick it was made: a new one every PROBE_TICKS, for
+    // the judge behind it remembers its cells as long as the field's version stands, and blocks change under a long one
+    private GoalFlee _fleeProbe;
+    private long _fleeProbeAt;
+    private static final long PROBE_TICKS = 20;
+
+    // the mob field prices the cell the buddy is in as calm ground, no rim and safe from a knock: where a flee search would
+    // end. asked only while the meter is at flee or a run is on (the commitment reads it nowhere else)
+    private boolean calmHere(AltoClef mod, LocalPlayer player, long now, adris.altoclef.util.helpers.DangerMeter.Level level) {
+        if (level != adris.altoclef.util.helpers.DangerMeter.Level.FLEE && _commit.mode() != Mode.RUN) return false;
+        if (_fleeProbe == null || now < _fleeProbeAt || now - _fleeProbeAt >= PROBE_TICKS) {
+            _fleeProbe = FleeTask.goal(mod);
+            _fleeProbeAt = now;
+        }
+        _fleeProbe.refresh();
+        return _fleeProbe.isInGoal(player.blockPosition());
+    }
     private KillEntityTask _fight;
     private final HealUpTask _healUp = new HealUpTask();
     // the run into a blaze fight's corner (BlazeShelter): round by a standing pillbox's door, and the committed run once it
@@ -566,8 +583,10 @@ final class CombatBrain {
                     && adris.altoclef.util.helpers.BlazeShelter.inStandingBox(player.blockPosition())) {
                 adris.altoclef.util.helpers.BlazeShelter.boxStands(now);
             }
-            // (S137 step 3, Tuning risk_flee: the danger meter decides the runs, where it reads)
-            _commit.meter(GoalFlee.on() ? adris.altoclef.util.helpers.DangerShadow.steering() : null);
+            // (S137 step 3, Tuning risk_flee: the danger meter decides the runs, where it reads, and the mob field says whether
+            // the flee search has anywhere calmer to go than the cell the buddy is in)
+            adris.altoclef.util.helpers.DangerMeter.Level steering = GoalFlee.on() ? adris.altoclef.util.helpers.DangerShadow.steering() : null;
+            _commit.meter(steering, steering != null && calmHere(mod, player, now, steering));
             Event event = _commit.step(new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
                     way(mod, mobs, foes).withRim(rim).withLavaClose(lavaClose), armed(mod, foes), tryingToMove(mod, player), creeperRepeat, body(mod, dimension),
                     boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player)));
@@ -1194,8 +1213,15 @@ final class CombatBrain {
     // one line per transition, never per tick (the text is CombatLog's)
     private void log(AltoClef mod, Dimension dimension, Event event, String fighting, List<Mob> mobs, int blocks) {
         LocalPlayer player = mod.getPlayer();
+        String crowd = describe(mobs);
+        // (risk_flee: a run the meter starts is from what the meter counts, and that reaches further than the commitment's
+        // own list of foes: blazes shooting from 30 blocks off were "nothing in sight")
+        if (_commit.why() == CombatCommit.Why.DANGER && mobs.isEmpty()) {
+            String top = adris.altoclef.util.helpers.DangerMeter.top(adris.altoclef.util.helpers.DangerShadow.last());
+            if (!top.equals("none")) crowd = top;
+        }
         String line = CombatLog.line(dimension, event, _commit.why(), _commit.cornered(), _commit.noRoom(), _commit.cornerKind(), nameOf(mod, _commit.targetId()), fighting,
-                describe(mobs), Math.round(player.getHealth()), blocks);
+                crowd, Math.round(player.getHealth()), blocks);
         if (line != null) Debug.logInternal(line);
     }
 

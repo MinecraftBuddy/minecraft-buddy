@@ -968,15 +968,36 @@ public final class CombatCommit {
 
     // (the buddy's fork, S137 step 3, Tuning risk_flee) the danger meter's level (DangerShadow) when the meter decides the
     // runs, set by the brain before each step; null when the count rules do (the switch off, or no meter here: the End). with
-    // a level, a run starts at flee (Why.DANGER) and is over once the meter has been under cover for RUN_CLEAR_TICKS, and the
+    // a level, a run starts at flee (Why.DANGER) where the flee search has somewhere calmer to go (calmHere, blindUntil),
+    // and is over once the meter has been under cover for RUN_CLEAR_TICKS, and the
     // count rules start none: a crowd, the flee line and the hurt chase, a heavy hitter at its line or in the way, a pack of
     // wither skeletons, a hurt walk under shooters or a second shooter, the heal hold's re-run. what is not about how much
     // danger stays: the warden (the meter has no row for it), a creeper that keeps coming back, a lobber given up on, bare
     // hands, an enderman about, the perch, and a run that goes nowhere turning into the cornered fight
     private DangerMeter.Level meter;
+    // (risk_flee) the mob field prices the buddy's own cell as calm ground (the flee goal's test at its feet): the flee search
+    // has nowhere calmer to take it. no DANGER run starts there, and one that came there is over after RUN_CLEAR_TICKS
+    // whatever the meter says. the first smoke ran on the spot 130 times in 161, "from nothing in sight"
+    private boolean calmHere;
+    // a DANGER run that ended on calm ground while the meter still said cover or flee: the field does not price what the
+    // meter counts (a push by a hazard, a mob whose line the cells do not see), so another run would be one step off this
+    // ground and back. none starts before this tick: the fight, the cover and the task go on
+    private long blindUntil = Long.MIN_VALUE / 2;
+    public static final long BLIND_TICKS = 200;
 
     public void meter(DangerMeter.Level level) {
+        meter(level, false);
+    }
+
+    public void meter(DangerMeter.Level level, boolean calmHere) {
         meter = level;
+        this.calmHere = level != null && calmHere;
+    }
+
+    // the meter at flee and somewhere calmer to go: not on ground the field prices calm, not while the field is known blind
+    // to what the meter counts
+    private boolean meterFlee(Tick t) {
+        return meter == DangerMeter.Level.FLEE && !calmHere && !(t.now() >= blindUntil - BLIND_TICKS && t.now() < blindUntil);
     }
 
     public DangerMeter.Level meter() {
@@ -1966,7 +1987,7 @@ public final class CombatCommit {
     // nothing else is
     private Why meterReason(Tick t) {
         if (untouchable(t)) return Why.HEAVY;
-        if (meter != DangerMeter.Level.FLEE || endermanAbout(t) != null) return Why.NONE;
+        if (!meterFlee(t) || endermanAbout(t) != null) return Why.NONE;
         return Why.DANGER;
     }
 
@@ -1983,7 +2004,7 @@ public final class CombatCommit {
     // meter the warden, or the meter at flee
     private boolean danger(Tick t) {
         if (meter == null) return anyDanger(t);
-        return untouchable(t) || meter == DangerMeter.Level.FLEE;
+        return untouchable(t) || meterFlee(t);
     }
 
     // the reason a run for danger() goes by: the meter's flee, else the heavy hitter's or the warden's
@@ -2494,12 +2515,21 @@ public final class CombatCommit {
         }
         if (t.now() - startTick >= RUN_CAP) return capped(t);
         // (risk_flee) the meter's run is over once the meter has been under cover (calm or fight) for RUN_CLEAR_TICKS: the flee
-        // search took us where the field is calm, however far that was
+        // search took us where the field is calm, however far that was. on ground the field prices calm it is over after
+        // as long whatever the meter says: there is nowhere calmer to go, and standing there as a "run" helps nothing
         boolean meterRun = why == Why.DANGER && meter != null;
         if (meterRun) {
-            if (meter == DangerMeter.Level.CALM || meter == DangerMeter.Level.FIGHT) {
+            boolean under = meter == DangerMeter.Level.CALM || meter == DangerMeter.Level.FIGHT;
+            if (under || calmHere) {
                 if (calmSince < 0) calmSince = t.now();
-                if (t.now() - calmSince >= RUN_CLEAR_TICKS) return end(t, Event.RUN_CLEAR);
+                if (t.now() - calmSince >= RUN_CLEAR_TICKS) {
+                    if (!under) {
+                        blindUntil = t.now() + BLIND_TICKS;
+                        idleNote = "the run ended on ground the mob field prices calm with the meter still at " + meter.word()
+                                + ": no run for the danger meter for " + BLIND_TICKS / 20 + " s";
+                    }
+                    return end(t, Event.RUN_CLEAR);
+                }
             } else {
                 calmSince = -1;
             }

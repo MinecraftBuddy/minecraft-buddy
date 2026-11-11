@@ -13,9 +13,25 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 public class RiskFieldTest {
-    // open everywhere but the cells set solid
+    // open everywhere but the cells set solid, and the cells on fire: no cell to walk through (solid, as the search's cells
+    // have fire) and nothing a shot stops at
     private static final class World implements Cells {
         final Set<Long> solid = new HashSet<>();
+        final Set<Long> fire = new HashSet<>();
+
+        World fire(int x, int y0, int y1, int z0, int z1) {
+            for (int y = y0; y <= y1; y++) {
+                for (int z = z0; z <= z1; z++) {
+                    fire.add(RiskField.pack(x, y, z));
+                }
+            }
+            return this;
+        }
+
+        @Override
+        public boolean blocksSight(int x, int y, int z) {
+            return solid.contains(RiskField.pack(x, y, z));
+        }
 
         World wall(int x, int y0, int y1, int z0, int z1) {
             for (int y = y0; y <= y1; y++) {
@@ -28,7 +44,8 @@ public class RiskFieldTest {
 
         @Override
         public Cell at(int x, int y, int z) {
-            return solid.contains(RiskField.pack(x, y, z)) ? Cell.SOLID : Cell.OPEN;
+            long key = RiskField.pack(x, y, z);
+            return solid.contains(key) || fire.contains(key) ? Cell.SOLID : Cell.OPEN;
         }
     }
 
@@ -167,5 +184,36 @@ public class RiskFieldTest {
         w.solid.add(RiskField.pack(0, 4, 0));
         assertFalse(RiskField.clear(w, 0.5, 0.5, 0.5, 0.5, 6.5, 0.5));
         assertTrue(RiskField.clear(w, -0.5, 6.5, -0.5, -0.5, 0.5, -0.5));
+    }
+
+    // the flee search's first smoke (11 Nov 2026): blazes set the fortress walls alight, and the search's cells read fire as
+    // solid, so a blaze 4 blocks off that kept hitting the buddy was priced at nothing on the buddy's own cell
+    @Test
+    public void fireOnTheLineIsNoCoverFromAShot() {
+        RiskField.Source blaze = mob(1, BLAZE, 0.5, 0.5, 1);
+        double open = pricer(new World(), 0, false, blaze).hp(5, 64, 0, 0, 20, null);
+        assertTrue(open > 0.5);
+        // a sheet of fire between them at eye height and below: the same price
+        assertEquals(open, pricer(new World().fire(3, 64, 67, -2, 2), 0, false, blaze).hp(5, 64, 0, 0, 20, null), 1e-9);
+        // a wall there hides the cell
+        assertEquals(0, pricer(new World().wall(3, 64, 67, -2, 2), 0, false, blaze).hp(5, 64, 0, 0, 20, null), 1e-9);
+        // cells that say no more than solid keep the old reading: solid stops the line
+        Cells plain = (x, y, z) -> x == 3 ? Cell.SOLID : Cell.OPEN;
+        assertEquals(0, pricer(plain, 0, false, blaze).hp(5, 64, 0, 0, 20, null), 1e-9);
+    }
+
+    // a blaze holds its place: under fire resistance, where its fireballs do nothing, only a cell within its bite's reach (2)
+    // costs anything, however long the buddy takes to get there
+    @Test
+    public void aBlazesBiteCostsOnlyWithinItsReach() {
+        RiskField.Pricer p = pricer(new World(), 0, true, mob(1, BLAZE, 0.5, 0.5, 1));
+        // the cell's centre one block off, and the one at its reach: bitten, 3.12 a second
+        assertEquals(3.12, p.hp(1, 64, 0, 0, 20, null), 1e-9);
+        assertEquals(3.12, p.hp(2, 64, 0, 0, 20, null), 1e-9);
+        // 3 and 4 off: not, at the horizon either (a mob at 0.5 a second would have come 1.5 closer by then)
+        assertEquals(0, p.hp(3, 64, 0, 60, 20, null), 1e-9);
+        assertEquals(0, p.hp(4, 64, 0, 60, 20, null), 1e-9);
+        // a zombie as far off does come
+        assertTrue(pricer(new World(), 0, true, mob(2, ZOMBIE, 0.5, 0.5, 1)).hp(3, 64, 0, 60, 20, null) > 0);
     }
 }

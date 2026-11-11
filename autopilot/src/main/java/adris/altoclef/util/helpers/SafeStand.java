@@ -221,13 +221,23 @@ public final class SafeStand {
     // has it: air there would read as the deepest drop of all
     public static Cells cells(Level level) {
         BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
-        return (x, y, z) -> {
-            at.set(x, y, z);
-            if (!level.isLoaded(at)) return Cell.SOLID;
-            BlockState state = level.getBlockState(at);
-            if (state.getFluidState().is(FluidTags.LAVA)) return Cell.LAVA;
-            if (state.getFluidState().is(FluidTags.WATER)) return Cell.WATER;
-            return state.getCollisionShape(level, at).isEmpty() ? Cell.OPEN : Cell.SOLID;
+        return new Cells() {
+            @Override
+            public Cell at(int x, int y, int z) {
+                at.set(x, y, z);
+                if (!level.isLoaded(at)) return Cell.SOLID;
+                BlockState state = level.getBlockState(at);
+                if (state.getFluidState().is(FluidTags.LAVA)) return Cell.LAVA;
+                if (state.getFluidState().is(FluidTags.WATER)) return Cell.WATER;
+                return state.getCollisionShape(level, at).isEmpty() ? Cell.OPEN : Cell.SOLID;
+            }
+
+            // (a shot's line is stopped by what the search's cells say stops it: CliffAvoidance.cover, by the block alone)
+            @Override
+            public boolean blocksSight(int x, int y, int z) {
+                at.set(x, y, z);
+                return !level.isLoaded(at) || baritone.pathing.movement.CliffAvoidance.cover(level.getBlockState(at));
+            }
         };
     }
 

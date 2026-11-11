@@ -88,4 +88,18 @@ public class RiskCostTest {
         assertFalse(RiskCost.atGoal(new GoalBlock(20, 64, 0), zombie));
         assertFalse(RiskCost.atGoal(null, zombie));
     }
+
+    // what stops a shot's line (CliffAvoidance.cover): a box from side to side both ways and half the cell high or more
+    @Test
+    public void coverIsABoxThatSpansTheCell() {
+        // a full block, soul sand (14 of 16 high), a bottom slab
+        assertTrue(CliffAvoidance.covers(0, 1, 0, 1, 0, 1));
+        assertTrue(CliffAvoidance.covers(0, 1, 0, 0.875, 0, 1));
+        assertTrue(CliffAvoidance.covers(0, 1, 0, 0.5, 0, 1));
+        // a fence post, a fence line north to south (a box and a half high), a door, a carpet
+        assertFalse(CliffAvoidance.covers(0.375, 0.625, 0, 1.5, 0.375, 0.625));
+        assertFalse(CliffAvoidance.covers(0.375, 0.625, 0, 1.5, 0, 1));
+        assertFalse(CliffAvoidance.covers(0, 0.1875, 0, 1, 0, 1));
+        assertFalse(CliffAvoidance.covers(0, 1, 0, 0.0625, 0, 1));
+    }
 }

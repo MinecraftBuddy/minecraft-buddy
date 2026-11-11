@@ -80,4 +80,50 @@ public class GoalFleeTest {
         assertFalse(unbound.get());
         assertTrue(bound.get());
     }
+
+    // the first smoke: 88% of the flee searches came back with the cell they started from. a search's judge never takes it
+    @Test
+    public void theCellASearchStartsFromIsNeverItsGoal() {
+        GoalFlee.Judge j = judge(List.of(ZOMBIE)).startingAt(10, 64, 0);
+        assertEquals(0, j.rate(10, 64, 0), 0);
+        assertFalse(j.calm(10, 64, 0));
+        // the cell beside it is as calm and is one
+        assertTrue(j.calm(11, 64, 0));
+        // with no mob at all too
+        GoalFlee.Judge none = judge(List.of()).startingAt(1, 64, 0);
+        assertFalse(none.calm(1, 64, 0));
+        assertTrue(none.calm(2, 64, 0));
+    }
+
+    // the first smoke: about 70 of 151 runs ended on a rim, and one fell 16 blocks from it. a rim is no goal, fenced or not
+    @Test
+    public void aRimIsNoGoal() {
+        // a fence along the floor's east edge: the knock stops at it, so the cell is safe to stand in, and a rim all the same
+        Cells fenced = (x, y, z) -> FLOOR.at(x, y, z) == Cell.SOLID || (x == 30 && y == 64) ? Cell.SOLID : Cell.OPEN;
+        assertFalse(adris.altoclef.util.helpers.SafeStand.unsafe(fenced, 29, 64, 0));
+        RiskField.Version v = new RiskField.Version(1, 0, null, false, List.of());
+        GoalFlee.Judge j = new GoalFlee.Judge(v, null, fenced, GoalFlee.CALM, 160, Thread.currentThread());
+        assertFalse(j.calm(29, 64, 0));
+        assertTrue(j.calm(26, 64, 0));
+        // the place is the maker's to say: a fortress rim is one too, the fortress floor away from the edge is not
+        GoalFlee.Judge fort = new GoalFlee.Judge(v, null, fenced, GoalFlee.CALM, 160, Thread.currentThread(),
+                (x, y, z) -> x >= 28 ? adris.altoclef.util.helpers.PlaceWord.FORT_RIM : adris.altoclef.util.helpers.PlaceWord.FORTRESS);
+        assertFalse(fort.calm(28, 64, 0));
+        assertTrue(fort.calm(27, 64, 0));
+        assertTrue(GoalFlee.rim(adris.altoclef.util.helpers.PlaceWord.SEA));
+        assertTrue(GoalFlee.rim(adris.altoclef.util.helpers.PlaceWord.RIM));
+        assertFalse(GoalFlee.rim(adris.altoclef.util.helpers.PlaceWord.LAVA));
+        assertFalse(GoalFlee.rim(adris.altoclef.util.helpers.PlaceWord.CAVE));
+    }
+
+    // the game thread's goal has no start: the cell the buddy is in can be the goal (the run is over there)
+    @Test
+    public void theGameThreadsGoalTakesTheCellTheBuddyIsIn() {
+        RiskField.clear(0);
+        RiskField.offer(1, null, false, List.of(ZOMBIE));
+        GoalFlee goal = new GoalFlee(() -> FLOOR, () -> null);
+        goal.refresh();
+        assertTrue(goal.isInGoal(10, 64, 0));
+        assertFalse(goal.isInGoal(29, 64, 0));
+    }
 }

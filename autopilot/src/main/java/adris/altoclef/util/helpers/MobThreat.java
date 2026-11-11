@@ -33,7 +33,7 @@ public record MobThreat(String kind, double width, double height, double eye, do
             // BlazeAttackGoal), 0.84 a second; 5 s of fire per volley that lands, 0.56 a second; the spread is triangle(2.297 x
             // sqrt(distance) x 0.5) blocks to a side, so about 1 / sqrt(distance) of the balls land; it shoots while it sees us
             // within its follow range (48). within 2 it bites: 6 raw once a second. it hovers where it is while it sees us and
-            // flies at us only for 5 ticks after losing sight, so it closes slowly (0.5 a second here: only one already close bites)
+            // flies at us only for 5 ticks after losing sight: it holds its place (holds()), and only one already close bites
             Map.entry("blaze", new MobThreat("blaze", 0.6, 1.8, 1.53, 0.5, true, 48, false,
                     3.12, 2.0, true, 0.84, 48, 1, 0.56, 2.5, SafeStand.HIT, false, 20)),
             // one large fireball every 3 s at most (chargeTime 20 with sight, then -40: GhastShootFireballGoal), 6 raw, 3.12
@@ -186,6 +186,14 @@ public record MobThreat(String kind, double width, double height, double eye, do
     // its shots are fire damage alone, which fire resistance refuses before any knock: a blaze's small fireballs. a ghast's
     // ball is fire damage too but its blast is not, so a ghast stays
     boolean fireShot() {
+        return kind.equals("blaze");
+    }
+
+    // it comes no closer than it is: a blaze hovers and shoots while it sees us, and flies at us only for the five ticks after
+    // it loses sight (BlazeAttackGoal). its bite counts where it already reaches, never as a mob on its way: the meter read a
+    // blaze 2.4 to 2.9 blocks off as biting within the second, and under fire resistance, where its fireballs do nothing,
+    // that alone set flee eight times with no hp lost (the flee search's smoke, 11 Nov 2026)
+    boolean holds() {
         return kind.equals("blaze");
     }
 
