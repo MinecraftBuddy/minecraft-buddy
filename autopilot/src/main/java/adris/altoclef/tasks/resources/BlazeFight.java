@@ -1429,6 +1429,12 @@ final class BlazeFight {
             if (packed && blaze == target) packDrop = true;
             if (distance <= range && !packed) {
                 around++;
+                // (Tuning blaze_nopath_keep: a blaze let go for no path, kept so through its fireballs, that comes within a
+                // bite is in reach after all)
+                if (distance <= BITE_RANGE && adris.altoclef.trackers.BanPolicy.blazeKeepTicks() > 0
+                        && !mod.getEntityTracker().isEntityReachable(blaze)) {
+                    mod.getBans().within(blaze.getId());
+                }
                 Floor floor = floorUnder(mod.getWorld(), blaze);
                 inReach = !tripOver && BlazeFightRules.isReachable(floor.height(), floor.lava(), distance, range, blaze == target)
                         && mod.getEntityTracker().isEntityReachable(blaze)

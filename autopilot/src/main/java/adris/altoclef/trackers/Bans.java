@@ -148,6 +148,14 @@ public final class Bans {
                 && (b.key.x >> 4) == chunkX && (b.key.z >> 4) == chunkZ;
     }
 
+    // (Tuning blaze_nopath_keep) a mob let go for no path that came within a bite: there is a way after all
+    public synchronized void within(int entityId) {
+        Key key = Key.entity(entityId);
+        if (bans.containsKey(key)) {
+            expireIf(b -> b.events.contains(Until.HIT_US) && b.key.equals(key), "it came within a bite");
+        }
+    }
+
     public synchronized void hitBy(int entityId) {
         Key key = Key.entity(entityId);
         if (bans.containsKey(key)) {

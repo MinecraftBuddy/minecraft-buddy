@@ -425,17 +425,26 @@ public class EntityTracker extends Tracker {
         // is the hit, the other forty ticks are just the same hit still being around
         if (source != _lastNotedSource) {
             _lastNotedSource = source;
-            noteHitUs(source.getEntity());
+            // a shot: the shooter is not the thing that touched us
+            boolean shot = source.getDirectEntity() != null && source.getDirectEntity() != source.getEntity();
+            noteHitUs(source.getEntity(), shot);
             noteHitUs(source.getDirectEntity());
         }
     }
 
     // the strict book: this mob hit us, right now. a hit by an arrow is the shooter's hit (the arrow is no Mob)
     private void noteHitUs(Entity entity) {
+        noteHitUs(entity, false);
+    }
+
+    private void noteHitUs(Entity entity, boolean shot) {
         if (entity instanceof Mob && Minecraft.getInstance().level != null) {
             _provocations.markHit(entity.getId(), Minecraft.getInstance().level.getGameTime());
-            // it got to us, so "no path to it" was wrong or is over
-            _mod.getBans().hitBy(entity.getId());
+            // it got to us, so "no path to it" was wrong or is over. (Tuning blaze_nopath_keep: not a blaze's fireball, which
+            // crosses the lava no path does: 1280 no-path bans on blazes were lifted so on 11 Nov, BanPolicy.blazeKeepTicks)
+            if (!(shot && entity instanceof net.minecraft.world.entity.monster.Blaze && BanPolicy.blazeKeepTicks() > 0)) {
+                _mod.getBans().hitBy(entity.getId());
+            }
         }
     }
 

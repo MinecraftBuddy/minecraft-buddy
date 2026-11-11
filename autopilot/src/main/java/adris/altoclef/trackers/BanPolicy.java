@@ -120,7 +120,16 @@ public final class BanPolicy {
 
     // CalcFailureWatch: the second empty search. a hit from it proves there is a way
     public static boolean noPath(Bans bans, int id, String what) {
-        return bans.ban(Key.entity(id), "no path to " + what, NO_PATH, Until.HIT_US);
+        long keep = "blaze".equals(what) ? blazeKeepTicks() : 0;
+        return bans.ban(Key.entity(id), "no path to " + what, keep > 0 ? keep : NO_PATH, Until.HIT_US);
+    }
+
+    // (Tuning blaze_nopath_keep, seconds, 0 off: a blaze with no path to it stays let go this long, not NO_PATH's 2 min, and
+    // its fireball does not lift that (EntityTracker.noteHitUs); one that comes within a bite does (BlazeFight). a blaze
+    // hovers where it was, over the lava or past a wall: of 15162 such bans on 11 Nov 13125 ran out and the same blaze was
+    // chased again, 8281 times, while the potion minutes went to blazes with no path, E1111-2100.2)
+    public static long blazeKeepTicks() {
+        return Math.round(adris.altoclef.util.helpers.Tuning.get("blaze_nopath_keep", 0) * 20);
     }
 
     // ---- blocks
