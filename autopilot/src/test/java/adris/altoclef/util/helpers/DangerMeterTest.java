@@ -270,4 +270,69 @@ public class DangerMeterTest {
         // and without the potion the blaze's fireballs count at any distance in sight, as they did
         assertTrue(DangerMeter.read(us(20, false), List.of(mob("blaze", 2.9, 0, 1, true, true)), List.of()).t() > 1);
     }
+
+    // ---- the task's goal weighed in (Tuning risk_flee_goal): the mobs a task fights on its own terms count as the next one
+
+    private static Mob own(String kind, double dx, double dz) {
+        MobThreat row = MobThreat.forMeter(kind, 1);
+        return new Mob(kind, row, dx, 0, dz, 1, true, true, row.hp(), true);
+    }
+
+    private static List<Mob> fiveBlazes() {
+        return List.of(own("blaze", 9, 0), own("blaze", 0, 9), own("blaze", -9, 0), own("blaze", 0, -9), own("blaze", 7, 7));
+    }
+
+    // five blazes with a line at the spawner the rods task came for. all of them dead before we are is a race lost at full
+    // health, and the buddy ran from the place it has to be. counted as the next blaze it goes, and flees once it is hurt
+    @Test
+    public void theTasksOwnCountAsTheNextOne() {
+        Reading meter = DangerMeter.read(us(20, false), fiveBlazes(), List.of());
+        assertTrue(meter.risk() > 1);
+        assertEquals(Level.FLEE, levelFrom(Level.CALM, meter));
+
+        Reading goal = DangerMeter.read(us(20, false), fiveBlazes(), List.of(), true);
+        // what they do to us counts in full
+        assertEquals(meter.t(), goal.t(), 1e-9);
+        assertEquals(meter.d(), goal.d(), 1e-9);
+        // the race is the nearest blaze's: its hp over the sword plus the walk to it
+        assertEquals(20 / 9.6 + (9 - DangerMeter.OUR_REACH) / DangerMeter.OUR_SPEED, goal.k(), 1e-9);
+        assertEquals(Level.FIGHT, levelFrom(Level.CALM, goal));
+
+        // at 10 hp the loss within the horizon leaves under the margin: flee, whatever the goal
+        Reading hurt = DangerMeter.read(us(10, false), fiveBlazes(), List.of(), true);
+        assertEquals(Level.FLEE, levelFrom(Level.FIGHT, hurt));
+    }
+
+    // a wither skeleton among the blazes is no goal of the rods task: it counts in the race as it did
+    @Test
+    public void aMobThatIsNotTheTasksCountsInFull() {
+        Mob skeleton = mob("wither_skeleton", 4, 0, 1, true, true);
+        double alone = DangerMeter.read(us(20, false), List.of(skeleton), List.of()).k();
+        assertTrue(alone > 0);
+        List<Mob> mobs = new java.util.ArrayList<>(fiveBlazes());
+        mobs.add(skeleton);
+        Reading goal = DangerMeter.read(us(20, false), mobs, List.of(), true);
+        assertEquals(alone + 20 / 9.6 + (9 - DangerMeter.OUR_REACH) / DangerMeter.OUR_SPEED, goal.k(), 1e-9);
+        assertEquals(DangerMeter.read(us(20, false), mobs, List.of()).t(), goal.t(), 1e-9);
+    }
+
+    // with no mob the task's own the reading is the meter's, and so is one read without the goal whatever the mobs say
+    @Test
+    public void withoutTheTasksOwnTheReadingIsTheMeters() {
+        List<Mob> blazes = List.of(mob("blaze", 9, 0, 1, true, true), mob("blaze", 0, 9, 1, true, true), mob("blaze", -9, 0, 1, true, true));
+        Reading meter = DangerMeter.read(us(12, false), blazes, List.of());
+        Reading goal = DangerMeter.read(us(12, false), blazes, List.of(), true);
+        assertEquals(meter.k(), goal.k(), 1e-9);
+        assertEquals(meter.risk(), goal.risk(), 1e-9);
+        assertEquals(DangerMeter.read(us(20, false), fiveBlazes(), List.of()).k(), DangerMeter.read(us(20, false), fiveBlazes(), List.of(), false).k(), 1e-9);
+    }
+
+    @Test
+    public void theGoalLine() {
+        Reading meter = DangerMeter.read(us(20, false), fiveBlazes(), List.of());
+        Reading goal = DangerMeter.read(us(20, false), fiveBlazes(), List.of(), true);
+        assertEquals("danger goal: fight where the meter says flee, 5 of the task's own counted as the next one: risk 0.4 for 2.0, "
+                + "K 3.5 s for 17.6 s, hp 20.0, top blaze 9.0 20%, blaze 9.0 20%, blaze 9.0 20%",
+                DangerMeter.goalLine(Level.FIGHT, goal, Level.FLEE, meter, 5));
+    }
 }

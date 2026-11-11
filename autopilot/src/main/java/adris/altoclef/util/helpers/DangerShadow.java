@@ -53,6 +53,19 @@ public final class DangerShadow {
     private static final double KILL_GONE = 6;
 
     private static final DangerMeter.Track track = new DangerMeter.Track();
+    // (S137 step 3, Tuning risk_flee_goal, on under risk_flee) the level the runs go by: the meter's with the task's goal
+    // weighed in. the mobs the running task took out of mob defense to fight on its own terms (the rods task's blazes) are its
+    // goal: they count in the race as the next one of them, not as all (DangerMeter.read with goal). the meter's own level,
+    // its lines and its readers stay as they are in both arms; this one has its own line, "danger goal:"
+    private static final DangerMeter.Track goalTrack = new DangerMeter.Track();
+    // the last sample's reading with the goal weighed in (the meter's own where no mob is the task's), and how many of the
+    // task's own it counted
+    private static Reading goalReading;
+    private static int goalOwn;
+
+    private static boolean goalOn() {
+        return Tuning.get("risk_flee", 0) >= 1 && Tuning.get("risk_flee_goal", 1) > 0;
+    }
     private static final DangerMeter.Patience patience = new DangerMeter.Patience();
     private static Reading last = DangerMeter.none(20);
     // the mobs of the last reading by entity, with what each adds to T and push: only while danger_force is on (the forced
@@ -105,7 +118,7 @@ public final class DangerShadow {
     // (S137 step 3) the level for a chain the meter steers (risk_flee): null where the meter does not read (off, after its
     // errors, the End, dead), so the chain keeps its own rules there
     public static Level steering() {
-        return on() && reading ? track.level() : null;
+        return on() && reading ? (goalOn() ? goalTrack.level() : track.level()) : null;
     }
 
     // the meter read the world at its last tick: alive, in the nether or the overworld
@@ -188,6 +201,7 @@ public final class DangerShadow {
         }
         if (dead && !wasDead) {
             track.reset(tick);
+            goalTrack.reset(tick);
             last = DangerMeter.none(0);
             threats = List.of();
             detail = null;
@@ -212,6 +226,12 @@ public final class DangerShadow {
         Reading reading = read(mod, player, level, hp);
         last = reading;
         if (track.step(tick, reading)) Debug.logInternal(DangerMeter.levelLine(track.level(), reading));
+        // (risk_flee_goal) the level with the goal weighed in follows the meter's wherever no mob is the task's own: said only
+        // where it counts one, or stands apart from the meter's
+        Reading goal = goalReading != null ? goalReading : reading;
+        if (goalTrack.step(tick, goal) && goalOn() && (goalOwn > 0 || goalTrack.level() != track.level())) {
+            Debug.logInternal(DangerMeter.goalLine(goalTrack.level(), goal, track.level(), reading, goalOwn) + at());
+        }
         boolean progress = progress(level, player);
         DangerMeter.Patience.Ended ended = patience.step(tick, track.level(), reading.t(), hp, progress);
         if (ended != null) Debug.logInternal(DangerMeter.patienceLine(ended));
@@ -285,6 +305,9 @@ public final class DangerShadow {
         Map<Integer, Double> afterNow = new HashMap<>();
         // (S137 step 2: the mobs that want us, where they are, for the path search's mob field; and the ones that did lately)
         List<RiskField.Source> field = new ArrayList<>();
+        // (risk_flee_goal) the task's own mobs that count in T, and whether the switch reads them at all
+        boolean goalOn = goalOn();
+        int own = 0;
         long linger = Math.round(Tuning.get("risk_mob_linger", LINGER) * 20);
         if (level != lingerLevel) {
             wanted = new HashMap<>();
@@ -312,8 +335,12 @@ public final class DangerShadow {
             boolean sees = needSight && LookHelper.seesPlayer(mob, player, Math.max(MOB_RANGE, Math.min(SHOOTER_RANGE, distance + 1)));
             double want = DangerMeter.wantsToHurt(afterUs, hostileKind, calm, sees, distance, notice);
             boolean way = row != null && row.flies() || reach.wayFor(mob, player, now);
-            mobs.add(new DangerMeter.Mob(kind, row, mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ(),
-                    want, way, sees, mob.getHealth()));
+            // (a paused task's exclusions count too: the rods task is paused exactly while a run has the wheel)
+            boolean mine = goalOn && mod.getBehaviour().shouldExcludeFromMobDefense(mob);
+            DangerMeter.Mob counted = new DangerMeter.Mob(kind, row, mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ(),
+                    want, way, sees, mob.getHealth(), mine);
+            mobs.add(counted);
+            if (mine && DangerMeter.damage3(counted, us, counted.distance()) > 0) own++;
             bodies.add(mob);
             if (full != null && (afterUs || (hostileKind && !calm))) {
                 boolean seen = afterUs || (needSight ? sees
@@ -337,6 +364,17 @@ public final class DangerShadow {
         List<Hazard> hazards = hazards(level, player);
         threats = forced ? threats(us, mobs, bodies, hazards) : List.of();
         Reading reading = DangerMeter.read(us, mobs, hazards);
+        goalOwn = own;
+        goalReading = reading;
+        if (own > 0) {
+            // the next piece of the job is fought with the weapon the fight would take, not with what is in the hand on the
+            // walk there: by a pickaxe's damage one blaze is a kill of ten seconds, and the place reads as a flee again. every
+            // other mob's time in this reading is by that weapon too
+            net.minecraft.world.item.Item weapon = adris.altoclef.tasks.entity.AbstractKillEntityTask.bestWeapon(mod);
+            double fightDps = weapon == null ? dps : Math.max(dps, ItemHelper.getAttackDamage(weapon) * ItemHelper.getAttackSpeed(weapon));
+            DangerMeter.Us armed = new DangerMeter.Us(us.hp(), fightDps, us.armour(), us.toughness(), us.difficulty(), us.resistance(), us.fireRes(), us.bowDps());
+            goalReading = DangerMeter.read(armed, mobs, hazards, true);
+        }
         if (forced) {
             Reading all = DangerMeter.read(us, full, hazards);
             StringBuilder counted = new StringBuilder();

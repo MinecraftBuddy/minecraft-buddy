@@ -67,7 +67,13 @@ public final class DangerMeter {
 
     // one mob as the game side sees it. dx, dy, dz: its feet relative to ours. row: MobThreat.forMeter (null: a body that hurts
     // nobody). want: wantsToHurt. way: it can walk to us (or flies). sees: a line from its eyes to ours. hp: its health now
-    public record Mob(String kind, MobThreat row, double dx, double dy, double dz, double want, boolean way, boolean sees, double hp) {
+    // own: the running task's own, its goal (a mob the task took out of mob defense to fight on its own terms: the blazes of
+    // the rods task). read(.., goal) counts the task's own by the next one of them, not by all
+    public record Mob(String kind, MobThreat row, double dx, double dy, double dz, double want, boolean way, boolean sees, double hp, boolean own) {
+        public Mob(String kind, MobThreat row, double dx, double dy, double dz, double want, boolean way, boolean sees, double hp) {
+            this(kind, row, dx, dy, dz, want, way, sees, hp, false);
+        }
+
         double distance() {
             return Math.sqrt(dx * dx + dy * dy + dz * dz);
         }
@@ -172,10 +178,22 @@ public final class DangerMeter {
     }
 
     public static Reading read(Us us, List<Mob> mobs, List<Hazard> hazards) {
+        return read(us, mobs, hazards, false);
+    }
+
+    // goal: (S137 step 3, Tuning risk_flee_goal) the task's goal weighs in on go or flee. the race counts every mob that wants
+    // us: all of them killed before we die. where the task's goal lies in the danger (its own mobs: five blazes at the spawner
+    // the rods task came for) that race is lost at full health, by the walk to each, and the buddy ran from the place it has to
+    // be, came back and ran again every 5 to 10 s. with goal the task's own count in K as the next piece of the job, the one of
+    // them soonest dead, and the question is whether the buddy outlives that; what they do to us counts in full (T, and so the
+    // time to die and the last-ditch margin), and every other mob counts in K as it did
+    public static Reading read(Us us, List<Mob> mobs, List<Hazard> hazards, boolean goal) {
         List<Part> parts = new ArrayList<>();
         double t = 0;
         double push = 0;
         double k = 0;
+        boolean own = false;
+        double piece = Double.POSITIVE_INFINITY;
         for (Mob mob : mobs) {
             double distance = mob.distance();
             double hp3 = damage3(mob, us, distance);
@@ -184,7 +202,13 @@ public final class DangerMeter {
                 parts.add(new Part(mob.kind(), distance, hp3));
                 // the race: its hp over our damage a second, plus the walk to it
                 double hp = mob.hp() > 0 ? mob.hp() : mob.row() != null ? mob.row().hp() : 20;
-                k += mob.want() * killTime(mob, us, distance, hp);
+                double term = mob.want() * killTime(mob, us, distance, hp);
+                if (goal && mob.own()) {
+                    own = true;
+                    piece = Math.min(piece, term);
+                } else {
+                    k += term;
+                }
             }
             double risk = pushRisk(mob, us, distance, hazards);
             if (risk > 0) {
@@ -192,6 +216,7 @@ public final class DangerMeter {
                 parts.add(new Part(mob.kind(), distance, risk));
             }
         }
+        if (own) k += piece;
         push = Math.min(push, us.hp());
         double loss = t + push;
         double d = loss > 0 ? us.hp() / (loss / HORIZON) : Double.POSITIVE_INFINITY;
@@ -382,6 +407,15 @@ public final class DangerMeter {
     public static String levelLine(Level level, Reading reading) {
         return "danger: " + level.word() + ", T " + num(reading.t()) + " hp/3s, push " + num(reading.push()) + ", risk " + num(reading.risk())
                 + ", hp " + num(reading.hp()) + ", top " + top(reading);
+    }
+
+    // danger goal: <level> where the meter says <level>, <n> of the task's own counted as the next one: risk <risk> for <risk>,
+    // K <k> s for <k> s, hp <hp>, top ... (the level the runs go by under risk_flee_goal; its own prefix, so the rig's readers
+    // of "danger: <level>" lines keep reading the meter's)
+    public static String goalLine(Level level, Reading goal, Level meter, Reading plain, int own) {
+        return "danger goal: " + level.word() + " where the meter says " + meter.word() + ", " + own
+                + " of the task's own counted as the next one: risk " + num(goal.risk()) + " for " + num(plain.risk())
+                + ", K " + num(goal.k()) + " s for " + num(plain.k()) + " s, hp " + num(goal.hp()) + ", top " + top(goal);
     }
 
     // danger: hit <damage> from <kind>, level <level>, T <t>, risk <risk>
