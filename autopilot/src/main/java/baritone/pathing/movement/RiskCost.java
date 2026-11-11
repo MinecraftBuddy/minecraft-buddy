@@ -184,7 +184,8 @@ public final class RiskCost {
 
     // a mob the goal is at, or next to: the one a fight walks up to is no hazard of the way there
     public static boolean atGoal(Goal goal, RiskField.Source mob) {
-        if (goal == null) {
+        // (a flee goes to no mob)
+        if (goal == null || goal instanceof GoalFlee) {
             return false;
         }
         // (a fight's goal stands a block or two off the mob, whatever its reach)

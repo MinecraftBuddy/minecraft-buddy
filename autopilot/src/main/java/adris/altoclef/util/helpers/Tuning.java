@@ -200,9 +200,10 @@ public final class Tuning {
 
     // tuning.properties in the game directory (the system property buddy.tuning first, for tests); null before the game is up
     private static Path file() {
-        if (file != null) return file;
         String prop = System.getProperty("buddy.tuning");
-        if (prop != null) return file = Path.of(prop);
+        // (followed when a test points it at another file: each test of a class may have its own)
+        if (prop != null && (file == null || !file.toString().equals(prop))) return file = Path.of(prop);
+        if (file != null) return file;
         try {
             net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
             if (mc != null && mc.gameDirectory != null) file = mc.gameDirectory.toPath().resolve("tuning.properties");

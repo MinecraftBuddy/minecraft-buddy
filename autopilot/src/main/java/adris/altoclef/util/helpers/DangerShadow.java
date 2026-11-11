@@ -72,6 +72,16 @@ public final class DangerShadow {
     private static float pendingLow;
     private static long pendingAt;
 
+    // (S137 step 2, the mob field) the mobs that wanted us lately: the tick each last did, and how much. one that loses sight
+    // of us for a moment stays in the field with that want for risk_mob_linger seconds (LINGER): it is still about to come
+    // back, and a field that drops it and takes it back each second had the walk replan away from it and back (RiskWatch's
+    // more and less, the smoke of steering 153: 16 replans in 26 s beside a wither skeleton)
+    private record Wanted(long tick, double want) {
+    }
+
+    static final double LINGER = 3;
+    private static Map<Integer, Wanted> wanted = new HashMap<>();
+
     // progress: mobs that were after us at the last sample (id to distance), and the rods we held
     private static Map<Integer, Double> after = new HashMap<>();
     private static int lastRods = -1;
@@ -183,6 +193,7 @@ public final class DangerShadow {
             detail = null;
             after = new HashMap<>();
             lastRods = -1;
+            wanted = new HashMap<>();
         }
         wasDead = dead;
         hp2 = dead ? 0 : hp1;
@@ -272,8 +283,14 @@ public final class DangerShadow {
         // (each mob's entity, for the forced drills' threats)
         List<Mob> bodies = new ArrayList<>();
         Map<Integer, Double> afterNow = new HashMap<>();
-        // (S137 step 2: the mobs that want us, where they are, for the path search's mob field)
+        // (S137 step 2: the mobs that want us, where they are, for the path search's mob field; and the ones that did lately)
         List<RiskField.Source> field = new ArrayList<>();
+        long linger = Math.round(Tuning.get("risk_mob_linger", LINGER) * 20);
+        if (level != lingerLevel) {
+            wanted = new HashMap<>();
+            lingerLevel = level;
+        }
+        wanted.values().removeIf(w -> now - w.tick() > linger || now < w.tick());
         for (Entity e : level.entitiesForRendering()) {
             if (!(e instanceof Mob mob) || !mob.isAlive()) continue;
             double distance = mob.distanceTo(player);
@@ -309,6 +326,10 @@ public final class DangerShadow {
             if (want > 0) afterNow.put(mob.getId(), distance);
             if (want > 0 && row != null) {
                 field.add(new RiskField.Source(mob.getId(), row, mob.getX(), mob.getY(), mob.getZ(), want, DangerMeter.scale(row, us), way));
+                wanted.put(mob.getId(), new Wanted(now, want));
+            } else if (row != null && wanted.get(mob.getId()) != null) {
+                field.add(new RiskField.Source(mob.getId(), row, mob.getX(), mob.getY(), mob.getZ(), wanted.get(mob.getId()).want(),
+                        DangerMeter.scale(row, us), way));
             }
         }
         pendingAfter = afterNow;
@@ -351,6 +372,8 @@ public final class DangerShadow {
     // ---- progress: a kill or a rod since the last sample (hp and T are the meter's own)
 
     private static Map<Integer, Double> pendingAfter = new HashMap<>();
+    // the world the lingering mobs are of
+    private static Object lingerLevel;
 
     private static boolean progress(ClientLevel level, LocalPlayer player) {
         boolean kill = false;

@@ -17,6 +17,7 @@
 
 package baritone.pathing.path;
 
+import adris.altoclef.util.baritone.GoalFlee;
 import adris.altoclef.util.helpers.RiskField;
 import adris.altoclef.util.helpers.Tuning;
 import baritone.api.pathing.calc.IPath;
@@ -38,7 +39,11 @@ import java.util.Map;
 //     (dead, despawned, calm now), so the detour it forced does not outlive it. one that walked out of the field far off
 //     only fell behind
 // at most one such replan every risk_replan_gap ticks, over all paths: a mob that keeps coming and going does not keep the
-// buddy searching
+// buddy searching. and no less within risk_replan_flip ticks of a more: a detour is not given up for a mob that just made
+// one (the smoke of steering 153: more and less in turn once a second beside a wither skeleton that blinked in and out of
+// the field, the buddy held within 3 blocks of it till dead; the field now keeps such a mob a while, DangerShadow.LINGER).
+// a flee (S137 step 3, a path toward GoalFlee) is watched whatever risk_mobs says, for more only: a mob gone only makes more
+// cells calm, and the meter ends the run
 public final class RiskWatch {
 
     // an hp at full health
@@ -46,10 +51,13 @@ public final class RiskWatch {
     // two hp at full health
     public static final double LESS = 160;
     static final double GAP = 20;
+    // five seconds
+    static final double FLIP = 100;
     // a steering mob last seen closer than this that is gone from the field has gone; farther, it walked out of it
     static final double CLOSE = 12;
 
     private static long lastReplan = Long.MIN_VALUE / 2;
+    private static long lastMore = Long.MIN_VALUE / 2;
 
     // the version last checked, -1 before the first
     private long version = -1;
@@ -77,7 +85,8 @@ public final class RiskWatch {
 
     // the reason to plan again now, or null. game thread, a tick the movement can be cancelled in
     String check(IPath path, int pos, CalculationContext context, BetterBlockPos feet, long now) {
-        if (Tuning.get("risk_mobs", 0) < 1) {
+        boolean flee = path.getGoal() instanceof GoalFlee;
+        if (!flee && Tuning.get("risk_mobs", 0) < 1) {
             return null;
         }
         RiskField.Version field = RiskField.current();
@@ -101,7 +110,7 @@ public final class RiskWatch {
             why = String.format(Locale.ROOT, "more, %.1f hp expected on the rest against %.1f planned", is, was);
         }
         Integer gone = null;
-        if (why == null) {
+        if (why == null && !flee && !(now >= lastMore && now - lastMore < Tuning.get("risk_replan_flip", FLIP))) {
             gone = gone(field, feet);
             if (gone != null) {
                 why = "less, a mob that steered the search has gone";
@@ -119,6 +128,8 @@ public final class RiskWatch {
         lastReplan = now;
         if (gone != null) {
             lastSeen.remove(gone);
+        } else {
+            lastMore = now;
         }
         return why + ", " + (path.movements().size() - pos) + " moves left";
     }
