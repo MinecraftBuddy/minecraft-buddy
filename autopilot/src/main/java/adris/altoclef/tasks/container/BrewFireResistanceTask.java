@@ -44,6 +44,8 @@ public class BrewFireResistanceTask extends ResourceTask {
     private static int _standFuel = -1;
     // this batch is out of the stand and in the bag
     private boolean _done;
+    // a potion of the batch taken out of the stand (Tuning brew_once)
+    private boolean _takenOut;
 
     public BrewFireResistanceTask(int count) {
         super(Items.POTION, Math.min(count, BrewRules.BATCH));
@@ -327,6 +329,18 @@ public class BrewFireResistanceTask extends ResourceTask {
             _standStage = BrewRules.after(BrewRules.stage(water, awkward, fire, longFire), inSlot);
             _standFuel = fuel + (fuelStack.is(Items.BLAZE_POWDER) ? BrewRules.BREWS_PER_POWDER * fuelStack.getCount() : 0);
 
+            // (Tuning brew_once, a fix, on: the batch's potions are out of the stand, so the brew is done, before the fuel and
+            // the bottles. with the last one taken out the stand was empty, the bottle step put the bag's spare water bottle in
+            // for a second batch, and the brew was given up for no cream with its potions in the bag: 117 of the 149 "given up,
+            // no magma cream" on 11 Nov 2026, the box opened before the drink, E1111-1500.2)
+            if (_takenOut && ours == 0 && adris.altoclef.util.helpers.Tuning.get("brew_once", 1) > 0) {
+                Debug.logInternal("brew: done, " + fireRes(mod) + " fire resistance in the bag");
+                forget("brewed");
+                _done = true;
+                StorageHelper.closeScreen();
+                return null;
+            }
+
             // the fuel: one powder is twenty brews
             if (fuel <= 0 && fuelStack.isEmpty()) {
                 if (mod.getItemStorage().hasItem(Items.BLAZE_POWDER)) {
@@ -395,6 +409,7 @@ public class BrewFireResistanceTask extends ResourceTask {
                 ItemStack b = StorageHelper.getItemStackInSlot(s);
                 if (PotionHelper.is(b, Potions.FIRE_RESISTANCE) || PotionHelper.is(b, Potions.LONG_FIRE_RESISTANCE)) {
                     setDebugState("Taking the potions");
+                    _takenOut = true;
                     click(mod, s, ContainerInput.QUICK_MOVE);
                     return null;
                 }

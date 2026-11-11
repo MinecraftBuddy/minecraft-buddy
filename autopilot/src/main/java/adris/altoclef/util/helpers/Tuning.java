@@ -145,6 +145,9 @@ public final class Tuning {
             // potion, as the brewed one followed the traded one with no gap; once the brew is through and the potion on, the camp
             // is picked again as the fire-proof one, at the box's open side; CollectBlazeRodsTask, E1111-1500.1)
             java.util.Map.entry("brew_camp_repick", 1.0),
+            // (11 Nov 2026, a fix: once the batch's potions are out of the stand the brew is done; the bag's spare water bottle
+            // started a second batch and the brew was given up for no cream with its potions in the bag, BrewFireResistanceTask)
+            java.util.Map.entry("brew_once", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
             // (route jar 3: on the way, before the spawner fight, the potion goes down only in lava for 2 s or at 12 hp, or
