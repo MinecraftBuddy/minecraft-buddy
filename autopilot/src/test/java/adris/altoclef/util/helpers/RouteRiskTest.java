@@ -61,6 +61,40 @@ public class RouteRiskTest {
                 RouteRisk.pieceLine(true, 20, one, k, 0, 0, false));
     }
 
+    // decision 12: the piece in hand is outlived up to the next safe meal. the same wither skeleton with 7 hp more on the whole
+    // route (a second group farther on) is fled from; with the place to eat two moves on and 1.5 hp up to it, the buddy goes
+    @Test
+    public void aFightOnTheWayCountsTheRouteOnlyUpToASafeMeal() {
+        double one = RouteRisk.piece(20 / 9.6 + 0.8 / 4.3, 12.1);
+        assertFalse(RouteRisk.go(20, one + 7, 0, false, false));
+        assertTrue(RouteRisk.go(20, one + 1.5, 0, false, false));
+        assertEquals(", up to a safe meal 2 moves on (7.0 on the whole way)", RouteRisk.mealPart(true, new double[]{1.5, 2}, true, 7));
+        assertEquals(", no safe meal on the way", RouteRisk.mealPart(true, null, true, 7));
+        assertEquals(", no food for a meal on the way", RouteRisk.mealPart(true, new double[]{1.5, 2}, false, 7));
+        assertEquals("", RouteRisk.mealPart(false, new double[]{1.5, 2}, true, 7));
+    }
+
+    // a meal (32 ticks) fits where moves the field prices calm (under 0.33 hp a second) last that long together: walking moves
+    // of 5 ticks, a mob's reach on the first two (0.5 hp each: 2 hp a second), then calm
+    @Test
+    public void aSafeMealIsTheFirstCalmStretchAMealLong() {
+        double[] cost = {5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+        double[] hp = {0.5, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0, 0, 0};
+        // moves 2 to 10: 45 ticks calm
+        assertEquals(2, RouteRisk.mealAt(hp, cost, 20, 0, 32, 0.33));
+        // from inside the stretch with 35 ticks of it left, the meal is where the walk is
+        assertEquals(4, RouteRisk.mealAt(hp, cost, 20, 4, 32, 0.33));
+        // from 5 on only 30 ticks before the next reach, then 15 to the end: none
+        assertEquals(-1, RouteRisk.mealAt(hp, cost, 20, 5, 32, 0.33));
+        // a key of 0: no meal, the whole rest counts
+        assertEquals(-1, RouteRisk.mealAt(hp, cost, 20, 0, 0, 0.33));
+        // a little hp under the bound is calm (0.05 hp in 5 ticks: 0.2 a second)
+        double[] low = {0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05};
+        assertEquals(0, RouteRisk.mealAt(low, new double[]{5, 5, 5, 5, 5, 5, 5}, 20, 0, 32, 0.33));
+        // one slow move (a block broken, 40 ticks) is a stretch of its own; its exposure is capped at 20 ticks
+        assertEquals(1, RouteRisk.mealAt(new double[]{0.5, 0.1}, new double[]{5, 40}, 20, 0, 32, 0.33));
+    }
+
     @Test
     public void theLine() {
         assertEquals("route: go, 3.2 hp expected on the way and 1.0 at the goal, hp 17.0, the goal lies in the danger",

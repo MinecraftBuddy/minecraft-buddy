@@ -51,6 +51,44 @@ public final class RouteRisk {
         return killSeconds * Math.max(0, loss) / DangerMeter.HORIZON;
     }
 
+    // (decision 12, the piece in hand is outlived up to the next safe meal) how long a meal takes, in seconds (Tuning
+    // risk_piece_meal_s; 0: the whole rest of the way counts, as decision 10 was built). an item eaten is 1.6 s
+    public static final double MEAL_S = 1.6;
+
+    public static double mealTicks() {
+        return Math.max(0, Tuning.get("risk_piece_meal_s", MEAL_S)) * 20;
+    }
+
+    // (decision 12) where on the rest of the way a meal fits before the next fight: the first move from `from` on that begins
+    // a stretch of moves the field prices calm (each under `calm` hp a second), together at least mealTicks long. hp[i]: the
+    // hp the mobs are expected to take over move i's exposure (its cost, at most cap ticks); cost[i]: its ticks. -1: none
+    public static int mealAt(double[] hp, double[] cost, double cap, int from, double mealTicks, double calm) {
+        if (mealTicks <= 0) return -1;
+        int start = -1;
+        double quiet = 0;
+        for (int i = Math.max(0, from); i < hp.length && i < cost.length; i++) {
+            double exposure = Math.max(1, Math.min(cost[i], cap));
+            if (hp[i] * 20 / exposure >= calm) {
+                start = -1;
+                quiet = 0;
+                continue;
+            }
+            if (start < 0) start = i;
+            quiet += cost[i];
+            if (quiet >= mealTicks) return start;
+        }
+        return -1;
+    }
+
+    // (decision 12) what the piece's line adds: ", up to a safe meal <n> moves on (<whole> on the whole way)", ", no safe meal
+    // on the way", ", no food for a meal on the way"; nothing with the key at 0
+    public static String mealPart(boolean on, double[] toMeal, boolean food, double whole) {
+        if (!on) return "";
+        if (toMeal == null) return ", no safe meal on the way";
+        if (!food) return ", no food for a meal on the way";
+        return String.format(Locale.ROOT, ", up to a safe meal %d moves on (%.1f on the whole way)", Math.round(toMeal[1]), whole);
+    }
+
     // route: go|flee, the fight in hand <piece> hp (<k> s to kill), <way> on the way and <stay> at the goal, hp <hp>[, ...]
     public static String pieceLine(boolean go, double hp, double piece, double k, double way, double stay, boolean inDanger) {
         return String.format(Locale.ROOT, "route: %s, the fight in hand %.1f hp (%.1f s to kill), %.1f on the way and %.1f at the goal, hp %.1f%s",

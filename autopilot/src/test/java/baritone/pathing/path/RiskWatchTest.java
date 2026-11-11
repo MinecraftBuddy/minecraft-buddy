@@ -264,6 +264,44 @@ public class RiskWatchTest {
         assertTrue(more, more.startsWith("more"));
     }
 
+    // decision 12: a zombie by the start of the way and another by its end, calm ground between. the way up to the first place
+    // a meal fits in calm counts the first zombie and not the second; the whole rest counts both. a meal longer than the calm
+    // stretch fits nowhere
+    @Test
+    public void theWayUpToASafeMealLeavesOutTheFightsAfterIt() throws Exception {
+        route();
+        RiskField.clear(0);
+        RiskField.alert(false);
+        MapWorld w = new MapWorld();
+        for (int x = -20; x <= 70; x++) {
+            for (int z = -10; z <= 10; z++) {
+                w.set(x, 63, z, Blocks.STONE.defaultBlockState());
+            }
+        }
+        Ctx ctx = new Ctx(w);
+        // (planned in calm: straight)
+        IPath way = path(ctx, new GoalBlock(60, 64, 0));
+        RiskField.alert(true);
+        RiskField.offer(1, null, false, List.of(zombie(7, 6.5, 0.5), zombie(8, 50.5, 0.5)));
+        RiskWatch walk = new RiskWatch();
+        walk.planned(true);
+        assertNull(walk.check(way, 0, ctx, FEET, clock));
+        double whole = walk.expected(0);
+        double[] meal = walk.toMeal(0, 32, GoalFlee.calm());
+        assertNotNull(meal);
+        assertTrue(meal[0] > 0.5);
+        assertTrue(whole + " against " + meal[0], whole > meal[0] + 0.5);
+        assertTrue(meal[1] > 5 && meal[1] < 45);
+        // the calm stretch is some 30 moves: a meal of 30 s fits nowhere
+        assertNull(walk.toMeal(0, 600, GoalFlee.calm()));
+        // past the first zombie the meal is where the walk is
+        int past = (int) meal[1];
+        double[] there = walk.toMeal(past, 32, GoalFlee.calm());
+        assertNotNull(there);
+        assertEquals(0, there[1], 0);
+        assertEquals(0, there[0], 1e-9);
+    }
+
     @Test
     public void aWalkThatPricedTheMobsKeepsItsOwnBaseline() throws Exception {
         route();

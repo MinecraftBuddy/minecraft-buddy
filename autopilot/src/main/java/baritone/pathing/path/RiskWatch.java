@@ -19,6 +19,7 @@ package baritone.pathing.path;
 
 import adris.altoclef.util.baritone.GoalFlee;
 import adris.altoclef.util.helpers.RiskField;
+import adris.altoclef.util.helpers.RouteRisk;
 import adris.altoclef.util.helpers.Tuning;
 import baritone.api.pathing.calc.IPath;
 import baritone.api.pathing.movement.IMovement;
@@ -79,6 +80,8 @@ public final class RiskWatch {
     // per movement: the hp the rest is expected to cost as of the last check; null before one and while the walk is not
     // watched
     private double[] last;
+    // per movement: its cost in ticks (decision 12: how long a calm stretch lasts)
+    private double[] cost;
 
     void planned(boolean priced) {
         this.priced = priced;
@@ -88,6 +91,17 @@ public final class RiskWatch {
     // while the walk is not watched
     double expected(int pos) {
         return last == null ? Double.NaN : sum(last, pos);
+    }
+
+    // (decision 12, the piece in hand is outlived up to the next safe meal) as of the last check: the hp the mobs are expected
+    // to take from pos up to the first stretch of the rest a meal fits in calm (RouteRisk.mealAt), and the moves to it. null
+    // before a check, while the walk is not watched, and where the rest has no such stretch
+    double[] toMeal(int pos, double mealTicks, double calm) {
+        if (last == null || cost == null) {
+            return null;
+        }
+        int at = RouteRisk.mealAt(last, cost, RiskCost.EXPOSURE_CAP, pos, mealTicks, calm);
+        return at < 0 ? null : new double[]{sum(last, pos, at), at - Math.max(0, pos)};
     }
 
     void shapedBy(int[] ids) {
@@ -126,6 +140,9 @@ public final class RiskWatch {
         RiskField.Pricer pricer = RiskCost.pricer(context, field, path.getGoal(), 0);
         double[] rest = rest(path, pos, pricer);
         last = rest;
+        if (cost == null || cost.length != rest.length) {
+            cost = costs(path);
+        }
         if (previous < 0 || base == null) {
             // (a path planned for no risk has nothing as its baseline, and is judged at once)
             base = priced ? rest : new double[rest.length];
@@ -214,9 +231,24 @@ public final class RiskWatch {
         return out;
     }
 
+    // per movement: its cost in ticks
+    static double[] costs(IPath path) {
+        List<IMovement> moves = path.movements();
+        double[] out = new double[moves.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = moves.get(i).getCost();
+        }
+        return out;
+    }
+
     static double sum(double[] hp, int from) {
+        return sum(hp, from, hp.length);
+    }
+
+    // moves from up to, not including, to
+    static double sum(double[] hp, int from, int to) {
         double total = 0;
-        for (int i = Math.max(0, from); i < hp.length; i++) {
+        for (int i = Math.max(0, from); i < Math.min(to, hp.length); i++) {
             total += hp[i];
         }
         return total;

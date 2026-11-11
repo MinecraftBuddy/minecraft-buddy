@@ -164,6 +164,12 @@ public class PathExecutor implements IPathExecutor, Helper {
         return riskWatch.expected(pathPosition);
     }
 
+    // (decision 12) the hp the mobs are expected to take on the rest up to the first place a meal fits in calm, and the moves to
+    // it; null where the rest has none, or the walk is not watched
+    public double[] riskToMeal(double mealTicks, double calm) {
+        return riskWatch.toMeal(pathPosition, mealTicks, calm);
+    }
+
     public PathExecutor(PathingBehavior behavior, IPath path) {
         this.behavior = behavior;
         this.ctx = behavior.ctx;

@@ -175,6 +175,8 @@ final class CombatBrain {
     private double _wayStay;
     private boolean _wayInDanger;
     private long _wayAt = Long.MIN_VALUE / 2;
+    // (decision 12) the hp on that way up to the first place a meal fits in calm, and the moves to it; null: no such place
+    private double[] _wayToMeal;
 
     // the meter says flee, and the task is on its way to a place or at work there: whether the buddy goes (RouteRisk). asked
     // only at flee, with no run on, and never at the last ditch (hp less the loss within the meter's horizon at the margin
@@ -189,7 +191,7 @@ final class CombatBrain {
         _routeWhy = null;
         boolean lastDitch = adris.altoclef.util.helpers.DangerShadow.lastDitch();
         // (a fight on: whether it is the task's piece in hand, decision 10; a walk: the route)
-        boolean go = !lastDitch && (_commit.mode() == Mode.FIGHT ? pieceGo(player, now, going) : routeGo(mod, player, now, going));
+        boolean go = !lastDitch && (_commit.mode() == Mode.FIGHT ? pieceGo(mod, player, now, going) : routeGo(mod, player, now, going));
         if (lastDitch) _routeWhy = "the last ditch";
         // a go a moment ago and no verdict now, with no fight on: a blink of the walk (a new segment, a replan's search, a
         // tick of another chain) keeps the go till GOING_TICKS after the last real one. smoke5 of S137 step 3: each of its 4
@@ -228,7 +230,7 @@ final class CombatBrain {
                 _routeWait = -1;
                 var dest = current.getPath().getDest();
                 boolean ends = current.getPath().getGoal().isInGoal(dest.x, dest.y, dest.z);
-                return routeSay(hp, way, ends ? probe(mod, now).rate(dest.x, dest.y, dest.z) : 0, going, now, player);
+                return routeSay(hp, way, ends ? probe(mod, now).rate(dest.x, dest.y, dest.z) : 0, going, now, player, toMeal(current));
             }
         } else {
             // at the place: the buddy stands in the goal the task's walk had, the work there
@@ -237,7 +239,7 @@ final class CombatBrain {
             BlockPos feet = player.blockPosition();
             if (place != null && place.isInGoal(feet.getX(), feet.getY(), feet.getZ())) {
                 _routeWait = -1;
-                return routeSay(hp, 0, probe(mod, now).rate(feet.getX(), feet.getY(), feet.getZ()), going, now, player);
+                return routeSay(hp, 0, probe(mod, now).rate(feet.getX(), feet.getY(), feet.getZ()), going, now, player, null);
             }
             if (walking == null || (current != null && pathing.getInProgress().isEmpty())) {
                 _routeWait = -1;
@@ -255,8 +257,11 @@ final class CombatBrain {
     // (decision 10) a fight begun on the task's way is fought while the buddy outlives it and the rest of the route: its
     // target's time to kill at the reading's loss (more mobs come: more loss), and the route as the walk left it. not
     // outlived: the meter's flee, as before. smoke5 of S137 step 3: 13 of its 23 runs came out of such fights, 9 begun on a
-    // mob in the way or one that hit, every one asked nothing
-    private boolean pieceGo(LocalPlayer player, long now, boolean going) {
+    // mob in the way or one that hit, every one asked nothing.
+    // (decision 12) the route counts only up to the first place on it a meal fits in calm, with food in the bag: the buddy
+    // eats there before the next fight, so it has to outlive this one and the way to there, not the whole route. no such
+    // place, or no food: the whole rest and the work at the goal, as before
+    private boolean pieceGo(AltoClef mod, LocalPlayer player, long now, boolean going) {
         if (!_onWay) {
             _routeWhy = "a fight not begun on the task's way";
             return false;
@@ -268,14 +273,27 @@ final class CombatBrain {
             return false;
         }
         double hp = player.getHealth() + player.getAbsorptionAmount();
-        boolean go = adris.altoclef.util.helpers.RouteRisk.go(hp, piece + _wayRest, _wayStay, _wayInDanger, going);
+        boolean mealOn = adris.altoclef.util.helpers.RouteRisk.mealTicks() > 0;
+        // (food that heals without harm: the heal meal's own filter, no rotten flesh)
+        boolean food = mod.getFoodChain().hasHealFood();
+        boolean meal = mealOn && _wayToMeal != null && food;
+        double way = meal ? _wayToMeal[0] : _wayRest;
+        double stay = meal ? 0 : _wayStay;
+        boolean go = adris.altoclef.util.helpers.RouteRisk.go(hp, piece + way, stay, _wayInDanger, going);
         if (_routeSaid == null || _routeSaid != go || now < _routeSaidAt || now - _routeSaidAt >= ROUTE_SAY_TICKS) {
             _routeSaid = go;
             _routeSaidAt = now;
-            Debug.logInternal(adris.altoclef.util.helpers.RouteRisk.pieceLine(go, hp, piece, k, _wayRest, _wayStay, _wayInDanger) + ", "
+            Debug.logInternal(adris.altoclef.util.helpers.RouteRisk.pieceLine(go, hp, piece, k, way, stay, _wayInDanger)
+                    + adris.altoclef.util.helpers.RouteRisk.mealPart(mealOn, _wayToMeal, food, _wayRest) + ", "
                     + _names.of(_commit.targetId()) + ", at " + player.getBlockX() + "," + player.getBlockY() + "," + player.getBlockZ());
         }
         return go;
+    }
+
+    // (decision 12) the walk's way up to the first place a meal fits in calm; null with the key at 0
+    private static double[] toMeal(baritone.pathing.path.PathExecutor current) {
+        double ticks = adris.altoclef.util.helpers.RouteRisk.mealTicks();
+        return ticks > 0 && current != null ? current.riskToMeal(ticks, GoalFlee.calm()) : null;
     }
 
     // a fight just began: whether on the task's way to its place, and the route's numbers as the walk left them (its last
@@ -290,23 +308,26 @@ final class CombatBrain {
         _routeSaid = null;
         if (now >= _wayAt && now - _wayAt <= adris.altoclef.util.helpers.RouteRisk.GOING_TICKS) return;
         baritone.pathing.path.PathExecutor current = mod.getClientBaritone().getPathingBehavior().getCurrent();
-        double way = current != null && adris.altoclef.util.helpers.TaskGoal.place(current.getPath().getGoal()) ? current.riskAhead() : Double.NaN;
+        boolean place = current != null && adris.altoclef.util.helpers.TaskGoal.place(current.getPath().getGoal());
+        double way = place ? current.riskAhead() : Double.NaN;
         _wayRest = Double.isNaN(way) ? 0 : way;
         _wayStay = 0;
         _wayInDanger = false;
+        _wayToMeal = place ? toMeal(current) : null;
         _wayAt = now;
     }
 
     // the answer for a way and the goal's rate (hp a second at the goal's cell, 0 where the way does not end at the goal),
     // with its line when the answer changed, and every ten seconds while it stands
-    private boolean routeSay(double hp, double way, double rate, boolean going, long now, LocalPlayer player) {
+    private boolean routeSay(double hp, double way, double rate, boolean going, long now, LocalPlayer player, double[] toMeal) {
         boolean inDanger = rate >= GoalFlee.calm();
         double stay = inDanger ? rate * adris.altoclef.util.helpers.RouteRisk.work() : 0;
         boolean go = adris.altoclef.util.helpers.RouteRisk.go(hp, way, stay, inDanger, going);
-        // (kept for a fight that begins on this way, decision 10)
+        // (kept for a fight that begins on this way, decisions 10 and 12)
         _wayRest = way;
         _wayStay = stay;
         _wayInDanger = inDanger;
+        _wayToMeal = toMeal;
         _wayAt = now;
         if (_routeSaid == null || _routeSaid != go || now < _routeSaidAt || now - _routeSaidAt >= ROUTE_SAY_TICKS) {
             _routeSaid = go;
