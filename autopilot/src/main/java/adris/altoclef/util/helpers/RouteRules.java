@@ -743,6 +743,9 @@ public final class RouteRules {
     public static final double EXIT_PROGRESS = 2;
     // the portal's surroundings: a walk to within this many blocks of it, when the walk to its cell came no closer
     public static final int EXIT_NEAR = 4;
+    // with no portal kept, the world itself is read this far round the buddy for one (blocks; half of it up and down): the
+    // drill's start portal stands two blocks off, and a real arrival's portal is the one the buddy came through
+    public static final int PORTAL_LOOK = 8;
 
     public static boolean exitDefends(double nearestBlaze) {
         return nearestBlaze <= EXIT_DEFEND;

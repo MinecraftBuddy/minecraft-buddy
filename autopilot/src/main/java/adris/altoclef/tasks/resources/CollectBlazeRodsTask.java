@@ -2009,6 +2009,29 @@ public class CollectBlazeRodsTask extends ResourceTask {
         notePortal(mod.getMiscBlockTracker().getLastUsedNetherPortal(Dimension.NETHER).orElse(null));
         notePortal(adris.altoclef.tasks.movement.EnterNetherPortalTask.usablePortal(mod, adris.altoclef.tasks.movement.EnterNetherPortalTask.ANY_PORTAL,
                 mod.getPlayer().position()).orElse(null));
+        // (Tuning route_exit_first: with none kept, a portal within PORTAL_LOOK of the buddy is read from the world itself. the
+        // block tracker's scan of the start had run before the portal stood there (a drill's start is a teleport, the portal
+        // set beside it a second later), so the portal two blocks off was never kept and the exit gave up at once with "no
+        // portal known", the buddy idle by the spawner till dead, exitfirst smoke run 4 and route-25 run 19)
+        if (_portalsSeen.isEmpty() && adris.altoclef.util.helpers.RouteRules.exitFirstOn()) notePortal(portalNear(mod));
+    }
+
+    // the bottom cell of the nearest nether portal within RouteRules.PORTAL_LOOK of the buddy in loaded chunks, null with none
+    private static BlockPos portalNear(AltoClef mod) {
+        BlockPos me = mod.getPlayer().blockPosition();
+        int r = adris.altoclef.util.helpers.RouteRules.PORTAL_LOOK;
+        BlockPos best = null;
+        double bestD = Double.POSITIVE_INFINITY;
+        for (BlockPos p : BlockPos.betweenClosed(me.offset(-r, -r / 2, -r), me.offset(r, r / 2, r))) {
+            if (!mod.getChunkTracker().isChunkLoaded(p) || mod.getWorld().getBlockState(p).getBlock() != Blocks.NETHER_PORTAL) continue;
+            if (mod.getWorld().getBlockState(p.below()).getBlock() == Blocks.NETHER_PORTAL) continue;
+            double d = p.distSqr(me);
+            if (d < bestD) {
+                bestD = d;
+                best = p.immutable();
+            }
+        }
+        return best;
     }
 
     private void notePortal(BlockPos feet) {
