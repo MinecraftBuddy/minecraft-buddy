@@ -924,7 +924,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             if (_campStep == null && !camp.closerToCenterThan(mod.getPlayer().position(), campRadius)) {
                 setDebugState("Going to blaze spawner (" + (RunZones.INSTANCE.active(_zoneNow) + _deathZones.active(_zoneNow)) + " zones)");
                 _toSpawner = true;
-                return new GetToBlockTask(camp, false);
+                return campWalk(mod, camp);
             }
             // Put out fire that might mess with us.
             Optional<BlockPos> nearestFire = mod.getBlockTracker().getNearestWithinRange(_foundBlazeSpawner, 5, Blocks.FIRE);
@@ -2152,6 +2152,45 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         setDebugState("Back to the portal");
         return _exitWalk;
+    }
+
+    // (Tuning camp_near) the camp walk's target, its best distance, its ticks with no progress, its last tick, and whether it
+    // walks to within CAMP_RADIUS of the target instead of onto it
+    private BlockPos _campWalkFor;
+    private Double _campWalkBest;
+    private long _campWalkStall;
+    private long _campWalkAt = -1;
+    private boolean _campWalkNear;
+
+    // the walk to the camp. (Tuning camp_near, a fix of 11 Nov 2026, on by default: the camp by the spawner with no spot of its
+    // own is its top block, and a walk onto it that comes no closer in RouteRules.CAMP_NEAR_S of its own ticks walks to within
+    // CAMP_RADIUS of it instead, what the camp's own check asks: the top was out of reach from a perch over open air, 45 failed
+    // searches in six minutes and the potion spent with no rod, look 51; 203 "No path found" to the top in tsearch B:19)
+    private Task campWalk(AltoClef mod, BlockPos camp) {
+        if (!camp.equals(_campWalkFor)) {
+            _campWalkFor = camp;
+            _campWalkBest = null;
+            _campWalkStall = 0;
+            _campWalkAt = -1;
+            _campWalkNear = false;
+        }
+        long now = mod.getWorld().getGameTime();
+        long step = adris.altoclef.util.helpers.RouteRules.exitTicks(_campWalkAt, now);
+        _campWalkAt = now;
+        double d = mod.getPlayer().position().distanceTo(Vec3.atCenterOf(camp));
+        if (adris.altoclef.util.helpers.RouteRules.campCloser(_campWalkBest, d)) {
+            _campWalkBest = d;
+            _campWalkStall = 0;
+        } else {
+            _campWalkStall += step;
+        }
+        if (!_campWalkNear && _campSpot == null && adris.altoclef.util.helpers.RouteRules.campNear(adris.altoclef.util.helpers.RouteRules.campNearOn(), _campWalkStall)) {
+            _campWalkNear = true;
+            Debug.logInternal("blaze camp: the walk onto the spawner's top at " + camp.toShortString() + " came no closer than "
+                    + Math.round(_campWalkBest) + " blocks in " + Math.round(adris.altoclef.util.helpers.RouteRules.CAMP_NEAR_S) + " s, a walk to within "
+                    + (int) CAMP_RADIUS + " of it");
+        }
+        return _campWalkNear ? new adris.altoclef.tasks.movement.GetWithinRangeOfBlockTask(camp, (int) CAMP_RADIUS) : new GetToBlockTask(camp, false);
     }
 
     // (Tuning route_brew_first) whether the brew comes before the hiding place and the chase this tick: the route's brew not

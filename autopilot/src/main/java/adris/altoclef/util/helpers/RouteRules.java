@@ -707,6 +707,23 @@ public final class RouteRules {
         return null;
     }
 
+    // ---- the camp's walk (Tuning camp_near, a fix of 11 Nov 2026, on by default): a walk onto the spawner's top that comes no
+    // closer than CAMP_PROGRESS in CAMP_NEAR_S of its own ticks goes to within the camp's radius of it instead
+    public static final double CAMP_NEAR_S = 20;
+    public static final double CAMP_PROGRESS = 1;
+
+    public static boolean campNearOn() {
+        return Tuning.get("camp_near", 0) > 0;
+    }
+
+    public static boolean campCloser(Double best, double d) {
+        return best == null || d <= best - CAMP_PROGRESS;
+    }
+
+    public static boolean campNear(boolean on, long stallTicks) {
+        return on && stallTicks >= Math.round(CAMP_NEAR_S * 20);
+    }
+
     // ---- the brew first (Tuning route_brew_first, a fix of 11 Nov 2026, on by default). the route's phase 5 follows the
     // first two rods: shut in the pillbox, the brew. it began only when the fight, the run and the hiding place left a lull,
     // and at a busy spawner that never came: 4 of phase 4's 30 deaths (route-25, route-23, drankjes2 A) had two rods or more

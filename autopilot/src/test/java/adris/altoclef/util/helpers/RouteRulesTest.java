@@ -51,6 +51,17 @@ public class RouteRulesTest {
     }
 
     @Test
+    public void theCampWalkGoesNearAfterTwentySecondsWithNoProgress() {
+        assertTrue(RouteRules.campCloser(null, 30));
+        assertTrue(RouteRules.campCloser(30.0, 29));
+        assertFalse(RouteRules.campCloser(30.0, 29.5));
+        long cap = Math.round(RouteRules.CAMP_NEAR_S * 20);
+        assertFalse(RouteRules.campNear(true, cap - 1));
+        assertTrue(RouteRules.campNear(true, cap));
+        assertFalse(RouteRules.campNear(false, cap));
+    }
+
+    @Test
     public void theBrewComesFirstWithTwoRodsUnderThePotionAndTheKit() {
         assertTrue(RouteRules.brewFirst(true, true, true, 2, 2, true));
         assertTrue(RouteRules.brewFirst(true, true, true, 3, 0, true));
