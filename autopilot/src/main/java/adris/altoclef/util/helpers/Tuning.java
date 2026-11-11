@@ -138,6 +138,10 @@ public final class Tuning {
             // (11 Nov 2026, a fix: a walk onto the spawner's top that comes no closer in 20 s walks to within the camp's radius
             // of it, RouteRules.campNearOn; look 51 and H-nopath)
             java.util.Map.entry("camp_near", 1.0),
+            // (11 Nov 2026, a fix: the pillbox the route's brew was made in stayed the fight's camp and corner under the brewed
+            // potion, as the brewed one followed the traded one with no gap; once the brew is through and the potion on, the camp
+            // is picked again as the fire-proof one, at the box's open side; CollectBlazeRodsTask, E1111-1500.1)
+            java.util.Map.entry("brew_camp_repick", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
             // (route jar 3: on the way, before the spawner fight, the potion goes down only in lava for 2 s or at 12 hp, or

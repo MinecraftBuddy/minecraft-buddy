@@ -213,6 +213,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private BlockPos _campSpotFor;
     // whether the camp was picked fire-proof (BlazeFight.fireproofCamp): a potion drunk or run out picks it again
     private boolean _campFireproof;
+    // the camp is the pillbox routeBrewBox planned for the route's brew (Tuning brew_camp_repick)
+    private boolean _campBrewBox;
     // fire resistance on the buddy at the last tick, for the line said when it begins and ends (the rig's drink time: in phase
     // 4 the camp is fire-proof with the potion still in the bag, so no camp line marks the drink, 10 Nov 2026)
     private boolean _fireResWas;
@@ -557,6 +559,28 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 pickCampSpot(mod);
                 Debug.logInternal("blaze camp: picked again at once (fireproof_repick), " + (_campSpot != null ? "at " + _campSpot.toShortString() : "by the spawner"));
             }
+        }
+        // (Tuning brew_camp_repick, a fix, on by default: routeBrewBox planned the brew's pillbox as the camp with the traded
+        // potion on, and the brewed potion, drunk with no gap, left campFireproof as it was, so the pick above never ran: the
+        // box's cell stayed the fight's corner all through phase 6, the camp the fire-proof fight is meant not to have.
+        // blazes were let go past its leash, or the buddy stood shut in its cell chasing blazes behind its walls with no
+        // path: 0.13 rods a game minute under the brewed potions in 12 runs that died in phase 6 on 11 Nov, about 0.8 in the
+        // runs that passed it. once the brew is through, its box done, and the potion on, the camp is picked again as the
+        // fire-proof one: the box's open side, pickCampSpot)
+        if (_campBrewBox && _campSpotFor != null && adris.altoclef.util.helpers.Tuning.get("brew_camp_repick", 1) > 0
+                && _brewSince < 0 && (_brew.isFinished(mod) || _brewGaveUp) && (_brewBox == null || !_brewBox.active())
+                && campFireproof(mod)) {
+            Debug.logInternal("blaze camp: the brew's box done under fire resistance, the camp picked again");
+            _campBrewBox = false;
+            notePillboxSpot();
+            _campSpotFor = null;
+            _campSpot = null;
+            _pillbox = null;
+            _pillboxCornered = false;
+            _lure = null;
+            _fight.corner(null);
+            _fight.pillboxPlanned(false);
+            _fight.pillboxLookout(null);
         }
         // (the buddy's fork: a pillbox given up on with more than SHORT_OK of its blocks open is no cover. kept, its bare cell
         // stayed the fight's corner and the camp, runs into it burned there, and nothing picked the camp again (the dry watch
@@ -1947,6 +1971,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         // (as pickCampSpot's pillbox: the camp is the box's cell, picked for this spawner now, so the pick does not drop it)
         _campSpotFor = _foundBlazeSpawner;
+        _campBrewBox = true;
         _campFireproof = BlazeFight.fireproofCamp(mod.getPlayer());
         _campPickedAt = mod.getWorld().getGameTime();
         _fight.corner(null);
@@ -2355,6 +2380,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private void pickCampSpot(AltoClef mod) {
         if (_foundBlazeSpawner.equals(_campSpotFor) || mod.getClientBaritone().bsi == null) return;
         _campSpotFor = _foundBlazeSpawner;
+        _campBrewBox = false;
         _campFireproof = campFireproof(mod);
         _campPickedAt = mod.getWorld().getGameTime();
         // (a fresh look at the world: Baritone's bsi is the last path search's copy, and read the room as all solid, so the
