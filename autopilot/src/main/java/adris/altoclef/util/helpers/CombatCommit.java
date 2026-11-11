@@ -878,6 +878,11 @@ public final class CombatCommit {
     private int latchBreaks;
     // the latch came from a turn on a chase (hitThrough, the cap). a corner, a box or a fast mob made it for a reason, those stay final
     private boolean latchChased;
+    // (risk_flee, the meter deciding) this fight was turned on a chaser that kept hitting through a run, or was still on us at
+    // the run's cap, with the meter at flee: it is left only for the warden while that chaser lives. the meter's flee is what
+    // the chaser hit through, so another run for it is more of the same (the third smoke of S137 step 3: a wither skeleton in
+    // a fortress corridor landed 10 of its 13 hits during such runs, and every run of the four died to one)
+    private boolean chaseHolds;
     // hits landed on us this run after the grace, and per foe the tick of the last one we counted: one hit seen for a hundred
     // ticks is still one hit, the next swing from the same mob is a new one
     private int runHits;
@@ -2065,11 +2070,13 @@ public final class CombatCommit {
         // within 8 (the last thing we were hitting died, that is a won fight, not a reason to run 24 blocks). boxed in
         // there is nowhere to bail to, so a cornered fight never asks
         // a fight we turned around for is out in the open though: the warden or a heavy walking up is still a run
-        Why bail = !cornered ? runReason(t, false, lowHit(t)) : (why == Why.CHASED || fastCorner) && danger(t) ? dangerWhy(t) : Why.NONE;
+        // (chaseHolds: the fight with a chaser the meter's run did not shake is left only for the warden)
+        Why bail = chaseHolds ? (untouchable(t) ? Why.HEAVY : Why.NONE)
+                : !cornered ? runReason(t, false, lowHit(t)) : (why == Why.CHASED || fastCorner) && danger(t) ? dangerWhy(t) : Why.NONE;
         // the fight we turned on a chase is the one cornered fight that may still bail, once (unlatched counts it): a real corner
         // (box, fast mob, no room) is never CHASED, and the enderman's own rules stay out of it. the kill itself is not a bail,
         // targetGone chains to the next one or ends it
-        if (cornered && bail == Why.NONE && target != null && why == Why.CHASED && !boxCorner && !fastCorner && endermanAbout(t) == null) {
+        if (!chaseHolds && cornered && bail == Why.NONE && target != null && why == Why.CHASED && !boxCorner && !fastCorner && endermanAbout(t) == null) {
             Why again = runReason(t, false, lowHit(t));
             if (again == Why.LOW_HP || again == Why.CROWD || again == Why.DANGER) bail = again;
         }
@@ -2382,6 +2389,8 @@ public final class CombatCommit {
     }
 
     private Event startFight(Tick t, Foe foe, Why reason, Event event, boolean boxedIn) {
+        // (a new fight, a chain to the next target too, is under the meter's level again)
+        chaseHolds = false;
         // a new fight with a mob we once gave up on is a clean slate with it (it hit us since, or we are boxed in with it)
         ignored.remove(foe.id());
         noteChase(t);
@@ -2621,9 +2630,19 @@ public final class CombatCommit {
         if (perchH > 0) return startPerch(t, perchH, "run cap");
         if (!chased(t)) return end(t, Event.RUN_CAP);
         Foe chaser = chaser(t);
-        // (with the meter deciding: at flee the run ends and the next one starts on the same step, under it the chaser is fought)
+        // (with the meter deciding: under flee the chaser is fought. at flee a melee chaser on us, in contact or one that hit us
+        // on this run, is fought too, armed: the run did not shake it and the next would not (chaseHolds). with nobody on us
+        // the run ends and the next one starts on the same step)
         if (meter != null) {
-            if (chaser == null || danger(t) || creeperHolds(t)) return end(t, Event.RUN_CAP);
+            if (chaser == null || untouchable(t) || creeperHolds(t)) return end(t, Event.RUN_CAP);
+            if (danger(t)) {
+                countRunHits(t);
+                Foe on = t.armed() ? hitPick(t) : null;
+                if (on == null) return end(t, Event.RUN_CAP);
+                Event event = startFight(t, on, Why.CHASED, Event.RUN_CHASED_FIGHT, true);
+                chaseHolds = true;
+                return event;
+            }
             return startFight(t, chaser, Why.CHASED, Event.RUN_CHASED_FIGHT, true);
         }
         // nobody to turn on: the warden (danger starts the next run on the same step), or only a creeper at range or mobs we
@@ -2648,13 +2667,19 @@ public final class CombatCommit {
     // in rules). no pick this tick keeps the count, the next tick asks again
     private Event hitThrough(Tick t) {
         countRunHits(t);
-        if (runHits < RUN_HITS || !t.armed() || danger(t)) return Event.NONE;
+        // (with the meter deciding, its flee does not hold the turn back: the hits say the run is not shaking the chaser, and
+        // the meter's flee is the run it hits through. the warden still does)
+        if (runHits < RUN_HITS || !t.armed() || (meter == null ? danger(t) : untouchable(t))) return Event.NONE;
         // hurt, turning round is the fight that ends us. the run keeps going, boxed in the corner rules still fight
-        // (the worst hit of the chase counts, not just the last two seconds of them; with the meter deciding, its flee above)
+        // (the worst hit of the chase counts, not just the last two seconds of them; with the meter deciding there is no such
+        // line: the fight holds, chaseHolds)
         if (meter == null && lowChase(t)) return Event.NONE;
         Foe pick = hitPick(t);
         if (pick == null) return Event.NONE;
-        return startFight(t, pick, Why.CHASED, Event.RUN_CHASED_FIGHT, true);
+        boolean atFlee = meter != null && danger(t);
+        Event event = startFight(t, pick, Why.CHASED, Event.RUN_CHASED_FIGHT, true);
+        chaseHolds = atFlee;
+        return event;
     }
 
     // a hit counts wherever the hitter is within SWARM_RANGE, not just in contact: the tick we hear about a hit is the tick it
