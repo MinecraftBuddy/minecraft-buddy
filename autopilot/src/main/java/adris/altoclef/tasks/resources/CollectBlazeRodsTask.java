@@ -379,6 +379,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
         mod.getBehaviour().addForceFieldExclusion(entity -> entity instanceof Blaze && mod.getPlayer().distanceTo(entity) > 3.5);
         // (Tuning fireproof_bow: the kit's bow and arrows are the fight's, never thrown out to make room; four lanes did on 10 Nov 2026)
         if (adris.altoclef.util.helpers.BlazeFightRules.fireproofBowOn()) mod.getBehaviour().addProtectedItems(Items.BOW, Items.ARROW);
+        // (Tuning brew_keep, on by default; 11 Nov 2026, a fix: the brew's things are never thrown out to make room. potion_room
+        // lets a potion push the stack worth least out of a full bag, and after the trade's barter that was the slime ball, the
+        // wart or the redstone: "Throwing out slime_ball to make room", and the brew gave up "no magma cream for the stand" in
+        // 16 of 31 runs of the whole route, against 1 in 43 before potion_room)
+        if (adris.altoclef.util.helpers.Tuning.get("brew_keep", 0) > 0)
+            mod.getBehaviour().addProtectedItems(Items.NETHER_WART, Items.MAGMA_CREAM, Items.SLIME_BALL, Items.REDSTONE);
         // no bridging or pillaring while fighting or running, see BlazeFight.noPlacing
         mod.getBehaviour().avoidBlockPlacing(_fight::noPlacing);
         // (the buddy's fork: the pocket's walls stay: the walk at a blaze behind one broke it, and the hole let the room see in,

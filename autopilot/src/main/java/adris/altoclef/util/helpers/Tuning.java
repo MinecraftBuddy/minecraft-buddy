@@ -120,6 +120,9 @@ public final class Tuning {
             // (11 Nov 2026, a fix: past phase 3 a burn with a blaze within 24 lets the kept potion go off the spawner's ten
             // blocks too, RouteRules.wayBlazeLetGo)
             java.util.Map.entry("route_way_blaze", 1.0),
+            // (11 Nov 2026, a fix: the brew's wart, cream, slime ball and redstone are never thrown out to make room,
+            // CollectBlazeRodsTask; potion_room let a potion push them out of a full bag after the trade)
+            java.util.Map.entry("brew_keep", 1.0),
             // (route jar 13, 9 Nov 2026: chunks the explore's rings failed to reach twice are passed over, ExploreProcess.Unreachable)
             java.util.Map.entry("explore_ban", 1.0),
             java.util.Map.entry("ghast_wait_double", 1.0),
