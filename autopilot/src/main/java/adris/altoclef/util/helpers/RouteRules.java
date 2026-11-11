@@ -168,6 +168,30 @@ public final class RouteRules {
         return near <= 0 || fromAnchor <= near;
     }
 
+    // ---- the far pass for the wart (Tuning route_wart_far, off; 11 Nov 2026). WART_NEAR's "a fortress's wart rooms lie well
+    // within 150 of its spawner" does not hold on every fortress: of 20 whole-route runs that began phase 4 without wart
+    // (11 Nov 2026, 03:00-09:00), 6 had none within 150 of the spawner, its rooms 215 to 520 off (two fortresses of the
+    // drill's fifteen), and the rings (32 to 64 round the spawner) never brought them into view. so the dead end, with the
+    // wart still wanted, first begins the far pass: the fortress's brick chunks explored from where the buddy stands, a wart
+    // within WART_FAR of the spawner the target (the tracker's stale wart of other fortresses lies thousands off), for
+    // WART_FAR_S of game time at most; then the dead end as before. a wart given up before stays given up
+    public static final double WART_FAR = 600;
+    public static final double WART_FAR_S = 300;
+
+    public static boolean wartFarOn() {
+        return Tuning.get("route_wart_far", 0) > 0;
+    }
+
+    // whether a dead end begins the far pass instead: the switch on, the wart still wanted, the kit there, no far pass yet
+    public static boolean wartFarBegins(boolean on, boolean wantWart, boolean kit, boolean begun) {
+        return on && wantWart && kit && !begun;
+    }
+
+    // the far pass's own dead end, null to go on: sinceTicks of game time since it began against capTicks
+    public static String wartFarDeadEnd(long sinceTicks, long capTicks) {
+        return sinceTicks >= capTicks ? "the far pass along the fortress, no wart got in " + Math.round(capTicks / 20.0) + " s" : null;
+    }
+
     // ---- phase 3 out of the blaze camp (route jar 8). realfort-route-5 lost 8 of 31 runs in phase 3 to the spawner's blazes
     // and their wither skeletons, 16 to 65 blocks from the spawner, 7 of 8 with the potion still kept for phase 4: the fight
     // and the hiding place took the tick, so the errand's clock (its own ticks) stood still and its dead end never came. t8's

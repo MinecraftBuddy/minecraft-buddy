@@ -462,6 +462,23 @@ public class RouteRulesTest {
         assertTrue(RouteRules.wartInReach(10132, 0));
     }
 
+    @Test
+    public void wartFarPass() {
+        // (route_wart_far) a dead end begins the far pass only with the switch on, the wart wanted, the kit there, once
+        assertTrue(RouteRules.wartFarBegins(true, true, true, false));
+        assertFalse(RouteRules.wartFarBegins(false, true, true, false));
+        assertFalse(RouteRules.wartFarBegins(true, false, true, false));
+        assertFalse(RouteRules.wartFarBegins(true, true, false, false));
+        assertFalse(RouteRules.wartFarBegins(true, true, true, true));
+        long cap = 300 * 20;
+        assertNull(RouteRules.wartFarDeadEnd(0, cap));
+        assertNull(RouteRules.wartFarDeadEnd(cap - 1, cap));
+        assertEquals("the far pass along the fortress, no wart got in 300 s", RouteRules.wartFarDeadEnd(cap, cap));
+        // a fortress's wart rooms 215 to 520 off its spawner are in the far pass's reach, the stale wart of another is not
+        assertTrue(RouteRules.wartInReach(520, RouteRules.WART_FAR));
+        assertFalse(RouteRules.wartInReach(3465, RouteRules.WART_FAR));
+    }
+
     // route jar 8: the dead end's clock counts game time whoever has the tick (t8 run 27 fought 16.7 minutes with no dead end)
     @Test
     public void theErrandsClockCountsGameTimeWhoeverHasTheTick() {

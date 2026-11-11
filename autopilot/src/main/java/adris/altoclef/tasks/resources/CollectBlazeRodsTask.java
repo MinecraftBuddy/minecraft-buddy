@@ -147,6 +147,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private BlockPos _wartAt;
     private long _wartTicks;
     private final java.util.Set<BlockPos> _wartGaveUp = new java.util.HashSet<>();
+    // (Tuning route_wart_far, RouteRules.wartFarBegins) the far pass: the game time it began (-1 none) and its brick search
+    private long _wartFarAt = -1;
+    private Task _wartFarSearch;
     private String _errandActSaid;
     private boolean _noBrewSaid;
     // ---- the wart walk (Tuning route_wart_walk, route jar 6; RouteRules.wartWalkOn): the walk to the wart held (_wartAt) and
@@ -1397,10 +1400,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
             }
             _errandSinceGot += step;
         }
-        String why = !kit ? "the kit missing" : adris.altoclef.util.helpers.RouteRules.errandDeadEnd(_errandPoint, _errandSinceGot,
+        // (Tuning route_wart_far: once the far pass runs, its own clock is the dead end, RouteRules.wartFarDeadEnd)
+        String why = !kit ? "the kit missing" : _wartFarAt >= 0
+                ? adris.altoclef.util.helpers.RouteRules.wartFarDeadEnd(now - _wartFarAt, adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_FAR_S))
+                : adris.altoclef.util.helpers.RouteRules.errandDeadEnd(_errandPoint, _errandSinceGot,
                 adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.Tuning.get("route_errand_dead_s", adris.altoclef.util.helpers.RouteRules.ERRAND_DEAD_S)),
                 adris.altoclef.util.helpers.RouteRules.errandRounds());
         if (why == null) return false;
+        // (Tuning route_wart_far: a dead end with the wart still wanted begins the far pass along the fortress first)
+        if (adris.altoclef.util.helpers.RouteRules.wartFarBegins(adris.altoclef.util.helpers.RouteRules.wartFarOn(), wantWart, kit, _wartFarAt >= 0)) {
+            _wartFarAt = now;
+            _wartFarSearch = SearchChunkForBlockTask.exposed(Blocks.NETHER_BRICKS);
+            _wartAt = null;
+            Debug.logInternal("brew errand: the far pass after " + secs(now - _errandAt) + " s (" + why + "): the fortress explored for a wart within "
+                    + (int) adris.altoclef.util.helpers.RouteRules.WART_FAR + " of the spawner, at most " + (int) adris.altoclef.util.helpers.RouteRules.WART_FAR_S + " s, cream " + cream + ", wart " + wart);
+            return false;
+        }
         Debug.logInternal("brew errand: a dead end (" + why + ") after " + secs(now - _errandAt) + " s" + where + ", cream " + cream + ", wart " + wart);
         _errandOn = false;
         _errandEnded = true;
@@ -1470,6 +1485,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
             errandSays("nothing in sight, the fortress search");
             return null;
         }
+        // (Tuning route_wart_far: the far pass explores the fortress's brick chunks instead of the rings)
+        if (_wartFarAt >= 0 && wantWart && _wartFarSearch != null) {
+            errandSays("the far pass: the fortress explored for a wart");
+            setDebugState("Brew errand: the far pass along the fortress for a wart");
+            return _wartFarSearch;
+        }
         return errandWalk(mod, gap);
     }
 
@@ -1488,7 +1509,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (Tuning route_wart_near, route jar 8: only a wart within that many blocks of the spawner the errand works from, of the
         // buddy while none is known; the tracker keeps the wart of earlier runs, 10132 blocks off in t4's run 38,
         // RouteRules.wartInReach)
-        double wartNear = adris.altoclef.util.helpers.RouteRules.wartNear();
+        // (Tuning route_wart_far: in the far pass a wart within WART_FAR of the spawner)
+        double wartNear = _wartFarAt >= 0 ? adris.altoclef.util.helpers.RouteRules.WART_FAR : adris.altoclef.util.helpers.RouteRules.wartNear();
         Vec3 anchor = _foundBlazeSpawner != null ? Vec3.atCenterOf(_foundBlazeSpawner) : me.position();
         java.util.function.Predicate<BlockPos> inReach = p -> adris.altoclef.util.helpers.RouteRules.wartInReach(anchor.distanceTo(Vec3.atCenterOf(p)), wartNear);
         // (Tuning route_away_wall: a wart in a zone walked away from is passed over while the zone lives, RouteRules.awayPassOver)
