@@ -64,7 +64,8 @@ class ObtainRouteTest {
 		if (to >= ObtainRoute.M3_1) k.give("iron_pickaxe", 2).give("iron_sword").give("water_bucket");
 		if (to >= ObtainRoute.M3_2) k.give("diamond_pickaxe").give("diamond_sword").give("redstone");
 		if (to >= ObtainRoute.M3_3) k.give("obsidian", 10);
-		if (to >= ObtainRoute.M3_4) k.give("gold_ingot", 64).wear("helmet", "golden_helmet").give("golden_helmet");
+		if (to >= ObtainRoute.M3_3B) k.give("gold_ingot", 96).wear("helmet", "golden_helmet").give("golden_helmet");
+		if (to >= ObtainRoute.M3_4) k.give("slime_ball");
 		return k;
 	}
 
@@ -107,6 +108,7 @@ class ObtainRouteTest {
 		assertEquals("route: phase m3.1 diamonds", ObtainRoute.line(ObtainRoute.M3_1));
 		assertEquals("route: phase m3.2 obsidian", ObtainRoute.line(ObtainRoute.M3_2));
 		assertEquals("route: phase m3.3 gold", ObtainRoute.line(ObtainRoute.M3_3));
+		assertEquals("route: phase m3.3b slime", ObtainRoute.line(ObtainRoute.M3_3B));
 		assertEquals("route: phase m3.4 portal", ObtainRoute.line(ObtainRoute.M3_4));
 		assertEquals("route: phase m2.1 short", ObtainRoute.shortLine(ObtainRoute.M2_1));
 		// the rig reads the nether's phases by "phase (\d) ": these never pass for one of them
@@ -307,6 +309,20 @@ class ObtainRouteTest {
 	}
 
 	@Test
+	void theSlimeBallIsAPhaseBeforeThePortal() {
+		Kit k = from("m3.3b");
+		walk(k);
+		assertEquals(ObtainRoute.M3_3B, ObtainRoute.phase());
+		assertEquals("slime ball", next(k));
+		k.give("slime_ball");
+		assertEquals("flint and steel", next(k));
+		assertEquals(ObtainRoute.M3_4, ObtainRoute.phase());
+		assertEquals(List.of("route: phase m3.4 portal"), said);
+		// a ball alone is no progress: a bare start carrying one begins at the wood
+		assertEquals(ObtainRoute.M1_1, ObtainRoute.start(new Kit().give("slime_ball")));
+	}
+
+	@Test
 	void thePortalPhaseEndsTheRouteAndTheNetherLeavesIt() {
 		Kit k = from("m3.4");
 		walk(k);
@@ -330,10 +346,10 @@ class ObtainRouteTest {
 
 	@Test
 	void theGoldCoversTheHelmetsStillToMake() {
-		assertEquals(74, ObtainRoute.goldNeed(new Kit()));
-		assertEquals(69, ObtainRoute.goldNeed(new Kit().wear("helmet", "golden_helmet")));
-		assertEquals(64, ObtainRoute.goldNeed(new Kit().wear("helmet", "golden_helmet").give("golden_helmet")));
-		// the M4START kit has both helmets: 64 to mine
+		assertEquals(106, ObtainRoute.goldNeed(new Kit()));
+		assertEquals(101, ObtainRoute.goldNeed(new Kit().wear("helmet", "golden_helmet")));
+		assertEquals(96, ObtainRoute.goldNeed(new Kit().wear("helmet", "golden_helmet").give("golden_helmet")));
+		// the M4START kit has both helmets: 96 to mine
 		walk(m4start());
 		assertEquals(ObtainRoute.M3_3, ObtainRoute.phase());
 		assertEquals("gold", next(m4start()));

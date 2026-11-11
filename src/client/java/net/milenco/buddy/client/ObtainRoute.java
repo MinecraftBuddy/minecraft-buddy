@@ -10,7 +10,7 @@ import java.util.function.Predicate;
 /**
  * The overworld's way to the nether in a fixed order of phases, for an order whose way goes into the nether and that began
  * in the overworld. Three milestones: M1 everything ready for the first iron, M2 iron tools and armour, M3 ready for the
- * nether (a diamond pickaxe, ten obsidian, flint and steel, 64 gold, a golden helmet). The kit (Alto.kit) asks the pieces
+ * nether (a diamond pickaxe, ten obsidian, flint and steel, 96 gold, a golden helmet, a slime ball). The kit (Alto.kit) asks the pieces
  * of the phase under way in their order and goes on to the next phase once nothing of it is left to ask; the whole order
  * (the autopilot's own way in: the frame from the bag's obsidian, lit, and through) comes only after the last phase. Each
  * phase says a line when it begins ("route: phase m2.1 armour") and one when it is left unmet ("route: phase m2.1 short"),
@@ -26,9 +26,11 @@ final class ObtainRoute {
 	private ObtainRoute() {}
 
 	/** The phases in their order, and the word each one's line says. */
-	static final List<String> PHASES = List.of("m1.1", "m1.2", "m1.3", "m2.1", "m2.2", "m3.1", "m3.2", "m3.3", "m3.4");
-	static final List<String> WORDS = List.of("wood", "stone", "surface", "armour", "tools", "diamonds", "obsidian", "gold", "portal");
-	static final int M1_1 = 0, M1_2 = 1, M1_3 = 2, M2_1 = 3, M2_2 = 4, M3_1 = 5, M3_2 = 6, M3_3 = 7, M3_4 = 8;
+	// (m3.3b: the slime ball, a phase of its own between the gold and the portal; the cream of the nether's brew is made
+	// from it. Added within M3 so that m3.4 stays the portal)
+	static final List<String> PHASES = List.of("m1.1", "m1.2", "m1.3", "m2.1", "m2.2", "m3.1", "m3.2", "m3.3", "m3.3b", "m3.4");
+	static final List<String> WORDS = List.of("wood", "stone", "surface", "armour", "tools", "diamonds", "obsidian", "gold", "slime", "portal");
+	static final int M1_1 = 0, M1_2 = 1, M1_3 = 2, M2_1 = 3, M2_2 = 4, M3_1 = 5, M3_2 = 6, M3_3 = 7, M3_3B = 8, M3_4 = 9;
 
 	/** A phase's line says it began, or that it was left unmet. */
 	static final String BEGUN = "begun", SHORT = "short";
@@ -39,8 +41,9 @@ final class ObtainRoute {
 	/** The wood M1.1 fetches, in planks: sixteen logs. */
 	static final int WOOD = 16 * 4;
 
-	/** Gold kept for the piglins' trade: what M3 is ready with, besides a golden helmet worn and a spare. */
-	static final int GOLD = 64;
+	/** Gold kept for the piglins' trade: what M3 is ready with, besides a golden helmet worn and a spare (96 since 12 Nov
+	 * 2026: 64 proved too few for a potion). */
+	static final int GOLD = 96;
 
 	/** What the route reads of the buddy. */
 	interface Bag {
@@ -125,6 +128,8 @@ final class ObtainRoute {
 		List.of(piece(M3_3, "gold", b -> b.inv("gold_ingot") < goldNeed(b)),
 			piece(M3_3, "golden helmet", b -> !"golden_helmet".equals(b.wornIn("helmet"))),
 			piece(M3_3, "spare golden helmet", b -> b.inv("golden_helmet") < 1)),
+		// a slime ball for the brew's cream: slimes deep under the ground in some chunks, or in a swamp at night
+		List.of(piece(M3_3B, "slime ball", b -> b.inv("slime_ball") < 1)),
 		// up again: flint and steel, the rest of the nether's kit, the bottles filled; then the whole order builds the portal
 		List.of(piece(M3_4, "flint and steel", b -> b.inv("flint_and_steel") < 1),
 			piece(M3_4, "rest", Bag::restMissing),
@@ -169,7 +174,7 @@ final class ObtainRoute {
 	/** The phase after the highest this bag meets (the first with none); never past the portal's. */
 	static int start(Bag b) {
 		boolean furnace = b.inv("furnace") > 0;
-		for (int i = M3_3; i >= M1_1; i--) if (met(i, b, furnace)) return i + 1;
+		for (int i = M3_3B; i >= M1_1; i--) if (met(i, b, furnace)) return i + 1;
 		return M1_1;
 	}
 
@@ -203,7 +208,8 @@ final class ObtainRoute {
 	/**
 	 * Whether the bag meets the phase, as the practice rig reads it: a pickaxe; a stone one or better and a furnace held at
 	 * some time; eight food and a bed; three iron (or better) pieces worn and a shield; two iron pickaxes, an iron sword and
-	 * a water bucket; a diamond pickaxe and sword and redstone; ten obsidian; 64 gold with a golden helmet worn and a spare.
+	 * a water bucket; a diamond pickaxe and sword and redstone; ten obsidian; 96 gold with a golden helmet worn and a spare;
+	 * that gold and a slime ball (a ball alone is no progress: a bare start may carry one).
 	 * The portal's phase is the nether itself, never the bag.
 	 */
 	static boolean met(int i, Bag b, boolean furnaceHeld) {
@@ -216,6 +222,7 @@ final class ObtainRoute {
 			case M3_1 -> anyOf(b, "diamond_pickaxe", "netherite_pickaxe") && anyOf(b, "diamond_sword", "netherite_sword") && anyOf(b, "redstone");
 			case M3_2 -> all(b, "obsidian") >= 10;
 			case M3_3 -> all(b, "gold_ingot") >= GOLD && worn(b, "golden_helmet") > 0 && all(b, "golden_helmet") >= 2;
+			case M3_3B -> met(M3_3, b, furnaceHeld) && all(b, "slime_ball") >= 1;
 			default -> false;
 		};
 	}

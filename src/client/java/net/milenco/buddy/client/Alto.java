@@ -1101,7 +1101,7 @@ final class Alto {
 			case "obsidian":
 				return new Run("kit obsidian", 30 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("obsidian", 10)));
 			case "gold": {
-				// the trade's 64 and the two helmets' ten, so that making the helmets leaves the 64
+				// the trade's gold and the two helmets' ten, so that making the helmets leaves the trade's
 				int need = ObtainRoute.goldNeed(bag);
 				return new Run("kit gold", 40 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("gold_ingot", need)));
 			}
@@ -1114,6 +1114,9 @@ final class Alto {
 				return new Run("kit a spare golden helmet", 10 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
 					new adris.altoclef.util.ItemTarget("golden_helmet", helmets))));
 			}
+			case "slime ball":
+				// (the fetch as an order of one slime ball does it; bal on 9-10 Nov: 14 of 20, a median 9 game minutes)
+				return new Run("kit a slime ball", 40 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("slime_ball", 1)));
 			case "flint and steel":
 				return new Run("kit flint and steel", 10 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
 					new adris.altoclef.util.ItemTarget("flint_and_steel", 1))));
