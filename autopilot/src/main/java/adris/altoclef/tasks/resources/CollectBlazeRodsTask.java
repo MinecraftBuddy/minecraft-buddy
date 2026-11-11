@@ -1366,7 +1366,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // route_errand_near of the spawner, and a dead end ends the errand (the no-brew line). true when it ended now. where:
     // words for the line, what had the tick (empty: the errand itself)
     private boolean errandClock(AltoClef mod, long now, long step, int cream, int wart, int water, boolean kit, String where) {
-        boolean wantCream = cream == 0;
+        // (route_slime_cream: a slime ball in the bag is the cream, so no cube is hunted for it, SlimeCream)
+        boolean wantCream = cream == 0 && !adris.altoclef.util.helpers.SlimeCream.have(mod);
         boolean wantWart = water > 0 && wart == 0;
         if (cream > _errandCreamSeen || wart > _errandWartSeen) {
             Debug.logInternal("brew errand: " + (cream > _errandCreamSeen ? "cream" : "wart") + " got after " + secs(now - _errandAt) + " s (cream "
@@ -1432,7 +1433,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // route_errand_dead_s with neither got at the fortress); then the route goes on to the first two rods, under the potion
     // while one is kept, and without the brew if the cream or the wart is missing (RouteRules.NO_BREW)
     private Task routeErrand(AltoClef mod, long now, long gap, int cream, int wart, int water, boolean kit) {
-        boolean wantCream = cream == 0;
+        // (route_slime_cream: a slime ball in the bag is the cream, so no cube is hunted for it, SlimeCream)
+        boolean wantCream = cream == 0 && !adris.altoclef.util.helpers.SlimeCream.have(mod);
         boolean wantWart = water > 0 && wart == 0;
         // (Tuning route_errand_clock, route jar 8: the clock and the dead end asked each tick before the fight's, errandClockTick)
         boolean early = adris.altoclef.util.helpers.RouteRules.errandClockOn();
