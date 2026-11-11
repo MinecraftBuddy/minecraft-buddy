@@ -822,11 +822,23 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         if (!Objects.equals(pathfinder.getGoal(), goal)) { // will return the exact same object if simplification didn't happen
             logDebug("Simplifying " + goal.getClass() + " to GoalXZ due to distance");
         }
+        // (S137, risk_flee_route, a fix) a task walk priced by the mob field that finds no path is searched again at once
+        // without the mobs' price: the price chooses between ways, it is never a reason for none. smoke5 of S137 step 3: 43
+        // searches without a path, all priced, 0 of 329 unpriced, and two stalls of 48 and 92 s, the second into the death.
+        // made here, on the game thread (its favoring reads the world's mobs), and run only if the priced one fails
+        AbstractNodeCostSearch plain = null;
+        if (!(goal instanceof adris.altoclef.util.baritone.GoalFlee) && adris.altoclef.util.helpers.Tuning.get("risk_mobs", 0) < 1
+                && RiskCost.route(adris.altoclef.util.helpers.RiskField.current())) {
+            plain = createPathfinder(start, goal, current == null ? null : current.getPath(), context);
+            plain.riskOffset = pathfinder.riskOffset;
+            plain.plain = true;
+        }
+        final AbstractNodeCostSearch unpriced = plain;
         inProgress = pathfinder;
         hold.started(new SearchKey(new BetterBlockPos(start), goal), tickCount);
         Baritone.getExecutor().execute(() -> {
             try {
-                runSearch(pathfinder, start, goal, talkAboutIt, primaryTimeout, failureTimeout);
+                runSearch(pathfinder, unpriced, start, goal, talkAboutIt, primaryTimeout, failureTimeout);
             } finally {
                 // only clear our own slot: a forceCancel plus a fresh search can have replaced us while we were still running
                 // (and the finally means a throwing calc can't leave inProgress stuck either)
@@ -851,6 +863,8 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                     + start.getZ() + " goal " + (goal == null ? "none" : goal.getClass().getSimpleName()) + " to " + end + " result "
                     + r.getType() + " ms " + ms + " nodes " + path.map(p -> p.getNumNodesConsidered()).orElse(-1) + " len "
                     + path.map(p -> p.length()).orElse(0) + " " + (ahead ? "ahead" : "standstill") + (pf.exhausted() ? " exhausted" : "")
+                    // (the search again without the mobs' price, after a priced one found no path)
+                    + (pf.plain ? " unpriced after no path" : "")
                     + path.map(p -> placesOf(p, pf.context(), pf.risk())).orElse(""));
         } catch (RuntimeException ignored) {
             // (a log line never takes a search down)
@@ -900,7 +914,8 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         }
     }
 
-    private void runSearch(AbstractNodeCostSearch pathfinder, BlockPos start, Goal goal, boolean talkAboutIt, long primaryTimeout, long failureTimeout) {
+    private void runSearch(AbstractNodeCostSearch pathfinder, AbstractNodeCostSearch unpriced, BlockPos start, Goal goal, boolean talkAboutIt,
+                           long primaryTimeout, long failureTimeout) {
         if (talkAboutIt) {
             logDebug("Starting to search for path from " + start + " to " + goal);
         }
@@ -912,6 +927,22 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         long searchStart = System.nanoTime();
         PathCalculationResult calcResult = pathfinder.calculate(primaryTimeout, failureTimeout);
         logSearch(start, goal, calcResult, pathfinder, ahead, (System.nanoTime() - searchStart) / 1_000_000L);
+        // the search whose result is taken: the priced one, or the unpriced one after it found no path
+        AbstractNodeCostSearch found = pathfinder;
+        if (unpriced != null && calcResult.getType() == PathCalculationResult.Type.FAILURE && pathfinder.risk() != null
+                && pathfinder.risk().routePriced) {
+            boolean live;
+            synchronized (pathPlanLock) {
+                live = inProgress == pathfinder;
+            }
+            if (live) {
+                long again = System.nanoTime();
+                calcResult = unpriced.calculate(primaryTimeout, failureTimeout);
+                logSearch(start, goal, calcResult, unpriced, ahead, (System.nanoTime() - again) / 1_000_000L);
+                found = unpriced;
+            }
+        }
+        final AbstractNodeCostSearch taken = found;
         synchronized (pathPlanLock) {
             if (inProgress != pathfinder) {
                 // forceCancel nulled us (and maybe a newer search took the slot), so this result is stale
@@ -928,12 +959,13 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
             }
             Optional<PathExecutor> executor = calcResult.getPath().map(p -> new PathExecutor(PathingBehavior.this, p));
             // (S137 step 2: the mobs that steered this search, for the walk's check against the mob field)
-            executor.ifPresent(e -> e.shapedBy(RiskCost.shaped(pathfinder.risk(),
+            executor.ifPresent(e -> e.shapedBy(RiskCost.shaped(taken.risk(),
                     adris.altoclef.util.helpers.Tuning.get("risk_replan_less", RiskWatch.LESS))));
             // (risk_flee_route: a path whose search did not price the mobs was planned for no risk; under risk_mobs every
-            // search prices what there is)
+            // search prices what there is. the unpriced search after a priced one found no path is the only way there is:
+            // its first check is its baseline, not a replan for more)
             executor.ifPresent(e -> e.planned(adris.altoclef.util.helpers.Tuning.get("risk_mobs", 0) >= 1
-                    || (pathfinder.risk() != null && pathfinder.risk().mobsPriced)));
+                    || (taken.risk() != null && taken.risk().mobsPriced) || taken == unpriced));
             if (current == null) {
                 if (executor.isPresent()) {
                     if (executor.get().getPath().positions().contains(expectedSegmentStart)) {
@@ -947,7 +979,7 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                     if (calcResult.getType() != PathCalculationResult.Type.CANCELLATION && calcResult.getType() != PathCalculationResult.Type.EXCEPTION) {
                         // don't dispatch CALC_FAILED on cancellation
                         // exhausted first: a reader that sees the failure count go up (it reads that one first) has to see this too
-                        if (pathfinder.exhausted()) {
+                        if (taken.exhausted()) {
                             calcExhausted++;
                         }
                         calcFailures++;

@@ -83,6 +83,8 @@ public abstract class AbstractNodeCostSearch implements IPathFinder, Helper {
     // (the buddy's fork, S137 step 2) the ticks before the start node is reached, for the mob field: the ticks left on the
     // path being walked when this search plans ahead from its end. set before the search runs
     public double riskOffset;
+    // (S137, risk_flee_route) the task's walk is not priced in this search: the search again after a priced one found no path
+    public boolean plain;
     // and the search's risk prices once it has started, for the search line and the walk. the search's thread
     protected baritone.pathing.movement.RiskCost.Search risk;
 

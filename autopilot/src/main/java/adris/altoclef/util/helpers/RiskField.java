@@ -126,8 +126,10 @@ public final class RiskField {
 
     // how long a mob a route was given up for stays in the field after it left the live one, in seconds, and how long of
     // that at its full want (Tuning risk_memory_s, 0 is no memory, and risk_memory_full_s)
-    public static final double MEMORY_S = 180;
-    public static final double MEMORY_FULL_S = 60;
+    // (a minute, half of it full: smoke5 of S137 step 3 with 180 and 60 priced 154 of 206 task walks in calm by the memory
+    // alone, 12 to 14 mobs a search, and 43 of them found no path)
+    public static final double MEMORY_S = 60;
+    public static final double MEMORY_FULL_S = 30;
     // the fading goes in this many steps: each step is a new version of the field, and a version a tick would have every
     // walk check its path again each time
     static final int FADE_STEPS = 4;
@@ -144,12 +146,18 @@ public final class RiskField {
     }
 
     // a route was given up for what is in the field now (a run for the danger meter began, the walk planned again for more
-    // risk): every live mob in it is remembered from this tick. the number that were not remembered before
-    public static synchronized int remember(long tick) {
+    // risk): the live mobs in it that counted in the meter's T at the time (counted, by entity; null: every one) are
+    // remembered from this tick, not the whole field (smoke5: every live source was, 77 mobs). the number that were not
+    // remembered before
+    public static int remember(long tick) {
+        return remember(tick, null);
+    }
+
+    public static synchronized int remember(long tick, java.util.Set<Integer> counted) {
         if (!memoryOn()) return 0;
         int fresh = 0;
         for (Source s : current.sources()) {
-            if (s.kept()) continue;
+            if (s.kept() || (counted != null && !counted.contains(s.id()))) continue;
             if (memory.put(s.id(), new Kept(s, tick)) == null) fresh++;
         }
         trim();
@@ -318,7 +326,9 @@ public final class RiskField {
                         double share = row.aimShare(d);
                         double shots = fireRes && row.fireShot() ? 0 : row.shot() * s.scale() * share;
                         double burn = fireRes ? 0 : row.burn() * share;
-                        if (shots + burn > 0 && seen(i, s, ey, x, y, z)) {
+                        // (a remembered mob by its range alone, no sight lines: its place is a guess, and its rays were
+                        // most of the budget, smoke5: 14 searches at the cap)
+                        if (shots + burn > 0 && (s.kept() || seen(i, s, ey, x, y, z))) {
                             hp += (shots + burn) * exposure / 20;
                         }
                     }

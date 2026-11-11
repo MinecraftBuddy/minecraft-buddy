@@ -281,9 +281,10 @@ public class CombatCommitMeterTest {
         assertNotEquals(Mode.FIGHT, far.mode());
     }
 
-    // a turn on the hits under the meter's flee line keeps the old rule: that fight still bails once when the meter turns
+    // a turn on the hits under the meter's flee line holds too when the meter turns to flee: the chaser hit through a run, and
+    // the next run would be more of the same (the fourth smoke: such a fight was a run again 2 s later, the chaser alive)
     @Test
-    public void aTurnUnderTheFleeLineStillBailsWhenTheMeterTurnsToFlee() {
+    public void aTurnUnderTheFleeLineHoldsWhenTheMeterTurnsToFlee() {
         CombatCommit c = at(Level.FLEE);
         c.step(tick(NOW, 20, 0, zombie(1, 1, 3)));
         c.meter(Level.COVER);
@@ -291,8 +292,100 @@ public class CombatCommitMeterTest {
         c.step(tick(t, 14, 20, zombie(1, 2, 1)));
         assertEquals(Event.RUN_CHASED_FIGHT, c.step(tick(t + 20, 10, 30, zombie(1, 2, 1))));
         c.meter(Level.FLEE);
-        assertEquals(Event.FIGHT_TO_RUN, c.step(new Tick(t + 25, 10, 30, 0, List.of(zombie(1, 1, 3)), zombie(1, 1, 3), Way.NONE, true)));
+        for (long i = 1; i <= 40; i++) {
+            assertEquals(Event.NONE, c.step(new Tick(t + 20 + i, 10, 30, 0, List.of(zombie(1, 1, 3)), zombie(1, 1, 3), Way.NONE, true)));
+            assertEquals(Mode.FIGHT, c.mode());
+        }
+    }
+
+    // the same on ground the field prices calm, where the meter's flee starts no run: the turn holds all the same, and the
+    // fight goes on when the field's price changes (t2 of the fourth smoke, 19:57:48, broken off 2 s later)
+    @Test
+    public void aTurnOnCalmGroundHoldsWhenTheFleeCountsAgain() {
+        CombatCommit c = at(Level.FLEE);
+        assertEquals(Event.RUN_START, c.step(tick(NOW, 20, 0, zombie(1, 1, 3))));
+        c.meter(Level.FLEE, true);
+        long t = NOW + CombatCommit.RUN_HIT_GRACE + 10;
+        c.step(tick(t, 14, 20, zombie(1, 2, 1)));
+        assertEquals(Event.RUN_CHASED_FIGHT, c.step(tick(t + 20, 10, 30, zombie(1, 2, 1))));
+        c.meter(Level.FLEE, false);
+        for (long i = 1; i <= 40; i++) {
+            assertEquals(Event.NONE, c.step(new Tick(t + 20 + i, 9, 30, 0, List.of(zombie(1, 1, 3), zombie(2, 4, NEVER)), zombie(1, 1, 3),
+                    Way.NONE, true)));
+            assertEquals(1, c.targetId());
+        }
+    }
+
+    // the held chaser is not switched off for another mob in reach that hit, and the hold ends with it: dead (gone from the
+    // foes) or past 8, the meter's flee counts again
+    @Test
+    public void theHeldChaserIsNotSwitchedOffAndTheHoldEndsWithIt() {
+        CombatCommit c = at(Level.FLEE);
+        c.step(tick(NOW, 20, 0, zombie(1, 1, 3)));
+        long t = NOW + CombatCommit.RUN_HIT_GRACE + 10;
+        c.step(tick(t, 14, 20, zombie(1, 2, 1)));
+        assertEquals(Event.RUN_CHASED_FIGHT, c.step(tick(t + 20, 10, 30, zombie(1, 2, 1))));
+        // the chaser a step out of reach, a second mob in reach that hit: the takeover would have it after TAKEOVER_TICKS
+        Foe chaser = new Foe(1, 3.5, false, false, 3, Kind.NORMAL, 4);
+        Foe other = new Foe(2, 1, false, false, 3, Kind.NORMAL, 0.5);
+        for (long i = 1; i <= CombatCommit.TAKEOVER_TICKS * 3; i++) {
+            c.step(new Tick(t + 20 + i, 9, 30, 0, List.of(chaser, other), chaser, Way.NONE, true));
+            assertEquals(Mode.FIGHT, c.mode());
+            assertEquals(1, c.targetId());
+        }
+        // the chaser walks off past 8: the hold is over, and the meter's flee bails the fight
+        long s = t + 20 + CombatCommit.TAKEOVER_TICKS * 3 + 1;
+        Foe off = new Foe(1, 9, false, false, NEVER, Kind.NORMAL, 9);
+        assertEquals(Event.FIGHT_TO_RUN, c.step(new Tick(s, 9, 30, 0, List.of(off, other), off, Way.NONE, true)));
         assertEquals(Why.DANGER, c.why());
+    }
+
+    // a turned fight whose target dies is no run on the meter's flee of that tick: the meter read the dead mob alive (the
+    // fourth smoke: three no-room corner fights ended in a run with nobody left). the warden still is one
+    @Test
+    public void theKillOfACorneredFightsTargetIsNoRunOnTheStaleFlee() {
+        CombatCommit c = turned();
+        long t = NOW + CombatCommit.RUN_HIT_GRACE + 30;
+        Event event = c.step(new Tick(t + 1, 12, 30, 0, List.of(), null, Way.NONE, true));
+        assertEquals(Event.FIGHT_DEAD, event);
+        assertEquals(Mode.NONE, c.mode());
+        // the meter's flee till its next readings: no run with nobody about
+        for (long i = 2; i <= CombatCommit.METER_STALE_TICKS; i++) {
+            c.step(new Tick(t + i, 12, 30, 0, List.of(), null, Way.NONE, true));
+            assertEquals(Mode.NONE, c.mode());
+        }
+
+        CombatCommit w = turned();
+        Foe warden = new Foe(9, 5, false, false, NEVER, Kind.UNTOUCHABLE);
+        assertEquals(Event.FIGHT_TO_RUN, w.step(new Tick(t + 1, 12, 30, 0, List.of(warden), null, Way.NONE, true)));
+        assertEquals(Why.HEAVY, w.why());
+    }
+
+    // the held chaser dies with a fresh melee mob on the buddy and a blaze that hit: the next fight is the melee mob, held
+    // (t2 of the fourth smoke, 19:59: the pick went to the blaze, that fight bailed at hp 4, the skeleton killed the buddy)
+    @Test
+    public void theHoldGoesOnToAMeleeMobOnTheBuddyWhenTheChaserDies() {
+        CombatCommit c = turned();
+        long t = NOW + CombatCommit.RUN_HIT_GRACE + 30;
+        Foe fresh = zombie(2, 1.8, NEVER);
+        Foe blaze = new Foe(3, 2.3, true, false, 20, Kind.FLYER);
+        assertEquals(Event.FIGHT_NEXT, c.step(new Tick(t + 1, 5, 30, 0, List.of(fresh, blaze), null, Way.NONE, true)));
+        assertEquals(2, c.targetId());
+        for (long i = 2; i <= 60; i++) {
+            c.step(new Tick(t + i, 5, 30, 0, List.of(fresh, blaze), fresh, Way.NONE, true));
+            assertEquals(Mode.FIGHT, c.mode());
+            assertEquals(2, c.targetId());
+        }
+    }
+
+    // a run at flee that zombie 1 hit through twice: the fight with it, held
+    private static CombatCommit turned() {
+        CombatCommit c = at(Level.FLEE);
+        c.step(tick(NOW, 20, 0, zombie(1, 1, 3)));
+        long t = NOW + CombatCommit.RUN_HIT_GRACE + 10;
+        c.step(tick(t, 14, 20, zombie(1, 2, 1)));
+        assertEquals(Event.RUN_CHASED_FIGHT, c.step(tick(t + 20, 12, 30, zombie(1, 2, 1))));
+        return c;
     }
 
     // S137, a place goal by a safer route: while the task goes to its place by a way the buddy outlives (the brain says), the
@@ -307,6 +400,11 @@ public class CombatCommitMeterTest {
         // a zombie on it is fought, not run from
         assertEquals(Event.FIGHT_START, c.step(tick(NOW + 1, 20, 0, zombie(1, 1, 3))));
         assertEquals(Mode.FIGHT, c.mode());
+        // (decision 10) the brain says the buddy outlives this fight and the rest of the way: it goes on, a second mob about
+        assertEquals(Event.NONE, c.step(new Tick(NOW + 3, 20, 0, 0, List.of(zombie(1, 1, 3), zombie(2, 2, 3)), zombie(1, 1, 3),
+                Way.NONE, true)));
+        assertEquals(Mode.FIGHT, c.mode());
+        // not outlived any more (more came): the meter's flee
         c.meter(Level.FLEE, false, false);
         assertEquals(Event.FIGHT_TO_RUN, c.step(new Tick(NOW + 5, 20, 0, 0, List.of(zombie(1, 1, 3), zombie(2, 2, 3)), zombie(1, 1, 3),
                 Way.NONE, true)));

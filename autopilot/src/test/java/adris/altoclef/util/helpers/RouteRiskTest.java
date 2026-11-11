@@ -44,6 +44,23 @@ public class RouteRiskTest {
         assertTrue(RouteRisk.go(9, 30, 10, true, true));
     }
 
+    // decision 10: a fight begun on the task's way is the piece in hand. one wither skeleton 3.8 off with a sword (K 20 / 9.6
+    // plus the step to it, about 2.3 s) at smoke5's reading (T 12.1 hp in 3 s): about 9 hp, outlived at 20. three of them
+    // (the loss three times): not outlived, the meter's flee. a K the meter has not read is no piece to count on
+    @Test
+    public void aFightOnTheWayIsGoneOnWhileItIsOutlived() {
+        double k = 20 / 9.6 + 0.8 / 4.3;
+        double one = RouteRisk.piece(k, 12.1);
+        assertEquals(9.15, one, 0.01);
+        assertTrue(RouteRisk.go(20, one, 0, false, false));
+        assertFalse(RouteRisk.go(20, RouteRisk.piece(k, 36.3), 0, false, false));
+        // the rest of the route counts on top
+        assertFalse(RouteRisk.go(20, one + 7, 0, false, false));
+        assertEquals(Double.POSITIVE_INFINITY, RouteRisk.piece(Double.NaN, 12.1), 0);
+        assertEquals("route: go, the fight in hand 9.2 hp (2.3 s to kill), 0.0 on the way and 0.0 at the goal, hp 20.0",
+                RouteRisk.pieceLine(true, 20, one, k, 0, 0, false));
+    }
+
     @Test
     public void theLine() {
         assertEquals("route: go, 3.2 hp expected on the way and 1.0 at the goal, hp 17.0, the goal lies in the danger",

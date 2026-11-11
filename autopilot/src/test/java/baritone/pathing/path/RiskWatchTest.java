@@ -239,6 +239,31 @@ public class RiskWatchTest {
         assertTrue(walk.expected(way.movements().size() - 1) < walk.expected(0));
     }
 
+    // a second walk planned for no risk within risk_replan_flip of the last such replan waits: one in 5 s over all walks
+    // (smoke5 of S137 step 3: 38 of 82 replans for more were "against 0.0 planned", path after path)
+    @Test
+    public void walksPlannedForNoRiskArePlannedAgainOnceInTheFlipWindow() throws Exception {
+        route();
+        RiskField.clear(0);
+        RiskField.alert(false);
+        RiskField.offer(1, null, false, List.of(zombie(7, 6.5, 0.5)));
+        Ctx ctx = new Ctx(floor());
+        // (planned in calm: straight past the zombie)
+        IPath way = path(ctx, new GoalBlock(12, 64, 0));
+        RiskField.alert(true);
+        RiskWatch first = new RiskWatch();
+        first.planned(false);
+        assertNotNull(first.check(way, 0, ctx, FEET, clock));
+        RiskWatch second = new RiskWatch();
+        second.planned(false);
+        assertNull(second.check(way, 0, ctx, FEET, clock + 30));
+        // the zombie a step on, past the window: planned again
+        RiskField.offer(2, null, false, List.of(zombie(7, 5.0, 0.5)));
+        String more = second.check(way, 0, ctx, FEET, clock + 1 + (long) RiskWatch.FLIP);
+        assertNotNull(more);
+        assertTrue(more, more.startsWith("more"));
+    }
+
     @Test
     public void aWalkThatPricedTheMobsKeepsItsOwnBaseline() throws Exception {
         route();

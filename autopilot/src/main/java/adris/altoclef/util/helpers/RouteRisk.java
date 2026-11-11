@@ -43,6 +43,20 @@ public final class RouteRisk {
         return inDanger && (going || hp >= RecoverHold.DONE_AT);
     }
 
+    // (decision 10, a fight on the way is the piece in hand) the hp a fight is expected to cost: the seconds to kill its target
+    // (DangerMeter.killTime) at the reading's loss (hp in the meter's horizon, every mob that hurts counted). more mobs come:
+    // the loss grows, and the piece with it
+    public static double piece(double killSeconds, double loss) {
+        if (Double.isNaN(killSeconds) || killSeconds < 0) return Double.POSITIVE_INFINITY;
+        return killSeconds * Math.max(0, loss) / DangerMeter.HORIZON;
+    }
+
+    // route: go|flee, the fight in hand <piece> hp (<k> s to kill), <way> on the way and <stay> at the goal, hp <hp>[, ...]
+    public static String pieceLine(boolean go, double hp, double piece, double k, double way, double stay, boolean inDanger) {
+        return String.format(Locale.ROOT, "route: %s, the fight in hand %.1f hp (%.1f s to kill), %.1f on the way and %.1f at the goal, hp %.1f%s",
+                go ? "go" : "flee", piece, k, way, stay, hp, inDanger ? ", the goal lies in the danger" : "");
+    }
+
     // route: go|flee, <way> hp expected on the way and <stay> at the goal, hp <hp>[, the goal lies in the danger]
     public static String line(boolean go, double hp, double way, double stay, boolean inDanger) {
         return String.format(Locale.ROOT, "route: %s, %.1f hp expected on the way and %.1f at the goal, hp %.1f%s", go ? "go" : "flee",

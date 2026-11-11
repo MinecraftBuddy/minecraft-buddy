@@ -87,6 +87,8 @@ public final class RiskCost {
         // risk_mobs, with lambda at the search's health. charged: the ticks each mob added to the search's moves
         public RiskField.Pricer mobs;
         public boolean mobsPriced;
+        // priced for the task's walk alone (RiskCost.route): a search that finds no path so is searched again without it
+        public boolean routePriced;
         public double mobLambda;
         double[] charged;
 
@@ -109,17 +111,26 @@ public final class RiskCost {
 
     // the same for a search from (x, y, z): a flee goal never takes that cell
     public static Search start(CalculationContext context, Goal goal, double offset, int x, int y, int z) {
-        return start(context, goal, offset, new int[]{x, y, z});
+        return start(context, goal, offset, new int[]{x, y, z}, false);
+    }
+
+    // plain: the task's walk not priced (RiskCost.route off), the search again after a priced one found no path
+    public static Search start(CalculationContext context, Goal goal, double offset, int x, int y, int z, boolean plain) {
+        return start(context, goal, offset, new int[]{x, y, z}, plain);
     }
 
     private static Search start(CalculationContext context, Goal goal, double offset, int[] from) {
+        return start(context, goal, offset, from, false);
+    }
+
+    private static Search start(CalculationContext context, Goal goal, double offset, int[] from, boolean plain) {
         Search search = places(context);
         RiskField.Version field = RiskField.current();
         GoalFlee flee = goal instanceof GoalFlee f ? f : null;
         // (a flee has no mob it goes to: every one counts)
         RiskField.Pricer mobs = pricer(context, field, flee != null ? null : goal, offset);
         double lambda = lambda(context.health, Tuning.get("risk_lambda", LAMBDA), Tuning.get("risk_lambda_curve", 1));
-        boolean route = flee == null && route(field);
+        boolean route = !plain && flee == null && route(field);
         if (route) {
             lambda *= GoalFlee.lambdaFactor();
         }
@@ -140,6 +151,7 @@ public final class RiskCost {
         }
         search.mobs = mobs;
         search.mobsPriced = flee != null || route || Tuning.get("risk_mobs", 0) >= 1;
+        search.routePriced = route && flee == null && Tuning.get("risk_mobs", 0) < 1;
         search.mobLambda = lambda;
         search.charged = new double[mobs.size()];
         return search;

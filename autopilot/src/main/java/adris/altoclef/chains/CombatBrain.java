@@ -164,6 +164,17 @@ final class CombatBrain {
     private Boolean _routeSaid;
     private long _routeSaidAt = Long.MIN_VALUE / 2;
     private static final long ROUTE_SAY_TICKS = 200;
+    // why routeGo gave no verdict this tick (null: it gave one, or waits for the walk's search), for the line after a go
+    private String _routeWhy;
+    // (decision 10, a fight on the way is the piece in hand) the fight on now began on the task's way to its place: the task
+    // had the wheel, walking there or at work there, when the commit started it. kept through a chain to the next target,
+    // gone with the fight. and the route as the walk left it: the hp expected on the rest of the way and at the goal, whether
+    // the goal lies in the danger, and when that was noted
+    private boolean _onWay;
+    private double _wayRest;
+    private double _wayStay;
+    private boolean _wayInDanger;
+    private long _wayAt = Long.MIN_VALUE / 2;
 
     // the meter says flee, and the task is on its way to a place or at work there: whether the buddy goes (RouteRisk). asked
     // only at flee, with no run on, and never at the last ditch (hp less the loss within the meter's horizon at the margin
@@ -175,16 +186,35 @@ final class CombatBrain {
             return false;
         }
         boolean going = _going && now >= _goingAt && now - _goingAt <= adris.altoclef.util.helpers.RouteRisk.GOING_TICKS;
-        boolean go = !adris.altoclef.util.helpers.DangerShadow.lastDitch() && routeGo(mod, player, now, going);
-        _going = go;
-        if (go) _goingAt = now;
-        return go;
+        _routeWhy = null;
+        boolean lastDitch = adris.altoclef.util.helpers.DangerShadow.lastDitch();
+        // (a fight on: whether it is the task's piece in hand, decision 10; a walk: the route)
+        boolean go = !lastDitch && (_commit.mode() == Mode.FIGHT ? pieceGo(player, now, going) : routeGo(mod, player, now, going));
+        if (lastDitch) _routeWhy = "the last ditch";
+        // a go a moment ago and no verdict now, with no fight on: a blink of the walk (a new segment, a replan's search, a
+        // tick of another chain) keeps the go till GOING_TICKS after the last real one. smoke5 of S137 step 3: each of its 4
+        // goes was a run in the same second, with no line to say why
+        boolean kept = !go && !lastDitch && going && _routeWhy != null && _commit.mode() == Mode.NONE;
+        if (go) {
+            _going = true;
+            _goingAt = now;
+        } else if (!kept) {
+            _going = false;
+        }
+        if (!go && !kept && _routeWhy != null && Boolean.TRUE.equals(_routeSaid)) {
+            // (the go said last is over without a flee: the line says why, and the next verdict gets its line)
+            _routeSaid = null;
+            Debug.logInternal("route: no verdict after a go, " + _routeWhy + ", hp " + Math.round((player.getHealth() + player.getAbsorptionAmount()) * 10) / 10.0
+                    + ", at " + player.getBlockX() + "," + player.getBlockY() + "," + player.getBlockZ());
+        }
+        return go || kept;
     }
 
     private boolean routeGo(AltoClef mod, LocalPlayer player, long now, boolean going) {
         Object world = mod.getWorld();
         if (!adris.altoclef.util.helpers.TaskGoal.hasWheel(now, world)) {
             _routeWait = -1;
+            _routeWhy = _commit.mode() == Mode.FIGHT ? "a fight has the wheel" : "the task does not have the wheel";
             return false;
         }
         double hp = player.getHealth() + player.getAbsorptionAmount();
@@ -211,12 +241,60 @@ final class CombatBrain {
             }
             if (walking == null || (current != null && pathing.getInProgress().isEmpty())) {
                 _routeWait = -1;
+                _routeWhy = walking == null ? "the task walks to no place" : "the path is not the task's";
                 return false;
             }
         }
         // the walk's search is under way, or its path is not checked yet: a second for it
         if (_routeWait < 0 || now < _routeWait) _routeWait = now;
-        return now - _routeWait <= adris.altoclef.util.helpers.RouteRisk.WAIT_TICKS;
+        boolean waits = now - _routeWait <= adris.altoclef.util.helpers.RouteRisk.WAIT_TICKS;
+        if (!waits) _routeWhy = "no priced path within " + adris.altoclef.util.helpers.RouteRisk.WAIT_TICKS / 20 + " s";
+        return waits;
+    }
+
+    // (decision 10) a fight begun on the task's way is fought while the buddy outlives it and the rest of the route: its
+    // target's time to kill at the reading's loss (more mobs come: more loss), and the route as the walk left it. not
+    // outlived: the meter's flee, as before. smoke5 of S137 step 3: 13 of its 23 runs came out of such fights, 9 begun on a
+    // mob in the way or one that hit, every one asked nothing
+    private boolean pieceGo(LocalPlayer player, long now, boolean going) {
+        if (!_onWay) {
+            _routeWhy = "a fight not begun on the task's way";
+            return false;
+        }
+        double k = adris.altoclef.util.helpers.DangerShadow.killSeconds(_commit.targetId());
+        double piece = adris.altoclef.util.helpers.RouteRisk.piece(k, adris.altoclef.util.helpers.DangerShadow.last().loss());
+        if (!Double.isFinite(piece)) {
+            _routeWhy = "the fight's target not in the meter's reading";
+            return false;
+        }
+        double hp = player.getHealth() + player.getAbsorptionAmount();
+        boolean go = adris.altoclef.util.helpers.RouteRisk.go(hp, piece + _wayRest, _wayStay, _wayInDanger, going);
+        if (_routeSaid == null || _routeSaid != go || now < _routeSaidAt || now - _routeSaidAt >= ROUTE_SAY_TICKS) {
+            _routeSaid = go;
+            _routeSaidAt = now;
+            Debug.logInternal(adris.altoclef.util.helpers.RouteRisk.pieceLine(go, hp, piece, k, _wayRest, _wayStay, _wayInDanger) + ", "
+                    + _names.of(_commit.targetId()) + ", at " + player.getBlockX() + "," + player.getBlockY() + "," + player.getBlockZ());
+        }
+        return go;
+    }
+
+    // a fight just began: whether on the task's way to its place, and the route's numbers as the walk left them (its last
+    // verdict within RouteRisk.GOING_TICKS, else the task's path's rest now, else nothing on the way)
+    private void noteOnWay(AltoClef mod, long now) {
+        Object world = mod.getWorld();
+        long work = Math.round(adris.altoclef.util.helpers.RouteRisk.work() * 20);
+        _onWay = adris.altoclef.util.helpers.RouteRisk.on() && adris.altoclef.util.helpers.TaskGoal.hasWheel(now, world)
+                && adris.altoclef.util.helpers.TaskGoal.within(now, world, work) != null;
+        if (!_onWay) return;
+        // (the fight's own first verdict gets its line)
+        _routeSaid = null;
+        if (now >= _wayAt && now - _wayAt <= adris.altoclef.util.helpers.RouteRisk.GOING_TICKS) return;
+        baritone.pathing.path.PathExecutor current = mod.getClientBaritone().getPathingBehavior().getCurrent();
+        double way = current != null && adris.altoclef.util.helpers.TaskGoal.place(current.getPath().getGoal()) ? current.riskAhead() : Double.NaN;
+        _wayRest = Double.isNaN(way) ? 0 : way;
+        _wayStay = 0;
+        _wayInDanger = false;
+        _wayAt = now;
     }
 
     // the answer for a way and the goal's rate (hp a second at the goal's cell, 0 where the way does not end at the goal),
@@ -225,6 +303,11 @@ final class CombatBrain {
         boolean inDanger = rate >= GoalFlee.calm();
         double stay = inDanger ? rate * adris.altoclef.util.helpers.RouteRisk.work() : 0;
         boolean go = adris.altoclef.util.helpers.RouteRisk.go(hp, way, stay, inDanger, going);
+        // (kept for a fight that begins on this way, decision 10)
+        _wayRest = way;
+        _wayStay = stay;
+        _wayInDanger = inDanger;
+        _wayAt = now;
         if (_routeSaid == null || _routeSaid != go || now < _routeSaidAt || now - _routeSaidAt >= ROUTE_SAY_TICKS) {
             _routeSaid = go;
             _routeSaidAt = now;
@@ -709,6 +792,9 @@ final class CombatBrain {
             if (_commit.mode() == Mode.FIGHT && mod.getWorld().getEntity(_commit.targetId()) instanceof Enderman man && man.isAlive()) {
                 noteEnderGone(dimension, man, true, player);
             }
+            // (decision 10: a fight from no fight, begun while the task walked to its place or worked there, is its piece in hand)
+            if (event == Event.FIGHT_START) noteOnWay(mod, now);
+            if (_commit.mode() != Mode.FIGHT) _onWay = false;
             if (event != Event.NONE) {
                 // the old one ended and the next one started on the same step, both get their line, in that order
                 if (_commit.endedFirst() != Event.NONE) log(mod, dimension, _commit.endedFirst(), fighting, mobs, blocks);
@@ -721,7 +807,7 @@ final class CombatBrain {
                 // them and the walk does not go to and fro between two groups)
                 if (_commit.mode() == Mode.RUN && _commit.why() == CombatCommit.Why.DANGER
                         && (event == Event.RUN_START || event == Event.FIGHT_TO_RUN)) {
-                    int kept = adris.altoclef.util.helpers.RiskField.remember(now);
+                    int kept = adris.altoclef.util.helpers.RiskField.remember(now, adris.altoclef.util.helpers.DangerShadow.counted());
                     if (kept > 0) Debug.logInternal("risk memory: " + kept + " more kept (a run for the danger meter began)");
                 }
                 // the nether sweep keeps off the spot we were chased out of by a heavy hitter (nether coordinates only, the

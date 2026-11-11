@@ -1699,7 +1699,7 @@ public class PathExecutor implements IPathExecutor, Helper {
         adris.altoclef.Debug.logInternal("risk replan: " + why);
         // (the memory: a route given up for more risk is given up for what is in the field now)
         if (why.startsWith("more")) {
-            int kept = adris.altoclef.util.helpers.RiskField.remember(ctx.world().getGameTime());
+            int kept = adris.altoclef.util.helpers.RiskField.remember(ctx.world().getGameTime(), adris.altoclef.util.helpers.DangerShadow.counted());
             if (kept > 0) {
                 adris.altoclef.Debug.logInternal("risk memory: " + kept + " more kept (the walk planned again for more risk)");
             }

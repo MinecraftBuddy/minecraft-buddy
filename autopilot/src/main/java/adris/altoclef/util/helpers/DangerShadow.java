@@ -144,6 +144,22 @@ public final class DangerShadow {
     private static final double GONE_RANGE = 32;
     // the mob behind the last hit, till the next reading remembers it
     private static int hitBy = -1;
+    // the mobs that counted in the last reading's T, by entity: what a route given up now is given up for (the memory)
+    private static java.util.Set<Integer> counted = java.util.Set.of();
+
+    public static java.util.Set<Integer> counted() {
+        return counted;
+    }
+
+    // (decision 10, a fight on the way is the piece in hand) the seconds to kill each mob of the last reading, by entity: its
+    // hp over our damage a second plus the walk to it (DangerMeter.killTime, by the weapon a fight takes)
+    private static Map<Integer, Double> killSeconds = Map.of();
+
+    // NaN where the last reading did not have that mob
+    public static double killSeconds(int id) {
+        Double k = killSeconds.get(id);
+        return k == null ? Double.NaN : k;
+    }
 
     // the last reading (the risk for a line)
     public static Reading last() {
@@ -284,6 +300,12 @@ public final class DangerShadow {
         if (ended != null) Debug.logInternal(DangerMeter.patienceLine(ended));
     }
 
+    // a full swing a second with this in the main hand: its attack damage (the bare hand's 1 plus what it adds) times its
+    // swings a second (the bare hand's 4 plus what it adds)
+    static double weaponDps(net.minecraft.world.item.Item item) {
+        return ItemHelper.getAttackDamage(item) * ItemHelper.getAttackSpeed(item);
+    }
+
     // ---- hits
 
     private static void noteHit(LocalPlayer player, float hp) {
@@ -331,16 +353,17 @@ public final class DangerShadow {
     private static Reading read(AltoClef mod, LocalPlayer player, ClientLevel level, float hp) {
         boolean fireRes = player.hasEffect(MobEffects.FIRE_RESISTANCE);
         MobEffectInstance resistance = player.getEffect(MobEffects.RESISTANCE);
-        double dps = player.getAttributeValue(Attributes.ATTACK_DAMAGE) * player.getAttributeValue(Attributes.ATTACK_SPEED);
-        // (the forced drills: K with the weapon the fight would use, not what is in hand, and the bow for a flyer out of reach;
-        // without the switch the meter reads as it always did)
+        // our damage a second: by the weapon a fight takes (or what is in the hand, where that hits harder), from the item's own
+        // numbers. the client never hears of the attack damage a held item adds (the attribute is not synced; its attack speed
+        // is), so the player's attribute said 1 a swing whatever the weapon: a sword read 1.6 a second where it does 9.6, and K
+        // for one wither skeleton came to 13 to 17 s. measured 11 Nov 2026 over two days of drills: a fight begun on one in the
+        // way is won 91 times in 100, one hit lost, while the meter read flee at 20 hp with risk 2.6 to 3.4
+        double dps = weaponDps(player.getMainHandItem().getItem());
+        net.minecraft.world.item.Item weapon = adris.altoclef.tasks.entity.AbstractKillEntityTask.bestWeapon(mod);
+        if (weapon != null) dps = Math.max(dps, weaponDps(weapon));
+        // (the forced drills: and the bow for a flyer out of reach)
         boolean forced = DangerForce.mode(Tuning.get("danger_force", 0)) != DangerForce.OFF;
-        double bowDps = 0;
-        if (forced) {
-            net.minecraft.world.item.Item weapon = adris.altoclef.tasks.entity.AbstractKillEntityTask.bestWeapon(mod);
-            if (weapon != null) dps = Math.max(dps, ItemHelper.getAttackDamage(weapon) * ItemHelper.getAttackSpeed(weapon));
-            bowDps = adris.altoclef.tasks.entity.ForcedBowTask.canShoot(mod) ? BOW_DPS : 0;
-        }
+        double bowDps = forced && adris.altoclef.tasks.entity.ForcedBowTask.canShoot(mod) ? BOW_DPS : 0;
         DangerMeter.Us us = new DangerMeter.Us(hp, dps, player.getArmorValue(), player.getAttributeValue(Attributes.ARMOR_TOUGHNESS),
                 level.getDifficulty().getId(), resistance == null ? 0 : resistance.getAmplifier() + 1, fireRes, bowDps);
         // (and the full count: every hostile in sight or after us at want 1)
@@ -352,6 +375,8 @@ public final class DangerShadow {
         // (each mob's entity, for the forced drills' threats)
         List<Mob> bodies = new ArrayList<>();
         Map<Integer, Double> afterNow = new HashMap<>();
+        java.util.Set<Integer> inT = new java.util.HashSet<>();
+        Map<Integer, Double> kills = new HashMap<>();
         // (S137 step 2: the mobs that want us, where they are, for the path search's mob field; and the ones that did lately)
         List<RiskField.Source> field = new ArrayList<>();
         // (risk_flee_goal) the task's own mobs that count in T, and whether the switch reads them at all
@@ -389,7 +414,11 @@ public final class DangerShadow {
             DangerMeter.Mob counted = new DangerMeter.Mob(kind, row, mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ(),
                     want, way, sees, mob.getHealth(), mine);
             mobs.add(counted);
-            if (mine && DangerMeter.damage3(counted, us, counted.distance()) > 0) own++;
+            boolean hurts = DangerMeter.damage3(counted, us, counted.distance()) > 0;
+            kills.put(mob.getId(), DangerMeter.killTime(counted, us, counted.distance(),
+                    mob.getHealth() > 0 ? mob.getHealth() : row != null ? row.hp() : 20));
+            if (hurts) inT.add(mob.getId());
+            if (mine && hurts) own++;
             bodies.add(mob);
             if (full != null && (afterUs || (hostileKind && !calm))) {
                 boolean seen = afterUs || (needSight ? sees
@@ -409,6 +438,8 @@ public final class DangerShadow {
             }
         }
         pendingAfter = afterNow;
+        DangerShadow.counted = inT;
+        killSeconds = kills;
         // (the memory: a remembered mob out of the live field is where it is now while the client has it; dead, or gone
         // while the buddy is near its place, it is forgotten)
         java.util.Set<Integer> live = new java.util.HashSet<>();
@@ -433,13 +464,8 @@ public final class DangerShadow {
         goalOwn = own;
         goalReading = reading;
         if (own > 0) {
-            // the next piece of the job is fought with the weapon the fight would take, not with what is in the hand on the
-            // walk there: by a pickaxe's damage one blaze is a kill of ten seconds, and the place reads as a flee again. every
-            // other mob's time in this reading is by that weapon too
-            net.minecraft.world.item.Item weapon = adris.altoclef.tasks.entity.AbstractKillEntityTask.bestWeapon(mod);
-            double fightDps = weapon == null ? dps : Math.max(dps, ItemHelper.getAttackDamage(weapon) * ItemHelper.getAttackSpeed(weapon));
-            DangerMeter.Us armed = new DangerMeter.Us(us.hp(), fightDps, us.armour(), us.toughness(), us.difficulty(), us.resistance(), us.fireRes(), us.bowDps());
-            goalReading = DangerMeter.read(armed, mobs, hazards, true);
+            // (the next piece of the job, by the weapon the fight would take as every mob is now)
+            goalReading = DangerMeter.read(us, mobs, hazards, true);
         }
         if (forced) {
             Reading all = DangerMeter.read(us, full, hazards);

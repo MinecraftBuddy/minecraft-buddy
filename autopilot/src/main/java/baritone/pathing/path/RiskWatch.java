@@ -63,6 +63,9 @@ public final class RiskWatch {
 
     private static long lastReplan = Long.MIN_VALUE / 2;
     private static long lastMore = Long.MIN_VALUE / 2;
+    // the last replan of a path planned for no risk (its baseline nothing): at most one in risk_replan_flip ticks over all
+    // paths. smoke5 of S137 step 3: 38 of 82 replans for more were "against 0.0 planned", one new unpriced path after another
+    private static long lastUnpriced = Long.MIN_VALUE / 2;
 
     // the version last checked, -1 before the first
     private long version = -1;
@@ -135,7 +138,8 @@ public final class RiskWatch {
         double was = sum(base, pos);
         double is = sum(rest, pos);
         double lambda = RiskCost.lambda(context.health, Tuning.get("risk_lambda", RiskCost.LAMBDA), Tuning.get("risk_lambda_curve", 1));
-        if (lambda * (is - was) > Tuning.get("risk_replan_more", MORE)) {
+        boolean unpricedSoon = !priced && now >= lastUnpriced && now - lastUnpriced < Tuning.get("risk_replan_flip", FLIP);
+        if (lambda * (is - was) > Tuning.get("risk_replan_more", MORE) && !unpricedSoon) {
             why = String.format(Locale.ROOT, "more, %.1f hp expected on the rest against %.1f planned", is, was);
         }
         Integer gone = null;
@@ -155,6 +159,9 @@ public final class RiskWatch {
             return null;
         }
         lastReplan = now;
+        if (gone == null && !priced) {
+            lastUnpriced = now;
+        }
         if (gone != null) {
             lastSeen.remove(gone);
         } else {

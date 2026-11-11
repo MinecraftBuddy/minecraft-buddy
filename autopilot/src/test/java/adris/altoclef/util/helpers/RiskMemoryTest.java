@@ -81,13 +81,23 @@ public class RiskMemoryTest {
         assertTrue(RiskField.current().remembers());
         // no new version while nothing changes
         assertFalse(RiskField.offer(125, WORLD, false, List.of()));
-        // two minutes after the last time it counted: half
-        assertTrue(RiskField.offer(105 + 2401, WORLD, false, List.of()));
+        // 45 s after the last time it counted: half
+        assertTrue(RiskField.offer(105 + 900, WORLD, false, List.of()));
         assertEquals(0.25, RiskField.current().sources().get(0).want(), 0);
-        // three minutes: gone
-        assertTrue(RiskField.offer(105 + 3600, WORLD, false, List.of()));
+        // a minute: gone
+        assertTrue(RiskField.offer(105 + 1200, WORLD, false, List.of()));
         assertTrue(RiskField.current().sources().isEmpty());
         assertTrue(RiskField.remembered().isEmpty());
+    }
+
+    // only the mobs that counted in the meter's T when the route was given up are kept, not the whole field
+    @Test
+    public void onlyWhatCountedInTheMeterIsKept() {
+        RiskField.offer(100, WORLD, false, List.of(zombie(1, 10, 1), zombie(2, 14, 1), zombie(3, 30, 0.5)));
+        assertEquals(1, RiskField.remember(100, java.util.Set.of(1)));
+        RiskField.offer(120, WORLD, false, List.of());
+        assertEquals(1, RiskField.current().sources().size());
+        assertEquals(1, RiskField.current().sources().get(0).id());
     }
 
     @Test
