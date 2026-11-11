@@ -68,7 +68,7 @@ public class CommittedRunTask extends CustomBaritoneGoalTask {
         return runGoal(mod);
     }
 
-    private Goal runGoal(AltoClef mod) {
+    protected Goal runGoal(AltoClef mod) {
         // the goal is asked from the pathfinder thread, so it gets thread safe copies of the loaded chunks (remade by refresh)
         return new GoalCommittedRun(_originX, _originZ, _distance, CROWD_CLEAR, _crowd,
                 () -> CliffAvoidance.of(new BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true)),
@@ -112,7 +112,7 @@ public class CommittedRunTask extends CustomBaritoneGoalTask {
     @Override
     protected boolean mayIssueGoal(AltoClef mod) {
         long now = mod.getWorld().getGameTime();
-        if (!mayReissue(now, _lastIssue)) return false;
+        if (!mayReissue(now, _lastIssue, reissueGap())) return false;
         _lastIssue = now;
         pickGoal(mod);
         return true;
@@ -140,7 +140,16 @@ public class CommittedRunTask extends CustomBaritoneGoalTask {
     // the very first issue goes through (nothing was handed over yet), after that one per gap. a clock that went backwards
     // (a new world) counts as long enough ago
     static boolean mayReissue(long now, long lastIssue) {
-        return now < lastIssue || now - lastIssue >= REISSUE_GAP_TICKS;
+        return mayReissue(now, lastIssue, REISSUE_GAP_TICKS);
+    }
+
+    static boolean mayReissue(long now, long lastIssue, long gap) {
+        return now < lastIssue || now - lastIssue >= gap;
+    }
+
+    // the ticks between two goals handed to the pathfinder
+    protected long reissueGap() {
+        return REISSUE_GAP_TICKS;
     }
 
     @Override

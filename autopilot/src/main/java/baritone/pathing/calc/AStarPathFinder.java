@@ -72,6 +72,11 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
     private Optional<IPath> search(long primaryTimeout, long failureTimeout) {
         int minY = calcContext.minY;
         int maxY = calcContext.maxY;
+        // a fresh one every search, see CliffAvoidance.Memo: the place prices and the health they are set at too (RiskCost)
+        // and the mob field's newest version, for the mobs' part (S137 step 2); kept for the search line and the walk. before
+        // the start node: a flee goal (GoalFlee) is bound to this search's field here, and the start node's estimate asks it
+        RiskCost.Search risk = RiskCost.start(calcContext, goal, riskOffset);
+        this.risk = risk;
         startNode = getNodeAtPosition(startX, startY, startZ, BetterBlockPos.longHash(startX, startY, startZ));
         startNode.cost = 0;
         startNode.combinedCost = startNode.estimatedCostToGoal;
@@ -96,10 +101,6 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
         int numMovementsConsidered = 0;
         int numEmptyChunk = 0;
         boolean isFavoring = !favoring.isEmpty();
-        // a fresh one every search, see CliffAvoidance.Memo: the place prices and the health they are set at too (RiskCost)
-        // and the mob field's newest version, for the mobs' part (S137 step 2); kept for the search line and the walk
-        RiskCost.Search risk = RiskCost.start(calcContext, goal, riskOffset);
-        this.risk = risk;
         int timeCheckInterval = 1 << 6;
         int pathingMaxChunkBorderFetch = Baritone.settings().pathingMaxChunkBorderFetch.value; // grab all settings beforehand so that changing settings during pathing doesn't cause a crash or unpredictable behavior
         double minimumImprovement = Baritone.settings().minimumImprovementRepropagation.value ? MIN_IMPROVEMENT : 0;

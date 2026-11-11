@@ -229,7 +229,11 @@ public final class CombatCommit {
         // loop, leaving is not
         REPEAT_CREEPER,
         // melee only chasers we cannot outrun, and a pillar under us they cannot reach over (PerchRules)
-        PERCH
+        PERCH,
+        // (the buddy's fork, S137 step 3, Tuning risk_flee) the danger meter is at flee: the buddy dies before it kills what is
+        // on it, or its hp less the next three seconds' loss comes to the margin. it stands for the count rules (a crowd, the
+        // flee line, a heavy hitter at its line, a hurt walk under shooters) where the meter decides the runs
+        DANGER
     }
 
     public enum Event {
@@ -858,6 +862,8 @@ public final class CombatCommit {
 
     // run bookkeeping
     private long clearSince = -1;
+    // (risk_flee) a run for the meter's flee is over once the meter has been under cover this long: the clock on it
+    private long calmSince = -1;
     // this run is from shooters: it is over when none has a line to us (LOS_CLEAR_TICKS), not when we are 12 blocks off, and
     // noSightSince is the clock on that
     private boolean losRun;
@@ -959,6 +965,23 @@ public final class CombatCommit {
 
     // heal up before going back in: on after a commitment that ended hurt. not a mode, nothing is committed while it holds
     private final RecoverHold recover = new RecoverHold();
+
+    // (the buddy's fork, S137 step 3, Tuning risk_flee) the danger meter's level (DangerShadow) when the meter decides the
+    // runs, set by the brain before each step; null when the count rules do (the switch off, or no meter here: the End). with
+    // a level, a run starts at flee (Why.DANGER) and is over once the meter has been under cover for RUN_CLEAR_TICKS, and the
+    // count rules start none: a crowd, the flee line and the hurt chase, a heavy hitter at its line or in the way, a pack of
+    // wither skeletons, a hurt walk under shooters or a second shooter, the heal hold's re-run. what is not about how much
+    // danger stays: the warden (the meter has no row for it), a creeper that keeps coming back, a lobber given up on, bare
+    // hands, an enderman about, the perch, and a run that goes nowhere turning into the cornered fight
+    private DangerMeter.Level meter;
+
+    public void meter(DangerMeter.Level level) {
+        meter = level;
+    }
+
+    public DangerMeter.Level meter() {
+        return meter;
+    }
 
     public Mode mode() {
         return mode;
@@ -1067,6 +1090,7 @@ public final class CombatCommit {
         losRun = false;
         noSightSince = -1;
         clearSince = -1;
+        calmSince = -1;
         clearRunHits();
         cornerSince = -1;
         stuckSince = -1;
@@ -1191,9 +1215,15 @@ public final class CombatCommit {
     // (those stay the fight, see runOrBox)
     private Why unlatched(Why reason, Tick t) {
         if (!runLatch || reason == Why.HEAVY) return reason;
-        if ((reason == Why.LOW_HP || reason == Why.CROWD) && latchChased && latchBreaks == 0 && !t.boxed() && fastTarget(t) == null) {
+        if ((reason == Why.LOW_HP || reason == Why.CROWD || reason == Why.DANGER) && latchChased && latchBreaks == 0 && !t.boxed() && fastTarget(t) == null) {
             latchBreaks++;
             return reason;
+        }
+        // (the meter's flee is its own flee line: it gets through where low hp does, below)
+        if (reason == Why.DANGER) {
+            if (t.boxed() || fastTarget(t) != null) return Why.NONE;
+            if (meleeOnUs(t) || (recover.on() && meleeNear(t, RecoverHold.RERUN_RANGE)) || (mode == Mode.NONE && recover.on() && shotJustNow(t))) return reason;
+            return Why.NONE;
         }
         // under the flee line with something melee on us the latch has no say: another fight at that hp is the one that kills
         // us, and the break counter is for the crowd. boxed or with something fast on us it still stays the cornered fight, see
@@ -1471,7 +1501,8 @@ public final class CombatCommit {
         }
         // healing up: whatever comes back near is a run again, before it is a fight and whatever the cooldown says. we are
         // standing here because we are hurt, and trading blows at 10 hp is how the last run started
-        if (recover.on() && endermanAbout(t) == null) {
+        // (not with the meter deciding: its flee was asked above)
+        if (meter == null && recover.on() && endermanAbout(t) == null) {
             Why again = unlatched(rerun(t), t);
             if (again != Why.NONE) return runOrBox(t, again);
         }
@@ -1487,8 +1518,9 @@ public final class CombatCommit {
         // healing up under the flee line with the run rules saying run (the latch is what kept it from starting), an old hit is
         // not a reason to start swinging: only one that hit us just now is. boxed, something fast, or an enderman or shooter
         // making rerun say anything but LOW_HP means no run to take instead, so the old hit still fights
-        boolean freshHitsOnly = cooling || (recover.on() && t.health() <= FLEE_HP && !t.boxed() && fastTarget(t) == null
-                && rerun(t) == Why.LOW_HP && endermanAbout(t) == null);
+        boolean freshHitsOnly = cooling || (meter != null
+                ? recover.on() && meter == DangerMeter.Level.FLEE && !t.boxed() && fastTarget(t) == null && endermanAbout(t) == null
+                : recover.on() && t.health() <= FLEE_HP && !t.boxed() && fastTarget(t) == null && rerun(t) == Why.LOW_HP && endermanAbout(t) == null);
         Foe hit = hitInContact(candidates(t), freshHitsOnly);
         if (hit != null) {
             // (no run for these while an enderman is about: it follows, so a swing at what is on us is the better trade)
@@ -1510,17 +1542,19 @@ public final class CombatCommit {
             boolean realWeapon = t.armed() && t.way().weapon();
             // (with an enderman about the run is off, a skeleton on us is the armed fight below or nothing)
             boolean hurtRun = t.low() && !(realWeapon && shooterFight(candidates(t), cooling, t.guardHealth()));
-            if ((hurtRun || secondShooter(shooters) || gaveUpOn(sniper, t.now())) && endermanAbout(t) == null) {
+            // (with the meter deciding, hurt or a second shooter is its call; a sniper we gave up on is still walked away from)
+            boolean countRun = meter == null && (hurtRun || secondShooter(shooters));
+            if ((countRun || gaveUpOn(sniper, t.now())) && endermanAbout(t) == null) {
                 return startRun(t, Why.SHOT, Event.RUN_START);
             }
             // (the buddy's fork, Tuning shooter_pack, on, a fix: a skeleton standing among wither skeletons is not walked up to,
             // the walk ends inside their reach; a run out of the shooter's sight instead. box 2's route-19 run 51, 10 Nov 2026: a
             // fight on a skeleton walked 14 blocks into a pack of 3 the danger meter had at flee, the run began inside it, dead)
-            if (realWeapon && shooterPackOn() && shooterInPack(candidates(t), sniper) && endermanAbout(t) == null) {
-                return startRun(t, Why.SHOT, Event.RUN_START);
-            }
+            // (with the meter deciding, the pack's skeleton is not walked up to and not run from: the meter runs when it is too much)
+            boolean pack = realWeapon && shooterPackOn() && shooterInPack(candidates(t), sniper) && endermanAbout(t) == null;
+            if (pack && meter == null) return startRun(t, Why.SHOT, Event.RUN_START);
             // (bare hands and pickaxes do not go and get a skeleton, they keep walking till it hurts and then it is the run above)
-            if (realWeapon) return startFight(t, sniper, Why.PINNED, Event.FIGHT_START, false);
+            if (realWeapon && !pack) return startFight(t, sniper, Why.PINNED, Event.FIGHT_START, false);
         }
         // not a swing yet, but it is the thing in the way. cooldown or not: the cooldown is about not picking a fight again
         // with what is around us, and this one is a path that cannot go on until it is gone
@@ -1528,7 +1562,8 @@ public final class CombatCommit {
         // a heavy hitter in the path is not a fight we go and pick, at any hp: one swing is 8 to 13 and they come in threes.
         // it is a run, and the sweep keeps a zone round where we ran from (RunZones) so the path does not walk back into it.
         // one that hits us is still the HIT fight above, that is unchanged
-        if (way == null && endermanAbout(t) == null) {
+        // (with the meter deciding, a heavy hitter in the path is walked past like anything else: the meter runs when it is too much)
+        if (way == null && meter == null && endermanAbout(t) == null) {
             Foe heavy = heavyInTheWay(t);
             if (heavy != null) {
                 int h = perchAt(t);
@@ -1550,11 +1585,15 @@ public final class CombatCommit {
             // a run from it, once, instead of nothing)
             // (the buddy's fork: hurt alone is still its fight, down to the line a fight against it keeps; the run at 15.8 hp
             // headed back into the corridor it came from and took the hit from the front, attempt 220)
+            // (with the meter deciding, a pack is no fight we pick and no run: the meter runs when it is too much)
             if (otherWither(t, wither)) {
-                ranFrom.put(wither.id(), t.now());
-                return startRun(t, Why.HEAVY, Event.RUN_START);
+                if (meter == null) {
+                    ranFrom.put(wither.id(), t.now());
+                    return startRun(t, Why.HEAVY, Event.RUN_START);
+                }
+            } else {
+                return startFight(t, wither, Why.IN_WAY, Event.FIGHT_START, false);
             }
-            return startFight(t, wither, Why.IN_WAY, Event.FIGHT_START, false);
         }
         // (not with bare hands: it would punch the thing down to the flee line. it hits us, and that is the unarmed run above)
         // (and not with a pickaxe either: the way fight is one we pick, it wants a sword or an axe)
@@ -1594,7 +1633,7 @@ public final class CombatCommit {
     private Event runOrBox(Tick t, Why reason) {
         int h = perchAt(t);
         if (h > 0) return startPerch(t, h, "run " + reason);
-        if (reason == Why.CROWD || reason == Why.LOW_HP) {
+        if (reason == Why.CROWD || reason == Why.LOW_HP || reason == Why.DANGER) {
             Foe on = t.boxed() ? boxedTarget(t) : null;
             if (on == null) on = fastTarget(t);
             if (on != null) {
@@ -1846,6 +1885,7 @@ public final class CombatCommit {
 
     // onFight: a fight is on even when the target was taken out of the picture (see shooterFight)
     private Why runReason(Tick t, boolean freshOnly, float lowHit, boolean onFight) {
+        if (meter != null) return meterReason(t);
         Foe target = t.target();
         // (the same "has it got to us" rule as for anything else, the fight target just gets asked too)
         if (target != null && target.danger(t.guardHealth())) return Why.HEAVY;
@@ -1921,6 +1961,36 @@ public final class CombatCommit {
         return false;
     }
 
+    // (risk_flee) the run reason when the meter decides: the warden close is a run at any level (the meter has no row for
+    // it), the meter at flee is one, unless an angry enderman is about (it teleports onto us, a run is free hits), and
+    // nothing else is
+    private Why meterReason(Tick t) {
+        if (untouchable(t)) return Why.HEAVY;
+        if (meter != DangerMeter.Level.FLEE || endermanAbout(t) != null) return Why.NONE;
+        return Why.DANGER;
+    }
+
+    // something only ever run from (the warden), close enough to matter
+    private static boolean untouchable(Tick t) {
+        if (t.target() != null && t.target().kind() == Kind.UNTOUCHABLE && t.target().danger(t.guardHealth())) return true;
+        for (Foe foe : t.foes()) {
+            if (foe.kind() == Kind.UNTOUCHABLE && foe.danger(t.guardHealth())) return true;
+        }
+        return false;
+    }
+
+    // "too much to stand and fight now": with the count rules a heavy hitter at its line or the warden (anyDanger); with the
+    // meter the warden, or the meter at flee
+    private boolean danger(Tick t) {
+        if (meter == null) return anyDanger(t);
+        return untouchable(t) || meter == DangerMeter.Level.FLEE;
+    }
+
+    // the reason a run for danger() goes by: the meter's flee, else the heavy hitter's or the warden's
+    private Why dangerWhy(Tick t) {
+        return meter != null && !untouchable(t) ? Why.DANGER : Why.HEAVY;
+    }
+
     // the foes minus the ones we gave up on (unless they have hit us since)
     private List<Foe> candidates(Tick t) {
         if (ignored.isEmpty()) return t.foes();
@@ -1974,30 +2044,30 @@ public final class CombatCommit {
         // within 8 (the last thing we were hitting died, that is a won fight, not a reason to run 24 blocks). boxed in
         // there is nowhere to bail to, so a cornered fight never asks
         // a fight we turned around for is out in the open though: the warden or a heavy walking up is still a run
-        Why bail = !cornered ? runReason(t, false, lowHit(t)) : (why == Why.CHASED || fastCorner) && anyDanger(t) ? Why.HEAVY : Why.NONE;
+        Why bail = !cornered ? runReason(t, false, lowHit(t)) : (why == Why.CHASED || fastCorner) && danger(t) ? dangerWhy(t) : Why.NONE;
         // the fight we turned on a chase is the one cornered fight that may still bail, once (unlatched counts it): a real corner
         // (box, fast mob, no room) is never CHASED, and the enderman's own rules stay out of it. the kill itself is not a bail,
         // targetGone chains to the next one or ends it
         if (cornered && bail == Why.NONE && target != null && why == Why.CHASED && !boxCorner && !fastCorner && endermanAbout(t) == null) {
             Why again = runReason(t, false, lowHit(t));
-            if (again == Why.LOW_HP || again == Why.CROWD) bail = again;
+            if (again == Why.LOW_HP || again == Why.CROWD || again == Why.DANGER) bail = again;
         }
         // the witch we picked over the zombies is not walked away from at 11 hp for being a witch (that is how it lobs for a
         // minute while we hit zombies): the hp line is the hard one, at or under it the run is on again
         // (only the part the witch itself causes: a second skeleton or a crowd still ends it, one skeleton is the shooter fight)
         // a second skeleton on us is not the one-target fight any more
-        if (bail == Why.NONE && why == Why.PINNED && secondShooter(snipers(t, false)) && endermanAbout(t) == null) bail = Why.SHOT;
-        if (lobberPick && endermanAbout(t) == null) {
+        if (bail == Why.NONE && why == Why.PINNED && meter == null && secondShooter(snipers(t, false)) && endermanAbout(t) == null) bail = Why.SHOT;
+        if (lobberPick && meter == null && endermanAbout(t) == null) {
             if ((bail == Why.LOW_HP || bail == Why.SHOT) && t.health() > FLEE_HP) bail = runReason(withoutFoe(t, targetId), false, t.nextHit(), true);
             if (bail == Why.NONE && t.health() <= FLEE_HP) bail = Why.LOW_HP;
         }
         // the latch is about melee on us, so a run under the hp line with only the blaze left would never get past it, and the
         // hp line is the one thing the pick promised to keep
-        boolean blazeHpLine = lobberPick && target != null && target.kind() == Kind.FLYER && t.health() <= FLEE_HP;
+        boolean blazeHpLine = lobberPick && meter == null && target != null && target.kind() == Kind.FLYER && t.health() <= FLEE_HP;
         if (!blazeHpLine) bail = unlatched(bail, t);
         // the lone wither skeleton corner is one skeleton's: a crowd turning up is a crowd again, latch or no latch (loneWither
         // says no to a crowd too, so the stay below lets it go)
-        if (bail == Why.NONE && witherCorner && crowded(t.health(), t.foes(), false, true)) bail = Why.CROWD;
+        if (bail == Why.NONE && witherCorner && meter == null && crowded(t.health(), t.foes(), false, true)) bail = Why.CROWD;
         if (bail != Why.NONE) {
             // (before the stay below: a fast mob that hit us makes the fight stay, and up on a pillar there is nothing to stay for)
             int perchHeight = perchAt(t);
@@ -2005,7 +2075,7 @@ public final class CombatCommit {
             // boxed in, a crowd or low hp is no reason to leave: there is no leaving. this fight is the cornered one from here.
             // the same goes for something fast that has hit us and is close: it comes along on the run
             Foe fast = fastTarget(t);
-            boolean stay = (bail == Why.CROWD || bail == Why.LOW_HP) && (t.boxed() || fast != null);
+            boolean stay = (bail == Why.CROWD || bail == Why.LOW_HP || bail == Why.DANGER) && (t.boxed() || fast != null);
             if (!stay) return startRun(t, bail, Event.FIGHT_TO_RUN);
             cornered = true;
             runLine = true;
@@ -2188,7 +2258,7 @@ public final class CombatCommit {
         if (patrol != null) return startFight(t, patrol, Why.PINNED, Event.FIGHT_NEXT, false);
         // a boxed in fight never asked the bail rules, so the warden standing on us when the last thing dies is still ours to
         // leave: a gap and a five second cooldown next to it is not a plan
-        if (cornered && anyDanger(t)) return startRun(t, Why.HEAVY, Event.FIGHT_TO_RUN);
+        if (cornered && danger(t)) return startRun(t, dangerWhy(t), Event.FIGHT_TO_RUN);
         // a cube that splits spawns its children when the body is removed, about a second after the last hit (the death animation).
         // ending the fight here hands the wheel to whatever walks next, and the children show up behind it. a short wait, then over
         if (lastSplits) {
@@ -2355,6 +2425,7 @@ public final class CombatCommit {
         }
         startTick = t.now();
         clearSince = -1;
+        calmSince = -1;
         noSightSince = -1;
         losRun = (reason == Why.SHOT || reason == Why.LOW_HP) && t.foes().stream().anyMatch(foe -> foe.sniper() && foe.shooting())
                 && t.foes().stream().noneMatch(foe -> foe.distance() <= LOW_HP_RANGE && (!foe.ranged() || foe.creeper()));
@@ -2400,7 +2471,7 @@ public final class CombatCommit {
         // (a run from the warden or a heavy hitter is not ours to turn, it ends where it ends: that mob is still about once we are past 8)
         // (nor while a wither skeleton is on our floor: standing still to swat the enderman is the wait it needs to walk up and
         // hit twice, and the wither ticks are already eating the hp the fight would need)
-        if (ender != null && why != Why.HEAVY && !anyDanger(t)) {
+        if (ender != null && why != Why.HEAVY && !danger(t)) {
             return startFight(t, ender, Why.CHASED, Event.RUN_CHASED_FIGHT, false);
         }
         // melee only things we cannot outrun: stack up right here instead of jogging (and instead of turning round on them later)
@@ -2422,7 +2493,17 @@ public final class CombatCommit {
             clearSince = t.now();
         }
         if (t.now() - startTick >= RUN_CAP) return capped(t);
-        if (losRun) {
+        // (risk_flee) the meter's run is over once the meter has been under cover (calm or fight) for RUN_CLEAR_TICKS: the flee
+        // search took us where the field is calm, however far that was
+        boolean meterRun = why == Why.DANGER && meter != null;
+        if (meterRun) {
+            if (meter == DangerMeter.Level.CALM || meter == DangerMeter.Level.FIGHT) {
+                if (calmSince < 0) calmSince = t.now();
+                if (t.now() - calmSince >= RUN_CLEAR_TICKS) return end(t, Event.RUN_CLEAR);
+            } else {
+                calmSince = -1;
+            }
+        } else if (losRun) {
             // the line is the whole point: out of sight is out of range, however few blocks that took
             boolean seen = t.foes().stream().anyMatch(foe -> foe.ranged() && !foe.creeper() && foe.sight());
             if (seen || bowRange) {
@@ -2444,7 +2525,8 @@ public final class CombatCommit {
         Event cramped = holds ? Event.NONE : noRoomFight(t);
         if (cramped != Event.NONE) return cramped;
 
-        Event turned = holds ? Event.NONE : turnedBack(t, fromOrigin);
+        // (not the meter's run: the flee search prices the mobs on the way, and a way back past the origin can be its cheapest)
+        Event turned = holds || meterRun ? Event.NONE : turnedBack(t, fromOrigin);
         if (turned != Event.NONE) return turned;
 
         if (nearest > CORNER_WATCH) {
@@ -2509,6 +2591,11 @@ public final class CombatCommit {
         if (perchH > 0) return startPerch(t, perchH, "run cap");
         if (!chased(t)) return end(t, Event.RUN_CAP);
         Foe chaser = chaser(t);
+        // (with the meter deciding: at flee the run ends and the next one starts on the same step, under it the chaser is fought)
+        if (meter != null) {
+            if (chaser == null || danger(t) || creeperHolds(t)) return end(t, Event.RUN_CAP);
+            return startFight(t, chaser, Why.CHASED, Event.RUN_CHASED_FIGHT, true);
+        }
         // nobody to turn on: the warden (danger starts the next run on the same step), or only a creeper at range or mobs we
         // gave up on (the run just ends, the cooldown waits for one of them to get on us or hit us)
         // and with danger about a fight would only bail again on the next step, so it is the next run straight away
@@ -2531,10 +2618,10 @@ public final class CombatCommit {
     // in rules). no pick this tick keeps the count, the next tick asks again
     private Event hitThrough(Tick t) {
         countRunHits(t);
-        if (runHits < RUN_HITS || !t.armed() || anyDanger(t)) return Event.NONE;
+        if (runHits < RUN_HITS || !t.armed() || danger(t)) return Event.NONE;
         // hurt, turning round is the fight that ends us. the run keeps going, boxed in the corner rules still fight
-        // (the worst hit of the chase counts, not just the last two seconds of them)
-        if (lowChase(t)) return Event.NONE;
+        // (the worst hit of the chase counts, not just the last two seconds of them; with the meter deciding, its flee above)
+        if (meter == null && lowChase(t)) return Event.NONE;
         Foe pick = hitPick(t);
         if (pick == null) return Event.NONE;
         return startFight(t, pick, Why.CHASED, Event.RUN_CHASED_FIGHT, true);
@@ -2578,6 +2665,8 @@ public final class CombatCommit {
 
     // still on our heels at the cap: hurt with something near, or a crowd that is still on us
     private boolean chased(Tick t) {
+        // (with the meter deciding: anything still within 8)
+        if (meter != null) return t.foes().stream().anyMatch(foe -> foe.distance() <= LOW_HP_RANGE);
         if (crowded(t.health(), t.foes(), false)) return true;
         if (!lowChase(t)) return false;
         for (Foe foe : t.foes()) {
@@ -2640,6 +2729,7 @@ public final class CombatCommit {
         farSince = -1;
         releaseSince = -1;
         clearSince = -1;
+        calmSince = -1;
         clearRunHits();
         cornerSince = -1;
         stuckSince = -1;

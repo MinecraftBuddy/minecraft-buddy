@@ -17,6 +17,7 @@
 
 package baritone.pathing.movement;
 
+import adris.altoclef.util.baritone.GoalFlee;
 import adris.altoclef.util.helpers.PlaceWord;
 import adris.altoclef.util.helpers.RiskField;
 import adris.altoclef.util.helpers.Tuning;
@@ -37,6 +38,8 @@ import baritone.utils.ExperimentalMovement;
 // take while we are in the node, at the tick we get there. the field is the newest version at the search's start, the
 // health the search's; a mob the goal is at (the one we go to fight) is left out. the walk checks the rest of its path
 // against each new version (RiskWatch). off, the field is still priced along the chosen path for the search line
+// the flee search (S137 step 3): a search toward a GoalFlee prices the mobs whatever risk_mobs says, with lambda times
+// risk_flee_lambda, and binds the goal to its own view of the field (GoalFlee.Judge) before its first node
 // A* only, as CliffAvoidance is, never calculateCost: the executor's per tick recheck would cancel a good path over it
 public final class RiskCost {
 
@@ -97,13 +100,20 @@ public final class RiskCost {
     public static Search start(CalculationContext context, Goal goal, double offset) {
         Search search = places(context);
         RiskField.Version field = RiskField.current();
-        RiskField.Pricer mobs = pricer(context, field, goal, offset);
+        GoalFlee flee = goal instanceof GoalFlee f ? f : null;
+        // (a flee has no mob it goes to: every one counts)
+        RiskField.Pricer mobs = pricer(context, field, flee != null ? null : goal, offset);
+        double lambda = lambda(context.health, Tuning.get("risk_lambda", LAMBDA), Tuning.get("risk_lambda_curve", 1));
+        if (flee != null) {
+            lambda *= GoalFlee.lambdaFactor();
+            flee.bind(new GoalFlee.Judge(field, mobs, CliffAvoidance.of(context.bsi), GoalFlee.calm(), lambda, Thread.currentThread()));
+        }
         if (mobs == null) {
             return search;
         }
         search.mobs = mobs;
-        search.mobsPriced = Tuning.get("risk_mobs", 0) >= 1;
-        search.mobLambda = lambda(context.health, Tuning.get("risk_lambda", LAMBDA), Tuning.get("risk_lambda_curve", 1));
+        search.mobsPriced = flee != null || Tuning.get("risk_mobs", 0) >= 1;
+        search.mobLambda = lambda;
         search.charged = new double[mobs.size()];
         return search;
     }

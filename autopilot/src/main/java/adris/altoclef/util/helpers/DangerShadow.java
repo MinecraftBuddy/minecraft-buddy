@@ -92,6 +92,15 @@ public final class DangerShadow {
         return on() ? track.level() : Level.CALM;
     }
 
+    // (S137 step 3) the level for a chain the meter steers (risk_flee): null where the meter does not read (off, after its
+    // errors, the End, dead), so the chain keeps its own rules there
+    public static Level steering() {
+        return on() && reading ? track.level() : null;
+    }
+
+    // the meter read the world at its last tick: alive, in the nether or the overworld
+    private static boolean reading;
+
     // the last reading (the risk for a line)
     public static Reading last() {
         return last;
@@ -145,6 +154,7 @@ public final class DangerShadow {
             lastSource = null;
             pendingKind = null;
             RiskField.clear(0);
+            reading = false;
             return;
         }
         tick++;
@@ -178,6 +188,7 @@ public final class DangerShadow {
         hp2 = dead ? 0 : hp1;
         hp1 = dead ? 0 : hp;
         if (dead || !watched) RiskField.clear(level.getGameTime());
+        reading = watched && !dead;
         if (dead) return;
         if (!watched) {
             last = DangerMeter.none(hp);

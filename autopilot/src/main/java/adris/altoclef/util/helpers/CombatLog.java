@@ -112,6 +112,7 @@ public final class CombatLog {
             case CROWD -> "a crowd on us, hp " + hp;
             case UNARMED -> "it hit us and we have nothing to hit back with, hp " + hp;
             case REPEAT_CREEPER -> "a creeper that keeps coming back, hp " + hp;
+            case DANGER -> "the danger meter says flee, risk " + DangerMeter.num(DangerShadow.last().risk()) + ", hp " + hp;
             default -> "hp " + hp;
         };
     }

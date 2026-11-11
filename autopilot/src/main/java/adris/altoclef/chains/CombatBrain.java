@@ -4,6 +4,8 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.tasks.entity.KillEntityTask;
 import adris.altoclef.tasks.movement.CommittedRunTask;
+import adris.altoclef.tasks.movement.FleeTask;
+import adris.altoclef.util.baritone.GoalFlee;
 import adris.altoclef.tasks.movement.HealUpTask;
 import adris.altoclef.tasks.movement.IdleTask;
 import adris.altoclef.tasks.speedrun.gamer.EndermanNook;
@@ -129,6 +131,8 @@ final class CombatBrain {
     private PerchTask _perch;
     private long _perchStart = Long.MIN_VALUE;
     private CommittedRunTask _run;
+    // (risk_flee) the run as the flee search, one for each run
+    private FleeTask _flee;
     private KillEntityTask _fight;
     private final HealUpTask _healUp = new HealUpTask();
     // the run into a blaze fight's corner (BlazeShelter): round by a standing pillbox's door, and the committed run once it
@@ -308,6 +312,7 @@ final class CombatBrain {
         _perch = null;
         _perchStart = Long.MIN_VALUE;
         _run = null;
+        _flee = null;
         _fight = null;
         _fightId = -1;
         _fightName = FightNames.UNKNOWN;
@@ -346,6 +351,13 @@ final class CombatBrain {
                 return _fight;
             }
             case RUN: {
+                // (the buddy's fork, S137 step 3, Tuning risk_flee: the run is the flee search, to the nearest calm cell by the
+                // mob field; it stands there till the meter says the run is over. the corner and the stand model are cells the
+                // search finds or passes by their price)
+                if (GoalFlee.on()) {
+                    if (_flee == null || _flee.stopped()) _flee = new FleeTask();
+                    return _flee;
+                }
                 // (the buddy's fork: in a blaze fight with a corner near, the run is into the corner and a stand there, see
                 // BlazeShelter)
                 net.minecraft.core.BlockPos shelter = adris.altoclef.util.helpers.BlazeShelter.fresh(mod.getWorld().getGameTime());
@@ -486,6 +498,7 @@ final class CombatBrain {
             _commit.reset();
             _swingAt.clear();
             _run = null;
+            _flee = null;
             _fight = null;
             _perch = null;
             _stance = CombatRules.Stance.CALM;
@@ -553,6 +566,8 @@ final class CombatBrain {
                     && adris.altoclef.util.helpers.BlazeShelter.inStandingBox(player.blockPosition())) {
                 adris.altoclef.util.helpers.BlazeShelter.boxStands(now);
             }
+            // (S137 step 3, Tuning risk_flee: the danger meter decides the runs, where it reads)
+            _commit.meter(GoalFlee.on() ? adris.altoclef.util.helpers.DangerShadow.steering() : null);
             Event event = _commit.step(new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
                     way(mod, mobs, foes).withRim(rim).withLavaClose(lavaClose), armed(mod, foes), tryingToMove(mod, player), creeperRepeat, body(mod, dimension),
                     boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player)));
@@ -583,6 +598,7 @@ final class CombatBrain {
                 log(mod, dimension, event, fighting, mobs, blocks);
                 // a new run is a new origin, a new fight is a new target, whatever the old ones were
                 _run = null;
+                _flee = null;
                 // the nether sweep keeps off the spot we were chased out of by a heavy hitter (nether coordinates only, the
                 // zones mean nothing in another dimension)
                 if (dimension == Dimension.NETHER && _commit.mode() == Mode.RUN && _commit.why() == CombatCommit.Why.HEAVY
@@ -591,7 +607,8 @@ final class CombatBrain {
                 }
                 // a run from a crowd or low hp next to a wither pack: the spawner walk keeps off the pack's closet too
                 if (dimension == Dimension.NETHER && _commit.mode() == Mode.RUN
-                        && (_commit.why() == CombatCommit.Why.CROWD || _commit.why() == CombatCommit.Why.LOW_HP)
+                        && (_commit.why() == CombatCommit.Why.CROWD || _commit.why() == CombatCommit.Why.LOW_HP
+                        || _commit.why() == CombatCommit.Why.DANGER)
                         && (event == Event.RUN_START || event == Event.FIGHT_TO_RUN)) {
                     double[] pack = CollectBlazeRodsTask.witherPackCenter(mod, new Vec3(_commit.originX(), player.getY(), _commit.originZ()), BlazeFightRules.PACK_SPAWNER_RADIUS);
                     if (pack != null) {
@@ -616,6 +633,7 @@ final class CombatBrain {
         }
         if (_commit.mode() != Mode.RUN) {
             _run = null;
+            _flee = null;
             _stand.reset();
         }
         if (_commit.mode() != Mode.FIGHT) _fight = null;

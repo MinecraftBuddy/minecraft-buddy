@@ -2,6 +2,7 @@ package adris.altoclef.tasks.movement;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.util.baritone.GoalFlee;
 import adris.altoclef.util.baritone.GoalRunAwayFromCrowd;
 import adris.altoclef.util.helpers.EntityHelper;
 import adris.altoclef.util.helpers.LavaShore;
@@ -46,6 +47,12 @@ public class RunAwayFromHostilesTask extends CustomBaritoneGoalTask {
     // asked before installing one, because a run that is born finished holds the wheel for nothing. a probe goal on
     // purpose, newGoal cancels the path we are on and a question should not do that
     public boolean alreadySafe(AltoClef mod) {
+        // (risk_flee: safe is where the flee search would end, a calm cell)
+        if (GoalFlee.on()) {
+            GoalFlee flee = FleeTask.goal(mod);
+            flee.refresh();
+            return flee.isInGoal(mod.getPlayer().blockPosition());
+        }
         GoalRunAwayFromHostiles probe = new GoalRunAwayFromHostiles(mod, _distanceToRun);
         probe.refresh();
         return probe.isInGoal(mod.getPlayer().blockPosition());
@@ -58,6 +65,9 @@ public class RunAwayFromHostilesTask extends CustomBaritoneGoalTask {
         if (forceCancels(nether, nether && onNetherEdge(mod))) {
             mod.getClientBaritone().getPathingBehavior().forceCancel();
         }
+        // (the buddy's fork, S137 step 3, Tuning risk_flee: the run is the flee search, to the nearest calm cell by the field of
+        // the mobs that want us, whoever the caller counted as the crowd; done there)
+        if (GoalFlee.on()) return FleeTask.goal(mod);
         return new GoalRunAwayFromHostiles(mod, _distanceToRun);
     }
 

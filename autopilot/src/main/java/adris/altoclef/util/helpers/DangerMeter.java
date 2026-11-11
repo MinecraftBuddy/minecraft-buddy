@@ -258,9 +258,19 @@ public final class DangerMeter {
     // the level for these numbers, starting from the current one: a level is entered at its bound and left 20% past it. the
     // band divides the risk's bound, as it multiplied R's (risk over 1 / (1.2) is R under 1.2), so every level is R's
     public static Level classify(Level current, double t, double push, double risk, double hp) {
+        return classify(current, t, push, risk, hp, fleeBound());
+    }
+
+    // (S137 step 3) the risk over which the level is flee: Tuning risk_flee_bound, FLEE_RISK by default. where the meter decides
+    // the runs (risk_flee) this is the line a run starts at
+    public static double fleeBound() {
+        return Tuning.get("risk_flee_bound", FLEE_RISK);
+    }
+
+    static Level classify(Level current, double t, double push, double risk, double hp, double fleeBound) {
         double calmBand = current == Level.CALM ? 1 + BAND : 1 - BAND;
         if (t < CALM_T * calmBand && push < CALM_PUSH * calmBand) return Level.CALM;
-        double fleeRisk = FLEE_RISK / (current == Level.FLEE ? 1 + BAND : current == Level.COVER ? 1 - BAND : 1);
+        double fleeRisk = fleeBound / (current == Level.FLEE ? 1 + BAND : current == Level.COVER ? 1 - BAND : 1);
         double margin = MARGIN * (current == Level.FLEE ? 1 + BAND : 1);
         if (risk > fleeRisk || hp - (t + push) <= margin) return Level.FLEE;
         double coverRisk = COVER_RISK / (current == Level.FIGHT ? 1 - BAND : current == Level.COVER || current == Level.FLEE ? 1 + BAND : 1);
