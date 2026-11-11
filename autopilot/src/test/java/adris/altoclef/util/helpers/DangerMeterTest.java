@@ -1,6 +1,7 @@
 package adris.altoclef.util.helpers;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -334,5 +335,26 @@ public class DangerMeterTest {
         assertEquals("danger goal: fight where the meter says flee, 5 of the task's own counted as the next one: risk 0.4 for 2.0, "
                 + "K 3.5 s for 17.6 s, hp 20.0, top blaze 9.0 20%, blaze 9.0 20%, blaze 9.0 20%",
                 DangerMeter.goalLine(Level.FIGHT, goal, Level.FLEE, meter, 5));
+    }
+
+    // S137, one system: the hp the next piece needs is what a flee waits for before the way back. at that hp the same
+    // danger reads under flee again, with the flee level's band
+    @Test
+    public void theHpTheNextPieceNeeds() {
+        Reading goal = DangerMeter.read(us(20, false), fiveBlazes(), List.of(), true);
+        double need = DangerMeter.need(goal);
+        double piece = goal.k() * goal.loss() / DangerMeter.HORIZON;
+        assertEquals(Math.max(goal.loss(), piece) + DangerMeter.MARGIN * (1 + DangerMeter.BAND), need, 1e-9);
+        // the piece is the next blaze, not all five: the whole race would ask for more than the buddy has
+        assertTrue(need < 20);
+        assertTrue(DangerMeter.need(DangerMeter.read(us(20, false), fiveBlazes(), List.of())) > need);
+        // at it the level leaves flee; at the margin alone (the loss within the horizon over it by a hair) it does too,
+        // but the piece takes longer than the horizon
+        Reading at = DangerMeter.read(us(need, false), fiveBlazes(), List.of(), true);
+        assertNotEquals(Level.FLEE, DangerMeter.classify(Level.FLEE, at.t(), at.push(), at.risk(), at.hp()));
+        Reading low = DangerMeter.read(us(goal.loss() + DangerMeter.MARGIN, false), fiveBlazes(), List.of(), true);
+        assertEquals(Level.FLEE, DangerMeter.classify(Level.FLEE, low.t(), low.push(), low.risk(), low.hp()));
+        // nothing on the buddy: the margin
+        assertEquals(DangerMeter.MARGIN * (1 + DangerMeter.BAND), DangerMeter.need(DangerMeter.none(20)), 1e-9);
     }
 }

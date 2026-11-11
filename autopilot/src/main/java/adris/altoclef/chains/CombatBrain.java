@@ -454,15 +454,19 @@ final class CombatBrain {
                 // (the buddy's fork, S137 step 3, Tuning risk_flee: the run is the flee search, to the nearest calm cell by the
                 // mob field; it stands there till the meter says the run is over. the corner and the stand model are cells the
                 // search finds or passes by their price)
-                if (GoalFlee.on()) {
-                    if (_flee == null || _flee.stopped()) _flee = new FleeTask();
-                    return _flee;
-                }
+                // (S137, one system; Tuning risk_flee_blaze, on under risk_flee: the blaze fight's corner stays what the buddy
+                // does with the meter's flee. with that corner near, and the mob field pricing it calm, the run is into it
+                // as below; anywhere else, and with the key off, the flee search)
+                boolean fleeSearch = GoalFlee.on();
+                if (fleeSearch && !BlazeFightRules.oneSystem()) return flee();
                 // (the buddy's fork: in a blaze fight with a corner near, the run is into the corner and a stand there, see
                 // BlazeShelter)
                 net.minecraft.core.BlockPos shelter = adris.altoclef.util.helpers.BlazeShelter.fresh(mod.getWorld().getGameTime());
                 boolean nearShelter = shelter != null && mod.getPlayer().position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(shelter))
                         <= adris.altoclef.util.helpers.BlazeShelter.RANGE;
+                if (fleeSearch && nearShelter && probe(mod, mod.getWorld().getGameTime()).rate(shelter.getX(), shelter.getY(), shelter.getZ()) >= GoalFlee.calm()) {
+                    nearShelter = false;
+                }
                 // (Tuning run_shelter_wither, on by default, route jar 3: not a corner with a wither skeleton within
                 // SHELTER_WITHER of it. route jar 2 run 2 ran "into" the corner it already stood in, a half built box in the
                 // open with the skeleton at its side, and ate there under fireballs till it died)
@@ -475,9 +479,11 @@ final class CombatBrain {
                     nearShelter = false;
                     shelter = null;
                 }
+                if (fleeSearch && !nearShelter) return flee();
                 // (the buddy's fork, stand_model on, in the nether: the run's goal is the model's cell, the corner one cell among
-                // the rest; with no cell from it the corner and the committed run as before)
-                boolean model = adris.altoclef.util.helpers.StandPick.on() && WorldHelper.getCurrentDimension() == Dimension.NETHER;
+                // the rest; with no cell from it the corner and the committed run as before. not for the meter's run: the
+                // flee search scores the cells there)
+                boolean model = !fleeSearch && adris.altoclef.util.helpers.StandPick.on() && WorldHelper.getCurrentDimension() == Dimension.NETHER;
                 net.minecraft.core.BlockPos stand = model ? _stand.cell(mod, adris.altoclef.util.helpers.StandModel.Query.of().hitBack(0)
                         .maxRate(adris.altoclef.util.helpers.StandModel.RUN_RATE), nearShelter ? List.of(shelter) : List.of(), null) : null;
                 if (stand != null ? stand.equals(shelter) : nearShelter) {
@@ -504,6 +510,8 @@ final class CombatBrain {
                     adris.altoclef.tasksystem.Task walk = _stand.walk(mod);
                     return walk != null ? walk : _healUp;
                 }
+                // (the meter's run with the corner not reached in time: the flee search)
+                if (fleeSearch) return flee();
                 // (a run that goes on from the last one has the old origin and a longer way: the old task's goal is met already)
                 if (_run == null || _run.stopped() || !_run.sameRun(_commit.originX(), _commit.originZ(), _commit.runDistance())) {
                     _run = new CommittedRunTask(_commit.originX(), _commit.originZ(), _commit.runDistance(), this::crowd);
@@ -514,6 +522,12 @@ final class CombatBrain {
                 // nothing committed, but hurt from the last one: stand here and heal instead of walking back in
                 return _commit.recovering() ? _healUp : null;
         }
+    }
+
+    // the meter's run as the flee search, one task for each run
+    private adris.altoclef.tasksystem.Task flee() {
+        if (_flee == null || _flee.stopped()) _flee = new FleeTask();
+        return _flee;
     }
 
     // a wither skeleton this close to the blaze fight's corner makes it no place to run to: its reach of about 2 and the

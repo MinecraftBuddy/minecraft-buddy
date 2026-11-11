@@ -223,6 +223,34 @@ public final class BlazeFightRules {
         return haveTarget ? Mode.KILL : Mode.CAMP;
     }
 
+    // (the buddy's fork, S137: one system; Tuning risk_flee_blaze, on under risk_flee) the danger meter with the task's goal
+    // decides go or flee in the blaze fight too, where it reads: this fight starts no run of its own (14 hp with a blaze
+    // looking, 6 hp always). the flee is the run mob defense makes for the meter, into this fight's corner where the mob
+    // field prices that calm, by the flee search elsewhere. what stays here is the way back: the heal wait after that run,
+    // in the corner, the pillbox or cover, till the hp is what the next piece needs (backAt) instead of 18. the pocket, the
+    // corner, the camp and the potion are what the buddy does with the meter's word, as they were
+    public static boolean oneSystem() {
+        return Tuning.get("risk_flee", 0) >= 1 && Tuning.get("risk_flee_blaze", 1) > 0;
+    }
+
+    // the hp the heal wait ends at under the one system: what the next piece needs by the meter's last flee
+    // (DangerShadow.needHp), never more than the recovered line: past it healing gains little
+    public static float backAt(double need) {
+        return (float) Math.max(0, Math.min(RECOVERED_HEALTH, need));
+    }
+
+    // under the one system: no run starts here. a heal wait that is on (after mob defense's run) goes on till the hp is
+    // back at `back` and nothing is still hurting, or till it gave up
+    public static Mode decide(float health, float back, boolean running, boolean runGaveUp, boolean haveTarget, boolean hurting) {
+        if (running && !runGaveUp && (health < back || hurting)) return Mode.RUN;
+        return haveTarget ? Mode.KILL : Mode.CAMP;
+    }
+
+    // healAfterRun with the hp the wait ends at
+    public static boolean healAfterRun(long now, long runEnd, float health, double blazeDistance, float back) {
+        return blazeDistance > LATCH_SKIP_BLAZE_RANGE && now >= runEnd && now - runEnd <= RUN_GIVE_UP_TICKS && health < back;
+    }
+
     // what keeps a run going past the recovered line (decide's burning): fire, or the wither effect. walking back in with the
     // wither ticking means the regen we waited for is gone again before the first blaze is down
     public static boolean stillHurting(boolean burning, boolean withered) {

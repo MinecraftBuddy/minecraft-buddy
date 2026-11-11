@@ -294,6 +294,16 @@ public final class DangerMeter {
         return Tuning.get("risk_flee_bound", FLEE_RISK);
     }
 
+    // (S137, one system) the hp the next piece needs at this reading: what a flee waits for before the way back. the piece
+    // is the race's K seconds at this reading's loss, at least the horizon's: the hp it is expected to cost, over the margin
+    // as the flee level holds it; and never less than the hp at which the race itself is under the flee bound again
+    public static double need(Reading reading) {
+        double margin = MARGIN * (1 + BAND);
+        if (reading.loss() <= 0) return margin;
+        double piece = reading.k() * reading.loss() / HORIZON;
+        return Math.max(Math.max(reading.loss(), piece) + margin, piece * (1 + BAND) / fleeBound());
+    }
+
     static Level classify(Level current, double t, double push, double risk, double hp, double fleeBound) {
         double calmBand = current == Level.CALM ? 1 + BAND : 1 - BAND;
         if (t < CALM_T * calmBand && push < CALM_PUSH * calmBand) return Level.CALM;

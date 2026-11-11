@@ -319,4 +319,32 @@ public class BlazeFightRulesTest {
         assertTrue(BlazeFightRules.bowKept(true, 3.3, 3));
         assertFalse(BlazeFightRules.bowKept(false, 3.3, 3));
     }
+
+    // S137, one system: under risk_flee the danger meter decides the flee of the blaze fight. the fight starts no run of its
+    // own, and its heal wait after mob defense's run ends at the hp the next piece needs
+    @Test
+    public void underTheOneSystemTheFightStartsNoRunAndWaitsForWhatTheNextPieceNeeds() {
+        // 10 hp with a blaze looking, 5 hp: runs of this fight's own before, the meter's word now
+        assertEquals(KILL, BlazeFightRules.decide(10f, 14f, false, false, true, false));
+        assertEquals(CAMP, BlazeFightRules.decide(5f, 14f, false, false, false, false));
+        // the heal wait: on till the hp the next piece needs
+        assertEquals(RUN, BlazeFightRules.decide(13f, 14f, true, false, true, false));
+        assertEquals(KILL, BlazeFightRules.decide(14f, 14f, true, false, true, false));
+        // still burning holds it, the give up ends it
+        assertEquals(RUN, BlazeFightRules.decide(16f, 14f, true, false, false, true));
+        assertEquals(CAMP, BlazeFightRules.decide(13f, 14f, true, true, false, false));
+    }
+
+    @Test
+    public void theHealWaitUnderTheOneSystemStartsUnderTheHpTheNextPieceNeeds() {
+        assertTrue(BlazeFightRules.healAfterRun(100, 90, 12f, 10, 14f));
+        assertFalse(BlazeFightRules.healAfterRun(100, 90, 15f, 10, 14f));
+        // never with a blaze in swinging range, never long after the run
+        assertFalse(BlazeFightRules.healAfterRun(100, 90, 12f, 3, 14f));
+        assertFalse(BlazeFightRules.healAfterRun(91 + BlazeFightRules.RUN_GIVE_UP_TICKS, 90, 12f, 10, 14f));
+        // what the next piece needs, never more than the recovered line
+        assertEquals(BlazeFightRules.RECOVERED_HEALTH, BlazeFightRules.backAt(30), 0);
+        assertEquals(12.8f, BlazeFightRules.backAt(12.8), 1e-6);
+        assertEquals(0f, BlazeFightRules.backAt(0), 0);
+    }
 }

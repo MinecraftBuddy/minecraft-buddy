@@ -130,6 +130,15 @@ public final class DangerShadow {
         return last.hp() - last.loss() <= DangerMeter.MARGIN * (1 + DangerMeter.BAND);
     }
 
+    // (S137, one system) the hp the next piece needs (DangerMeter.need), the most the runs' reading asked while its level
+    // was last at flee: what the way back after a flee waits for (the blaze fight's heal wait). 0 before any flee
+    private static double need;
+    private static boolean wasFlee;
+
+    public static double needHp() {
+        return on() ? need : 0;
+    }
+
     // (the memory, RiskField) a remembered mob that is not loaded and whose last place is within this of the buddy is gone:
     // dead or despawned in view. farther off it only went out of the client's sight
     private static final double GONE_RANGE = 32;
@@ -223,6 +232,8 @@ public final class DangerShadow {
             after = new HashMap<>();
             lastRods = -1;
             wanted = new HashMap<>();
+            need = 0;
+            wasFlee = false;
         }
         wasDead = dead;
         hp2 = dead ? 0 : hp1;
@@ -260,7 +271,14 @@ public final class DangerShadow {
             Debug.logInternal(DangerMeter.goalLine(goalTrack.level(), goal, track.level(), reading, goalOwn) + at());
         }
         // (risk_flee_route: over calm, the walk's searches price the mob field)
-        RiskField.alert((goalOn() ? goalTrack.level() : track.level()) != Level.CALM);
+        Level runs = goalOn() ? goalTrack.level() : track.level();
+        RiskField.alert(runs != Level.CALM);
+        // (one system: what the way back after this flee waits for)
+        if (runs == Level.FLEE) {
+            double asked = DangerMeter.need(goalOn() ? goal : reading);
+            need = wasFlee ? Math.max(need, asked) : asked;
+        }
+        wasFlee = runs == Level.FLEE;
         boolean progress = progress(level, player);
         DangerMeter.Patience.Ended ended = patience.step(tick, track.level(), reading.t(), hp, progress);
         if (ended != null) Debug.logInternal(DangerMeter.patienceLine(ended));
