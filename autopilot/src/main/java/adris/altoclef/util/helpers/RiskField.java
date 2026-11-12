@@ -184,6 +184,11 @@ public final class RiskField {
         }
     }
 
+    // (the repair after smoke6) this mob is one a route was given up for, still remembered: the blaze fight's way back asks it
+    public static synchronized boolean remembers(int id) {
+        return memoryOn() && memory.containsKey(id);
+    }
+
     // the remembered mobs as last seen, for the game side's look at each: where it is now, or that it is gone
     public static synchronized List<Source> remembered() {
         List<Source> out = new ArrayList<>(memory.size());

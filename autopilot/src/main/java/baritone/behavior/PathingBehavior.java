@@ -82,6 +82,15 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
     private volatile int calcFailures;
     // the ones of those that ran out of nodes to look at (a timed out search is a failure too, it just proves nothing)
     private volatile int calcExhausted;
+    // (S137, the repair after smoke6) the ones of those where the task's walk was searched twice, priced by the mob field and
+    // again without the price, and neither found a way: the price was no reason, there is none from here. a task that gives a
+    // target up on the second miss counts such a failure as both. and the start and goal of the last one, whose next search
+    // within NO_WAY_TICKS goes unpriced at once
+    private volatile int calcNoWay;
+    private volatile BetterBlockPos noWayStart;
+    private volatile Goal noWayGoal;
+    private volatile long noWayAt = Long.MIN_VALUE / 2;
+    static final long NO_WAY_TICKS = 200;
 
     private volatile AbstractNodeCostSearch inProgress;
     private final Object pathCalcLock = new Object();
@@ -602,6 +611,11 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         return calcExhausted;
     }
 
+    // (S137, the repair after smoke6) failures that were no way at all: the priced search and the unpriced one after it
+    public int calcNoWay() {
+        return calcNoWay;
+    }
+
     public void softCancelIfSafe() {
         synchronized (pathPlanLock) {
             keep.drop();
@@ -829,9 +843,16 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         AbstractNodeCostSearch plain = null;
         if (!(goal instanceof adris.altoclef.util.baritone.GoalFlee) && adris.altoclef.util.helpers.Tuning.get("risk_mobs", 0) < 1
                 && RiskCost.route(adris.altoclef.util.helpers.RiskField.current())) {
-            plain = createPathfinder(start, goal, current == null ? null : current.getPath(), context);
-            plain.riskOffset = pathfinder.riskOffset;
-            plain.plain = true;
+            // (the repair after smoke6: from where both searches to this goal found no way a moment ago, the unpriced one
+            // alone. smoke6: a buddy in a pocket searched 14 times in 28 s for blazes it could not reach, each miss twice)
+            if (tickCount - noWayAt <= NO_WAY_TICKS && tickCount >= noWayAt && new BetterBlockPos(start).equals(noWayStart)
+                    && goal.equals(noWayGoal)) {
+                pathfinder.plain = true;
+            } else {
+                plain = createPathfinder(start, goal, current == null ? null : current.getPath(), context);
+                plain.riskOffset = pathfinder.riskOffset;
+                plain.plain = true;
+            }
         }
         final AbstractNodeCostSearch unpriced = plain;
         inProgress = pathfinder;
@@ -981,6 +1002,14 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                         // exhausted first: a reader that sees the failure count go up (it reads that one first) has to see this too
                         if (taken.exhausted()) {
                             calcExhausted++;
+                        }
+                        // (no way at all: the unpriced search after a priced one found none either, or the unpriced one alone
+                        // from where both found none a moment ago)
+                        if (calcResult.getType() == PathCalculationResult.Type.FAILURE && taken.plain) {
+                            calcNoWay++;
+                            noWayStart = new BetterBlockPos(start);
+                            noWayGoal = goal;
+                            noWayAt = tickCount;
                         }
                         calcFailures++;
                         queuePathEvent(PathEvent.CALC_FAILED);

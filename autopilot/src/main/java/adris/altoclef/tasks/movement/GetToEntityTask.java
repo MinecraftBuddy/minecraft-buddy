@@ -28,6 +28,7 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
     private final MovementProgressChecker _progress = new MovementProgressChecker();
     private final TimeoutWanderTask _wanderTask = new TimeoutWanderTask(5);
     private final CalcFailureWatch _calcWatch = new CalcFailureWatch();
+    private final CalcFailureWatch _noWayWatch = new CalcFailureWatch();
     private final ChaseStallWatch _chase = new ChaseStallWatch();
     private final Entity _entity;
     private final double _closeEnoughDistance;
@@ -101,6 +102,7 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
         stuckCheck.reset();
         _wanderTask.resetWander();
         _calcWatch.disarm();
+        _noWayWatch.disarm();
         _misses = 0;
     }
 
@@ -150,6 +152,7 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
             mod.getClientBaritone().getCustomGoalProcess().onLostControl();
             mod.getClientBaritone().getExploreProcess().onLostControl();
             _calcWatch.disarm();
+            _noWayWatch.disarm();
             return _unstuckTask;
         }
         if (!_progress.check(mod) || !stuckCheck.check(mod)) {
@@ -169,8 +172,14 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
         // a search that comes back empty ends the goal process, and the line below used to just start the same search
         // again. every one of those is seconds of standing still, so the second miss bans the mob and the hunter picks
         // another. players are never banned, a follower has to stay on someone who walks back across the river
-        if (_calcWatch.failed(mod.getClientBaritone().getPathingBehavior().calcFailures()) && !(_entity instanceof Player)) {
-            if (++_misses >= 2) {
+        // (S137, the repair after smoke6: a miss where the walk was searched priced by the mob field and again without the
+        // price, and neither found a way, is both misses)
+        // (the failures read first: the no-way count goes up before them, on the search's thread)
+        boolean failed = _calcWatch.failed(mod.getClientBaritone().getPathingBehavior().calcFailures());
+        boolean noWayMiss = _noWayWatch.failed(mod.getClientBaritone().getPathingBehavior().calcNoWay());
+        if (failed && !(_entity instanceof Player)) {
+            _misses += noWayMiss ? 2 : 1;
+            if (_misses >= 2) {
                 Debug.logMessage("No path to " + _entity.getType().getDescriptionId() + ", not chasing it.");
                 if (_onNoPath != null) {
                     _onNoPath.run();
@@ -189,6 +198,7 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
 
         if (!mod.getClientBaritone().getCustomGoalProcess().isActive()) {
             _calcWatch.arm(mod.getClientBaritone().getPathingBehavior().calcFailures());
+            _noWayWatch.arm(mod.getClientBaritone().getPathingBehavior().calcNoWay());
             mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(new GoalFollowEntity(_entity, _closeEnoughDistance));
         }
 
@@ -207,6 +217,7 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
     @Override
     protected void onStop(AltoClef mod, Task interruptTask) {
         _calcWatch.disarm();
+        _noWayWatch.disarm();
         if (isInterrupting()) {
             mod.getClientBaritone().getPathingBehavior().forceCancel();
         } else {

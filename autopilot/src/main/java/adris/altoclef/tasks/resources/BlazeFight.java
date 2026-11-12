@@ -159,6 +159,14 @@ final class BlazeFight {
     private boolean awayOn;
     // (S137, one system) said once each time it comes on
     private boolean oneSystemSaid;
+    // (the repair after smoke6) the last "not going after a blaze" line's reason and tick
+    private String holdBackSaid;
+    private long holdBackSaidAt = Long.MIN_VALUE / 2;
+    // and the heal wait's corner passed for its price, the flee search of the heal wait under the one system
+    private BlockPos cornerPricedSaid;
+    private adris.altoclef.tasks.movement.FleeTask waitFlee;
+    private adris.altoclef.util.baritone.GoalFlee waitProbe;
+    private long waitProbeAt = Long.MIN_VALUE / 2;
     // the walk-aways begun in phase 3 so far (Tuning route_wart_drink counts them per wart, RouteRules.wartDrinks)
     private int awayStarts;
 
@@ -829,11 +837,15 @@ final class BlazeFight {
         // flee here too. this fight starts no run of its own, and its heal wait ends at the hp the next piece needs)
         boolean oneSystem = BlazeFightRules.oneSystem() && adris.altoclef.util.helpers.DangerShadow.steering() != null;
         float back = oneSystem ? BlazeFightRules.backAt(adris.altoclef.util.helpers.DangerShadow.needHp()) : BlazeFightRules.RECOVERED_HEALTH;
+        // (S137, the repair after smoke6; Tuning risk_flee_burn, on under risk_flee: the burn still to come is hp already
+        // spent. the heal wait is armed and ends by the hp left after it)
+        double burn = oneSystem ? adris.altoclef.util.helpers.DangerShadow.burnHp() : 0;
+        float left = (float) Math.max(0, health - burn);
         // a run mob defense made also leaves us hurt: wait it out here like our own run, it is the same latch
         if (!running && mod.getMobDefenseChain() != null) {
             long runEnd = mod.getMobDefenseChain().lastCombatRunEnd();
             double blazeDistance = target == null ? Double.POSITIVE_INFINITY : player.distanceTo(target);
-            if (runEnd != armedFromRun && BlazeFightRules.healAfterRun(now, runEnd, health, blazeDistance, back)) {
+            if (runEnd != armedFromRun && BlazeFightRules.healAfterRun(now, runEnd, oneSystem ? left : health, blazeDistance, back)) {
                 running = true;
                 armedFromRun = runEnd;
             }
@@ -841,12 +853,29 @@ final class BlazeFight {
         boolean burning = player.isOnFire() && !adris.altoclef.util.helpers.FireRes.has(player);
         boolean withered = player.hasEffect(MobEffects.WITHER);
         // (Tuning fireproof_rush: a blaze's sight is no threat under the rush, its fireballs do nothing; the run is at panic health)
-        Mode next = oneSystem ? BlazeFightRules.decide(health, back, running, runGaveUp, target != null, BlazeFightRules.stillHurting(burning, withered))
+        Mode next = oneSystem ? BlazeFightRules.decide(left, back, running, runGaveUp, target != null, BlazeFightRules.stillHurting(burning, withered))
                 : BlazeFightRules.decide(health, running, runGaveUp, FightOpenRules.sightIsThreat(rushNow, !threats.isEmpty()), target != null,
                 BlazeFightRules.stillHurting(burning, withered));
         if (oneSystem != oneSystemSaid) {
             oneSystemSaid = oneSystem;
             if (oneSystem) Debug.logInternal("rods: the danger meter decides the flee of this fight, the way back at the hp the next piece needs");
+        }
+        // (S137, the repair after smoke6, under the one system: the way back. no going after a blaze while the burn would
+        // leave less than the margin, nor after one of the group the last flee ran from, still in the mob field's memory,
+        // before the hp less the burn is back at what the next piece needs: the heal wait instead. a blaze already in the
+        // sword's reach is still hit: a run from it gives it free shots. smoke6: the buddy went after blazes at 14.9, 10.9,
+        // 9.9 and 7.3 hp burning, and flee, back, flee three times in 36 s between the same blazes; three of four deaths burned)
+        if (oneSystem && next == Mode.KILL && !runGaveUp && target != null && player.distanceTo(target) > BlazeFightRules.LATCH_SKIP_BLAZE_RANGE) {
+            String why = BlazeFightRules.holdBack(health, burn, back, adris.altoclef.util.helpers.RiskField.remembers(target.getId()));
+            if (why != null) {
+                next = Mode.RUN;
+                if (!why.equals(holdBackSaid) || now - holdBackSaidAt > 200) {
+                    holdBackSaid = why;
+                    holdBackSaidAt = now;
+                    Debug.logInternal(String.format(java.util.Locale.ROOT, "rods: not going after a blaze %.1f off, %s, hp %.1f, burn %.0f, back at %.1f",
+                            player.distanceTo(target), why, health, burn, back));
+                }
+            }
         }
         // in the pocket with only blazes that came round on us: fight them there. the run found no cell they do not see (they
         // are in the pocket), and the old run dug out through its wall: the choke point gone, with a blaze in it the sword
@@ -980,7 +1009,8 @@ final class BlazeFight {
                 }
                 // (the buddy's fork, stand_model on: the corner, a cover or the plain run is the model's pick, the corner one cell
                 // among the rest and every mob about weighed, so no coverFits; with no cell from it the rules below)
-                BlockPos stand = adris.altoclef.util.helpers.StandPick.on() && !(home && nearCorner) ? standCell(mod, nearCorner ? held : null) : null;
+                // (not under the one system: the heal wait there is the corner, the cell it stands in, or the flee search, below)
+                BlockPos stand = adris.altoclef.util.helpers.StandPick.on() && !oneSystem && !(home && nearCorner) ? standCell(mod, nearCorner ? held : null) : null;
                 boolean intoCorner = stand != null ? stand.equals(held) : nearCorner;
                 // (Tuning recover_leave: hits still landing in the corner and the hp going down faster than it comes back:
                 // the corner left for cover from the blazes' sight, else the plain run, below)
@@ -998,8 +1028,18 @@ final class BlazeFight {
                         if (pillboxPlanned) BlazePillboxTask.hideIn(mod, held);
                         yield null;
                     }
+                    // (S137, the repair after smoke6, under the one system: the walk into the corner only while the mob field,
+                    // with what the last flee ran from still in it, prices the corner calm. smoke6: runs ended clear after a
+                    // median 4 blocks, and this walk took the buddy back into the blazes it ran from: flee, back, flee in 12 s)
+                    boolean priced = oneSystem && !waitCalm(mod, now, held, false);
+                    if (priced && !held.equals(cornerPricedSaid)) {
+                        cornerPricedSaid = held;
+                        Debug.logInternal("rods: the heal wait does not walk into the corner at " + held.toShortString()
+                                + ": the mob field prices it over calm");
+                    }
+                    if (!priced) cornerPricedSaid = null;
                     // (null: the corner not reached in BoxWay.RUN_TICKS, the run goes on below as with no corner near)
-                    Task way = cornerWay.step(mod, held);
+                    Task way = priced ? null : cornerWay.step(mod, held);
                     if (way != null) {
                         cover = null;
                         Task fire = fireOnTheWay(mod, held);
@@ -1014,6 +1054,19 @@ final class BlazeFight {
                     stand = null;
                 }
                 cornerRunTo = null;
+                // (S137, the repair after smoke6, under the one system: no cover walk and no plain run from the blazes. the
+                // heal wait is where the buddy stands while the mob field prices that calm, else the flee search to calm
+                // ground, the same search mob defense's run for the meter takes)
+                if (oneSystem) {
+                    cover = null;
+                    if (waitCalm(mod, now, player.blockPosition(), true)) {
+                        waitFlee = null;
+                        yield null;
+                    }
+                    if (waitFlee == null || waitFlee.stopped()) waitFlee = new adris.altoclef.tasks.movement.FleeTask();
+                    yield waitFlee;
+                }
+                waitFlee = null;
                 if (stand != null) {
                     // (the model's cell: the walk there, standing in it the heal wait)
                     cover = null;
@@ -1044,6 +1097,19 @@ final class BlazeFight {
     // what hitting back counts in a run: the run is for healing, but a blaze in reach from a hidden cell is a rod
     static final double STAND_HIT_BACK = 0.5;
     private final adris.altoclef.util.helpers.StandPick standPick = new adris.altoclef.util.helpers.StandPick("rods run");
+
+    // (S137, the repair after smoke6) the mob field's word on a cell, by the flee goal as the game thread sees it (remade every
+    // second, the field's newest version each call): whole, the flee goal's own test (priced calm, standable, no rim, no sea),
+    // else only the price under the calm bound
+    private boolean waitCalm(AltoClef mod, long now, BlockPos at, boolean whole) {
+        if (waitProbe == null || now < waitProbeAt || now - waitProbeAt >= 20) {
+            waitProbe = adris.altoclef.tasks.movement.FleeTask.goal(mod);
+            waitProbeAt = now;
+        }
+        waitProbe.refresh();
+        return whole ? waitProbe.isInGoal(at.getX(), at.getY(), at.getZ())
+                : waitProbe.rate(at.getX(), at.getY(), at.getZ()) < adris.altoclef.util.baritone.GoalFlee.calm();
+    }
 
     private BlockPos standCell(AltoClef mod, BlockPos corner) {
         adris.altoclef.util.helpers.StandModel.Query q = adris.altoclef.util.helpers.StandModel.Query.of().radius(STAND_RADIUS)

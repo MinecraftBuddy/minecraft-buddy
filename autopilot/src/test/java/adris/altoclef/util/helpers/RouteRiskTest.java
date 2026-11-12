@@ -35,13 +35,27 @@ public class RouteRiskTest {
 
     @Test
     public void atAGoalInTheDangerTheBuddyGoesWholeAndGoesOn() {
-        // more than it has, on the way and at the goal: whole, it goes all the same
-        assertTrue(RouteRisk.go(20, 30, 10, true, false));
-        assertTrue(RouteRisk.go(RecoverHold.DONE_AT, 30, 10, true, false));
+        // more than it has at the goal: whole, by a way it outlives, it goes all the same
+        assertTrue(RouteRisk.go(20, 5, 30, true, false));
+        assertTrue(RouteRisk.go(RecoverHold.DONE_AT, 5, 30, true, false));
         // hurt, it does not start
-        assertFalse(RouteRisk.go(15, 30, 10, true, false));
+        assertFalse(RouteRisk.go(15, 5, 30, true, false));
         // going, it goes on (the last-ditch rule is the brain's)
-        assertTrue(RouteRisk.go(9, 30, 10, true, true));
+        assertTrue(RouteRisk.go(9, 2, 30, true, true));
+        assertTrue(RouteRisk.go(9, 0, 30, true, true));
+    }
+
+    // (the repair after smoke6) the way to a goal in the danger is weighed: one the buddy does not outlive is fled from,
+    // whole or going. smoke6: goes at 20 hp with 30.3 and 59.6 hp expected on the way, each a run within the second
+    @Test
+    public void theWayToAGoalInTheDangerHasToBeOutlived() {
+        assertFalse(RouteRisk.go(20, 30.3, 29.3, true, false));
+        assertFalse(RouteRisk.go(20, 59.6, 50, true, false));
+        assertFalse(RouteRisk.go(9, 30, 10, true, true));
+        // at the margin's edge: the band to start, none going
+        assertFalse(RouteRisk.go(20, 15.5, 30, true, false));
+        assertTrue(RouteRisk.go(20, 15, 30, true, false));
+        assertTrue(RouteRisk.go(20, 15.1, 30, true, true));
     }
 
     // decision 10: a fight begun on the task's way is the piece in hand. one wither skeleton 3.8 off with a sword (K 20 / 9.6

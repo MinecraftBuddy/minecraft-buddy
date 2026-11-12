@@ -357,4 +357,45 @@ public class DangerMeterTest {
         // nothing on the buddy: the margin
         assertEquals(DangerMeter.MARGIN * (1 + DangerMeter.BAND), DangerMeter.need(DangerMeter.none(20)), 1e-9);
     }
+
+    // (S137, the repair after smoke6) the burn still to come is hp already spent: the time to die and the margin count from
+    // what is left after it, the lines say it, and with none the reading is as before
+    @Test
+    public void theBurnStillToComeCountsAgainstTheHp() {
+        List<Mob> one = List.of(mob("wither_skeleton", 4, 0, 1, true, true));
+        Reading plain = DangerMeter.read(us(12, false), one, List.of());
+        Us burning = new Us(12, 9.6, 15, 0, 2, 0, false, 0, 5);
+        Reading burnt = DangerMeter.read(burning, one, List.of());
+        assertEquals(plain.t(), burnt.t(), 1e-9);
+        assertEquals(12, burnt.hp(), 0);
+        assertEquals(7, burnt.left(), 1e-9);
+        assertEquals(plain.d() * 7 / 12, burnt.d(), 1e-9);
+        assertTrue(burnt.risk() > plain.risk());
+        // the margin by the hp left: a loss the buddy outlives at 12 is the last stand at 12 with 5 still to burn
+        DangerMeter.Track track = new DangerMeter.Track();
+        track.step(100, new Reading(3, 0, 10, 1, 0.1, 12, List.of()));
+        assertEquals(Level.FIGHT, track.level());
+        DangerMeter.Track hot = new DangerMeter.Track();
+        hot.step(100, new Reading(3, 0, 10, 1, 0.1, 12, List.of(), 5));
+        assertEquals(Level.FLEE, hot.level());
+        assertTrue(DangerMeter.levelLine(Level.FLEE, burnt).contains(", hp 12.0, burn 5.0, top "));
+        assertFalse(DangerMeter.levelLine(Level.FIGHT, plain).contains("burn"));
+        // nothing on the buddy: the burn alone is no danger to run from (calm), only hp to heal
+        assertEquals(0, DangerMeter.read(burning, List.of(), List.of()).risk(), 0);
+    }
+
+    // (S137, the repair after smoke6) the last ditch in a fight in hand: its target's share of the loss counts only up to its
+    // time to kill inside the horizon. one wither skeleton 2.5 s from dead at T 12: 10 hp of it, not 12, and 15.5 hp is no
+    // last ditch any more (smoke6 read it as one). a target past the horizon, or one the meter has no time for, counts whole
+    @Test
+    public void aFightsTargetHurtsOnlyTillItIsDead() {
+        assertEquals(10, DangerMeter.ditchLoss(12, 12, 2.5), 1e-9);
+        assertEquals(13, DangerMeter.ditchLoss(15, 12, 2.5), 1e-9);
+        assertTrue(15.5 - DangerMeter.ditchLoss(12, 12, 2.5) > DangerMeter.MARGIN * (1 + DangerMeter.BAND));
+        assertFalse(15.5 - 12 > DangerMeter.MARGIN * (1 + DangerMeter.BAND));
+        assertEquals(12, DangerMeter.ditchLoss(12, 12, 4), 1e-9);
+        assertEquals(12, DangerMeter.ditchLoss(12, 12, Double.NaN), 1e-9);
+        assertEquals(12, DangerMeter.ditchLoss(12, 0, 1), 1e-9);
+        assertEquals(0, DangerMeter.ditchLoss(12, 12, 0), 1e-9);
+    }
 }

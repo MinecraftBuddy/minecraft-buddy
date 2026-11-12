@@ -246,6 +246,15 @@ public final class BlazeFightRules {
         return haveTarget ? Mode.KILL : Mode.CAMP;
     }
 
+    // (S137, the repair after smoke6, under the one system) why not to go after a blaze now, null to go: "burning" while the burn
+    // still to come would leave less than the meter's margin (as the flee level holds it), "the group the last flee ran from"
+    // for a blaze still in the mob field's memory while the hp less the burn is under what the next piece needs (back)
+    public static String holdBack(double health, double burn, double back, boolean remembered) {
+        if (burn > 0 && health < burn + DangerMeter.MARGIN * (1 + DangerMeter.BAND)) return "burning";
+        if (remembered && health - Math.max(0, burn) < back) return "the group the last flee ran from";
+        return null;
+    }
+
     // healAfterRun with the hp the wait ends at
     public static boolean healAfterRun(long now, long runEnd, float health, double blazeDistance, float back) {
         return blazeDistance > LATCH_SKIP_BLAZE_RANGE && now >= runEnd && now - runEnd <= RUN_GIVE_UP_TICKS && health < back;

@@ -9,8 +9,8 @@ import java.util.Locale;
 //   go: the buddy outlives the piece, its hp less what the mobs are expected to take on the rest of the way and during
 //     the work at the goal stays over the meter's margin. no run for the meter starts; the walk is watched (RiskWatch), and
 //     more risk on it is judged again
-//   go, at a goal that lies in the danger, whole: no way goes round a danger at the goal itself, and healing gains nothing
-//     more. once going there the buddy goes on; the last-ditch rule ends it (hp less the loss within the meter's horizon
+//   go, at a goal that lies in the danger, whole and by a way it outlives: no way goes round a danger at the goal itself, and
+//     healing gains nothing more. once going there the buddy goes on; the last-ditch rule ends it (hp less the loss within the meter's horizon
 //     at the margin: the brain asks that first, whatever the goal)
 //   flee otherwise, as built: the run, the heal, and the search again, which still pays for what this way ran into
 // pure numbers: the brain (CombatBrain) hands in the path's and the goal's
@@ -37,10 +37,13 @@ public final class RouteRisk {
     // hp: the buddy's, absorption included. way: the hp the mobs are expected to take on the rest of the way. stay: what the
     // work at the goal is expected to cost (0 where the way does not end at the goal). inDanger: the goal's own cell is in
     // the danger. going: the answer before was go (the margin's band, and a buddy going at a goal in the danger goes on)
+    // (the repair after smoke6) at a goal in the danger the stay there counts whole, the way there does not: the way has to be
+    // outlived (hp less it over the margin), else the flee, the heal, and a search that still pays for what this way ran into.
+    // smoke6: two goes at 20 hp toward a goal in the danger expected 30.3 and 59.6 hp on the way, each a run within the second
     public static boolean go(double hp, double way, double stay, boolean inDanger, boolean going) {
         double margin = DangerMeter.MARGIN * (going ? 1 : 1 + DangerMeter.BAND);
         if (hp - (way + stay) > margin) return true;
-        return inDanger && (going || hp >= RecoverHold.DONE_AT);
+        return inDanger && (going || hp >= RecoverHold.DONE_AT) && hp - way > margin;
     }
 
     // (decision 10, a fight on the way is the piece in hand) the hp a fight is expected to cost: the seconds to kill its target

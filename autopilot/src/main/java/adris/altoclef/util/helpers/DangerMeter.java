@@ -95,9 +95,20 @@ public final class DangerMeter {
     // hard), resistance (0 none, else its level), fire resistance; bowDps: the bow's damage a second with arrows in the bag,
     // for a flyer out of reach with a line to it (0: no bow counted, the walk to it as before; only the forced drills hand
     // one in, DangerShadow)
-    public record Us(double hp, double dps, double armour, double toughness, int difficulty, int resistance, boolean fireRes, double bowDps) {
+    // burn: (S137, the repair after smoke6) the hp the burn still takes (BurnClock; 0 not burning or under fire resistance).
+    // it is hp already spent: the time to die and the margin are counted from the hp less it
+    public record Us(double hp, double dps, double armour, double toughness, int difficulty, int resistance, boolean fireRes, double bowDps, double burn) {
         public Us(double hp, double dps, double armour, double toughness, int difficulty, int resistance, boolean fireRes) {
-            this(hp, dps, armour, toughness, difficulty, resistance, fireRes, 0);
+            this(hp, dps, armour, toughness, difficulty, resistance, fireRes, 0, 0);
+        }
+
+        public Us(double hp, double dps, double armour, double toughness, int difficulty, int resistance, boolean fireRes, double bowDps) {
+            this(hp, dps, armour, toughness, difficulty, resistance, fireRes, bowDps, 0);
+        }
+
+        // the hp the mobs and the hazards have left to take
+        double left() {
+            return Math.max(0, hp - burn);
         }
     }
 
@@ -105,9 +116,19 @@ public final class DangerMeter {
     public record Part(String kind, double distance, double hp3) {
     }
 
-    public record Reading(double t, double push, double d, double k, double risk, double hp, List<Part> top) {
+    // burn: the hp the burn still takes (Us.burn); hp is the buddy's own, the lines print it
+    public record Reading(double t, double push, double d, double k, double risk, double hp, List<Part> top, double burn) {
+        public Reading(double t, double push, double d, double k, double risk, double hp, List<Part> top) {
+            this(t, push, d, k, risk, hp, top, 0);
+        }
+
         public double loss() {
             return t + push;
+        }
+
+        // the hp less the burn still to come: what the margin and the last ditch count
+        public double left() {
+            return Math.max(0, hp - burn);
         }
     }
 
@@ -219,11 +240,23 @@ public final class DangerMeter {
         if (own) k += piece;
         push = Math.min(push, us.hp());
         double loss = t + push;
-        double d = loss > 0 ? us.hp() / (loss / HORIZON) : Double.POSITIVE_INFINITY;
+        // (the burn still to come is hp already spent: the time to die counts from what is left after it)
+        double d = loss > 0 ? us.left() / (loss / HORIZON) : Double.POSITIVE_INFINITY;
         // (nothing on us, or nothing to kill: 0, where R was inf)
-        double risk = loss > 0 && k > 0 ? k / d : 0;
+        double risk = loss > 0 && k > 0 ? (d > 0 ? k / d : Double.POSITIVE_INFINITY) : 0;
         parts.sort(Comparator.comparingDouble(Part::hp3).reversed());
-        return new Reading(t, push, d, k, risk, us.hp(), parts.size() > 3 ? List.copyOf(parts.subList(0, 3)) : List.copyOf(parts));
+        return new Reading(t, push, d, k, risk, us.hp(), parts.size() > 3 ? List.copyOf(parts.subList(0, 3)) : List.copyOf(parts),
+                Math.max(0, us.burn()));
+    }
+
+    // (S137, the repair after smoke6) the loss within the horizon in a fight in hand, for the last-ditch rule: the fight's
+    // target stops hurting once it is dead, so its share of the loss (share, hp per 3 s) counts only up to its time to kill
+    // (k, s) where that is inside the horizon. smoke6: three fights turned to a run at 15 to 20 hp next to one wither skeleton
+    // or one magma cube (T 12 to 19, the target 2.5 s from dead), the last ditch counting 3 s of its hits where it had 2.5 s
+    // left; a run does not shake a wither skeleton (smoke3)
+    public static double ditchLoss(double loss, double share, double k) {
+        if (!(share > 0) || Double.isNaN(k) || k < 0) return loss;
+        return Math.max(0, loss - share * Math.max(0, 1 - k / HORIZON));
     }
 
     // the time to kill one mob: its hp over our damage a second plus the walk to it, or for a flyer out of reach with a line
@@ -325,8 +358,9 @@ public final class DangerMeter {
         }
 
         // true when the level changed
+        // (the margin counts the hp left after the burn still to come)
         public boolean step(long tick, Reading reading) {
-            return step(tick, reading.t(), reading.push(), reading.risk(), reading.hp());
+            return step(tick, reading.t(), reading.push(), reading.risk(), reading.left());
         }
 
         public boolean step(long tick, double t, double push, double risk, double hp) {
@@ -413,10 +447,15 @@ public final class DangerMeter {
         return sb.toString();
     }
 
-    // danger: <level>, T <t> hp/3s, push <p>, risk <risk>, hp <hp>, top <kind> <dist> <share>%, ...
+    // danger: <level>, T <t> hp/3s, push <p>, risk <risk>, hp <hp>[, burn <b>], top <kind> <dist> <share>%, ...
     public static String levelLine(Level level, Reading reading) {
         return "danger: " + level.word() + ", T " + num(reading.t()) + " hp/3s, push " + num(reading.push()) + ", risk " + num(reading.risk())
-                + ", hp " + num(reading.hp()) + ", top " + top(reading);
+                + ", hp " + num(reading.hp()) + burnPart(reading) + ", top " + top(reading);
+    }
+
+    // ", burn <hp>" while a burn is counted, nothing otherwise (the rig's readers stop at the risk, the top has its own match)
+    static String burnPart(Reading reading) {
+        return reading.burn() > 0 ? ", burn " + num(reading.burn()) : "";
     }
 
     // danger goal: <level> where the meter says <level>, <n> of the task's own counted as the next one: risk <risk> for <risk>,
@@ -425,7 +464,7 @@ public final class DangerMeter {
     public static String goalLine(Level level, Reading goal, Level meter, Reading plain, int own) {
         return "danger goal: " + level.word() + " where the meter says " + meter.word() + ", " + own
                 + " of the task's own counted as the next one: risk " + num(goal.risk()) + " for " + num(plain.risk())
-                + ", K " + num(goal.k()) + " s for " + num(plain.k()) + " s, hp " + num(goal.hp()) + ", top " + top(goal);
+                + ", K " + num(goal.k()) + " s for " + num(plain.k()) + " s, hp " + num(goal.hp()) + burnPart(goal) + ", top " + top(goal);
     }
 
     // danger: hit <damage> from <kind>, level <level>, T <t>, risk <risk>

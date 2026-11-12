@@ -5,6 +5,7 @@ import static adris.altoclef.util.helpers.BlazeFightRules.Mode.KILL;
 import static adris.altoclef.util.helpers.BlazeFightRules.Mode.RUN;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -346,5 +347,20 @@ public class BlazeFightRulesTest {
         assertEquals(BlazeFightRules.RECOVERED_HEALTH, BlazeFightRules.backAt(30), 0);
         assertEquals(12.8f, BlazeFightRules.backAt(12.8), 1e-6);
         assertEquals(0f, BlazeFightRules.backAt(0), 0);
+    }
+
+    // (S137, the repair after smoke6, under the one system) no going after a blaze while the burn still to come would leave
+    // less than the margin (4.8), nor after one of the group the last flee ran from before the hp less the burn is back at
+    // what the next piece needs. smoke6: the buddy went after blazes at 10.9 and 7.3 hp burning
+    @Test
+    public void theWayBackWaitsForTheBurnAndTheGroupItRanFrom() {
+        assertEquals("burning", BlazeFightRules.holdBack(7.3, 5, 0, false));
+        assertEquals("burning", BlazeFightRules.holdBack(9.7, 5, 0, false));
+        assertNull(BlazeFightRules.holdBack(10.9, 5, 0, false));
+        assertNull(BlazeFightRules.holdBack(7.3, 0, 0, false));
+        assertEquals("the group the last flee ran from", BlazeFightRules.holdBack(14, 0, 16, true));
+        assertEquals("the group the last flee ran from", BlazeFightRules.holdBack(18, 3, 16, true));
+        assertNull(BlazeFightRules.holdBack(14, 0, 16, false));
+        assertNull(BlazeFightRules.holdBack(17, 0, 16, true));
     }
 }

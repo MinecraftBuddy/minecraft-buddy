@@ -189,7 +189,8 @@ final class CombatBrain {
         }
         boolean going = _going && now >= _goingAt && now - _goingAt <= adris.altoclef.util.helpers.RouteRisk.GOING_TICKS;
         _routeWhy = null;
-        boolean lastDitch = adris.altoclef.util.helpers.DangerShadow.lastDitch();
+        // (the repair after smoke6: in a fight, its target's share of the loss only up to its time to kill)
+        boolean lastDitch = adris.altoclef.util.helpers.DangerShadow.lastDitch(_commit.mode() == Mode.FIGHT ? _commit.targetId() : -1);
         // (a fight on: whether it is the task's piece in hand, decision 10; a walk: the route)
         boolean go = !lastDitch && (_commit.mode() == Mode.FIGHT ? pieceGo(mod, player, now, going) : routeGo(mod, player, now, going));
         if (lastDitch) _routeWhy = "the last ditch";
@@ -212,14 +213,28 @@ final class CombatBrain {
         return go || kept;
     }
 
+    // (the repair after smoke6, Tuning risk_flee_burn) the hp a verdict counts: the buddy's less the burn still to come
+    private static double verdictHp(LocalPlayer player) {
+        return Math.max(0, player.getHealth() + player.getAbsorptionAmount() - adris.altoclef.util.helpers.DangerShadow.burnHp());
+    }
+
     private boolean routeGo(AltoClef mod, LocalPlayer player, long now, boolean going) {
         Object world = mod.getWorld();
+        double hp = verdictHp(player);
         if (!adris.altoclef.util.helpers.TaskGoal.hasWheel(now, world)) {
             _routeWait = -1;
             _routeWhy = _commit.mode() == Mode.FIGHT ? "a fight has the wheel" : "the task does not have the wheel";
+            // (the repair after smoke6: another chain has the wheel for a moment, the shield up for a volley, a meal. the route
+            // as the walk last left it, at the hp now, while that is fresh and the task's place still stands. smoke6: two goes
+            // were lost so within the second, the shield up for one fireball after another)
+            long work = Math.round(adris.altoclef.util.helpers.RouteRisk.work() * 20);
+            if (_commit.mode() == Mode.NONE && now >= _wayAt && now - _wayAt <= Math.max(work, adris.altoclef.util.helpers.RouteRisk.GOING_TICKS)
+                    && adris.altoclef.util.helpers.TaskGoal.within(now, world, Math.max(work, adris.altoclef.util.helpers.RouteRisk.GOING_TICKS)) != null) {
+                _routeWhy = null;
+                return routeKept(hp, going, now, player);
+            }
             return false;
         }
-        double hp = player.getHealth() + player.getAbsorptionAmount();
         var pathing = mod.getClientBaritone().getPathingBehavior();
         baritone.pathing.path.PathExecutor current = pathing.getCurrent();
         baritone.api.pathing.goals.Goal walking = adris.altoclef.util.helpers.TaskGoal.walking(now, world);
@@ -261,8 +276,12 @@ final class CombatBrain {
     // (decision 12) the route counts only up to the first place on it a meal fits in calm, with food in the bag: the buddy
     // eats there before the next fight, so it has to outlive this one and the way to there, not the whole route. no such
     // place, or no food: the whole rest and the work at the goal, as before
+    // (the repair after smoke6, Tuning risk_piece_any, on under risk_flee) a fight not begun on the task's way, one a mob that
+    // hit or stood in the way started below flee, gets the piece's verdict too: its target outlived, with no route on top.
+    // smoke6: such fights turned to a run on one hit with no verdict at all
     private boolean pieceGo(AltoClef mod, LocalPlayer player, long now, boolean going) {
-        if (!_onWay) {
+        boolean any = adris.altoclef.util.helpers.Tuning.get("risk_piece_any", 1) > 0;
+        if (!_onWay && !any) {
             _routeWhy = "a fight not begun on the task's way";
             return false;
         }
@@ -272,19 +291,21 @@ final class CombatBrain {
             _routeWhy = "the fight's target not in the meter's reading";
             return false;
         }
-        double hp = player.getHealth() + player.getAbsorptionAmount();
-        boolean mealOn = adris.altoclef.util.helpers.RouteRisk.mealTicks() > 0;
+        double hp = verdictHp(player);
+        boolean mealOn = _onWay && adris.altoclef.util.helpers.RouteRisk.mealTicks() > 0;
         // (food that heals without harm: the heal meal's own filter, no rotten flesh)
         boolean food = mod.getFoodChain().hasHealFood();
         boolean meal = mealOn && _wayToMeal != null && food;
-        double way = meal ? _wayToMeal[0] : _wayRest;
-        double stay = meal ? 0 : _wayStay;
-        boolean go = adris.altoclef.util.helpers.RouteRisk.go(hp, piece + way, stay, _wayInDanger, going);
+        double way = !_onWay ? 0 : meal ? _wayToMeal[0] : _wayRest;
+        double stay = !_onWay || meal ? 0 : _wayStay;
+        boolean inDanger = _onWay && _wayInDanger;
+        boolean go = adris.altoclef.util.helpers.RouteRisk.go(hp, piece + way, stay, inDanger, going);
         if (_routeSaid == null || _routeSaid != go || now < _routeSaidAt || now - _routeSaidAt >= ROUTE_SAY_TICKS) {
             _routeSaid = go;
             _routeSaidAt = now;
-            Debug.logInternal(adris.altoclef.util.helpers.RouteRisk.pieceLine(go, hp, piece, k, way, stay, _wayInDanger)
-                    + adris.altoclef.util.helpers.RouteRisk.mealPart(mealOn, _wayToMeal, food, _wayRest) + ", "
+            Debug.logInternal(adris.altoclef.util.helpers.RouteRisk.pieceLine(go, hp, piece, k, way, stay, inDanger)
+                    + adris.altoclef.util.helpers.RouteRisk.mealPart(mealOn, _wayToMeal, food, _wayRest)
+                    + (_onWay ? "" : ", not on the task's way") + burnPart() + ", "
                     + _names.of(_commit.targetId()) + ", at " + player.getBlockX() + "," + player.getBlockY() + "," + player.getBlockZ());
         }
         return go;
@@ -332,10 +353,30 @@ final class CombatBrain {
         if (_routeSaid == null || _routeSaid != go || now < _routeSaidAt || now - _routeSaidAt >= ROUTE_SAY_TICKS) {
             _routeSaid = go;
             _routeSaidAt = now;
-            Debug.logInternal(adris.altoclef.util.helpers.RouteRisk.line(go, hp, way, stay, inDanger) + ", at " + player.getBlockX() + ","
+            Debug.logInternal(adris.altoclef.util.helpers.RouteRisk.line(go, hp, way, stay, inDanger) + burnPart() + ", at " + player.getBlockX() + ","
                     + player.getBlockY() + "," + player.getBlockZ());
         }
         return go;
+    }
+
+    // (the repair after smoke6) the route as the walk last left it, judged again at the hp now while another chain has the
+    // wheel: its line says so
+    private boolean routeKept(double hp, boolean going, long now, LocalPlayer player) {
+        boolean go = adris.altoclef.util.helpers.RouteRisk.go(hp, _wayRest, _wayStay, _wayInDanger, going);
+        if (_routeSaid == null || _routeSaid != go || now < _routeSaidAt || now - _routeSaidAt >= ROUTE_SAY_TICKS) {
+            _routeSaid = go;
+            _routeSaidAt = now;
+            Debug.logInternal(adris.altoclef.util.helpers.RouteRisk.line(go, hp, _wayRest, _wayStay, _wayInDanger)
+                    + ", the walk's last numbers while another chain has the wheel" + burnPart() + ", at " + player.getBlockX() + ","
+                    + player.getBlockY() + "," + player.getBlockZ());
+        }
+        return go;
+    }
+
+    // ", after a burn of <hp>" while one is counted: the line's hp is the buddy's less the burn still to come
+    private static String burnPart() {
+        double burn = adris.altoclef.util.helpers.DangerShadow.burnHp();
+        return burn > 0 ? String.format(java.util.Locale.ROOT, ", after a burn of %.0f", burn) : "";
     }
     private KillEntityTask _fight;
     private final HealUpTask _healUp = new HealUpTask();

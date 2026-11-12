@@ -125,9 +125,39 @@ public final class DangerShadow {
     private static boolean reading;
 
     // (S137, decision 7 e) the last-ditch rule, whatever the goal: hp less the loss within the horizon is at the margin
-    // (the margin as the flee level holds it). asked where the meter is at flee
+    // (the margin as the flee level holds it). asked where the meter is at flee. (the repair after smoke6, under
+    // risk_flee_burn: the hp is less the burn still to come)
     public static boolean lastDitch() {
-        return last.hp() - last.loss() <= DangerMeter.MARGIN * (1 + DangerMeter.BAND);
+        return lastDitch(-1);
+    }
+
+    // (the repair after smoke6, Tuning risk_ditch_piece, on under risk_flee) in a fight in hand: its target's share of the
+    // loss counts only up to its time to kill (DangerMeter.ditchLoss)
+    public static boolean lastDitch(int fightTarget) {
+        double loss = last.loss();
+        if (fightTarget >= 0 && Tuning.get("risk_flee", 0) >= 1 && Tuning.get("risk_ditch_piece", 1) > 0) {
+            Double share = shares.get(fightTarget);
+            if (share != null) loss = DangerMeter.ditchLoss(loss, share, killSeconds(fightTarget));
+        }
+        return last.left() - loss <= DangerMeter.MARGIN * (1 + DangerMeter.BAND);
+    }
+
+    // (the repair after smoke6) each mob's share of the last reading's T, by entity (hp per 3 s)
+    private static Map<Integer, Double> shares = Map.of();
+
+    // (the repair after smoke6, Tuning risk_flee_burn, on under risk_flee) the burn still to come: the clock, and whether the
+    // meter counts it. the client knows only the on-fire flag (BurnClock)
+    private static final BurnClock burnClock = new BurnClock();
+    private static boolean litByFireball;
+    private static boolean burnFireRes;
+
+    static boolean burnOn() {
+        return Tuning.get("risk_flee", 0) >= 1 && Tuning.get("risk_flee_burn", 1) > 0;
+    }
+
+    // the hp the burn still takes, 0 with the key off, not burning or under fire resistance
+    public static double burnHp() {
+        return on() && burnOn() ? BurnClock.hp(burnClock.ticks(), burnFireRes) : 0;
     }
 
     // (S137, one system) the hp the next piece needs (DangerMeter.need), the most the runs' reading asked while its level
@@ -250,8 +280,20 @@ public final class DangerShadow {
             wanted = new HashMap<>();
             need = 0;
             wasFlee = false;
+            shares = Map.of();
+            burnClock.reset();
         }
         wasDead = dead;
+        // (the burn still to come: every tick, the flag and what lit the buddy this tick)
+        if (!dead && watched) {
+            burnFireRes = player.hasEffect(MobEffects.FIRE_RESISTANCE);
+            int lit = player.isInLava() ? BurnClock.LAVA_TICKS : inFire(level, player) ? BurnClock.FIRE_TICKS : 0;
+            if (litByFireball) lit = Math.max(lit, BurnClock.FIREBALL_TICKS);
+            burnClock.step(player.isOnFire(), lit, player.getAttributeValue(Attributes.BURNING_TIME));
+        } else {
+            burnClock.reset();
+        }
+        litByFireball = false;
         hp2 = dead ? 0 : hp1;
         hp1 = dead ? 0 : hp;
         if (dead || !watched) {
@@ -320,6 +362,8 @@ public final class DangerShadow {
             pendingKind = kindOf(source);
             // (the memory: the mob behind a hit is one a route is given up for)
             if (source.getEntity() instanceof Mob) hitBy = source.getEntity().getId();
+            // (the burn: a blaze's small fireball lights the buddy for 5 s; a ghast's large one does not)
+            if (source.getDirectEntity() instanceof net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball) litByFireball = true;
             pendingBefore = Math.max(hp1, hp2);
             pendingLow = hp;
             pendingAt = tick;
@@ -365,7 +409,7 @@ public final class DangerShadow {
         boolean forced = DangerForce.mode(Tuning.get("danger_force", 0)) != DangerForce.OFF;
         double bowDps = forced && adris.altoclef.tasks.entity.ForcedBowTask.canShoot(mod) ? BOW_DPS : 0;
         DangerMeter.Us us = new DangerMeter.Us(hp, dps, player.getArmorValue(), player.getAttributeValue(Attributes.ARMOR_TOUGHNESS),
-                level.getDifficulty().getId(), resistance == null ? 0 : resistance.getAmplifier() + 1, fireRes, bowDps);
+                level.getDifficulty().getId(), resistance == null ? 0 : resistance.getAmplifier() + 1, fireRes, bowDps, burnHp());
         // (and the full count: every hostile in sight or after us at want 1)
         List<DangerMeter.Mob> full = forced ? new ArrayList<>() : null;
 
@@ -377,6 +421,7 @@ public final class DangerShadow {
         Map<Integer, Double> afterNow = new HashMap<>();
         java.util.Set<Integer> inT = new java.util.HashSet<>();
         Map<Integer, Double> kills = new HashMap<>();
+        Map<Integer, Double> share = new HashMap<>();
         // (S137 step 2: the mobs that want us, where they are, for the path search's mob field; and the ones that did lately)
         List<RiskField.Source> field = new ArrayList<>();
         // (risk_flee_goal) the task's own mobs that count in T, and whether the switch reads them at all
@@ -414,7 +459,9 @@ public final class DangerShadow {
             DangerMeter.Mob counted = new DangerMeter.Mob(kind, row, mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ(),
                     want, way, sees, mob.getHealth(), mine);
             mobs.add(counted);
-            boolean hurts = DangerMeter.damage3(counted, us, counted.distance()) > 0;
+            double hp3 = DangerMeter.damage3(counted, us, counted.distance());
+            boolean hurts = hp3 > 0;
+            if (hurts) share.put(mob.getId(), hp3);
             kills.put(mob.getId(), DangerMeter.killTime(counted, us, counted.distance(),
                     mob.getHealth() > 0 ? mob.getHealth() : row != null ? row.hp() : 20));
             if (hurts) inT.add(mob.getId());
@@ -440,6 +487,7 @@ public final class DangerShadow {
         pendingAfter = afterNow;
         DangerShadow.counted = inT;
         killSeconds = kills;
+        shares = share;
         // (the memory: a remembered mob out of the live field is where it is now while the client has it; dead, or gone
         // while the buddy is near its place, it is forgotten)
         java.util.Set<Integer> live = new java.util.HashSet<>();
@@ -524,6 +572,15 @@ public final class DangerShadow {
         boolean rod = lastRods >= 0 && rods > lastRods;
         lastRods = rods;
         return kill || rod;
+    }
+
+    // a fire or soul fire block in the buddy's box: the server lights the buddy for 8 s while in one
+    private static boolean inFire(ClientLevel level, LocalPlayer player) {
+        net.minecraft.world.phys.AABB box = player.getBoundingBox().deflate(1.0E-3);
+        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(box.minX, box.minY, box.minZ), BlockPos.containing(box.maxX, box.maxY, box.maxZ))) {
+            if (level.getBlockState(pos).getBlock() instanceof net.minecraft.world.level.block.BaseFireBlock) return true;
+        }
+        return false;
     }
 
     // ---- hazards: a block scan round the feet, cached per block position
