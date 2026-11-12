@@ -154,6 +154,8 @@ public final class Tuning {
             // (12 Nov 2026, a fix of the slime ball's fetch, his "test it" of steering 168: with no slime in sight in the
             // overworld, a branch mine at y 8 instead of a walk over the ground; slimes live below y 40, KillAndLootTask)
             java.util.Map.entry("slime_dig", 1.0),
+            // (12 Nov 2026, a fix: the route brews one batch; past it no brew box is planned again, CollectBlazeRodsTask)
+            java.util.Map.entry("route_brew_one", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
             // (route jar 3: on the way, before the spawner fight, the potion goes down only in lava for 2 s or at 12 hp, or

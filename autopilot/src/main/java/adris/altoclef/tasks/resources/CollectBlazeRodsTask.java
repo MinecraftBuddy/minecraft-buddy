@@ -1068,6 +1068,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // brew_box 2: a failed box waits this long before the next (ticks), and the open brew's line once a brew
     static final int BREW_WAIT_TICKS = 1200;
     private int _brewWaitUntil = Integer.MIN_VALUE;
+    // a brew of this order finished, its box through (route_brew_one: no second batch)
+    private boolean _brewDone;
     private boolean _openLogged;
 
     private final adris.altoclef.tasks.speedrun.gamer.tasks.NetherBlockRestock _restock = new adris.altoclef.tasks.speedrun.gamer.tasks.NetherBlockRestock();
@@ -1823,6 +1825,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             if (_brew.isFinished(mod) && boxed) routePhase(adris.altoclef.util.helpers.RouteRules.RODS);
             if (_brew.isFinished(mod) && !boxed) {
                 _brewSince = -1;
+                _brewDone = true;
                 routePhase(adris.altoclef.util.helpers.RouteRules.RODS);
             } else if (WorldHelper.getTicks() - _brewSince > BREW_BUDGET_TICKS || creamGone) {
                 Debug.logMessage(creamGone ? "No magma cream left for the brew, back to the blazes" : "Brewing fire resistance took too long, back to the blazes");
@@ -1854,6 +1857,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
         int bases = water + PotionHelper.count(mod, Potions.AWKWARD);
         // (nothing to brew, or a batch's worth already in the bag)
         if (bases == 0 || BrewFireResistanceTask.fireRes(mod) >= BrewRules.BATCH) {
+            return null;
+        }
+        // (Tuning route_brew_one, a fix, on by default: the route brews one batch, its step 5. with that batch done, the
+        // bag's spare water bottle made a second batch look wanted: the cream and wart errands below
+        // ran for it, and with both in the bag the brew's box was planned as the camp again and brew_camp_repick dropped it
+        // the next tick, over and over: about 13,000 lines and all 20 potion-minutes for no rod in one run, 2 minutes in
+        // another (box 3, 11-12 Nov 2026). a second brew is not part of the route)
+        if (_brewDone && adris.altoclef.util.helpers.Tuning.get("route_brew_one", 1) > 0) {
             return null;
         }
         boolean wart = water == 0 || mod.getItemStorage().hasItem(Items.NETHER_WART);
