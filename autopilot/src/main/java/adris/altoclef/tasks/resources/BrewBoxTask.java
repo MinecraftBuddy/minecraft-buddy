@@ -264,7 +264,12 @@ final class BrewBoxTask extends Task {
         boolean hostile;
         String inRoom = "";
         try {
-            var in = level.getEntities(me, room().deflate(0.05), e -> e.isAlive() && (e instanceof Enemy || EntityHelper.isGenerallyHostileToPlayer(mod, e)));
+            // (Tuning box_living_only, a fix of 12 Nov 2026, on: a living thing alone. EntityHelper's test lets anything that is no
+            // mob through as hostile, and an item lying in the box, a craft's or the buddy's own, opened every box to the fight
+            // within seconds of shutting it: 49 of 49 such lines that evening named an item)
+            boolean livingOnly = adris.altoclef.util.helpers.Tuning.get("box_living_only", 1) > 0;
+            var in = level.getEntities(me, room().deflate(0.05), e -> e.isAlive() && (!livingOnly || e instanceof net.minecraft.world.entity.LivingEntity)
+                    && (e instanceof Enemy || EntityHelper.isGenerallyHostileToPlayer(mod, e)));
             hostile = !in.isEmpty();
             // (what it is and where, for the line: the box let the fight in for "a mob inside" in 211 of 217 boxes of an
             // evening, 12 Nov 2026, too often to be mobs in a shut two-cell box)
