@@ -210,6 +210,22 @@ public final class RouteRules {
     }
 
     // the far pass's own dead end, null to go on: sinceTicks of game time since it began against capTicks
+    // ---- the rings at the spawner's height (Tuning route_ring_level, off; 12 Nov 2026). a ring point's walk has no height
+    // (GetToXZTask), so it went at whatever height it began: at a2 the trade at y 98 to 114 or a ghast shelter at 89 left the
+    // buddy bridging west over the lava sea, the wart room 3 to 9 below the spawners came into sight from the bridge's tip,
+    // and no path down was found from there (every search 2 s without one node better than the start; 4 of 5 wart walks
+    // given up there since 11 Nov 20:00). with it on, a point's walk begun more than RING_LEVEL_GAP above the spawner gets
+    // down to the spawner's height first, once a point
+    public static final double RING_LEVEL_GAP = 8;
+
+    public static boolean ringLevelOn() {
+        return Tuning.get("route_ring_level", 0) > 0;
+    }
+
+    public static boolean ringLevelDown(double aboveSpawner) {
+        return aboveSpawner > RING_LEVEL_GAP;
+    }
+
     public static String wartFarDeadEnd(long sinceTicks, long capTicks) {
         return wartFarDeadEnd(sinceTicks, capTicks, false);
     }

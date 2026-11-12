@@ -1770,9 +1770,43 @@ public class CollectBlazeRodsTask extends ResourceTask {
                     + " at " + _errandPointAt[0] + " " + _errandPointAt[1] + " (ring " + ring + ", " + (int) adris.altoclef.util.helpers.RouteRules.ringRadius(ring, first)
                     + " blocks round the spawner), " + secs(_errandSinceGot) + " s at the fortress with nothing got");
         }
+        // (Tuning route_ring_level, off, 12 Nov 2026: the a2 read. a ring's point is an x and z with no height, so its walk went
+        // at whatever height it began (the trade at y 98 to 114, a ghast shelter at 89) and bridged out over the lava sea till
+        // the wart came into sight from the bridge's tip, where no path down to it was found: 4 of 5 wart walks given up at a2.
+        // with it on, a point's walk that finds the buddy more than RING_LEVEL_GAP above the spawner first gets down to the
+        // spawner's height, once a point)
+        if (adris.altoclef.util.helpers.RouteRules.ringLevelOn()) {
+            Task down = ringLevel(mod, sp);
+            if (down != null) {
+                errandSays("looking round the fortress: down to the spawner's height first");
+                setDebugState("Brew errand: down to the spawner's height, point " + (_errandPoint + 1) + " of " + points);
+                return down;
+            }
+        }
         errandSays("looking round the fortress");
         setDebugState("Brew errand: looking round the fortress, point " + (_errandPoint + 1) + " of " + points);
         return _errandWalk;
+    }
+
+    // (Tuning route_ring_level) the walk down to the spawner's height of the ring point under way, once a point; null when
+    // the buddy is within RING_LEVEL_GAP of it, or got down, or this point had its walk down already
+    private int _ringLevelPoint = -1;
+    private adris.altoclef.tasks.movement.GetToYTask _ringLevel;
+
+    private Task ringLevel(AltoClef mod, BlockPos sp) {
+        double above = mod.getPlayer().getY() - sp.getY();
+        if (_ringLevel != null && _ringLevelPoint == _errandPoint) {
+            if (above > 1 && !_ringLevel.isFinished(mod)) return _ringLevel;
+            Debug.logInternal("brew errand: at the spawner's height (y " + (int) Math.floor(mod.getPlayer().getY()) + "), point " + (_errandPoint + 1) + "'s walk goes on");
+            _ringLevel = null;
+            return null;
+        }
+        if (_ringLevelPoint == _errandPoint || !adris.altoclef.util.helpers.RouteRules.ringLevelDown(above)) return null;
+        _ringLevelPoint = _errandPoint;
+        _ringLevel = new adris.altoclef.tasks.movement.GetToYTask(sp.getY());
+        Debug.logInternal("brew errand: " + (int) Math.round(above) + " blocks above the spawner " + sp.toShortString() + ", down to its height (y "
+                + sp.getY() + ") before point " + (_errandPoint + 1));
+        return _ringLevel;
     }
 
     // what the errand does, said when it changes

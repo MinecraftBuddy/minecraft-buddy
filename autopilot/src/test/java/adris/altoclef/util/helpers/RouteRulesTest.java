@@ -547,6 +547,10 @@ public class RouteRulesTest {
         assertNull(RouteRules.wartFarDeadEnd(cap + hold - 1, cap, true));
         assertEquals("the far pass along the fortress, no wart got in 420 s", RouteRules.wartFarDeadEnd(cap + hold, cap, true));
         assertEquals("the far pass along the fortress, no wart got in 301 s", RouteRules.wartFarDeadEnd(cap + 20, cap, false));
+        // the rings at the spawner's height: only a walk begun more than eight blocks above it goes down first
+        assertFalse(RouteRules.ringLevelDown(8));
+        assertTrue(RouteRules.ringLevelDown(8.5));
+        assertFalse(RouteRules.ringLevelDown(-20));
         // a fortress's wart rooms 215 to 520 off its spawner are in the far pass's reach, the stale wart of another is not
         assertTrue(RouteRules.wartInReach(520, RouteRules.WART_FAR));
         assertFalse(RouteRules.wartInReach(3465, RouteRules.WART_FAR));
