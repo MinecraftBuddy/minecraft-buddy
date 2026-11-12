@@ -126,7 +126,12 @@ final class ObtainRoute {
 			piece(M3_2, "water bucket", b -> b.inv("water_bucket") < 1)),
 		// the golden helmet first (worn, 15 armour with the iron: the mine then takes the cave gold it sees, not only its
 		// tunnel's walls; steering 170), then the gold for the trade and the spare, and the spare in the bag
+		// (12 Nov 2026: the first piece spends its three tries while no gold is found, and was never asked again: a run that
+		// later had 48 ingots in the bag never wore one, gold smoke 2 run 2. "golden helmet again" asks it once the bag holds
+		// the gold for it, or a helmet)
 		List.of(piece(M3_3, "golden helmet", b -> !"golden_helmet".equals(b.wornIn("helmet"))),
+			piece(M3_3, "golden helmet again", b -> !"golden_helmet".equals(b.wornIn("helmet"))
+				&& (b.inv("golden_helmet") > 0 || b.inv("gold_ingot") >= 5)),
 			piece(M3_3, "gold", b -> b.inv("gold_ingot") < goldNeed(b)),
 			piece(M3_3, "spare golden helmet", b -> b.inv("golden_helmet") < 1)),
 		// a slime ball for the brew's cream: slimes deep under the ground in some chunks, or in a swamp at night

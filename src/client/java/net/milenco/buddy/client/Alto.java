@@ -1106,6 +1106,7 @@ final class Alto {
 				return new Run("kit gold", 40 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("gold_ingot", need)));
 			}
 			case "golden helmet":
+			case "golden helmet again":
 				return new Run("equip golden_helmet", (10 + 3 * 5) * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(
 					new adris.altoclef.util.ItemTarget("golden_helmet", 1))));
 			case "spare golden helmet": {
