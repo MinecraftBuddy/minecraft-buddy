@@ -148,6 +148,11 @@ public final class Tuning {
             // (12 Nov 2026, from the wartver block, phase 3 passed A 34, B 44 of 60 pairs: a dead end with the wart still wanted
             // first begins the far pass, RouteRules.wartFarOn)
             java.util.Map.entry("route_wart_far", 1.0),
+            // (fixes of 12 Nov 2026: the brew's cream lost only once it stays lost 5 s, the trade's search goes on out past a
+            // biome with no piglins and gives a far point its time, a hoglin bars a piglin only by its distance to the piglin)
+            java.util.Map.entry("brew_cream_grace", 1.0),
+            java.util.Map.entry("trade_search_out", 1.0),
+            java.util.Map.entry("route_trade_hoglin_buddy", 0.0),
             // (11 Nov 2026, a fix: the pillbox the route's brew was made in stayed the fight's camp and corner under the brewed
             // potion, as the brewed one followed the traded one with no gap; once the brew is through and the potion on, the camp
             // is picked again as the fire-proof one, at the box's open side; CollectBlazeRodsTask, E1111-1500.1)

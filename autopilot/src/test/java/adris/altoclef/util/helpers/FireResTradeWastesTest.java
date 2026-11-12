@@ -60,4 +60,23 @@ public class FireResTradeWastesTest {
         List<Spot> candidates = List.of(new Spot(190, 8), new Spot(60, 30));
         assertEquals(new Spot(60, 30), pick(candidates, spawner, List.of()));
     }
+
+    // the search's point time by its distance (trade_search_out, 12 Nov 2026): a minute at least, 1.5 s a block, four minutes at most
+    @Test
+    public void aFarSearchPointGetsItsTime() {
+        assertEquals(FireResTradeRules.POINT_TICKS, FireResTradeRules.pointTicks(10));
+        assertEquals(160 * 30, FireResTradeRules.pointTicks(160));
+        assertEquals(FireResTradeRules.POINT_MAX_TICKS, FireResTradeRules.pointTicks(1000));
+    }
+
+    // past a biome with no piglins the search goes on along the same bearing: point k's direction on a ring further out
+    @Test
+    public void theSameBearingFurtherOut() {
+        Spot near = FireResTradeRules.searchPoint(0, 0, 0, 0);
+        assertEquals(new Spot(40, 0), near);
+        assertEquals(new Spot(120, 0), FireResTradeRules.searchPointOnRing(0, 3, 0, 0, 0));
+        // point 2 of a ring lies a quarter turn on: the same quarter on ring 4
+        assertEquals(new Spot(0, 160), FireResTradeRules.searchPointOnRing(2, 4, 0, 0, 0));
+        assertEquals(FireResTradeRules.searchPoint(9, 0, 0, 0), FireResTradeRules.searchPointOnRing(9, 2, 0, 0, 0));
+    }
 }

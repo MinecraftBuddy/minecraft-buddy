@@ -72,6 +72,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private static final int BREW_BUDGET_TICKS = 8 * 60 * 20;
     private int _brewSince = -1;
     private boolean _brewGaveUp;
+    // since when the brew has had no cream nor ball in the bag (game ticks; -1 while it has one), and how long that must last
+    private long _creamGoneSince = -1;
+    private static final long CREAM_GONE_TICKS = 100;
     // the buddy's fork, Tuning brew_box: the brew walled in (BrewBoxTask), made when a brew begins; null with the tuning off
     private BrewBoxTask _brewBox;
     // a fight has the brew's ticks now (logged once per take over)
@@ -1865,8 +1868,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 return null;
             }
             // (a brew begun in the nether that has lost its cream: no far search for one, back to the blazes)
-            boolean creamGone = !_brew.isFinished(mod) && WorldHelper.getCurrentDimension() == Dimension.NETHER
+            // (Tuning brew_cream_grace, a fix of 12 Nov 2026, on: only once it has stayed lost CREAM_GONE_TICKS. while the
+            // cream is crafted from the ball the bag holds neither for a moment, and a walk to the stand that cut the craft's
+            // "Receiving output" short read as no cream: the brew given up within a second of the craft, and all 8 runs of an
+            // evening that gave it up so died in phase 6 with no potion)
+            boolean creamGoneNow = !_brew.isFinished(mod) && WorldHelper.getCurrentDimension() == Dimension.NETHER
                     && BrewFireResistanceTask.wantsCream(mod);
+            if (!creamGoneNow) _creamGoneSince = -1;
+            else if (_creamGoneSince < 0) _creamGoneSince = WorldHelper.getTicks();
+            boolean creamGone = creamGoneNow && (adris.altoclef.util.helpers.Tuning.get("brew_cream_grace", 1) <= 0
+                    || WorldHelper.getTicks() - _creamGoneSince >= CREAM_GONE_TICKS);
             // (the route's phase 6 as soon as the brew is done, its box's drink and door or not: with the line said only once the
             // box was through, phase 6 began up to six minutes late and its deaths were counted as the brew's, brewfirst smoke
             // runs 1 and 5. the phase steers nothing past RODS2, so this is the count alone)

@@ -171,6 +171,21 @@ public final class FireResTradeRules {
         return 1 + Math.floorMod(k, RING_POINTS * RINGS) / RING_POINTS;
     }
 
+    // a point's time by its distance from where its walk begins (Tuning trade_search_out, 12 Nov 2026): 1.5 s a block, at
+    // least POINT_TICKS, at most POINT_MAX_TICKS
+    public static final double POINT_TICKS_A_BLOCK = 30;
+    public static final long POINT_MAX_TICKS = 240 * 20;
+
+    public static long pointTicks(double distance) {
+        return Math.max(POINT_TICKS, Math.min(POINT_MAX_TICKS, Math.round(distance * POINT_TICKS_A_BLOCK)));
+    }
+
+    // point k's bearing on ring r (1 the first): the same direction further out
+    public static Spot searchPointOnRing(int k, int r, double cx, double cz, double from) {
+        double a = from + Math.floorMod(k, RING_POINTS) * (2 * Math.PI / RING_POINTS);
+        return new Spot((int) Math.round(cx + RING_STEP * r * Math.cos(a)), (int) Math.round(cz + RING_STEP * r * Math.sin(a)));
+    }
+
     public static Spot searchPoint(int k, double cx, double cz, double from) {
         double r = RING_STEP * ring(k);
         double a = from + Math.floorMod(k, RING_POINTS) * (2 * Math.PI / RING_POINTS);

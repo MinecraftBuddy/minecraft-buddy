@@ -262,15 +262,24 @@ final class BrewBoxTask extends Task {
         boolean whole = buildingIn || whole(level);
         boolean inside = inside(me.position());
         boolean hostile;
+        String inRoom = "";
         try {
-            hostile = !level.getEntities(me, room().deflate(0.05), e -> e.isAlive() && (e instanceof Enemy || EntityHelper.isGenerallyHostileToPlayer(mod, e))).isEmpty();
+            var in = level.getEntities(me, room().deflate(0.05), e -> e.isAlive() && (e instanceof Enemy || EntityHelper.isGenerallyHostileToPlayer(mod, e)));
+            hostile = !in.isEmpty();
+            // (what it is and where, for the line: the box let the fight in for "a mob inside" in 211 of 217 boxes of an
+            // evening, 12 Nov 2026, too often to be mobs in a shut two-cell box)
+            if (hostile) {
+                var e = in.get(0);
+                inRoom = String.format(java.util.Locale.ROOT, " %s at %.1f %.1f %.1f, the buddy at %.1f %.1f %.1f",
+                        BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).getPath(), e.getX(), e.getY(), e.getZ(), me.getX(), me.getY(), me.getZ());
+            }
         } catch (java.util.ConcurrentModificationException e) {
             hostile = true;
         }
         boolean fire = fireInside(level);
         boolean was = holdsWas;
         holdsWas = BrewBox.holds(whole, inside, hostile, fire, me.getHealth());
-        String why = !whole ? "the box is broken" : !inside ? "the buddy is out of it" : hostile ? "a mob inside" : fire ? "fire inside"
+        String why = !whole ? "the box is broken" : !inside ? "the buddy is out of it" : hostile ? "a mob inside:" + inRoom : fire ? "fire inside"
                 : !holdsWas ? String.format(java.util.Locale.ROOT, "%.1f hp", me.getHealth()) : "";
         // (once per change: how often the box let the fight back in, and why)
         if (was && !holdsWas && !why.equals(holdsWhy)) Debug.logInternal(what() + ": open to the fight (" + why + ")");

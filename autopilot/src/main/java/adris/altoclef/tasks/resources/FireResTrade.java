@@ -165,6 +165,7 @@ public final class FireResTrade {
     private int _searchK;
     private Task _searchWalk;
     private long _searchWalkAt;
+    private long _searchWalkTicks = FireResTradeRules.POINT_TICKS;
     private int _searchRingSaid;
     // Tuning route_trade_known (route jar 4): the piglins seen free to take gold within KEEP_RANGE (entity id, the last game
     // tick), the game ticks with none known since the last ingot taken, this tick's clock, the hoglin's wait and its line, and
@@ -905,16 +906,29 @@ public final class FireResTrade {
             _searchWalk = null;
             _searchRingSaid = 0;
         }
-        if (_searchWalk != null && (_searchWalk.isFinished(mod) || now - _searchWalkAt >= FireResTradeRules.POINT_TICKS || now < _searchWalkAt)) {
+        if (_searchWalk != null && (_searchWalk.isFinished(mod) || now - _searchWalkAt >= _searchWalkTicks || now < _searchWalkAt)) {
             _searchK++;
             _searchWalk = null;
         }
         if (_searchWalk == null) {
             List<Spot> bastions = knownBastions(mod);
             Spot at = null;
+            boolean out = adris.altoclef.util.helpers.Tuning.get("trade_search_out", 1) > 0;
             for (int tries = 0; tries < FireResTradeRules.RING_POINTS * FireResTradeRules.RINGS; tries++, _searchK++) {
                 Spot s = FireResTradeRules.searchPoint(_searchK, _searchCentre.getX(), _searchCentre.getZ(), _searchFrom);
-                if (noPiglinsAt(mod, s, player.getBlockY())) continue;
+                if (noPiglinsAt(mod, s, player.getBlockY())) {
+                    // (Tuning trade_search_out, a fix of 12 Nov 2026, on: the same bearing further out, ring by ring, to the first
+                    // point that is not known to spawn no piglins. a start in the basalt deltas passed over every point of the
+                    // first three rings and went round the fourth a point a minute, 122 blocks between them, and never got
+                    // more than 126 blocks out in ten minutes: 15 runs ended the trade with all 96 ingots, 11 of them one start)
+                    Spot further = null;
+                    for (int r = FireResTradeRules.ring(_searchK) + 1; out && further == null && r <= FireResTradeRules.RINGS; r++) {
+                        Spot o = FireResTradeRules.searchPointOnRing(_searchK, r, _searchCentre.getX(), _searchCentre.getZ(), _searchFrom);
+                        if (!noPiglinsAt(mod, o, player.getBlockY())) further = o;
+                    }
+                    if (further == null) continue;
+                    s = further;
+                }
                 boolean bastion = false;
                 for (Spot b : bastions) bastion |= s.distanceTo(b.x(), b.z()) <= FireResTradeRules.BASTION_KEEP_OFF;
                 if (bastion) continue;
@@ -931,6 +945,9 @@ public final class FireResTrade {
             }
             _searchWalk = new GetToXZTask(at.x(), at.z(), WASTES_ARRIVE);
             _searchWalkAt = now;
+            // (Tuning trade_search_out: the point's time by its distance, a far one through the deltas took more than a minute)
+            _searchWalkTicks = adris.altoclef.util.helpers.Tuning.get("trade_search_out", 1) > 0
+                    ? FireResTradeRules.pointTicks(at.distanceTo(player.getX(), player.getZ())) : FireResTradeRules.POINT_TICKS;
         }
         return _searchWalk;
     }
@@ -1102,7 +1119,11 @@ public final class FireResTrade {
 
         private static boolean hoglinNear(AltoClef mod, Entity piglin) {
             double range = hoglinRange();
-            return FireResTradeRules.hoglinBars(hoglinTo(mod, piglin), range > 0 ? hoglinTo(mod, mod.getPlayer()) : Double.POSITIVE_INFINITY, range);
+            // (Tuning route_trade_hoglin_buddy, 0 since a fix of 12 Nov 2026: a hoglin 24 from the piglin but 12 from the buddy
+            // kept the trade standing still in WAIT for the whole 1200 s bound, route-49-mc2 run 11; the mob defense takes a
+            // hoglin that comes, so only its distance to the piglin bars the piglin)
+            boolean byBuddy = range > 0 && adris.altoclef.util.helpers.Tuning.get("route_trade_hoglin_buddy", 0) > 0;
+            return FireResTradeRules.hoglinBars(hoglinTo(mod, piglin), byBuddy ? hoglinTo(mod, mod.getPlayer()) : Double.POSITIVE_INFINITY, range);
         }
 
         // the nearest piglin of the known ones (ids) within KEEP_RANGE that is free but for a hoglin just now, null for none
