@@ -407,6 +407,14 @@ public class InteractWithBlockTask extends Task {
         _cachedClickStatus = rightClick(mod);
         switch (Objects.requireNonNull(_cachedClickStatus)) {
             case CANT_REACH -> {
+                // (S137, the repair after smoke7, Tuning risk_goal_once: the way to it given up from where the buddy stands, a round
+                // of search from here found none: a wander, as after a stall, and the target kept. smoke7 r1 stood 2.5 minutes
+                // under its brewing stand, a shimmy every 16 s keeping the stall checks from ever firing)
+                if (wandersWhenStuck(_stayPut) && mod.getClientBaritone().getPathingBehavior().givenUpHere(moveGoal)) {
+                    Debug.logInternal("interact: no way to " + _target.toShortString() + " from here, wandering");
+                    _moveChecker.reset();
+                    return wander(mod);
+                }
                 setDebugState("Getting to our goal");
                 // Get to our goal then
                 if (walksWhenOutOfReach(_stayPut) && !proc.isActive()) {

@@ -398,4 +398,61 @@ public class DangerMeterTest {
         assertEquals(12, DangerMeter.ditchLoss(12, 0, 1), 1e-9);
         assertEquals(0, DangerMeter.ditchLoss(12, 12, 0), 1e-9);
     }
+
+    // (S137, the repair after smoke7) the pushers past 3 blocks: a blaze 36 blocks off that sees the buddy on a rim with a drop
+    // of 22 on the far side. smoke7 read push 0.0 there (a pusher only within 3) and a fireball knocked the buddy off
+    @Test
+    public void aShooterPushesOffARimFromAfar() {
+        Mob blaze = mob("blaze", -36, 0, 1, true, true);
+        List<Hazard> farSide = List.of(new Hazard("drop", 1, -0.5, 0.5, 22));
+        Reading off = DangerMeter.read(us(20, false), List.of(blaze), farSide, false, false);
+        assertEquals(0, off.push(), 1e-9);
+        Reading on = DangerMeter.read(us(20, false), List.of(blaze), farSide, false, true);
+        assertTrue("push " + on.push(), on.push() > DangerMeter.CALM_PUSH);
+        // about one volley in the horizon, a sixth of its balls landing at 36: 1 - e^-0.17 of the 19 hp the fall costs
+        double lands = 0.84 / 2.5 * DangerMeter.HORIZON * Math.sqrt(1 / 36.0);
+        double near = Math.min(1, (DangerMeter.PUSH_RANGE + 0.5 - Math.sqrt(1 + 0.25 + 0.25)) / 2.5);
+        assertEquals((1 - Math.exp(-lands)) * near * 19, on.push(), 1e-9);
+        // one blaze that far is cover at full hp (the race is the meter's, the push only part of the loss); three, at 24, 26
+        // and 36, is flee there, and no flee without the drop
+        assertEquals(Level.COVER, levelFrom(Level.CALM, on));
+        Reading three = DangerMeter.read(us(20, false), List.of(mob("blaze", -24, 0, 1, true, true), mob("blaze", -26, 0, 1, true, true), blaze),
+                farSide, false, true);
+        assertEquals(Level.FLEE, levelFrom(Level.CALM, three));
+        assertNotEquals(Level.FLEE, levelFrom(Level.CALM, DangerMeter.read(us(20, false), List.of(mob("blaze", -24, 0, 1, true, true),
+                mob("blaze", -26, 0, 1, true, true), blaze), List.of(), false, true)));
+        // the drop on the blaze's side: the knock goes away from it
+        assertEquals(0, DangerMeter.read(us(20, false), List.of(blaze), List.of(new Hazard("drop", -1, -0.5, 0.5, 22)), false, true).push(), 1e-9);
+        // fire resistance: a blaze's fireball knocks nothing
+        assertEquals(0, DangerMeter.read(us(20, true), List.of(blaze), farSide, false, true).push(), 1e-9);
+        // no line to the buddy: no shot
+        assertEquals(0, DangerMeter.read(us(20, false), List.of(mob("blaze", -36, 0, 1, true, false)), farSide, false, true).push(), 1e-9);
+        // out of its range: none either
+        assertEquals(0, DangerMeter.read(us(20, false), List.of(mob("skeleton", -20, 0, 1, true, true)), farSide, false, true).push(), 1e-9);
+        // a skeleton at 10 with a drop into lava behind: the whole hp at stake
+        Reading lava = DangerMeter.read(us(20, false), List.of(mob("skeleton", -10, 0, 1, true, true)),
+                List.of(new Hazard("drop", 1, -0.5, 0.5, DangerMeter.LAVA_DROP)), false, true);
+        assertTrue("push " + lava.push(), lava.push() > 5);
+    }
+
+    // a melee mob on its way pushes for the share of the horizon it is in reach: a wither skeleton 6 blocks off (in reach after
+    // 1.1 s) with a drop of 14 behind the buddy. smoke7 r4 read push 0.0 with two closing in, and one blow took it off a rim
+    @Test
+    public void aMeleeMobOnItsWayPushesToo() {
+        Mob wither = mob("wither_skeleton", -6, 0, 1, true, true);
+        List<Hazard> behind = List.of(new Hazard("drop", 1, -0.5, 0.5, 14));
+        assertEquals(0, DangerMeter.read(us(20, false), List.of(wither), behind, false, false).push(), 1e-9);
+        Reading on = DangerMeter.read(us(20, false), List.of(wither), behind, false, true);
+        MobThreat row = MobThreat.forMeter("wither_skeleton", 1);
+        double toReach = (6 - row.reach()) / row.speed();
+        double near = Math.min(1, (DangerMeter.PUSH_RANGE + 0.5 - Math.sqrt(1 + 0.25 + 0.25)) / 2.5);
+        assertEquals(DangerMeter.HIT_CHANCE * (DangerMeter.HORIZON - toReach) / DangerMeter.HORIZON * near * 11, on.push(), 1e-9);
+        // one past the horizon's reach, or with no way to the buddy, pushes nothing
+        assertEquals(0, DangerMeter.read(us(20, false), List.of(mob("wither_skeleton", -16, 0, 1, true, true)), behind, false, true).push(), 1e-9);
+        assertEquals(0, DangerMeter.read(us(20, false), List.of(mob("wither_skeleton", -6, 0, 1, false, true)), behind, false, true).push(), 1e-9);
+        // within 3 it is the old push, unchanged
+        Mob close = mob("wither_skeleton", -2, 0, 1, true, true);
+        assertEquals(DangerMeter.read(us(20, false), List.of(close), behind, false, false).push(),
+                DangerMeter.read(us(20, false), List.of(close), behind, false, true).push(), 1e-9);
+    }
 }

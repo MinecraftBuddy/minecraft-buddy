@@ -18,8 +18,42 @@ public class FleeTask extends CommittedRunTask {
 
     static final long FLEE_REISSUE_TICKS = 10;
 
+    // (S137, the repair after smoke7; Tuning risk_flee_keep, on under risk_flee) the flee search found its path: this run walks
+    // it, and nothing takes the wheel back for the place the run left (the blaze fight's corner by its door, the ghast
+    // shelter's cover). smoke7 r1: a path of 61 blocks found twice, each time taken back within the second by the walk to the
+    // pillbox's door, the buddy standing 2 blocks from it in the blazes' fire. found: this task saw it; the last tick any flee
+    // walked a found path, for the chains that would take the wheel
+    private boolean _found;
+    private static volatile long walkedAt = Long.MIN_VALUE / 2;
+    // a found path counts this long after the flee was last ticked with it: a chain that won one tick hands it straight back
+    static final long WALKED_TICKS = 10;
+
     public FleeTask() {
         super(0, 0, 0, List::of);
+    }
+
+    public static boolean keepOn() {
+        return adris.altoclef.util.helpers.Tuning.get("risk_flee", 0) >= 1 && adris.altoclef.util.helpers.Tuning.get("risk_flee_keep", 1) > 0;
+    }
+
+    // this run's flee search has found its path and walks it
+    public boolean found() {
+        return _found;
+    }
+
+    // a flee walked a found path within WALKED_TICKS (a clock that went back counts as long ago)
+    public static boolean walking(long now) {
+        return keepOn() && now >= walkedAt && now - walkedAt <= WALKED_TICKS;
+    }
+
+    @Override
+    protected Task onTick(AltoClef mod) {
+        var current = mod.getClientBaritone().getPathingBehavior().getCurrent();
+        if (current != null && current.getPath().getGoal() instanceof GoalFlee) {
+            _found = true;
+            walkedAt = mod.getWorld().getGameTime();
+        }
+        return super.onTick(mod);
     }
 
     // the flee goal on the game thread's world: its cells, and the place word of a cell with the floor as it is (a rim is no

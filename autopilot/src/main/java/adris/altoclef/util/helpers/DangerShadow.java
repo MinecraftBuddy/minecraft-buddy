@@ -155,6 +155,12 @@ public final class DangerShadow {
         return Tuning.get("risk_flee", 0) >= 1 && Tuning.get("risk_flee_burn", 1) > 0;
     }
 
+    // (the repair after smoke7, Tuning risk_far_push, on under risk_flee) the pushers past 3 blocks: a shooter that sees the
+    // buddy from where it is, a melee mob on its way (DangerMeter.farPushRisk)
+    static boolean farPushOn() {
+        return Tuning.get("risk_flee", 0) >= 1 && Tuning.get("risk_far_push", 1) > 0;
+    }
+
     // the hp the burn still takes, 0 with the key off, not burning or under fire resistance
     public static double burnHp() {
         return on() && burnOn() ? BurnClock.hp(burnClock.ticks(), burnFireRes) : 0;
@@ -508,12 +514,14 @@ public final class DangerShadow {
         }
         List<Hazard> hazards = hazards(level, player);
         threats = forced ? threats(us, mobs, bodies, hazards) : List.of();
-        Reading reading = DangerMeter.read(us, mobs, hazards);
+        // (the repair after smoke7, Tuning risk_far_push, on under risk_flee: a push off a rim from past 3 blocks counts)
+        boolean far = farPushOn();
+        Reading reading = DangerMeter.read(us, mobs, hazards, false, far);
         goalOwn = own;
         goalReading = reading;
         if (own > 0) {
             // (the next piece of the job, by the weapon the fight would take as every mob is now)
-            goalReading = DangerMeter.read(us, mobs, hazards, true);
+            goalReading = DangerMeter.read(us, mobs, hazards, true, far);
         }
         if (forced) {
             Reading all = DangerMeter.read(us, full, hazards);

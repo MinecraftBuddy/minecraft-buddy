@@ -91,6 +91,21 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
     private volatile Goal noWayGoal;
     private volatile long noWayAt = Long.MIN_VALUE / 2;
     static final long NO_WAY_TICKS = 200;
+    // (S137, the repair after smoke7; Tuning risk_goal_once, on under risk_flee) the goals given up from a block: a round from it
+    // found no way (the unpriced search after a priced one, or a search the mob field did not price), and the same goal is not
+    // searched again from there within NO_WAY_TICKS, it fails at once (GivenUpGoals)
+    private final GivenUpGoals<BetterBlockPos, Goal> givenUp = new GivenUpGoals<>(NO_WAY_TICKS);
+
+    static boolean goalOnce() {
+        return adris.altoclef.util.helpers.Tuning.get("risk_flee", 0) >= 1 && adris.altoclef.util.helpers.Tuning.get("risk_goal_once", 1) > 0;
+    }
+
+    // (the repair after smoke7) this goal was given up from the block the buddy stands on: a request for it fails at once. a task
+    // that walks there takes that as its stall, now rather than after its stuck checks
+    public boolean givenUpHere(Goal goal) {
+        return goal != null && !(goal instanceof adris.altoclef.util.baritone.GoalFlee) && goalOnce()
+                && givenUp.holds(new BetterBlockPos(ctx.playerFeet()), goal, tickCount);
+    }
 
     private volatile AbstractNodeCostSearch inProgress;
     private final Object pathCalcLock = new Object();
@@ -820,6 +835,20 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
             logDebug("no goal"); // TODO should this be an exception too? definitely should be checked by caller
             return;
         }
+        // (S137, the repair after smoke7, risk_goal_once: a goal given up from this block a moment ago is not searched again from
+        // here; it fails at once, as a search with no way would. the no-way count first: a task reads the failures first)
+        if (current == null && !(goal instanceof adris.altoclef.util.baritone.GoalFlee) && goalOnce()
+                && givenUp.holds(new BetterBlockPos(start), goal, tickCount)) {
+            long ago = givenUp.sayOnce(new BetterBlockPos(start), goal, tickCount);
+            if (ago >= 0) {
+                adris.altoclef.Debug.logInternal("search: no way from " + start.getX() + "," + start.getY() + "," + start.getZ() + " to " + goal
+                        + String.format(java.util.Locale.ROOT, " %.1f s ago, given up here for %d s, not searched again", ago / 20.0, NO_WAY_TICKS / 20));
+            }
+            calcNoWay++;
+            calcFailures++;
+            queuePathEvent(PathEvent.CALC_FAILED);
+            return;
+        }
         long primaryTimeout;
         long failureTimeout;
         if (current == null) {
@@ -1005,11 +1034,16 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                         }
                         // (no way at all: the unpriced search after a priced one found none either, or the unpriced one alone
                         // from where both found none a moment ago)
-                        if (calcResult.getType() == PathCalculationResult.Type.FAILURE && taken.plain) {
+                        // (the repair after smoke7, risk_goal_once: or a search the mob field did not price at all; smoke7 r2's
+                        // camp walk failed 12 times so, with no field about to price it. the goal is given up from this block)
+                        boolean once = goalOnce() && !(goal instanceof adris.altoclef.util.baritone.GoalFlee);
+                        if (calcResult.getType() == PathCalculationResult.Type.FAILURE
+                                && (taken.plain || once && (taken.risk() == null || !taken.risk().mobsPriced))) {
                             calcNoWay++;
                             noWayStart = new BetterBlockPos(start);
                             noWayGoal = goal;
                             noWayAt = tickCount;
+                            if (once) givenUp.note(new BetterBlockPos(start), goal, tickCount);
                         }
                         calcFailures++;
                         queuePathEvent(PathEvent.CALC_FAILED);

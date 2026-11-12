@@ -363,4 +363,17 @@ public class BlazeFightRulesTest {
         assertNull(BlazeFightRules.holdBack(14, 0, 16, false));
         assertNull(BlazeFightRules.holdBack(17, 0, 16, true));
     }
+
+    // (S137, the repair after smoke7) the lure's walk back into its corner: held while the field prices the corner over calm and
+    // the hp less the burn is short of the next piece. smoke7 r1 ran clear at 12.1 hp and walked straight back in
+    @Test
+    public void theLureWaitsToGoBackIntoACornerPricedOverCalm() {
+        assertTrue(BlazeFightRules.lureHold(true, 12.1, 0, 16));
+        assertTrue(BlazeFightRules.lureHold(true, 18, 3, 16));
+        assertFalse(BlazeFightRules.lureHold(true, 17, 0, 16));
+        // priced calm: back in at any hp, as before
+        assertFalse(BlazeFightRules.lureHold(false, 4, 2, 16));
+        // a burn that went negative counts as none
+        assertFalse(BlazeFightRules.lureHold(true, 16, -1, 16));
+    }
 }

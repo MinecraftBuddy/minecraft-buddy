@@ -161,6 +161,10 @@ final class BlazeLureTask extends Task {
             case WAIT -> {
                 lower(mod);
                 if (!in(at, corner)) {
+                    // (S137, the repair after smoke7: not yet while the corner is priced over calm and the hp is short of the
+                    // next piece; standing on calm ground, or the flee search to it)
+                    Task held = backHeld(mod, now);
+                    if (held != null) return held == stand ? null : held;
                     setDebugState("Back into the corner");
                     Task fire = fireOnTheWay(mod);
                     if (fire != null) return fire;
@@ -322,6 +326,56 @@ final class BlazeLureTask extends Task {
 
     // the walk back into the corner from outside it
     private final adris.altoclef.util.helpers.BoxWay intoBox = new adris.altoclef.util.helpers.BoxWay();
+
+    // (S137, the repair after smoke7; Tuning risk_lure_back, on under the one system) the way back into the corner after a flee:
+    // held while the mob field, the group the last flee ran from still in its memory, prices the corner over calm and the hp
+    // less the burn still to come is under what the next piece needs (BlazeFightRules.lureHold). meanwhile the buddy stands
+    // where it is if that is calm ground (the flee goal's own test), else takes the flee search to some. null: the walk back
+    // goes on; stand: stand where it is
+    private final Task stand = new adris.altoclef.tasks.movement.IdleTask();
+    private adris.altoclef.tasks.movement.FleeTask backFlee;
+    private adris.altoclef.util.baritone.GoalFlee backProbe;
+    private long backProbeAt = Long.MIN_VALUE / 2;
+    private boolean backSaid;
+
+    private Task backHeld(AltoClef mod, long now) {
+        if (!adris.altoclef.util.helpers.BlazeFightRules.lureBackOn() || adris.altoclef.util.helpers.DangerShadow.steering() == null) {
+            return released();
+        }
+        if (backProbe == null || now < backProbeAt || now - backProbeAt >= 20) {
+            backProbe = adris.altoclef.tasks.movement.FleeTask.goal(mod);
+            backProbeAt = now;
+        }
+        backProbe.refresh();
+        double rate = backProbe.rate(corner.getX(), corner.getY(), corner.getZ());
+        double health = mod.getPlayer().getHealth();
+        double burn = adris.altoclef.util.helpers.DangerShadow.burnHp();
+        double back = adris.altoclef.util.helpers.BlazeFightRules.backAt(adris.altoclef.util.helpers.DangerShadow.needHp());
+        if (!adris.altoclef.util.helpers.BlazeFightRules.lureHold(rate >= adris.altoclef.util.baritone.GoalFlee.calm(), health, burn, back)) {
+            return released();
+        }
+        BlockPos feet = mod.getPlayer().blockPosition();
+        boolean calmHere = backProbe.isInGoal(feet.getX(), feet.getY(), feet.getZ());
+        if (!backSaid) {
+            backSaid = true;
+            Debug.logInternal(String.format(java.util.Locale.ROOT, "rods: not back into the corner at %s yet: the mob field prices it %.2f hp/s, over calm, hp %.1f, burn %.0f, back at %.1f, %s",
+                    corner.toShortString(), rate, health, burn, back, calmHere ? "standing on calm ground" : "the flee search to calm ground"));
+        }
+        if (calmHere) {
+            backFlee = null;
+            setDebugState("Not back into the corner yet, on calm ground");
+            return stand;
+        }
+        if (backFlee == null || backFlee.stopped()) backFlee = new adris.altoclef.tasks.movement.FleeTask();
+        setDebugState("Not back into the corner yet, fleeing to calm ground");
+        return backFlee;
+    }
+
+    private Task released() {
+        backFlee = null;
+        backSaid = false;
+        return null;
+    }
 
     private void lower(AltoClef mod) {
         // (the key let go is the shield down: the game lets go of a use whose key is up)

@@ -118,6 +118,16 @@ public class GhastShelterChain extends SingleTaskChain {
             return Float.NEGATIVE_INFINITY;
         }
         long now = level.getGameTime();
+        // (S137, the repair after smoke7, Tuning risk_flee_keep, on under risk_flee: a flee walking the path it found keeps the
+        // wheel, the walk to cover or to the blaze fight's corner waits till it is over; the flee's goal is no rim and the mob
+        // field prices the ghast in it. smoke7 r1: the run's flee taken over for the corner, round by the pillbox's door)
+        if (adris.altoclef.tasks.movement.FleeTask.walking(now)) {
+            if (_cover != null) {
+                Debug.logInternal("ghast shelter: a flee walks the path it found, the walk to " + _cover.toShortString() + " dropped");
+                reset();
+            }
+            return Float.NEGATIVE_INFINITY;
+        }
         Ghast ghast = GhastCover.seeingGhast(mod, SIGHT);
         boolean bridge = bridgeOn();
         if (bridge) {

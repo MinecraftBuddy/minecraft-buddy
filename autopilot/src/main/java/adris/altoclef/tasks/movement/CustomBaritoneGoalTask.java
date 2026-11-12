@@ -233,6 +233,12 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
                     return _wanderTask;
                 }
                 boolean noProgress = !_checker.check(mod);
+                // (S137, the repair after smoke7, Tuning risk_goal_once: the goal given up from where the buddy stands, a round
+                // of search from here found no way: the stall now, not after the checks. smoke7 r2 stood 42 s on one block)
+                if (!noProgress && mod.getClientBaritone().getPathingBehavior().givenUpHere(_cachedGoal)) {
+                    _checker.reset();
+                    noProgress = true;
+                }
                 if (noProgress && adris.altoclef.util.helpers.BoxGuard.holds(mod) != null) {
                     // (box_no_wander: in the blaze camp's box the wander took the buddy over the wall and locked it out, six
                     // of ten brew deaths before the second rod, 6 Nov 2026. a goal one cell off is stepped to by input; any

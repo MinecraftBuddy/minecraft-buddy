@@ -255,6 +255,19 @@ public final class BlazeFightRules {
         return null;
     }
 
+    // (S137, the repair after smoke7, Tuning risk_lure_back, on under the one system) the lure's walk back into its corner from
+    // outside it waits while the mob field, with the group the last flee ran from still in its memory, prices the corner over
+    // calm and the hp less the burn still to come is under what the next piece needs (back): the same way back as holdBack for a
+    // blaze. smoke7 r1 ran clear at 12.1 hp and walked straight back into the corner; 14 of 30 runs that ended clear ran again
+    // within 10 s
+    public static boolean lureHold(boolean overCalm, double health, double burn, double back) {
+        return overCalm && health - Math.max(0, burn) < back;
+    }
+
+    public static boolean lureBackOn() {
+        return oneSystem() && Tuning.get("risk_lure_back", 1) > 0;
+    }
+
     // healAfterRun with the hp the wait ends at
     public static boolean healAfterRun(long now, long runEnd, float health, double blazeDistance, float back) {
         return blazeDistance > LATCH_SKIP_BLAZE_RANGE && now >= runEnd && now - runEnd <= RUN_GIVE_UP_TICKS && health < back;

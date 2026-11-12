@@ -133,6 +133,10 @@ final class CombatBrain {
     private CommittedRunTask _run;
     // (risk_flee) the run as the flee search, one for each run
     private FleeTask _flee;
+    // (the repair after smoke7, Tuning risk_flee_keep) the run, by its start tick, whose flee search found its path: it walks that
+    // path to its end, and the run said so
+    private long _keptRun = Long.MIN_VALUE;
+    private long _keptSaid = Long.MIN_VALUE;
     // (risk_flee) the flee goal asked about the buddy's own cell, and the tick it was made: a new one every PROBE_TICKS, for
     // the judge behind it remembers its cells as long as the field's version stands, and blocks change under a long one
     private GoalFlee _fleeProbe;
@@ -604,6 +608,20 @@ final class CombatBrain {
                 // as below; anywhere else, and with the key off, the flee search)
                 boolean fleeSearch = GoalFlee.on();
                 if (fleeSearch && !BlazeFightRules.oneSystem()) return flee();
+                // (S137, the repair after smoke7, Tuning risk_flee_keep, on under risk_flee: once the flee search found its
+                // path, this run walks it; the corner below is not taken back. smoke7 r1: a path of 61 blocks found twice, each
+                // time taken back within the second by the walk to the pillbox's door, 2 blocks off and no way to it)
+                if (fleeSearch && FleeTask.keepOn()) {
+                    long run = _commit.startTick();
+                    if (_flee != null && !_flee.stopped() && _flee.found()) _keptRun = run;
+                    if (_keptRun == run) {
+                        if (_keptSaid != run) {
+                            _keptSaid = run;
+                            adris.altoclef.Debug.logInternal("combat: the flee walks the path it found, no way back to the blaze fight's corner in this run");
+                        }
+                        return flee();
+                    }
+                }
                 // (the buddy's fork: in a blaze fight with a corner near, the run is into the corner and a stand there, see
                 // BlazeShelter)
                 net.minecraft.core.BlockPos shelter = adris.altoclef.util.helpers.BlazeShelter.fresh(mod.getWorld().getGameTime());

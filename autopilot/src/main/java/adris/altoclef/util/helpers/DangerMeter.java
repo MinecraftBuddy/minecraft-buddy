@@ -209,6 +209,12 @@ public final class DangerMeter {
     // them soonest dead, and the question is whether the buddy outlives that; what they do to us counts in full (T, and so the
     // time to die and the last-ditch margin), and every other mob counts in K as it did
     public static Reading read(Us us, List<Mob> mobs, List<Hazard> hazards, boolean goal) {
+        return read(us, mobs, hazards, goal, false);
+    }
+
+    // far: (S137, the repair after smoke7, Tuning risk_far_push, on under risk_flee) the pushers past PUSH_RANGE count too, a
+    // shooter from where it is and a melee mob on its way (farPushRisk)
+    public static Reading read(Us us, List<Mob> mobs, List<Hazard> hazards, boolean goal, boolean far) {
         List<Part> parts = new ArrayList<>();
         double t = 0;
         double push = 0;
@@ -231,7 +237,7 @@ public final class DangerMeter {
                     k += term;
                 }
             }
-            double risk = pushRisk(mob, us, distance, hazards);
+            double risk = pushRisk(mob, us, distance, hazards, far);
             if (risk > 0) {
                 push += risk;
                 parts.add(new Part(mob.kind(), distance, risk));
@@ -310,6 +316,50 @@ public final class DangerMeter {
                 double flat = Math.sqrt(h.dx() * h.dx() + h.dz() * h.dz());
                 if ((behind > 0 || row.pushRound()) && flat <= row.push() + 1) chance = Math.max(chance, HIT_CHANCE * mob.want());
             }
+            worst = Math.max(worst, chance * near * cost);
+        }
+        return worst;
+    }
+
+    // pushRisk, and with far on the pushers from beyond PUSH_RANGE too (farPushRisk): the worse of the two for this mob
+    static double pushRisk(Mob mob, Us us, double distance, List<Hazard> hazards, boolean far) {
+        double near = pushRisk(mob, us, distance, hazards);
+        return far ? Math.max(near, farPushRisk(mob, us, distance, hazards)) : near;
+    }
+
+    // (S137, the repair after smoke7, Tuning risk_far_push, on under risk_flee) the pushers past PUSH_RANGE, as T counts their
+    // damage: a shooter that sees us pushes from where it is (every shot that lands knocks the feet away from it as far as its
+    // kind's push: SafeStand, an arrow or a blaze's fireball 2.5, a ghast's ball and blast 4.5), by the chance that at least one
+    // lands within the horizon (its shots a second over one hit's damage, by the share that lands at this distance; a blaze's
+    // fireballs knock nothing under fire resistance); a melee mob on its way pushes for the share of the horizon it is in reach
+    // (HIT_CHANCE as within PUSH_RANGE). a hazard counts on our far side from the mob within that push, by its cost and how close
+    // it lies, as for a pusher beside us. smoke7: both phase-3 deaths were a fall off a rim, a blaze's fireballs from 36 blocks
+    // off and a wither skeleton's blow, the meter's push 0.0 on every line before them: a pusher counted only within 3
+    static double farPushRisk(Mob mob, Us us, double distance, List<Hazard> hazards) {
+        MobThreat row = mob.row();
+        if (row == null || hazards.isEmpty() || mob.want() <= 0) return 0;
+        double chance = 0;
+        if (row.shot() > 0 && row.hit() > 0 && mob.sees() && distance <= row.range() && !(us.fireRes() && row.fireShot())) {
+            double lands = mob.want() * row.shot() / row.hit() * HORIZON * row.aimShare(distance);
+            chance = 1 - Math.exp(-lands);
+        }
+        if (distance > PUSH_RANGE && row.melee() > 0 && !row.holds() && (mob.way() || row.flies())) {
+            double toReach = Math.max(0, distance - row.reach()) / Math.max(0.05, row.speed());
+            if (toReach < HORIZON) chance = Math.max(chance, HIT_CHANCE * mob.want() * (HORIZON - toReach) / HORIZON);
+        }
+        if (chance <= 0) return 0;
+        double away = Math.sqrt(mob.dx() * mob.dx() + mob.dz() * mob.dz());
+        double worst = 0;
+        for (Hazard h : hazards) {
+            double hd = h.distance();
+            if (hd > PUSH_RANGE + 0.5) continue;
+            double cost = hazardCost(h.kind(), h.fall(), us.hp(), us.fireRes());
+            if (cost <= 0) continue;
+            double flat = Math.sqrt(h.dx() * h.dx() + h.dz() * h.dz());
+            if (flat > row.push() + 1) continue;
+            // (on our far side from the mob; one straight over us knocks any way round)
+            if (away > 0.5 && !row.pushRound() && -mob.dx() * h.dx() - mob.dz() * h.dz() <= 0) continue;
+            double near = Math.min(1, Math.max(0, (PUSH_RANGE + 0.5 - hd) / 2.5));
             worst = Math.max(worst, chance * near * cost);
         }
         return worst;
