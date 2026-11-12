@@ -36,6 +36,10 @@ public final class StandBan {
         }
         RECENT.add(new double[]{now, x, y, z});
         if (near < 2 || holds(now, x, y, z)) return false;
+        // (the bans that made the hold are spent with it: two new ones after it are needed for the next. kept, the first ban
+        // after a hold counted the old ones still inside WINDOW and held the stand again at once, hold after hold for up to
+        // 16 minutes at a camp with no path to any blaze, every potion running out there: look 69, standban 7.B and 8.B)
+        RECENT.removeIf(r -> dist(r[1], r[2], r[3], x, y, z) <= NEAR);
         until = now + HOLD;
         ux = x;
         uy = y;

@@ -32,4 +32,16 @@ public class StandBanTest {
         assertFalse(StandBan.noted(1400, 30, 64, 10));
         assertFalse(StandBan.holds(1500, 10, 64, 10));
     }
+
+    // look 69: the bans that made a hold are spent with it; one ban after the hold does not hold the stand again, two do
+    @Test
+    public void aHoldNeedsTwoNewBansAfterIt() {
+        assertFalse(StandBan.noted(0, 10, 64, 10));
+        assertTrue(StandBan.noted(100, 10, 64, 10));
+        long after = 100 + StandBan.HOLD + 1;
+        assertFalse(StandBan.holds(after, 10, 64, 10));
+        assertFalse(StandBan.noted(after, 10, 64, 10));
+        assertFalse(StandBan.holds(after + 1, 10, 64, 10));
+        assertTrue(StandBan.noted(after + 40, 10, 64, 10));
+    }
 }
