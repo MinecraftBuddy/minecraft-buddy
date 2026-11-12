@@ -3,9 +3,7 @@ package adris.altoclef.tasks.entity;
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.tasksystem.Task;
-import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WeaponPick;
-import adris.altoclef.util.slots.PlayerSlot;
 import baritone.behavior.CombatAim;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +44,10 @@ public abstract class AbstractKillEntityTask extends AbstractDoToEntityTask {
     private static List<WeaponPick.Candidate> candidates(AltoClef mod) {
         List<ItemStack> invStacks = mod.getItemStorage().getItemStacksPlayerInventory(true);
         List<WeaponPick.Candidate> candidates = new ArrayList<>();
-        candidates.add(WeaponPick.Candidate.of(StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot())));
+        // (the hand from the player, not through the open screen's slots: with a brewing stand's screen open its 41 slots were
+        // read as the inventory's, so hotbar slots 5 to 8 fell outside them (a "Screen Slot Error" four times a second, from
+        // the danger meter's weapon, through every brew) and slots 0 to 4 read the wrong item, 12 Nov 2026)
+        candidates.add(WeaponPick.Candidate.of(mod.getPlayer() == null ? ItemStack.EMPTY : mod.getPlayer().getMainHandItem()));
         for (ItemStack invStack : invStacks) {
             candidates.add(WeaponPick.Candidate.of(invStack));
         }
@@ -77,7 +78,8 @@ public abstract class AbstractKillEntityTask extends AbstractDoToEntityTask {
         Item axe = target != null && mod.getControllerExtras().calmNeutralNear(target) ? WeaponPick.bestAxe(candidates(mod)) : null;
         Item bestWeapon = axe != null ? axe : bestWeapon(mod);
         if (bestWeapon == null && toolFallback) bestWeapon = WeaponPick.bestTool(candidates(mod));
-        Item equipedWeapon = StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot()).getItem();
+        // (the hand from the player, as in candidates: an open screen's slots are not the inventory's)
+        Item equipedWeapon = mod.getPlayer().getMainHandItem().getItem();
         logPick(mod, bestWeapon, equipedWeapon);
         // (the hand only moves once a swing landed or the charge is nearly empty: see WeaponPick.hold)
         long swings = mod.getControllerExtras().swings();
