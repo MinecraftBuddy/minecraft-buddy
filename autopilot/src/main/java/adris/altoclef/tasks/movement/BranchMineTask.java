@@ -116,7 +116,9 @@ public class BranchMineTask extends Task {
             // (8 and not -16, its best: the deep dark lies under 0, and a branch mine for a golden helmet's gold at -16 called a
             // warden, which killed it in full iron, two blows; at 8 gold is half as common and the warden is not there, the
             // runner, 3 Nov 2026, attempt 114)
-            else if (id.contains("gold_ore") && !id.contains("nether")) y = 8;
+            // (12 Nov 2026, his yes to steering 170's plan, Tuning gold_mine_y: feet at -17, gold's peak; the sculk walk-away
+            // and the target's distance from sculk guard against the warden instead of the height)
+            else if (id.contains("gold_ore") && !id.contains("nether")) y = (int) Math.round(adris.altoclef.util.helpers.Tuning.get("gold_mine_y", 8));
             else if (id.contains("lapis_ore")) y = 0;
             else if (id.contains("iron_ore")) y = 16;
             else if (id.contains("copper_ore")) y = 48;
@@ -555,13 +557,16 @@ public class BranchMineTask extends Task {
     private int _awayRound;
     private long _awayLast = Long.MIN_VALUE;
 
+    // (Tuning sculk_away_cap, 12 Nov 2026, steering 170: the doubling at most to that round: 48 << 3 spread one run's mine
+    // 756 blocks in x; 1 caps the walk at 96)
     private int awayLength(long now) {
-        _awayRound = _awayLast != Long.MIN_VALUE && now >= _awayLast && now - _awayLast < AWAY_AGAIN_TICKS ? Math.min(_awayRound + 1, 3) : 0;
+        int cap = (int) Math.round(adris.altoclef.util.helpers.Tuning.get("sculk_away_cap", 3));
+        _awayRound = _awayLast != Long.MIN_VALUE && now >= _awayLast && now - _awayLast < AWAY_AGAIN_TICKS ? Math.min(_awayRound + 1, cap) : 0;
         _awayLast = now;
         return 48 << _awayRound;
     }
 
-    private static BlockPos nearestSculk(AltoClef mod, BlockPos feet, int r) {
+    public static BlockPos nearestSculk(AltoClef mod, BlockPos feet, int r) {
         var level = mod.getWorld();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;

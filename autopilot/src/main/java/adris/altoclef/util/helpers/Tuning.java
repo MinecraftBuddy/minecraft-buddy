@@ -170,6 +170,10 @@ public final class Tuning {
             java.util.Map.entry("neutral_pick", 1.0),
             // (12 Nov 2026, a fix: under fire resistance no shield for a blaze's small fireball, MobDefenseChain)
             java.util.Map.entry("fr_no_fireball_shield", 1.0),
+            // (12 Nov 2026, his yes to steering 170's plan: the gold mine at feet -17, the sculk walk-away doubling capped at 96
+            // blocks, BranchMineTask)
+            java.util.Map.entry("gold_mine_y", -17.0),
+            java.util.Map.entry("sculk_away_cap", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
             // (route jar 3: on the way, before the spawner fight, the potion goes down only in lava for 2 s or at 12 hp, or

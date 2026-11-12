@@ -1484,15 +1484,31 @@ public class MineAndCollectTask extends ResourceTask {
             if (!ore || pos.closerToCenterThan(mod.getPlayer().position(), 5)) return true;
             if (mod.getPlayer().getArmorValue() < 15) return false;
             // (the buddy's fork, Tuning gold_cave_safe, on by default, 12 Nov 2026, steering 170: with the golden helmet on (15
-            // armour) the cave gold the tracker knows counts, not only the tunnel's own walls; only gold at y 0 or above, out of
-            // the deep dark's depth where a warden killed a buddy in full iron (3 Nov), and none beside lava)
+            // armour) the cave gold the tracker knows counts, not only the tunnel's own walls; none within SCULK_GUARD of sculk
+            // (the deep dark, where a warden killed a buddy in full iron, 3 Nov) and none beside lava)
             if (gold && adris.altoclef.util.helpers.Tuning.get("gold_cave_safe", 0) > 0) {
-                if (pos.getY() < 0) return false;
                 for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
                     if (mod.getWorld().getFluidState(pos.relative(d)).is(net.minecraft.tags.FluidTags.LAVA)) return false;
                 }
+                if (sculkNear(mod, pos)) return false;
             }
             return true;
+        }
+
+        // (gold_cave_safe) sculk within SCULK_GUARD of a far ore, looked up once a SCULK_LOOK_TICKS for each ore (a scan of
+        // that cube is some 36,000 blocks)
+        static final int SCULK_GUARD = 16;
+        static final long SCULK_LOOK_TICKS = 600;
+        private static final java.util.Map<Long, long[]> SCULK_SEEN = new java.util.HashMap<>();
+
+        private static boolean sculkNear(AltoClef mod, BlockPos pos) {
+            long now = mod.getWorld().getGameTime();
+            long[] seen = SCULK_SEEN.get(pos.asLong());
+            if (seen != null && now >= seen[0] && now - seen[0] < SCULK_LOOK_TICKS) return seen[1] != 0;
+            if (SCULK_SEEN.size() > 512) SCULK_SEEN.clear();
+            boolean near = adris.altoclef.tasks.movement.BranchMineTask.nearestSculk(mod, pos, SCULK_GUARD) != null;
+            SCULK_SEEN.put(pos.asLong(), new long[]{now, near ? 1 : 0});
+            return near;
         }
 
         @Override
