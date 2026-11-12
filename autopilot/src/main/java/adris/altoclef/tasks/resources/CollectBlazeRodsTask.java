@@ -45,6 +45,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private static final double CAMP_RADIUS = 2;
     // close enough to the camp cell (it is a standable cell, not a spawner block)
     private static final double CAMP_SPOT_RADIUS = 1.5;
+    // (Tuning camp_corner_giveup) how long a walk to a corner camp may come no closer before the corner is dropped, campWalk
+    private static final double CAMP_CORNER_S = 30;
     private static final double PILLBOX_RADIUS = 2.5;
     // (at 12 the rods outside the box lay till they despawned, a blaze was always that near: 12 blazes killed for 1 rod and for
     // 0, realfort-a-bent-i runs 2 and 4. Tuning pillbox_quiet, the default the rod drills' yardstick plays)
@@ -2289,6 +2291,25 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _campWalkStall = 0;
         } else {
             _campWalkStall += step;
+        }
+        // (Tuning camp_corner_giveup, a fix of 12 Nov 2026, on by default: a corner picked as the camp, with no potion on, that the
+        // walk comes no closer to in CAMP_CORNER_S is dropped and shut out, and the camp picked again without it (another
+        // corner, else by the spawner). the walk had no end of its own there: 209 searches in 14 minutes to a corner 3 off the
+        // spawner behind a wall, the partial path ending at the same block each time, until the stall ended the run, look 65)
+        if (camp.equals(_campSpot) && !_campFireproof && _rushStands == null && !(_pillbox != null && _pillboxCornered && camp.equals(_pillbox.cell()))
+                && adris.altoclef.util.helpers.Tuning.get("camp_corner_giveup", 0) > 0 && _campWalkStall >= Math.round(CAMP_CORNER_S * 20)) {
+            Debug.logInternal("blaze camp: the walk to the corner at " + camp.toShortString() + " came no closer than " + Math.round(_campWalkBest)
+                    + " blocks in " + Math.round(CAMP_CORNER_S) + " s, the corner shut out and the camp picked again without it");
+            _campWalkFor = null;
+            _campLureWatch.reset();
+            _shutOut.add(camp);
+            _fight.campShutOut(camp);
+            notePillboxSpot();
+            _lure = null;
+            _fight.corner(null);
+            _campSpotFor = null;
+            _campSpot = null;
+            return null;
         }
         if (!_campWalkNear && _campSpot == null && adris.altoclef.util.helpers.RouteRules.campNear(adris.altoclef.util.helpers.RouteRules.campNearOn(), _campWalkStall)) {
             _campWalkNear = true;
