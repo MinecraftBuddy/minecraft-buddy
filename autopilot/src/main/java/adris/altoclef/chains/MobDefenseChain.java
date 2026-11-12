@@ -730,6 +730,13 @@ public class MobDefenseChain extends SingleTaskChain {
                             // rest of the list still has arrows in it)
                             continue;
                         }
+                        // (Tuning fr_no_fireball_shield, on by default, 12 Nov 2026: under fire resistance a blaze's small
+                        // fireball does nothing, and the shield went up for it 15 to 122 times in a dying minute, slowing the
+                        // walk; a ghast's ball still counts, its blast knocks)
+                        if (projectile.projectileType == SmallFireball.class && adris.altoclef.util.helpers.FireRes.has(mod.getPlayer())
+                                && adris.altoclef.util.helpers.Tuning.get("fr_no_fireball_shield", 0) > 0) {
+                            continue;
+                        }
                         // (a ghast ball goes through the same closest approach as the rest: the shield is the answer to it, and
                         // the pause and the turn to face it below only happen for one that is actually coming at us)
                         if (projectile.projectileType == Arrow.class || projectile.projectileType == SpectralArrow.class

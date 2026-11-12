@@ -49,6 +49,22 @@ public final class WeaponPick {
         return best == null ? null : best.item();
     }
 
+    // (the buddy's fork, Tuning neutral_pick, on by default, 12 Nov 2026: with a calm neutral by the target and no axe, the
+    // best pickaxe that is not worn out: it never sweeps either. the sword's early window did not keep the sweep off (86
+    // zombified piglins hit beside a target at a charge of 0.6 to 0.9 in the logs since 11 Nov, 6 of 7 piglin deaths begun so),
+    // and its charge thrown away again and again let a biting blaze go unhit, 3 of 5 blaze deaths under the potion)
+    public static Item bestPickaxe(Iterable<Candidate> candidates) {
+        Candidate best = null;
+        for (Candidate c : candidates) {
+            if (c == null || !c.item().builtInRegistryHolder().is(net.minecraft.tags.ItemTags.PICKAXES)
+                    || ToolWear.wornOut(c.damage(), c.maxDamage())) continue;
+            if (best == null || beats(c, best)) {
+                best = c;
+            }
+        }
+        return best == null ? null : best.item();
+    }
+
     // pickaxes, shovels and whatever else hits harder than a fist, the same ranking as the weapons (the harder hit, hand first
     // so ties never swap). a worn one is not on the list at all: every swing costs a tool two uses, and the last of the only
     // pickaxe is worth more than a fight we can run from

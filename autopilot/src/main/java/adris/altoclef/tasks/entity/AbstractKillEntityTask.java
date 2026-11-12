@@ -76,6 +76,11 @@ public abstract class AbstractKillEntityTask extends AbstractDoToEntityTask {
             return true;
         }
         Item axe = target != null && mod.getControllerExtras().calmNeutralNear(target) ? WeaponPick.bestAxe(candidates(mod)) : null;
+        // (Tuning neutral_pick, on by default: no axe in the kit, the pickaxe, which never sweeps either, WeaponPick.bestPickaxe)
+        if (axe == null && target != null && adris.altoclef.util.helpers.Tuning.get("neutral_pick", 0) > 0
+                && mod.getControllerExtras().calmNeutralNear(target)) {
+            axe = WeaponPick.bestPickaxe(candidates(mod));
+        }
         Item bestWeapon = axe != null ? axe : bestWeapon(mod);
         if (bestWeapon == null && toolFallback) bestWeapon = WeaponPick.bestTool(candidates(mod));
         // (the hand from the player, as in candidates: an open screen's slots are not the inventory's)
