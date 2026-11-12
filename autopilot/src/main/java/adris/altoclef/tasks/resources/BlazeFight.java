@@ -444,6 +444,13 @@ final class BlazeFight {
             Debug.logInternal("rush: out of hiding at " + hide.toShortString());
             dropHide();
         }
+        // (Tuning fr_hide_drop, on by default, 12 Nov 2026: a hiding place begun in the seconds between two potions lasted
+        // through the next one, its exit check below never reached under fireproof_camp: 4 to 12 minutes hidden in 4 of 26
+        // phase-6 runs that ran out of potion, 301 'let the blaze go' in one. under fire resistance one from before is left)
+        if (fireproofCamp(player) && hide != null && adris.altoclef.util.helpers.Tuning.get("fr_hide_drop", 0) > 0) {
+            Debug.logInternal("rods: under fire resistance, out of hiding at " + hide.toShortString());
+            dropHide();
+        }
         if (pillboxPlanned || fireproofCamp(player)) return;
         // (Tuning route_errand_away: no hiding place in phase 3; one from before is left)
         if (errand) {
@@ -1459,6 +1466,9 @@ final class BlazeFight {
                         && (!errand || (riskFight ? distance <= adris.altoclef.util.helpers.RouteRules.RISK_REACH && safeAround(mod, blazes, blaze, player)
                         : "hit".equals(adris.altoclef.util.helpers.RouteRules.awayAct(distance, false))))
                         && (fireproofHold(player) <= 0 || distance <= fireproofHold(player))
+                        // (Tuning blaze_stand_ban: at a stand two no-path bans held, only a blaze within a bite, StandBan)
+                        && (distance <= BITE_RANGE || !adris.altoclef.util.helpers.StandBan.on()
+                            || !adris.altoclef.util.helpers.StandBan.holds(now, player.getX(), player.getY(), player.getZ()))
                         && (fireproofReach(player) <= 0 || blaze.getY() - player.getY() <= fireproofReach(player))
                         && (open || rushNow || !cornerHold || blaze == target || distance <= BITE_RANGE || (blaze.getEyePosition().distanceTo(cornerEye) <= CORNER_REACH
                         && (!BlazeCover.hidden(mod.getWorld(), List.of(blaze.getEyePosition()), seeCell.getX(), seeCell.getY(), seeCell.getZ(), player)

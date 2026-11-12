@@ -121,6 +121,13 @@ public final class BanPolicy {
     // CalcFailureWatch: the second empty search. a hit from it proves there is a way
     public static boolean noPath(Bans bans, int id, String what) {
         long keep = "blaze".equals(what) ? blazeKeepTicks() : 0;
+        // (Tuning blaze_stand_ban: the stand it was banned from counts too, StandBan)
+        if ("blaze".equals(what) && adris.altoclef.util.helpers.StandBan.on()) {
+            var mc = net.minecraft.client.Minecraft.getInstance();
+            if (mc.player != null && mc.level != null) {
+                adris.altoclef.util.helpers.StandBan.noted(mc.level.getGameTime(), mc.player.getX(), mc.player.getY(), mc.player.getZ());
+            }
+        }
         return bans.ban(Key.entity(id), "no path to " + what, keep > 0 ? keep : NO_PATH, Until.HIT_US);
     }
 
