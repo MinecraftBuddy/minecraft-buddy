@@ -974,6 +974,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // again every tick, "No path found" over and over, and the camp's wait never came: three minutes at the spawner with
             // no rod, piece2side-2 run 2. ticks spent on it, not since it was first picked: a fight in between does not count)
             // (behind Tuning fire_limit, off by default, steering 78, with roof_centre under the same suspicion)
+            // (Tuning fire_at_spot, a fix, on by default: at a camp spot (the box's open side, eight off the spawner) a fire is
+            // put out only within a block of the spot's radius. one by the spawner took the buddy out of the spot's radius, the
+            // walk back to the spot came first, then the fire again: "Going to blaze spawner" and "Clearing fire" by turns, 9%
+            // of the brewed potions' minutes in the runs that died in phase 6, 12 Nov 2026)
+            if (nearestFire.isPresent() && _campSpot != null && adris.altoclef.util.helpers.Tuning.get("fire_at_spot", 1) > 0
+                    && !nearestFire.get().closerToCenterThan(Vec3.atCenterOf(camp), campRadius + 1)) nearestFire = Optional.empty();
             boolean fireLimit = adris.altoclef.util.helpers.Tuning.get("fire_limit", 0) > 0;
             if (fireLimit && nearestFire.isPresent() && _fireLeft.contains(nearestFire.get())) nearestFire = Optional.empty();
             // (Tuning fireproof_rush: no fire put out while the effect has more than ten seconds left; the rods are picked up
