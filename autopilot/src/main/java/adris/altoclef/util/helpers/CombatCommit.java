@@ -571,7 +571,9 @@ public final class CombatCommit {
         // (a crowd as the crowd rule counts it, the skeleton on us among them, is that rule's and not a low hp run)
         float line = crowded(health, foes, freshOnly, onFight) ? FLEE_HP : fleeLine(on, shot);
         // (the buddy's fork: a lone wither skeleton is a fight we stay in before it is our target too, see lowHit and loneWither)
-        if (loneWither(foes, freshOnly, guard)) lowHit = Math.min(lowHit, LINGER_HIT);
+        if (loneWither(foes, freshOnly, guard) || (witherPairFight() && witherPair(foes, freshOnly, guard))) {
+            lowHit = Math.min(lowHit, LINGER_HIT);
+        }
         if (health - lowHit <= line && near != null && !shooterFight(foes, freshOnly, guard, onFight)) return new Trigger(near.distance <= LOW_HP_RANGE ? Why.LOW_HP : Why.SHOT, near);
         Foe hit = hitInContact(foes, freshOnly);
         return hit == null ? null : new Trigger(Why.HIT, hit);
@@ -593,6 +595,32 @@ public final class CombatCommit {
             if (foe.melee() && engaged(foe, freshOnly)) on++;
         }
         return withers == 1 && on <= 1;
+    }
+
+    // Tuning wither_pair_fight (off; 12 Nov 2026): two wither skeletons on our floor and nothing else on us, shooting at us or
+    // dangerous, are fought where we stand, the nearest first, down to WITHER_PAIR_LINE (the company line of two, fleeLine)
+    // with the fight's own projected hit (LINGER_HIT), not the next 4.5. the run from a pair is what killed under the potion:
+    // 9 of 11 such deaths began 'RUN from 2 wither_skeletons [HEAVY]', 6 of them at full hp; the pair kept pace and hit from
+    // behind (the read of 12 Nov 2026, 12:10). three or more stay a run
+    static final float WITHER_PAIR_LINE = FLEE_HP + 2; // (FLEE_HP + COMPANY_FLEE_STEP, declared below)
+
+    static boolean witherPairFight() {
+        return Tuning.get("wither_pair_fight", 0) > 0;
+    }
+
+    // exactly two wither skeletons on our floor within WITHER_PACK_RANGE, no more than the two on us, none dangerous, no creeper
+    // close and no shooter with a line that hit us lately
+    static boolean witherPair(List<Foe> foes, boolean freshOnly, float guard) {
+        int withers = 0;
+        int on = 0;
+        for (Foe foe : foes) {
+            if (foe.danger(guard)) return false;
+            if (foe.creeper() && foe.distance() <= LOW_HP_RANGE) return false;
+            if (foe.shooting()) return false;
+            if (foe.wither() && foe.distance() <= WITHER_PACK_RANGE && Math.abs(foe.y()) <= 4) withers++;
+            if (foe.melee() && engaged(foe, freshOnly)) on++;
+        }
+        return withers == 2 && on <= 2;
     }
 
     // the low hp line with company short of a crowd: two more with a second plain melee mob on us, two more with a shooter that
@@ -1635,6 +1663,11 @@ public final class CombatCommit {
             // headed back into the corridor it came from and took the hit from the front, attempt 220)
             // (with the meter deciding, a pack is no fight we pick and no run: the meter runs when it is too much)
             if (otherWither(t, wither)) {
+                // (Tuning wither_pair_fight: two of them and nothing else on us is the nearest one fought where we stand)
+                if (meter == null && witherPairFight() && t.health() > WITHER_PAIR_LINE + LINGER_HIT
+                        && witherPair(t.foes(), false, t.guardHealth())) {
+                    return startFight(t, wither, Why.IN_WAY, Event.FIGHT_START, false);
+                }
                 if (meter == null) {
                     ranFrom.put(wither.id(), t.now());
                     return startRun(t, Why.HEAVY, Event.RUN_START);
@@ -1918,6 +1951,10 @@ public final class CombatCommit {
         // a lone wither skeleton is a fight we stay in: its hit is 4.5 and the bail at 12.5 hp is what turned our back on it
         // (while the wither effect is on, the ticks keep going after we stop swinging, so a small projected hit moves the bail up to ~10 hp)
         if (target != null && target.wither() && !otherWither(t, target)) return t.lingering() ? LINGER_HIT : 0;
+        // (Tuning wither_pair_fight: the same for a pair of them, see witherPair)
+        if (target != null && target.wither() && witherPairFight() && witherPair(t.foes(), false, t.guardHealth())) {
+            return t.lingering() ? LINGER_HIT : 0;
+        }
         // (one hit is the whole cost only when nothing keeps ticking after it: wither and fire do)
         if (t.lingering() || target == null || !target.melee() || target.standsAndFights()) return t.nextHit();
         for (Foe foe : t.foes()) {
