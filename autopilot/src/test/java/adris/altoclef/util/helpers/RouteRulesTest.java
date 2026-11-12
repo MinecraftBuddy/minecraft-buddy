@@ -397,6 +397,9 @@ public class RouteRulesTest {
         assertNull(RouteRules.wayLetGo(false, false, -1, cap, false, 4, lavaHp, burnHp));
         // a task's ask goes at once
         assertEquals("asked for", RouteRules.wayLetGo(true, false, -1, cap, false, 20, lavaHp, burnHp));
+        // knocked into the lava sea at 18.1 (look 63): under the lava at once, a foot in it keeps the rule
+        assertEquals("under the lava at 18 hp", RouteRules.wayLetGo(false, true, true, 3, cap, true, 18.1, lavaHp, burnHp));
+        assertNull(RouteRules.wayLetGo(false, true, false, 3, cap, true, 18.1, lavaHp, burnHp));
     }
 
     @Test

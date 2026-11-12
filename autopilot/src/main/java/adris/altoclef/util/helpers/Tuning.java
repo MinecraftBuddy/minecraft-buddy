@@ -162,6 +162,8 @@ public final class Tuning {
             java.util.Map.entry("pillbox_bag_check", 1.0),
             // (12 Nov 2026, a fix of M3.3: raw gold smelted in batches of 16, not all at the end, CollectGoldIngotTask)
             java.util.Map.entry("gold_batch", 1.0),
+            // (12 Nov 2026, a fix, look 63: under the lava the kept potion goes down at once, RouteRules.wayLetGo)
+            java.util.Map.entry("route_hold_under", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
             // (route jar 3: on the way, before the spawner fight, the potion goes down only in lava for 2 s or at 12 hp, or

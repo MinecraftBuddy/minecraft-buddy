@@ -533,7 +533,17 @@ public final class RouteRules {
     // buddy has been in this lava (game ticks), lavaCap: WAY_LAVA_S in ticks
     public static String wayLetGo(boolean asked, boolean inLava, long lavaTicks, long lavaCap, boolean onFire, double health,
                                   double lavaHp, double burnHp) {
+        return wayLetGo(asked, inLava, false, lavaTicks, lavaCap, onFire, health, lavaHp, burnHp);
+    }
+
+    // (Tuning route_hold_under, on by default, 12 Nov 2026, look 63: a ghast knocked the buddy off a bridge into the lava
+    // sea at 18.1 hp; the way's rule waited for 2 s or 12 hp, and the drink began at 3.1 hp, too late. lava takes 4 hp each
+    // half second and the drink lasts 1.6 s, so under the lava the potion goes down at once; a foot in lava at the edge keeps
+    // the rule above)
+    public static String wayLetGo(boolean asked, boolean inLava, boolean underLava, long lavaTicks, long lavaCap, boolean onFire,
+                                  double health, double lavaHp, double burnHp) {
         if (asked) return "asked for";
+        if (underLava && Tuning.get("route_hold_under", 0) > 0) return "under the lava at " + Math.round(health) + " hp";
         if (inLava && lavaTicks >= lavaCap) return "in lava for " + Math.round(lavaTicks / 20.0) + " s";
         if (inLava && health <= lavaHp) return "in lava at " + Math.round(health) + " hp";
         if (onFire && !inLava && health <= burnHp) return "burning at " + Math.round(health) + " hp";

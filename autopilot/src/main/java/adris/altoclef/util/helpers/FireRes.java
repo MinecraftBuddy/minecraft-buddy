@@ -179,7 +179,7 @@ public final class FireRes {
         double hp = Tuning.get("fr_trade_hold_hp", FireResTradeRules.HOLD_HP);
         if (way) {
             long lava = lavaTicks(inLava, now);
-            String why = RouteRules.wayLetGo(asked, inLava, lava, Math.round(RouteRules.WAY_LAVA_S * 20), e.isOnFire(), e.getHealth(),
+            String why = RouteRules.wayLetGo(asked, inLava, e.isEyeInFluid(FluidTags.LAVA), lava, Math.round(RouteRules.WAY_LAVA_S * 20), e.isOnFire(), e.getHealth(),
                     Tuning.get("route_hold_lava_hp", RouteRules.WAY_LAVA_HP), Tuning.get("route_hold_burn_hp", RouteRules.WAY_BURN_HP));
             // (Tuning route_way_blaze, on by default: past phase 3 a burn among the blazes is their fight, RouteRules.wayBlazeLetGo)
             if (why == null && RouteRules.wayBlazeOn()) why = RouteRules.wayBlazeLetGo(routePast, e.isOnFire(), blaze);
