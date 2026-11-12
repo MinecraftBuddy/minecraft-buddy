@@ -24,7 +24,7 @@ class ObtainRouteTest {
 	static final class Kit implements ObtainRoute.Bag {
 		final Map<String, Integer> items = new HashMap<>();
 		final Map<String, String> worn = new HashMap<>();
-		boolean bedNear, rest;
+		boolean bedNear, rest, slimeNear;
 
 		Kit give(String item, int n) { items.merge(item, n, Integer::sum); return this; }
 
@@ -45,6 +45,8 @@ class ObtainRouteTest {
 		}
 
 		public boolean bedNear() { return bedNear; }
+
+		public boolean slimeNear() { return slimeNear; }
 
 		public boolean restMissing() { return rest; }
 	}
@@ -316,6 +318,22 @@ class ObtainRouteTest {
 		assertEquals("gold", next(k));
 	}
 
+	// gold and slime in one stretch (12 Nov 2026): a slime met in the gold phase is taken at once, and only while none is in the bag
+	@Test
+	void aSlimeMetInTheGoldPhaseIsTakenAlong() {
+		Kit k = from("m3.3");
+		walk(k);
+		assertEquals("golden helmet", next(k));
+		k.slimeNear = true;
+		assertEquals("slime ball", next(k));
+		assertEquals("m3.3/slime ball", ObtainRoute.next(k, say).key());
+		k.give("slime_ball");
+		assertEquals("golden helmet", next(k));
+		k.take("slime_ball");
+		k.slimeNear = false;
+		assertEquals("golden helmet", next(k));
+	}
+
 	@Test
 	void theRouteNeverGoesBack() {
 		Kit k = from("m2.2");
@@ -383,7 +401,7 @@ class ObtainRouteTest {
 		assertEquals(List.of("m1.1/wood", "m1.2/stone pickaxes", "m1.2/stone sword", "m1.2/furnace", "m1.3/food", "m1.3/bed", "m1.3/sand",
 			"m2.1/shield", "m2.1/copper_chestplate", "m2.1/copper_leggings", "m2.1/copper_boots", "m2.1/iron_chestplate",
 			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m3.1/diamonds",
-			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/golden helmet", "m3.3/golden helmet again", "m3.3/gold", "m3.3/spare golden helmet", "m3.3b/slime ball",
+			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/slime ball", "m3.3/golden helmet", "m3.3/golden helmet again", "m3.3/gold", "m3.3/spare golden helmet", "m3.3b/slime ball",
 			"m3.4/flint and steel", "m3.4/rest", "m3.4/water bottles"), names);
 		assertEquals(ObtainRoute.PHASES.size(), ObtainRoute.PIECES.size());
 	}

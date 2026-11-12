@@ -860,7 +860,7 @@ final class Obtain {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:food", 1, null, 0, List.of(), "food by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
-				exec = Alto.food(Alto.foodUnits(p));
+				exec = Alto.foodRun(p, Alto.foodUnits(p));
 				Exchange.emit("obtain", "action", "step", "step", "food by Soprano after coming home, " + Alto.foodScore(true) + " points in the bag", "way", "soprano:food");
 				return true;
 			}
@@ -879,7 +879,7 @@ final class Obtain {
 				// (to NETHER_FOOD for an order into the nether, while still in the overworld: in a fortress the blazes' fire keeps it
 				// healing, and healing at a full bar eats; 52 points went in forty real seconds there, and the food search that
 				// followed in the nether ended in lava)
-				exec = Alto.food(Alto.foodUnits(p));
+				exec = Alto.foodRun(p, Alto.foodUnits(p));
 				Exchange.emit("obtain", "action", "step", "step", "food by Soprano, " + Alto.foodScore(true) + " points in the bag", "way", "soprano:food");
 				return true;
 			}
@@ -942,7 +942,7 @@ final class Obtain {
 	private static long holeStarted, holeOffUntil;
 
 	/** Night or a thunderstorm in the overworld: the hours the surface belongs to the monsters. */
-	private static boolean dark(LocalPlayer p) {
+	static boolean dark(LocalPlayer p) {
 		if (!p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return false;
 		long t = Math.floorMod(p.level().getOverworldClockTime(), 24000L);
 		return p.level().isThundering() || t >= 11520 && t < 23300;

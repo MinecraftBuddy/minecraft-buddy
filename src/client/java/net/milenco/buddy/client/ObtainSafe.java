@@ -492,6 +492,20 @@ final class ObtainSafe {
 	}
 
 	/**
+	 * A slime within r blocks in the buddy's sight (not a magma cube), or a slime ball lying on the ground within r: one met
+	 * on the way, taken along for the brew's cream (12 Nov 2026: the gold and the slime ball fetched in one stretch).
+	 */
+	static boolean slimeNear(LocalPlayer p, int r) {
+		var box = p.getBoundingBox().inflate(r, 8, r);
+		// (a magma cube is no Slime in 26.3: the class asked holds the slimes alone)
+		for (var e : p.level().getEntitiesOfClass(net.minecraft.world.entity.monster.cubemob.Slime.class, box))
+			if (e.isAlive() && p.hasLineOfSight(e)) return true;
+		for (var e : p.level().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box))
+			if ("slime_ball".equals(AfkHelperClient.itemId(e.getItem()))) return true;
+		return false;
+	}
+
+	/**
 	 * A bed lying on the ground within r blocks: one Soprano has just broken to take back. In that moment the bag held none
 	 * and no bed stood, and the night's hole stopped the whole order (a gold order of the overworld route, after a night
 	 * that did not pass: ten game minutes with no order and no hole on an iceberg, 10 Nov 2026).

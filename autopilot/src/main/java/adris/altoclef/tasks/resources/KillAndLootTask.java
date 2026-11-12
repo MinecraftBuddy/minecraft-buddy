@@ -148,7 +148,7 @@ public class KillAndLootTask extends ResourceTask {
             }
             Task dig = slimeDig(mod);
             if (dig != null) {
-                setDebugState("Searching for slimes below y 40: a branch mine at y " + SLIME_DIG_Y);
+                setDebugState("Searching for slimes below y 40: a branch mine at y " + slimeDigY(adris.altoclef.util.helpers.Tuning.get("gold_mine_y", SLIME_DIG_Y)));
                 return dig;
             }
             setDebugState("Searching for mob...");
@@ -161,8 +161,9 @@ public class KillAndLootTask extends ResourceTask {
     // slimes of the overworld live in slime chunks below y 40 (a swamp's at night never came: 243 of 270 slimes seen in the
     // overworld runs were in a slime chunk, none in a swamp, 12 Nov 2026), and the buddy has no seed to know the chunks. the
     // wander above walked the ground for up to a kilometre and spent 0-10% of its time below y 40 (bal2: the ball in 13 of
-    // 30, 8 stalls at 40 min, 9 deaths to the night's mobs). so down a staircase and a branch mine at the gold's height (8,
-    // above the deep dark), as the gold phase does: the tunnel crosses chunk after chunk under y 40, and its gold is kit
+    // 30, 8 stalls at 40 min, 9 deaths to the night's mobs). so down a staircase and a branch mine at the gold phase's height
+    // (Tuning gold_mine_y; 8, above the deep dark, without it), as the gold phase does: the tunnel crosses chunk after chunk
+    // under y 40, and its gold is kit
     static final int SLIME_DIG_Y = 8;
 
     private Task slimeDig(AltoClef mod) {
@@ -172,9 +173,17 @@ public class KillAndLootTask extends ResourceTask {
             return null;
         }
         // (built here, not as a static field: the blocks need the game's registries, which a unit test of this class has not)
+        // (at the gold phase's own height, Tuning gold_mine_y, since 12 Nov 2026: the gold and the slime ball are fetched in
+        // one stretch under the ground at the end of M3, so the slime dig goes on in the gold mine's level instead of
+        // climbing to 8 for a mine of its own; the gold mine's sculk guards hold there as well)
         return new adris.altoclef.tasks.movement.BranchMineTask(new net.minecraft.world.level.block.Block[]{
                 net.minecraft.world.level.block.Blocks.GOLD_ORE, net.minecraft.world.level.block.Blocks.DEEPSLATE_GOLD_ORE},
-                SLIME_DIG_Y);
+                slimeDigY(adris.altoclef.util.helpers.Tuning.get("gold_mine_y", SLIME_DIG_Y)));
+    }
+
+    // the slime dig's height: the gold mine's, rounded to a block
+    static int slimeDigY(double goldMineY) {
+        return (int) Math.round(goldMineY);
     }
 
     // the branch mine with ores hidden from the client (legitMine), as the gold phase's; with them shown it would be x-ray

@@ -65,6 +65,9 @@ final class ObtainRoute {
 		/** Deep under the ground, where no bed is fetched. */
 		default boolean deepUnder() { return false; }
 
+		/** A slime in sight or a slime ball on the ground near: one met on the way, taken along. */
+		default boolean slimeNear() { return false; }
+
 		/** The nether kit's rest has something to fetch (a good sword, torches, blocks). */
 		default boolean restMissing() { return false; }
 	}
@@ -129,12 +132,15 @@ final class ObtainRoute {
 		// (12 Nov 2026: the first piece spends its three tries while no gold is found, and was never asked again: a run that
 		// later had 48 ingots in the bag never wore one, gold smoke 2 run 2. "golden helmet again" asks it once the bag holds
 		// the gold for it, or a helmet)
-		List.of(piece(M3_3, "golden helmet", b -> !"golden_helmet".equals(b.wornIn("helmet"))),
+		// (12 Nov 2026: the gold and the slime ball are fetched in one stretch under the ground; a slime met in the gold mine
+		// is taken at once, its ball the next phase's, rather than looked for again in a dig of its own afterwards)
+		List.of(piece(M3_3, "slime ball", b -> b.inv("slime_ball") < 1 && b.slimeNear()),
+			piece(M3_3, "golden helmet", b -> !"golden_helmet".equals(b.wornIn("helmet"))),
 			piece(M3_3, "golden helmet again", b -> !"golden_helmet".equals(b.wornIn("helmet"))
 				&& (b.inv("golden_helmet") > 0 || b.inv("gold_ingot") >= 5)),
 			piece(M3_3, "gold", b -> b.inv("gold_ingot") < goldNeed(b)),
 			piece(M3_3, "spare golden helmet", b -> b.inv("golden_helmet") < 1)),
-		// a slime ball for the brew's cream: slimes deep under the ground in some chunks, or in a swamp at night
+		// a slime ball for the brew's cream: slimes deep under the ground in some chunks, the dig at the gold mine's height
 		List.of(piece(M3_3B, "slime ball", b -> b.inv("slime_ball") < 1)),
 		// up again: flint and steel, the rest of the nether's kit, the bottles filled; then the whole order builds the portal
 		List.of(piece(M3_4, "flint and steel", b -> b.inv("flint_and_steel") < 1),

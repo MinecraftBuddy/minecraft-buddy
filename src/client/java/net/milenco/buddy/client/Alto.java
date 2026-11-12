@@ -586,10 +586,13 @@ final class Alto {
 	/**
 	 * The food points a food run gathers: NETHER_FOOD for an order into the nether while in the overworld, 60 otherwise.
 	 * On the route (ObtainRoute) the nether's only from its portal phase on, where the food for the nether is topped up;
-	 * the deep's before it.
+	 * the deep's before it: 96 on the deep stretch (routeDeep).
 	 */
 	static int foodUnits(net.minecraft.client.player.LocalPlayer p) {
-		return kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() && !routeBefore(p, ObtainRoute.M3_4) ? NETHER_FOOD : 60;
+		if (kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() && !routeBefore(p, ObtainRoute.M3_4)) return NETHER_FOOD;
+		// (on the route's deep stretch twelve steaks: a run to 60 from its floor of 40 would bring two and a half, and the next
+		// climb soon after)
+		return routeDeep(p) ? 96 : 60;
 	}
 
 	/**
@@ -1008,6 +1011,8 @@ final class Alto {
 
 			public boolean deepUnder() { return ObtainSafe.deepUnder(p); }
 
+			public boolean slimeNear() { return ObtainSafe.slimeNear(p, 24); }
+
 			public boolean restMissing() { return !routeRest(p, new java.util.ArrayList<>()).isEmpty(); }
 		};
 	}
@@ -1322,7 +1327,31 @@ final class Alto {
 		// nether with 19 points, turned home for food at once under blaze fire, and died to zombies in a village at night,
 		// attempt 180)
 		boolean open = p.level().canSeeSky(p.blockPosition().above()) || nether && atNetherPortal();
+		// (on the route's deep stretch, by day: under DEEP_FOOD_FLOOR the food comes from the surface (deepFood) while some is
+		// left; at 12 in the deep the food run hunted through caves at low health, and both deaths of gold smoke 2 followed)
+		if (routeDeep(p) && !open && score < DEEP_FOOD_FLOOR && !Obtain.dark(p)) return true;
 		return score < 12 || score < sky && open || hungryNow;
+	}
+
+	/** The bag's food points under which the route's deep stretch goes up for food by day: five steaks. */
+	static final int DEEP_FOOD_FLOOR = 40;
+
+	/** The route's deep stretch in the overworld: from the diamonds (M3.1) to the slime ball (M3.3b), before the portal's phase. */
+	static boolean routeDeep(net.minecraft.client.player.LocalPlayer p) {
+		return ObtainRoute.walking() && ObtainRoute.phase() >= ObtainRoute.M3_1 && ObtainRoute.phase() < ObtainRoute.M3_4
+			&& p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD);
+	}
+
+	/**
+	 * The food run a food step starts: from the surface when it begins under the ground on the route's deep stretch
+	 * (SurfaceFoodTask: up a staircase first, then the hunt under the sky), else where it stands. Twenty game minutes for
+	 * the climb and the hunt.
+	 */
+	static Run foodRun(net.minecraft.client.player.LocalPlayer p, double units) {
+		if (routeDeep(p) && !p.level().canSeeSky(p.blockPosition().above()))
+			return new Run("collect food from the surface, " + Math.round(units) + " points", 20 * 60_000,
+				() -> night(new adris.altoclef.tasks.resources.SurfaceFoodTask(units)));
+		return food(units);
 	}
 
 	/** Soprano's order is at its way into the nether: a frame from the bag, a cast, or the walk into a portal. */
