@@ -146,11 +146,39 @@ public class KillAndLootTask extends ResourceTask {
                 setDebugState("Going to correct dimension.");
                 return getToCorrectDimensionTask(mod);
             }
+            Task dig = slimeDig(mod);
+            if (dig != null) {
+                setDebugState("Searching for slimes below y 40: a branch mine at y " + SLIME_DIG_Y);
+                return dig;
+            }
             setDebugState("Searching for mob...");
             return new TimeoutWanderTask();
         }
         // We found the mob!
         return _killTask;
+    }
+
+    // slimes of the overworld live in slime chunks below y 40 (a swamp's at night never came: 243 of 270 slimes seen in the
+    // overworld runs were in a slime chunk, none in a swamp, 12 Nov 2026), and the buddy has no seed to know the chunks. the
+    // wander above walked the ground for up to a kilometre and spent 0-10% of its time below y 40 (bal2: the ball in 13 of
+    // 30, 8 stalls at 40 min, 9 deaths to the night's mobs). so down a staircase and a branch mine at the gold's height (8,
+    // above the deep dark), as the gold phase does: the tunnel crosses chunk after chunk under y 40, and its gold is kit
+    static final int SLIME_DIG_Y = 8;
+    private static final net.minecraft.world.level.block.Block[] SLIME_DIG_BLOCKS = {
+            net.minecraft.world.level.block.Blocks.GOLD_ORE, net.minecraft.world.level.block.Blocks.DEEPSLATE_GOLD_ORE};
+
+    private Task slimeDig(AltoClef mod) {
+        if (!slimeDigWanted(_toKill, adris.altoclef.util.helpers.Tuning.get("slime_dig", 0) > 0,
+                baritone.Baritone.settings().legitMine.value,
+                WorldHelper.getCurrentDimension() == baritone.api.utils.Dimension.OVERWORLD)) {
+            return null;
+        }
+        return new adris.altoclef.tasks.movement.BranchMineTask(SLIME_DIG_BLOCKS, SLIME_DIG_Y);
+    }
+
+    // the branch mine with ores hidden from the client (legitMine), as the gold phase's; with them shown it would be x-ray
+    static boolean slimeDigWanted(Class<?> toKill, boolean on, boolean legitMine, boolean overworld) {
+        return on && legitMine && overworld && toKill == net.minecraft.world.entity.monster.cubemob.Slime.class;
     }
 
     @Override
