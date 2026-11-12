@@ -145,6 +145,9 @@ public final class Tuning {
             java.util.Map.entry("camp_corner_giveup", 1.0),
             // (a fix, 12 Nov 2026: the walk to a wart has more time the farther it starts, RouteRules.wartWalkCapS; look 66)
             java.util.Map.entry("wart_walk_scale", 1.0),
+            // (12 Nov 2026, from the wartver block, phase 3 passed A 34, B 44 of 60 pairs: a dead end with the wart still wanted
+            // first begins the far pass, RouteRules.wartFarOn)
+            java.util.Map.entry("route_wart_far", 1.0),
             // (11 Nov 2026, a fix: the pillbox the route's brew was made in stayed the fight's camp and corner under the brewed
             // potion, as the brewed one followed the traded one with no gap; once the brew is through and the potion on, the camp
             // is picked again as the fire-proof one, at the box's open side; CollectBlazeRodsTask, E1111-1500.1)

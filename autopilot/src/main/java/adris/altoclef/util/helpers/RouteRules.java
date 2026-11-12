@@ -183,7 +183,7 @@ public final class RouteRules {
         return near <= 0 || fromAnchor <= near;
     }
 
-    // ---- the far pass for the wart (Tuning route_wart_far, off; 11 Nov 2026). WART_NEAR's "a fortress's wart rooms lie well
+    // ---- the far pass for the wart (Tuning route_wart_far, on since 12 Nov 2026; 11 Nov 2026). WART_NEAR's "a fortress's wart rooms lie well
     // within 150 of its spawner" does not hold on every fortress: of 20 whole-route runs that began phase 4 without wart
     // (11 Nov 2026, 03:00-09:00), 6 had none within 150 of the spawner, its rooms 215 to 520 off (two fortresses of the
     // drill's fifteen), and the rings (32 to 64 round the spawner) never brought them into view. so the dead end, with the
