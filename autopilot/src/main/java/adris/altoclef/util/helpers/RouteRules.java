@@ -127,6 +127,21 @@ public final class RouteRules {
     // walk pulled off by a ghast every few seconds, came a step closer after each pull and was never given up (look 37,
     // route-9 run 7: about 9 minutes round one wart, 21 path failures)
     public static final double WART_WALK_S = 150;
+    // (Tuning wart_walk_scale, a fix of 12 Nov 2026, on by default: the walk's cap grows with the distance it starts at, a
+    // second for every WART_WALK_PACE blocks past WART_WALK_FREE. the far pass's walks start 150 to 450 blocks off, and the
+    // flat 150 s gave up the only room it had found 19 blocks short with a whole path in hand, after two wither skeleton
+    // fights on the way 213 blocks long: look 66, wartver-mc1 44.B)
+    public static final double WART_WALK_FREE = 32;
+    public static final double WART_WALK_PACE = 2;
+
+    public static double wartWalkCapS(boolean scale, double startBlocks) {
+        if (!scale || !(startBlocks > WART_WALK_FREE)) return WART_WALK_S;
+        return WART_WALK_S + (startBlocks - WART_WALK_FREE) / WART_WALK_PACE;
+    }
+
+    public static boolean wartWalkScaleOn() {
+        return Tuning.get("wart_walk_scale", 0) > 0;
+    }
 
     public static boolean wartWalkOn() {
         return Tuning.get("route_wart_walk", 0) > 0;

@@ -172,6 +172,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private long _wartStall;
     private long _wartNear;
     private long _wartWalkTicks;
+    // the distance the walk to the wart held began at (RouteRules.wartWalkCapS)
+    private double _wartFrom;
     private long _wartLastTick = -1;
     private long _wartSaidAt;
     private boolean _errandNearSaid;
@@ -1609,6 +1611,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _wartTicks = 0;
             double d = me.position().distanceTo(Vec3.atCenterOf(at));
             _wartBest = d;
+            _wartFrom = d;
             _wartStall = 0;
             _wartNear = 0;
             _wartWalkTicks = 0;
@@ -1686,7 +1689,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (near) _wartNear = adris.altoclef.util.helpers.BrewErrandRules.own(_wartNear, gap);
         else _wartWalkTicks = adris.altoclef.util.helpers.BrewErrandRules.own(_wartWalkTicks, gap);
         long stallCap = adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_STALL_S);
-        long walkCap = adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_WALK_S);
+        long walkCap = adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.wartWalkCapS(
+                adris.altoclef.util.helpers.RouteRules.wartWalkScaleOn(), _wartFrom));
         String why = adris.altoclef.util.helpers.RouteRules.wartGiveUp(_wartStall, _wartNear, _wartWalkTicks, stallCap,
                 adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_BREAK_S), walkCap);
         if (why != null) {

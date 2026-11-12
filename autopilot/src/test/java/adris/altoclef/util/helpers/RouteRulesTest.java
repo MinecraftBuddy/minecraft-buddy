@@ -708,4 +708,14 @@ public class RouteRulesTest {
         assertFalse(RouteRules.errandFights(2, 0, 13.5, false));
         assertFalse(RouteRules.errandFights(2, 0, 20, true));
     }
+
+    // look 66: a walk begun 213 blocks off has 150 s and a second for every two blocks past 32; a near one keeps 150 s
+    @Test
+    public void theWartWalkCapGrowsWithTheDistance() {
+        assertEquals(150, RouteRules.wartWalkCapS(true, 20), 1e-9);
+        assertEquals(150, RouteRules.wartWalkCapS(true, 32), 1e-9);
+        assertEquals(240.5, RouteRules.wartWalkCapS(true, 213), 1e-9);
+        assertEquals(150, RouteRules.wartWalkCapS(false, 213), 1e-9);
+        assertEquals(150, RouteRules.wartWalkCapS(true, Double.NaN), 1e-9);
+    }
 }
