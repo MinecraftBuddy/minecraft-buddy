@@ -1915,6 +1915,13 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_brewDone && adris.altoclef.util.helpers.Tuning.get("route_brew_one", 1) > 0) {
             return null;
         }
+        // (Tuning route_nobrew_stop, a fix of 12 Nov 2026, on by default: the route said its no-brew fallback, so the rods past the
+        // first two come without the brew; the wart errand below still ran for a wart the tracker knew 48 blocks off and out of
+        // reach, and took turns with the walk to the spawner every second: 16 minutes standing still, 177 of the potion's 180 s,
+        // standban2 8.B, look 71)
+        if (_noBrewSaid && adris.altoclef.util.helpers.Tuning.get("route_nobrew_stop", 1) > 0) {
+            return null;
+        }
         boolean wart = water == 0 || mod.getItemStorage().hasItem(Items.NETHER_WART);
         boolean cream = adris.altoclef.util.helpers.SlimeCream.have(mod);
         // (the buddy's fork, Tuning box_home: no cream hunt and no wart errand while the box holds: each is a walk out of it,
