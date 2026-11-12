@@ -53,6 +53,11 @@ public class BranchMineTask extends Task {
     private int _highest = Integer.MIN_VALUE;
     private long _highestAt;
     private static final long STAIR_STUCK = 2400;
+    // the last tick on the stairs, and the gap after which the stairs are a new stretch with a fresh clock
+    private long _stairLast = Long.MIN_VALUE / 2;
+    private static final long STAIR_GAP = 100;
+    // why the level walk under way is walked, for its debug line (the sculk's and the stairs' share it)
+    private String _awayWhy = "Away from the deep dark's sculk";
     private BlockPos _awayStep;
     private BlockPos _land;
     private long _landSince;
@@ -211,6 +216,7 @@ public class BranchMineTask extends Task {
                 if (ax == 0 && az == 0) { ax = feet.getX() - sculk.getX(); az = feet.getZ() - sculk.getZ(); }
                 if (Math.abs(ax) >= Math.abs(az)) { _dx = ax >= 0 ? 1 : -1; _dz = 0; } else { _dx = 0; _dz = az >= 0 ? 1 : -1; }
                 _awaySteps = awayLength(now);
+                _awayWhy = "Away from the deep dark's sculk";
                 _awayStep = null;
                 stopMine(mod);
             }
@@ -246,7 +252,7 @@ public class BranchMineTask extends Task {
                     _awayStep = feet.offset(_dx, 0, _dz);
                     _awaySince = now;
                 }
-                setDebugState("Away from the deep dark's sculk, " + _awaySteps + " blocks to go");
+                setDebugState(_awayWhy + ", " + _awaySteps + " blocks to go");
                 return new GetToBlockTask(_awayStep);
             }
         }
@@ -284,6 +290,17 @@ public class BranchMineTask extends Task {
         if (_mining ? Math.abs(dy) > 8 : Math.abs(dy) > 3) {
             stopMine(mod);
             long tick = now;
+            // a fresh clock for each stretch of stairs: the deepest and highest steps and their times were kept through the
+            // mine, fights and new pickaxes, so a staircase begun two game minutes after the last one "got no deeper" at once
+            // and walked 32 blocks off: ten times in a 40 minute slime hunt that never got far from its start (bal3 run 3,
+            // 12 Nov 2026), and the gold phase's mine climbs out of its band the same way
+            if (now - _stairLast > STAIR_GAP) {
+                _deepest = Integer.MAX_VALUE;
+                _deepestAt = now;
+                _highest = Integer.MIN_VALUE;
+                _highestAt = now;
+            }
+            _stairLast = now;
             // a staircase down that gets no deeper for two game minutes is going round something it cannot pass (water or
             // lava under the steps, every way blocked): it tunnels level for 32 blocks a quarter turned and starts again
             // there. one went up and down between y 40 and 50 in a square of ten for eleven game minutes, its kit's iron
@@ -297,6 +314,7 @@ public class BranchMineTask extends Task {
                     _dx = -_dz;
                     _dz = t;
                     _awaySteps = 32;
+                    _awayWhy = "Stairs that got no deeper or higher: along";
                     _awayStep = null;
                     _step = null;
                     _deepest = Integer.MAX_VALUE;
@@ -326,6 +344,7 @@ public class BranchMineTask extends Task {
                     _dx = -_dz;
                     _dz = t;
                     _awaySteps = 32;
+                    _awayWhy = "Stairs that got no deeper or higher: along";
                     _awayStep = null;
                     setDebugState("The staircase gets no higher here, 32 blocks along first");
                     return null;
