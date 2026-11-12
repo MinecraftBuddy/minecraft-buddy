@@ -164,8 +164,6 @@ public class KillAndLootTask extends ResourceTask {
     // 30, 8 stalls at 40 min, 9 deaths to the night's mobs). so down a staircase and a branch mine at the gold's height (8,
     // above the deep dark), as the gold phase does: the tunnel crosses chunk after chunk under y 40, and its gold is kit
     static final int SLIME_DIG_Y = 8;
-    private static final net.minecraft.world.level.block.Block[] SLIME_DIG_BLOCKS = {
-            net.minecraft.world.level.block.Blocks.GOLD_ORE, net.minecraft.world.level.block.Blocks.DEEPSLATE_GOLD_ORE};
 
     private Task slimeDig(AltoClef mod) {
         if (!slimeDigWanted(_toKill, adris.altoclef.util.helpers.Tuning.get("slime_dig", 0) > 0,
@@ -173,7 +171,10 @@ public class KillAndLootTask extends ResourceTask {
                 WorldHelper.getCurrentDimension() == baritone.api.utils.Dimension.OVERWORLD)) {
             return null;
         }
-        return new adris.altoclef.tasks.movement.BranchMineTask(SLIME_DIG_BLOCKS, SLIME_DIG_Y);
+        // (built here, not as a static field: the blocks need the game's registries, which a unit test of this class has not)
+        return new adris.altoclef.tasks.movement.BranchMineTask(new net.minecraft.world.level.block.Block[]{
+                net.minecraft.world.level.block.Blocks.GOLD_ORE, net.minecraft.world.level.block.Blocks.DEEPSLATE_GOLD_ORE},
+                SLIME_DIG_Y);
     }
 
     // the branch mine with ores hidden from the client (legitMine), as the gold phase's; with them shown it would be x-ray
