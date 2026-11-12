@@ -371,6 +371,10 @@ final class Obtain {
 	private static String thrownId;
 	private static int thrownN, thrownPrev;
 	private static long thrownTick;
+	/** The game ticks of the throws in the last game minute, and the tick until which none is thrown (throwJunk's brake). */
+	private static final java.util.ArrayDeque<Long> junkThrows = new java.util.ArrayDeque<>();
+	private static long junkBrakeUntil;
+	private static final int JUNK_BRAKE = 10;
 	/** Kinds of junk that came back after a throw, with the game tick until which they are not thrown again. */
 	private static final Map<String, Long> junkHeld = new HashMap<>();
 
@@ -384,6 +388,18 @@ final class Obtain {
 		LocalPlayer p = mc.player;
 		if (junkAsk < 0 || p == null || mc.gameMode == null) return;
 		long tk = p.level().getGameTime();
+		// (12 Nov 2026, the goudslijm smoke run 1: a nearly full bag threw four kinds in turn, 1.8 a second for 25 minutes, and
+		// picked each back up in the pit it stood in; each throw took the watch off the kind before, so none was ever held.
+		// over JUNK_BRAKE throws in a game minute, no throw for three)
+		if (tk < junkBrakeUntil) { junkAsk = -1; return; }
+		while (!junkThrows.isEmpty() && tk - junkThrows.peekFirst() > 1200) junkThrows.pollFirst();
+		if (junkThrows.size() >= JUNK_BRAKE) {
+			junkBrakeUntil = tk + 3600;
+			junkThrows.clear();
+			junkAsk = -1;
+			Exchange.emit("obtain", "action", "junk brake", "throws", JUNK_BRAKE, "why", "too many throws in a game minute, none for three");
+			return;
+		}
 		if (tk - junkAskTick > 1 || item == null || p.containerMenu != p.inventoryMenu) { junkAsk = -1; stillTicks = 0; return; }
 		if (tk - junkWaitFrom > 40) {
 			junkAsk = -1;
@@ -403,6 +419,7 @@ final class Obtain {
 		int n = st.getCount();
 		nextThrow = System.currentTimeMillis() + 400;
 		Game.drop(mc.gameMode, p.inventoryMenu.containerId, j < 9 ? 36 + j : j, p);
+		junkThrows.addLast(tk);
 		ObtainSafe.threw(junk, p.position());
 		thrownId = junk;
 		thrownN = n;
@@ -796,6 +813,21 @@ final class Obtain {
 				step = null;
 				return true;
 			}
+			// (12 Nov 2026, the goudslijm smoke: a piece runs up to 40 minutes and only the check above broke into it. the shield
+			// wore out mid "kit gold" with its makings in the bag, and a creeper's blast at full health killed twice; the food
+			// floor and a slime met on the way never got their turn. every 30 s a piece now gives way to a shield, food or the
+			// route's slime ball; it is asked again after, not counted as failed)
+			if (b.kit() && now - kitLookAt >= 30_000) {
+				kitLookAt = now;
+				String why = kitGivesWay(p, now, b);
+				if (why != null) {
+					Exchange.emit("obtain", "action", "piece gives way", "piece", b.detail(), "why", why);
+					exec.stop();
+					exec = null;
+					step = null;
+					return true;
+				}
+			}
 			ObtainSteps.Result br = exec.tick(mc, p, now);
 			if (br == ObtainSteps.Result.RUN || br == ObtainSteps.Result.WAIT) return br == ObtainSteps.Result.RUN;
 			// a piece of the kit that came is followed by the next at once; one that did not come is not asked again for ten
@@ -967,6 +999,25 @@ final class Obtain {
 	 * the food step's own (under 12 points): with under 4 it worked on for the helmet at hunger 8 with a rotten flesh in
 	 * the bag, never healed from 15 and a zombie and a skeleton finished it.
 	 */
+	/** When a kit piece last looked whether to give way (kitGivesWay), wall clock ms. */
+	private static long kitLookAt;
+
+	/**
+	 * Why the kit piece under way gives way now, or null: a shield (a spare for the one at its last uses, or one again when
+	 * none is held), food by the food rules as between steps, or a slime ball the route asks while one is about.
+	 */
+	private static String kitGivesWay(LocalPlayer p, long now, Alto.Run b) {
+		boolean foodNow = !dark(p) || Alto.foodScore(true) < Alto.NETHER_FOOD_RESERVE || hurtAndNoFood(p);
+		if (foodNow && now - foodTriedAt > 180_000 && Alto.wantsFood(p) && ObtainSafe.foes(p).isEmpty())
+			return "food, " + Alto.foodScore(true) + " points in the bag";
+		Alto.Run next = Alto.kit(p, now);
+		if (next == null || next.detail().equals(b.detail())) return null;
+		String d = next.detail();
+		if (d.contains("spare shield") || d.contains("shield again")) return "a shield: " + d;
+		if (d.contains("slime ball")) return "a slime met on the way";
+		return null;
+	}
+
 	private static boolean hurtAndNoFood(LocalPlayer p) {
 		return Alto.foodScore() < 12 && (p.getHealth() < 14 || p.getFoodData().getFoodLevel() < 14);
 	}

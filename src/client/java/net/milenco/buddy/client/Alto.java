@@ -782,6 +782,21 @@ final class Alto {
 	}
 
 	/**
+	 * A shield again on the route's way in the overworld, when none is in the off hand and the bag holds one or its makings:
+	 * the route never goes back to M2.1's shield, and one worn through in M3.3's gold mine left the buddy without one for a
+	 * creeper's blast at full health, twice in the goudslijm smoke (12 Nov 2026), with iron and logs in the bag. Null otherwise.
+	 */
+	private static Run shieldAgain(net.minecraft.client.player.LocalPlayer p, java.util.function.Predicate<String> skip) {
+		// (only past the armour's phase, M2.1, whose first piece is the shield)
+		if (ObtainRoute.phase() <= ObtainRoute.M2_1) return null;
+		if (p.getOffhandItem().is(net.minecraft.world.item.Items.SHIELD) || skip.test("equip shield again")) return null;
+		if (!p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return null;
+		if (ObtainSteps.count(p, "shield") < 1 && !shieldMakings(p)) return null;
+		return new Run("equip shield again", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(
+			new adris.altoclef.util.ItemTarget("shield", 1))));
+	}
+
+	/**
 	 * Whether the spare shield goes before the food run: the shield in hand at its last uses and the makings in the bag (an
 	 * iron, raw or smelted, and wood), so it is a minute at a table and no trip. A food run that went first dug into a cave
 	 * of skeletons with seven uses left on the shield, and it broke at 40 s (attempt 166).
@@ -1027,6 +1042,8 @@ final class Alto {
 	private static Run routeKit(net.minecraft.client.player.LocalPlayer p, java.util.function.Predicate<String> skip) {
 		Run spare = spareShield(p, skip);
 		if (spare != null) return spare;
+		Run again = shieldAgain(p, skip);
+		if (again != null) return again;
 		ObtainRoute.Bag bag = routeBag(p);
 		ObtainRoute.Piece pc = ObtainRoute.next(bag, Alto::routeSay);
 		return pc == null ? null : routePiece(p, bag, pc.name()).piece(pc.key());

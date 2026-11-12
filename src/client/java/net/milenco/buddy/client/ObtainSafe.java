@@ -492,14 +492,16 @@ final class ObtainSafe {
 	}
 
 	/**
-	 * A slime within r blocks in the buddy's sight (not a magma cube), or a slime ball lying on the ground within r: one met
+	 * A slime within r blocks every way (not a magma cube), or a slime ball lying on the ground within r: one met
 	 * on the way, taken along for the brew's cream (12 Nov 2026: the gold and the slime ball fetched in one stretch).
 	 */
 	static boolean slimeNear(LocalPlayer p, int r) {
-		var box = p.getBoundingBox().inflate(r, 8, r);
+		// (as far up and down as across, and no line of sight: the slimes of the goudslijm smoke were 10 to 37 blocks under the
+		// buddy in the rock, never in sight; the kill task digs its way to one it knows of)
+		var box = p.getBoundingBox().inflate(r, r, r);
 		// (a magma cube is no Slime in 26.3: the class asked holds the slimes alone)
 		for (var e : p.level().getEntitiesOfClass(net.minecraft.world.entity.monster.cubemob.Slime.class, box))
-			if (e.isAlive() && p.hasLineOfSight(e)) return true;
+			if (e.isAlive()) return true;
 		for (var e : p.level().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box))
 			if ("slime_ball".equals(AfkHelperClient.itemId(e.getItem()))) return true;
 		return false;
