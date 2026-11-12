@@ -166,6 +166,12 @@ public final class FireResTrade {
     private Task _searchWalk;
     private long _searchWalkAt;
     private long _searchWalkTicks = FireResTradeRules.POINT_TICKS;
+    // the search's walks to wastes come into view (trade_search_wastes): how many so far, the last one's target; a new one
+    // must lie SEARCH_WASTES_APART from it, at most SEARCH_WASTES_TRIES a trade
+    private int _searchWastesTries;
+    private Spot _searchWastesLast;
+    private static final int SEARCH_WASTES_TRIES = 3;
+    private static final double SEARCH_WASTES_APART = 48;
     private int _searchRingSaid;
     // Tuning route_trade_known (route jar 4): the piglins seen free to take gold within KEEP_RANGE (entity id, the last game
     // tick), the game ticks with none known since the last ingot taken, this tick's clock, the hoglin's wait and its line, and
@@ -912,6 +918,27 @@ public final class FireResTrade {
         }
         if (_searchWalk == null) {
             List<Spot> bastions = knownBastions(mod);
+            // (Tuning trade_search_wastes, a fix of 12 Nov 2026, on: at each new point, wastes come into the loaded chunks
+            // are walked to first, and the rings start again round them. a basalt deltas start found no wastes loaded at the
+            // begin, searched ten minutes 100 to 210 blocks round its start inside the deltas, and the wastes lay 212 blocks
+            // off: the eerstedrank measurement's run 28, as 11 runs of the same start before)
+            if (adris.altoclef.util.helpers.Tuning.get("trade_search_wastes", 1) > 0 && _searchWastesTries < SEARCH_WASTES_TRIES
+                    && !inWastes(mod, player.blockPosition())) {
+                Spot w = FireResTradeRules.wastesTarget(wastesChunks(mod, player.getBlockY()), player.getX(), player.getZ(), null, bastions);
+                if (w != null && (_searchWastesLast == null || w.distanceTo(_searchWastesLast.x(), _searchWastesLast.z()) > SEARCH_WASTES_APART)) {
+                    _searchWastesTries++;
+                    _searchWastesLast = w;
+                    Debug.logInternal(String.format(Locale.ROOT, "strategy trade: wastes in the loaded chunks at %d %d, %.0f blocks, the search goes there and on round them",
+                            w.x(), w.z(), w.distanceTo(player.getX(), player.getZ())));
+                    _searchCentre = new BlockPos(w.x(), player.getBlockY(), w.z());
+                    _searchK = 0;
+                    _searchRingSaid = 0;
+                    _searchWalk = new GetToXZTask(w.x(), w.z(), WASTES_ARRIVE);
+                    _searchWalkAt = now;
+                    _searchWalkTicks = FireResTradeRules.pointTicks(w.distanceTo(player.getX(), player.getZ()));
+                    return _searchWalk;
+                }
+            }
             Spot at = null;
             boolean out = adris.altoclef.util.helpers.Tuning.get("trade_search_out", 1) > 0;
             for (int tries = 0; tries < FireResTradeRules.RING_POINTS * FireResTradeRules.RINGS; tries++, _searchK++) {

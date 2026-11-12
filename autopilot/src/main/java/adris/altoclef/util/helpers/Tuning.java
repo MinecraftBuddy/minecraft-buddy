@@ -152,6 +152,7 @@ public final class Tuning {
             // biome with no piglins and gives a far point its time, a hoglin bars a piglin only by its distance to the piglin)
             java.util.Map.entry("brew_cream_grace", 1.0),
             java.util.Map.entry("trade_search_out", 1.0),
+            java.util.Map.entry("trade_search_wastes", 1.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),
             // (11 Nov 2026, a fix: the pillbox the route's brew was made in stayed the fight's camp and corner under the brewed
             // potion, as the brewed one followed the traded one with no gap; once the brew is through and the potion on, the camp
