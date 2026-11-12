@@ -2,6 +2,7 @@ package adris.altoclef.tasks.resources;
 
 import baritone.Baritone;
 import adris.altoclef.AltoClef;
+import adris.altoclef.Debug;
 import adris.altoclef.TaskCatalogue;
 import adris.altoclef.tasks.CraftInInventoryTask;
 import adris.altoclef.tasks.ResourceTask;
@@ -49,6 +50,8 @@ public class CollectGoldIngotTask extends ResourceTask {
         }
         if (WorldHelper.getCurrentDimension() == Dimension.OVERWORLD) {
             SmeltTarget all = new SmeltTarget(new ItemTarget(Items.GOLD_INGOT, _count), new ItemTarget(Items.RAW_GOLD, _count));
+            SmeltTarget batch = batch(mod);
+            if (batch != null) all = batch;
             // same deal as iron: a blast furnace that is already standing close beats a plain furnace
             Task nearby = _router.tryNearbyBlast(mod, all);
             if (nearby != null) {
@@ -88,6 +91,29 @@ public class CollectGoldIngotTask extends ResourceTask {
         } else {
             return new DefaultGoToDimensionTask(Dimension.OVERWORLD);
         }
+    }
+
+    // (the buddy's fork, Tuning gold_batch, on by default, 12 Nov 2026: M3.3's smoke. the smelt took the whole count as its
+    // target, so it mined raw gold till all of it was in and smelted nothing before: two runs died after about 100 game
+    // minutes with 23 and 32 raw gold and not one ingot. with it on, once the bag holds GOLD_BATCH raw gold short of the
+    // count, those are smelted first, held till their ingots are out, then the mining goes on; the last of it as before)
+    static final int GOLD_BATCH = 16;
+    private int _batchTo;
+
+    private SmeltTarget batch(AltoClef mod) {
+        if (adris.altoclef.util.helpers.Tuning.get("gold_batch", 0) <= 0) return null;
+        int ingots = mod.getItemStorage().getItemCount(Items.GOLD_INGOT);
+        int raw = mod.getItemStorage().getItemCountInventoryOnly(Items.RAW_GOLD);
+        if (_batchTo > 0 && ingots >= _batchTo) {
+            Debug.logInternal("gold: a batch smelted, " + ingots + " of " + _count + " ingots");
+            _batchTo = 0;
+        }
+        int need = _count - ingots;
+        if (_batchTo == 0 && need > raw && raw >= GOLD_BATCH) {
+            _batchTo = ingots + raw;
+            Debug.logInternal("gold: " + raw + " raw gold smelted now, " + ingots + " ingots of " + _count + " (gold_batch)");
+        }
+        return _batchTo > 0 ? new SmeltTarget(new ItemTarget(Items.GOLD_INGOT, _batchTo), new ItemTarget(Items.RAW_GOLD, _batchTo)) : null;
     }
 
     // blocks first (a 2x2 craft, no table), then whole sets of nine nuggets. each one only crafts what we are short of
