@@ -898,7 +898,8 @@ final class BlazeFight {
         boolean fireproofErrand = adris.altoclef.util.helpers.RouteRules.wartDrinkOn() && adris.altoclef.util.helpers.FireRes.has(player);
         // (S137, one system: no walk away from a blaze's sight. the errand's walk prices the blazes in its search, the safer
         // route, and the danger meter says when to flee; the walk-away and the walk back were the to and fro)
-        // (Tuning route_errand_noaway, off: in phase 3 no walk away from a blaze's sight either. the errand's walk goes on, a
+        // (Tuning route_errand_noaway, on by default since its block was confirmed, 12 Nov 2026: in phase 3 no walk away
+        // from a blaze's sight either. the errand's walk goes on, a
         // blaze within the blow is hit as before, the fight's own run at low health stays. the walk-away swapped with the walk
         // to a wart and with the fortress search at the edge of the blazes' sight: on 11 Nov 2026 48 of 61 phase-3 deaths came
         // in the wart search, and 28 of 65 runs that began phase 4 without a wart had seen one and never got nearer than a

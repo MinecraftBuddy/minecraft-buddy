@@ -148,6 +148,9 @@ public final class Tuning {
             // (11 Nov 2026, a fix: once the batch's potions are out of the stand the brew is done; the bag's spare water bottle
             // started a second batch and the brew was given up for no cream with its potions in the bag, BrewFireResistanceTask)
             java.util.Map.entry("brew_once", 1.0),
+            // (confirmed 12 Nov 2026, realfort-doorlopen-mc1 at look 3: phase 3 passed with the wart 57 against 70 of 90 pairs,
+            // z 2.41, fewer deaths a blaze: in phase 3 no walk-away from a blaze's sight, BlazeFight)
+            java.util.Map.entry("route_errand_noaway", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
             // (route jar 3: on the way, before the spawner fight, the potion goes down only in lava for 2 s or at 12 hp, or
