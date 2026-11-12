@@ -211,7 +211,18 @@ public final class RouteRules {
 
     // the far pass's own dead end, null to go on: sinceTicks of game time since it began against capTicks
     public static String wartFarDeadEnd(long sinceTicks, long capTicks) {
-        return sinceTicks >= capTicks ? "the far pass along the fortress, no wart got in " + Math.round(capTicks / 20.0) + " s" : null;
+        return wartFarDeadEnd(sinceTicks, capTicks, false);
+    }
+
+    // (12 Nov 2026, the first far pass smoke of 11 Nov: the cap cut a walk 23 blocks from a wart) a walk to a wart that came
+    // closer within the last WART_FAR_CLOSING_S holds the dead end off, up to WART_FAR_HOLD_S past the cap
+    public static final double WART_FAR_CLOSING_S = 10;
+    public static final double WART_FAR_HOLD_S = 120;
+
+    public static String wartFarDeadEnd(long sinceTicks, long capTicks, boolean walkClosing) {
+        if (sinceTicks < capTicks) return null;
+        if (walkClosing && sinceTicks < capTicks + Math.round(WART_FAR_HOLD_S * 20)) return null;
+        return "the far pass along the fortress, no wart got in " + Math.round(sinceTicks / 20.0) + " s";
     }
 
     // ---- phase 3 out of the blaze camp (route jar 8). realfort-route-5 lost 8 of 31 runs in phase 3 to the spawner's blazes

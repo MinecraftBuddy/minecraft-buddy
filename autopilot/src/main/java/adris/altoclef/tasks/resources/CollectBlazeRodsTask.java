@@ -1468,7 +1468,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         // (Tuning route_wart_far: once the far pass runs, its own clock is the dead end, RouteRules.wartFarDeadEnd)
         String why = !kit ? "the kit missing" : _wartFarAt >= 0
-                ? adris.altoclef.util.helpers.RouteRules.wartFarDeadEnd(now - _wartFarAt, adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_FAR_S))
+                ? adris.altoclef.util.helpers.RouteRules.wartFarDeadEnd(now - _wartFarAt, adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_FAR_S),
+                _wartAt != null && _wartStall <= adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_FAR_CLOSING_S))
                 : adris.altoclef.util.helpers.RouteRules.errandDeadEnd(_errandPoint, _errandSinceGot,
                 adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.Tuning.get("route_errand_dead_s", adris.altoclef.util.helpers.RouteRules.ERRAND_DEAD_S)),
                 adris.altoclef.util.helpers.RouteRules.errandRounds());
@@ -2484,6 +2485,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 double seen = adris.altoclef.util.helpers.BlazePillbox.buildSeen(cells, plan, eyes);
                 if (adris.altoclef.util.helpers.BlazePillbox.tooOpen(seen)) {
                     Debug.logInternal("blaze camp: the pillbox's build seen by " + Math.round(seen * 100) + "% of the spawn eyes, none by the spawner");
+                    if (!_foundBlazeSpawner.equals(_farGaveUpFor) && farPick(mod, cells, sx, sy, sz)) return;
+                    plan = null;
+                }
+            }
+            // (Tuning pillbox_bag_check, on by default, 12 Nov 2026, look 62: a box by the spawner that needs more blocks than the
+            // bag holds is no box. one of 12 blocks with 2 in the bag went up to 2, then "Nothing to place" each second, the
+            // buddy at its cell in three blazes' fire for 72 s, dead; L47 and L59 the same. the far box's check, planFar's bag:
+            // the far box if one fits, else the camp as with no box)
+            if (plan != null && adris.altoclef.util.helpers.Tuning.get("pillbox_bag_check", 0) > 0) {
+                int bag = BlazePillboxTask.blocksInBag(mod);
+                if (plan.blocks().size() > bag) {
+                    Debug.logInternal("blaze camp: the pillbox needs " + plan.blocks().size() + " blocks and the bag holds " + bag + ", no box by the spawner");
                     if (!_foundBlazeSpawner.equals(_farGaveUpFor) && farPick(mod, cells, sx, sy, sz)) return;
                     plan = null;
                 }

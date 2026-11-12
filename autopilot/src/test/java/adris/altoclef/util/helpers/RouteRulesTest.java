@@ -541,6 +541,12 @@ public class RouteRulesTest {
         assertNull(RouteRules.wartFarDeadEnd(0, cap));
         assertNull(RouteRules.wartFarDeadEnd(cap - 1, cap));
         assertEquals("the far pass along the fortress, no wart got in 300 s", RouteRules.wartFarDeadEnd(cap, cap));
+        // a walk to a wart that comes closer holds the cap off, at most WART_FAR_HOLD_S past it
+        long hold = Math.round(RouteRules.WART_FAR_HOLD_S * 20);
+        assertNull(RouteRules.wartFarDeadEnd(cap, cap, true));
+        assertNull(RouteRules.wartFarDeadEnd(cap + hold - 1, cap, true));
+        assertEquals("the far pass along the fortress, no wart got in 420 s", RouteRules.wartFarDeadEnd(cap + hold, cap, true));
+        assertEquals("the far pass along the fortress, no wart got in 301 s", RouteRules.wartFarDeadEnd(cap + 20, cap, false));
         // a fortress's wart rooms 215 to 520 off its spawner are in the far pass's reach, the stale wart of another is not
         assertTrue(RouteRules.wartInReach(520, RouteRules.WART_FAR));
         assertFalse(RouteRules.wartInReach(3465, RouteRules.WART_FAR));
