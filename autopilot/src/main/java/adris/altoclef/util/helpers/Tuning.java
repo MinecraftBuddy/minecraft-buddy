@@ -172,6 +172,10 @@ public final class Tuning {
             java.util.Map.entry("neutral_pick", 1.0),
             // (12 Nov 2026, a fix: under fire resistance no shield for a blaze's small fireball, MobDefenseChain)
             java.util.Map.entry("fr_no_fireball_shield", 1.0),
+            // (12 Nov 2026, a fix meant on since 6ac7c955 but left out of this list, so off: under fire resistance a hiding place
+            // from before the potion is left; one kept leashed the fight to its pocket through a whole traded potion, 75 blazes
+            // let go and no kill, route-51 on box 2)
+            java.util.Map.entry("fr_hide_drop", 1.0),
             // (12 Nov 2026, his yes to steering 170's plan: the gold mine at feet -17, the sculk walk-away doubling capped at 96
             // blocks, BranchMineTask)
             java.util.Map.entry("gold_mine_y", -17.0),
