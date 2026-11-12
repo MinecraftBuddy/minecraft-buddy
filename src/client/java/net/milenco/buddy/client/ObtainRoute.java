@@ -124,9 +124,10 @@ final class ObtainRoute {
 		// ten obsidian for the frame, and the bucket full again after the lava
 		List.of(piece(M3_2, "obsidian", b -> b.inv("obsidian") < 10),
 			piece(M3_2, "water bucket", b -> b.inv("water_bucket") < 1)),
-		// the gold for the trade and the two helmets, then the helmet on and its spare in the bag
-		List.of(piece(M3_3, "gold", b -> b.inv("gold_ingot") < goldNeed(b)),
-			piece(M3_3, "golden helmet", b -> !"golden_helmet".equals(b.wornIn("helmet"))),
+		// the golden helmet first (worn, 15 armour with the iron: the mine then takes the cave gold it sees, not only its
+		// tunnel's walls; steering 170), then the gold for the trade and the spare, and the spare in the bag
+		List.of(piece(M3_3, "golden helmet", b -> !"golden_helmet".equals(b.wornIn("helmet"))),
+			piece(M3_3, "gold", b -> b.inv("gold_ingot") < goldNeed(b)),
 			piece(M3_3, "spare golden helmet", b -> b.inv("golden_helmet") < 1)),
 		// a slime ball for the brew's cream: slimes deep under the ground in some chunks, or in a swamp at night
 		List.of(piece(M3_3B, "slime ball", b -> b.inv("slime_ball") < 1)),

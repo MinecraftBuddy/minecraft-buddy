@@ -164,6 +164,8 @@ public final class Tuning {
             java.util.Map.entry("gold_batch", 1.0),
             // (12 Nov 2026, a fix, look 63: under the lava the kept potion goes down at once, RouteRules.wayLetGo)
             java.util.Map.entry("route_hold_under", 1.0),
+            // (12 Nov 2026, steering 170: far cave gold with 15 armour only at y 0 or above and not beside lava, MineAndCollectTask)
+            java.util.Map.entry("gold_cave_safe", 1.0),
             java.util.Map.entry("route_hold", 1.0),
             java.util.Map.entry("route_hold_fight", 1.0),
             // (route jar 3: on the way, before the spawner fight, the potion goes down only in lava for 2 s or at 12 hp, or

@@ -1474,13 +1474,25 @@ public class MineAndCollectTask extends ResourceTask {
         // client has unloaded, where the world says air, and the rule let it through; it walked to coal 200 blocks off
         // through the caves without armour, for its shield's smelting, the runner, 2 Nov 2026, attempt 87)
         private static boolean nearUnarmoured(AltoClef mod, BlockPos pos, Block[] blocks) {
-            if (!Baritone.settings().legitMine.value || mod.getPlayer() == null || mod.getPlayer().getArmorValue() >= 15) return true;
-            boolean ore = false;
+            if (!Baritone.settings().legitMine.value || mod.getPlayer() == null) return true;
+            boolean ore = false, gold = false;
             for (Block b : blocks) {
-                ore |= net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(b).getPath().endsWith("_ore");
+                String id = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(b).getPath();
+                ore |= id.endsWith("_ore");
+                gold |= id.endsWith("gold_ore") && !id.contains("nether");
             }
-            if (!ore) return true;
-            return pos.closerToCenterThan(mod.getPlayer().position(), 5);
+            if (!ore || pos.closerToCenterThan(mod.getPlayer().position(), 5)) return true;
+            if (mod.getPlayer().getArmorValue() < 15) return false;
+            // (the buddy's fork, Tuning gold_cave_safe, on by default, 12 Nov 2026, steering 170: with the golden helmet on (15
+            // armour) the cave gold the tracker knows counts, not only the tunnel's own walls; only gold at y 0 or above, out of
+            // the deep dark's depth where a warden killed a buddy in full iron (3 Nov), and none beside lava)
+            if (gold && adris.altoclef.util.helpers.Tuning.get("gold_cave_safe", 0) > 0) {
+                if (pos.getY() < 0) return false;
+                for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
+                    if (mod.getWorld().getFluidState(pos.relative(d)).is(net.minecraft.tags.FluidTags.LAVA)) return false;
+                }
+            }
+            return true;
         }
 
         @Override
