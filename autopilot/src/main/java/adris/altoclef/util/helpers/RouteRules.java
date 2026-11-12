@@ -226,6 +226,15 @@ public final class RouteRules {
         return aboveSpawner > RING_LEVEL_GAP;
     }
 
+    // (12 Nov 2026, look 64: begun 120 blocks from the spawner, every ring point's walk went down into one pit and its walk
+    // on climbed out again, eight points and 150 s) only within RING_LEVEL_NEAR of the spawner, across, is the walk down
+    // the way to its height
+    public static final double RING_LEVEL_NEAR = 80;
+
+    public static boolean ringLevelDown(double aboveSpawner, double acrossFromSpawner) {
+        return ringLevelDown(aboveSpawner) && acrossFromSpawner <= RING_LEVEL_NEAR;
+    }
+
     public static String wartFarDeadEnd(long sinceTicks, long capTicks) {
         return wartFarDeadEnd(sinceTicks, capTicks, false);
     }

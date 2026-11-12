@@ -1801,7 +1801,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _ringLevel = null;
             return null;
         }
-        if (_ringLevelPoint == _errandPoint || !adris.altoclef.util.helpers.RouteRules.ringLevelDown(above)) return null;
+        double across = Math.hypot(mod.getPlayer().getX() - sp.getX() - 0.5, mod.getPlayer().getZ() - sp.getZ() - 0.5);
+        if (_ringLevelPoint == _errandPoint || !adris.altoclef.util.helpers.RouteRules.ringLevelDown(above, across)) return null;
         _ringLevelPoint = _errandPoint;
         _ringLevel = new adris.altoclef.tasks.movement.GetToYTask(sp.getY());
         Debug.logInternal("brew errand: " + (int) Math.round(above) + " blocks above the spawner " + sp.toShortString() + ", down to its height (y "

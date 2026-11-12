@@ -554,6 +554,9 @@ public class RouteRulesTest {
         assertFalse(RouteRules.ringLevelDown(8));
         assertTrue(RouteRules.ringLevelDown(8.5));
         assertFalse(RouteRules.ringLevelDown(-20));
+        // and only within 80 of the spawner across (look 64: from 120 off every point went down into one pit and out again)
+        assertTrue(RouteRules.ringLevelDown(14, 79));
+        assertFalse(RouteRules.ringLevelDown(14, 120));
         // a fortress's wart rooms 215 to 520 off its spawner are in the far pass's reach, the stale wart of another is not
         assertTrue(RouteRules.wartInReach(520, RouteRules.WART_FAR));
         assertFalse(RouteRules.wartInReach(3465, RouteRules.WART_FAR));
