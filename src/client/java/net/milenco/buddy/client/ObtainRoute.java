@@ -19,7 +19,7 @@ import java.util.function.Predicate;
  * <p>A phase is met when the bag holds what it is for ({@link #met}), the same reading as the practice rig's, so the rig
  * and the route agree on where a run is. Forward only: a phase once left is not asked again, so the route never goes back
  * up for wood with the diamonds in sight. A piece that does not come is asked again, three tries in all, then given up,
- * and the other pieces go on. No types of the autopilot here: the kit names its tasks, this class only the bag, so the
+ * and the other pieces go on; with kit_failed_skip it first waits ten minutes while the phase's other pieces go on. No types of the autopilot here: the kit names its tasks, this class only the bag, so the
  * order is tested without the game.
  */
 final class ObtainRoute {
@@ -87,6 +87,11 @@ final class ObtainRoute {
 	private static boolean furnaceHeld;
 	/** The pieces' tries, by key. */
 	private static final Map<String, Integer> TRIED = new HashMap<>();
+	/** The pieces that failed, by key, and when (the order's game clock, ms): passed over for {@link #SKIP} (kit_failed_skip). */
+	private static final Map<String, Long> FAILED = new HashMap<>();
+
+	/** How long a piece that failed waits while the phase's other pieces go on: ten game minutes, as the old kit's. */
+	static final long SKIP = 600_000;
 
 	private static final String[] SLOTS = { "helmet", "chestplate", "leggings", "boots" };
 	private static final List<String> IRON_UP = List.of("iron", "diamond", "netherite");
@@ -156,6 +161,7 @@ final class ObtainRoute {
 		overworld = inOverworld;
 		phase = M1_1;
 		TRIED.clear();
+		FAILED.clear();
 	}
 
 	/** The order walks the route (its way goes into the nether, and it began in the overworld). */
@@ -196,15 +202,44 @@ final class ObtainRoute {
 
 	static int tries(String key) { return TRIED.getOrDefault(key, 0); }
 
+	/** A try of this piece ran out of its time or failed (kit_failed_skip): passed over for ten minutes from now. */
+	static void failed(String key, long now) { FAILED.put(key, now); }
+
+	/** Whether the piece failed less than ten minutes before now. */
+	static boolean skipped(String key, long now) {
+		Long at = FAILED.get(key);
+		return at != null && now >= at && now - at < SKIP;
+	}
+
+	/** The piece of this key, or null. */
+	static Piece piece(String key) {
+		for (List<Piece> ps : PIECES) for (Piece pc : ps) if (pc.key().equals(key)) return pc;
+		return null;
+	}
+
+	/** The next piece to ask with no piece's ten minutes counted (as {@link #next(Bag, long, BiConsumer)} with none failed). */
+	static Piece next(Bag b, BiConsumer<Integer, String> say) { return next(b, Long.MIN_VALUE, say); }
+
 	/**
 	 * The next piece to ask, or null once the portal's phase has nothing left to ask (the whole order then). A phase with
-	 * nothing left is passed: said short when the bag does not meet it, and the next one begun.
+	 * nothing left is passed: said short when the bag does not meet it, and the next one begun. A piece that failed less
+	 * than ten minutes before now waits while the phase's other pieces go on; when every piece left in the phase waits, the
+	 * one that failed first is asked, so the phase is never left with tries to go and no gap opens between two pieces.
+	 * Long.MIN_VALUE for now: no piece waits.
 	 */
-	static Piece next(Bag b, BiConsumer<Integer, String> say) {
+	static Piece next(Bag b, long now, BiConsumer<Integer, String> say) {
 		if (!walking()) return null;
 		if (b.inv("furnace") > 0) furnaceHeld = true;
 		while (true) {
-			for (Piece pc : PIECES.get(phase)) if (tries(pc.key()) < pc.tries() && pc.wanted().test(b)) return pc;
+			Piece waiting = null;
+			long waitingAt = Long.MAX_VALUE;
+			for (Piece pc : PIECES.get(phase)) {
+				if (tries(pc.key()) >= pc.tries() || !pc.wanted().test(b)) continue;
+				if (now == Long.MIN_VALUE || !skipped(pc.key(), now)) return pc;
+				long at = FAILED.get(pc.key());
+				if (at < waitingAt) { waiting = pc; waitingAt = at; }
+			}
+			if (waiting != null) return waiting;
 			if (phase == M3_4) return null;
 			if (!done(phase, b)) say.accept(phase, SHORT);
 			phase++;

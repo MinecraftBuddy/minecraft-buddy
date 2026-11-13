@@ -763,7 +763,26 @@ final class Alto {
 	/** Kit pieces that did not come, by the run's name, and when (the order's game clock): not asked again for ten minutes. */
 	private static final java.util.Map<String, Long> KIT_FAILED = new java.util.HashMap<>();
 
-	static void kitFailed(Run r, long now) { KIT_FAILED.put(r.detail(), now); }
+	static void kitFailed(Run r, long now) {
+		KIT_FAILED.put(r.detail(), now);
+		// (Tuning kit_failed_skip, a fix of 13 Nov 2026, on) a piece of the route that ran out of its time or failed waits ten
+		// minutes too, while the phase's next piece goes on, as in the old kit: the route asked it again at once, and "equip
+		// copper_leggings" ran its 20 minutes and came straight back, in the same flooded cave
+		if (r.piece == null || !routeSkipOn()) return;
+		ObtainRoute.failed(r.piece, now);
+		var pc = ObtainRoute.piece(r.piece);
+		int tries = pc == null ? ObtainRoute.TRIES : pc.tries(), n = ObtainRoute.tries(r.piece);
+		String why = r.why() != null ? r.why() : "still wanted when its task ended";
+		String line = "route: piece " + r.piece + " failed (" + why + "), " + (n < tries ? "skipped for 10 minutes, " : "given up, ")
+			+ "try " + n + " of " + tries;
+		if (present()) adris.altoclef.Debug.logInternal(line);
+		Exchange.emit("obtain", "action", "route piece failed", "piece", r.piece, "why", why, "try", n, "tries", tries);
+	}
+
+	/** The autopilot's kit_failed_skip switch (a fix of 13 Nov 2026, on by default); off without the autopilot. */
+	static boolean routeSkipOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("kit_failed_skip", 0) > 0;
+	}
 
 	/** A new order: every piece may be asked again. */
 	static void kitReset() { KIT_FAILED.clear(); }
@@ -786,10 +805,10 @@ final class Alto {
 	 * that never left the overworld (attempt 167, four times, never any).
 	 */
 	static Run kit(net.minecraft.client.player.LocalPlayer p, long now) {
-		return kit(p, k -> { Long at = KIT_FAILED.get("AltoClef: " + k); return at != null && (now - at < 600_000 || k.equals("kit redstone")); });
+		return kit(p, now, k -> { Long at = KIT_FAILED.get("AltoClef: " + k); return at != null && (now - at < 600_000 || k.equals("kit redstone")); });
 	}
 
-	static Run kit(net.minecraft.client.player.LocalPlayer p) { return kit(p, k -> false); }
+	static Run kit(net.minecraft.client.player.LocalPlayer p) { return kit(p, Long.MIN_VALUE, k -> false); }
 
 	/**
 	 * The kit's spare shield, while the one in the off hand is at its last uses and no other is in the bag; or null. Outside the
@@ -852,10 +871,10 @@ final class Alto {
 		return wood >= 6;
 	}
 
-	private static Run kit(net.minecraft.client.player.LocalPlayer p, java.util.function.Predicate<String> skip) {
+	private static Run kit(net.minecraft.client.player.LocalPlayer p, long now, java.util.function.Predicate<String> skip) {
 		// an order into the nether begun in the overworld fetches its kit by the route's phases (ObtainRoute) until it is out
 		// of the overworld; the old kit from then on, as for any order
-		if (ObtainRoute.on() && routeWalks(p)) return routeKit(p, skip);
+		if (ObtainRoute.on() && routeWalks(p)) return routeKit(p, now, skip);
 		var gh = new Obtain.GameHave(p);
 		java.util.List<String> armour = new java.util.ArrayList<>();
 		java.util.List<adris.altoclef.util.ItemTarget> rest = new java.util.ArrayList<>();
@@ -1059,17 +1078,18 @@ final class Alto {
 	/**
 	 * The kit by the route's phases: the next piece of the phase under way, each the task the old kit has for it, and null
 	 * only once the portal's phase has nothing left to ask, when the whole order builds the frame from the bag, lights it
-	 * and goes through. A piece is asked again at once when it did not come, three tries in all (ObtainRoute), not left for
-	 * ten minutes as in the old kit: a null between two pieces would start the whole order, which goes its own way from
-	 * the bag it has. A spare shield while the one in hand is at its last uses comes first, as in the old kit.
+	 * and goes through. A piece that did not come waits ten minutes while the phase's next piece goes on (kit_failed_skip),
+	 * three tries in all (ObtainRoute); when every piece left in the phase waits, the one that failed first is asked again
+	 * at once: a null between two pieces would start the whole order, which goes its own way from the bag it has. A spare
+	 * shield while the one in hand is at its last uses comes first, as in the old kit. Long.MIN_VALUE for now: no piece waits.
 	 */
-	private static Run routeKit(net.minecraft.client.player.LocalPlayer p, java.util.function.Predicate<String> skip) {
+	private static Run routeKit(net.minecraft.client.player.LocalPlayer p, long now, java.util.function.Predicate<String> skip) {
 		Run spare = spareShield(p, skip);
 		if (spare != null) return spare;
 		Run again = shieldAgain(p, skip);
 		if (again != null) return again;
 		ObtainRoute.Bag bag = routeBag(p);
-		ObtainRoute.Piece pc = ObtainRoute.next(bag, Alto::routeSay);
+		ObtainRoute.Piece pc = ObtainRoute.next(bag, routeSkipOn() ? now : Long.MIN_VALUE, Alto::routeSay);
 		return pc == null ? null : routePiece(p, bag, pc.name()).piece(pc.key());
 	}
 
@@ -1435,6 +1455,8 @@ final class Alto {
 
 		/** The route's piece this step is (ObtainRoute's key), or null: its end counts one of the piece's tries. */
 		private String piece;
+		/** The autopilot's branch mine give-ups when the task began (mine_water_roof): a new one fails a piece of the kit. */
+		private int gaveUpsAtStart;
 
 		Run(String what, long limit, java.util.function.Supplier<Object> make) { this.what = what; this.limit = limit; this.make = make; }
 
@@ -1478,6 +1500,7 @@ final class Alto {
 				}
 				startedAt = now;
 				shutsAtStart = shuts;
+				gaveUpsAtStart = adris.altoclef.tasks.movement.BranchMineTask.gaveUps;
 				Bari.yieldTo();
 				HeldKeys.releaseAll();
 				Object t = make.get();
@@ -1489,6 +1512,12 @@ final class Alto {
 			}
 			if (delegating()) {
 				if (now - startedAt > limit) { cancel(); return fail("AltoClef did not " + what + " in " + limit / 60_000 + " minutes"); }
+				// (mine_water_roof) the branch mine under a piece of the kit gave up its depth where it stood: the piece fails
+				// and the next one goes on, rather than its whole time in the same place
+				if (kit() && adris.altoclef.tasks.movement.BranchMineTask.gaveUps != gaveUpsAtStart) {
+					cancel();
+					return fail(adris.altoclef.tasks.movement.BranchMineTask.gaveUpLine);
+				}
 				return ObtainSteps.Result.RUN;
 			}
 			Exchange.emit("alto", "action", "task done", "task", what, "s", (now - startedAt) / 1000);

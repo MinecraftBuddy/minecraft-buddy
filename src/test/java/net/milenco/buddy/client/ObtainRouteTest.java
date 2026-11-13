@@ -249,6 +249,48 @@ class ObtainRouteTest {
 		assertFalse(ObtainRoute.before(ObtainRoute.M1_3));
 	}
 
+	// kit_failed_skip (test heel, 13 Nov 2026): "equip copper_leggings" ran its 20 minutes in a flooded cave and was asked
+	// again at once. a piece that failed waits ten minutes while the phase's next piece goes on; it counts one of its tries
+	@Test
+	void aFailedPieceWaitsTenMinutesWhileTheNextGoesOn() {
+		Kit k = from("m2.1").give("shield");
+		walk(k);
+		long t0 = 1_000_000;
+		ObtainRoute.Piece chest = ObtainRoute.next(k, t0, say);
+		assertEquals("m2.1/copper_chestplate", chest.key());
+		ObtainRoute.tried(chest.key());
+		ObtainRoute.failed(chest.key(), t0);
+		assertTrue(ObtainRoute.skipped(chest.key(), t0 + 1));
+		// the next piece of the phase while the chestplate waits; without a clock it is asked again at once, as before
+		assertEquals("m2.1/copper_leggings", ObtainRoute.next(k, t0 + 60_000, say).key());
+		assertEquals("m2.1/copper_chestplate", ObtainRoute.next(k, say).key());
+		ObtainRoute.tried("m2.1/copper_leggings");
+		ObtainRoute.failed("m2.1/copper_leggings", t0 + 60_000);
+		assertEquals("m2.1/copper_boots", ObtainRoute.next(k, t0 + 120_000, say).key());
+		// ten minutes on the chestplate is asked again, its second try
+		assertFalse(ObtainRoute.skipped(chest.key(), t0 + ObtainRoute.SKIP));
+		assertEquals("m2.1/copper_chestplate", ObtainRoute.next(k, t0 + ObtainRoute.SKIP, say).key());
+		assertEquals(1, ObtainRoute.tries(chest.key()));
+		assertTrue(said.isEmpty());
+	}
+
+	// when every piece left in the phase waits, the one that failed first is asked: the phase is not left with tries to go
+	@Test
+	void everyPieceWaitingAsksTheOneThatFailedFirst() {
+		Kit k = from("m2.1").give("shield").give("iron_ingot", 8);
+		k.wear("chestplate", "iron_chestplate").wear("leggings", "iron_leggings");
+		walk(k);
+		long t0 = 5_000_000;
+		assertEquals("m2.1/iron_boots", ObtainRoute.next(k, t0, say).key());
+		ObtainRoute.tried("m2.1/iron_boots");
+		ObtainRoute.failed("m2.1/iron_boots", t0);
+		assertEquals("m2.1/iron_boots", ObtainRoute.next(k, t0 + 1000, say).key());
+		assertTrue(said.isEmpty());
+		// a new order forgets the waits
+		ObtainRoute.reset(true);
+		assertFalse(ObtainRoute.skipped("m2.1/iron_boots", t0 + 1000));
+	}
+
 	@Test
 	void theShieldComesFirstAndNoHelmetButTheGoldenOne() {
 		// with no iron in the bag: the shield, then copper for the empty slots, then the iron
