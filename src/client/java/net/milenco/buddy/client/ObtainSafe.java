@@ -663,6 +663,7 @@ final class ObtainSafe {
 	static int junkSlot(LocalPlayer p, java.util.function.Predicate<String> held) {
 		var in = p.getInventory();
 		int blocks = 0;
+		boolean deepJunk = deepJunkOn(p);
 		for (int i = 0; i < 36; i++) {
 			var st = in.getItem(i);
 			if (st.isEmpty()) continue;
@@ -673,6 +674,7 @@ final class ObtainSafe {
 			}
 			if (id.equals("leaf_litter") || id.equals("wheat_seeds") || id.equals("poisonous_potato") || id.equals("rotten_flesh")
 					|| id.equals("short_grass") || id.equals("dead_bush") || id.equals("pointed_dripstone")) return i;
+			if (deepJunk && DEEP_JUNK.contains(id) && !id.equals(Obtain.item())) return i;
 			if (id.endsWith("_sapling") && st.getCount() > 4 && Obtain.item() != null && !Obtain.item().equals(id)) return i;
 			// a tool worn to its last uses: the plan counts it as gone already (four of them filled a bag); thrown only when one
 			// that still works is there, for the last uses are its way out of a hole
@@ -696,6 +698,17 @@ final class ObtainSafe {
 			if (cobble > 64) return cobbleSlot;
 		}
 		return -1;
+	}
+
+	/**
+	 * What the deep mine fills the bag with and nothing on the route's deep stretch wants (the copper armour is made before it,
+	 * M2.1): thrown like the leaf litter above with the autopilot's bag_junk_first (a fix of 13 Nov 2026, on). With a nearly
+	 * full bag of these the autopilot's own full-bag throw went for the bed and the furnace first (M3.3's smoke 5).
+	 */
+	static final java.util.Set<String> DEEP_JUNK = java.util.Set.of("cinnabar", "sulfur", "clay_ball", "bone", "raw_copper");
+
+	static boolean deepJunkOn(LocalPlayer p) {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("bag_junk_first", 0) > 0 && Alto.routeDeep(p);
 	}
 
 	private record Thrown(String id, net.minecraft.world.phys.Vec3 at, long when) {}

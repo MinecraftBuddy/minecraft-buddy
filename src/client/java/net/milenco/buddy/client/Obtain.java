@@ -802,6 +802,18 @@ final class Obtain {
 		}
 		// a boat first where much water lies ahead (Alto.wantsBoat), or food (Alto.wantsFood), then the order again
 		if (exec instanceof Alto.Run b && (b.boat() || b.food() || b.kit() || b.home())) {
+			// (the autopilot's food_one_trip, a fix of 13 Nov 2026: the night on the deep stretch with no bed is spent in the mine,
+			// not up in a hole or among the night's monsters: a food run under way gives way, unless the buddy is hurt with
+			// nothing to eat, and the order goes on down; the rest of the food the next morning, Alto.deepNight)
+			if (b.food() && Alto.deepNight(p) && !hurtAndNoFood(p)) {
+				Exchange.emit("obtain", "action", "food run gives way", "why", "night on the deep stretch with no bed: down into the mine (food_one_trip)",
+					"food", Alto.foodScore(true), "y", p.getBlockY());
+				foodTriedAt = now;
+				exec.stop();
+				exec = null;
+				step = null;
+				return true;
+			}
 			// a piece of the kit gives way to food when it is hurt or hungry with nothing to eat: at 9 hp it went on for the
 			// leggings with an empty bag, never healed (no food, so the bar stayed under 18) and spiders killed it at night; the
 			// piece is asked again after the meal, not counted as failed
@@ -902,7 +914,7 @@ final class Obtain {
 			// (and at night only when it must: under the nether's reserve, or hungry and hurt now. a food run in the dark dug
 			// from the surface to y -29 after a cow, into a cave of zombies, skeletons and an enderman, and died there,
 			// attempt 183, as 166 and 159 before it; the morning, or the animals on the way, bring the rest)
-			boolean foodNow = !dark(p) || Alto.foodScore(true) < Alto.NETHER_FOOD_RESERVE || hurtAndNoFood(p);
+			boolean foodNow = foodNow(p);
 			if (!shieldFirst && foodNow && (!midFrame || hurtAndNoFood(p)) && now - foodTriedAt > 180_000 && Alto.wantsFood(p)
 					&& (ObtainSafe.foes(p).isEmpty() || hurtAndNoFood(p))) {
 				if (exec != null) exec.stop();
@@ -912,7 +924,8 @@ final class Obtain {
 				// healing, and healing at a full bar eats; 52 points went in forty real seconds there, and the food search that
 				// followed in the nether ended in lava)
 				exec = Alto.foodRun(p, Alto.foodUnits(p));
-				Exchange.emit("obtain", "action", "step", "step", "food by Soprano, " + Alto.foodScore(true) + " points in the bag", "way", "soprano:food");
+				Exchange.emit("obtain", "action", "step", "step", "food by Soprano, " + Alto.foodScore(true) + " points in the bag", "way", "soprano:food",
+					"to", Alto.foodUnits(p));
 				return true;
 			}
 			// food on the way is Soprano's take-along now (Alto.takeAlongFood): an animal in sight is weighed like an ore
@@ -980,11 +993,25 @@ final class Obtain {
 		return p.level().isThundering() || t >= 11520 && t < 23300;
 	}
 
+	/** The night on the deep stretch was told once (holeNight); told again the next night. */
+	private static boolean deepNightTold;
+
 	private static boolean holeNight(LocalPlayer p) {
+		if (!dark(p)) deepNightTold = false;
 		// (a bed Soprano has just put down counts too: it puts its bed down to sleep, the bag held none that moment, and the
 		// hole shut it in for the night with the bed beside it, over a quarter of an order in holes)
 		// (and a bed on the ground Soprano is taking back: ObtainSafe.bedDropNear)
 		if (!ObtainSafe.needsShelter(p) || ObtainSafe.hasBed(p) || ObtainSafe.bedNear(p, 6) || ObtainSafe.bedDropNear(p, 6)) return false;
+		// (the autopilot's food_one_trip, a fix of 13 Nov 2026: on the route's deep stretch the mine is the night's shelter, the
+		// order's staircase takes the buddy down and the mine goes on through the night; Alto.deepNight)
+		if (Alto.deepNight(p)) {
+			if (!deepNightTold) {
+				deepNightTold = true;
+				Exchange.emit("obtain", "action", "no hole", "why", "night on the deep stretch with no bed: the mine is the shelter (food_one_trip)",
+					"y", p.getBlockY(), "food", Alto.foodScore(true));
+			}
+			return false;
+		}
 		long t = Math.floorMod(p.level().getOverworldClockTime(), 24000L);
 		// (from 11500, before sunset, as the buddy's own hole always did: from 12500, to give Soprano's evening its time, a
 		// food step ran into the dusk and it dug in among the night's first spiders and skeletons)
@@ -1007,7 +1034,7 @@ final class Obtain {
 	 * none is held), food by the food rules as between steps, or a slime ball the route asks while one is about.
 	 */
 	private static String kitGivesWay(LocalPlayer p, long now, Alto.Run b) {
-		boolean foodNow = !dark(p) || Alto.foodScore(true) < Alto.NETHER_FOOD_RESERVE || hurtAndNoFood(p);
+		boolean foodNow = foodNow(p);
 		if (foodNow && now - foodTriedAt > 180_000 && Alto.wantsFood(p) && ObtainSafe.foes(p).isEmpty())
 			return "food, " + Alto.foodScore(true) + " points in the bag";
 		Alto.Run next = Alto.kit(p, now);
@@ -1016,6 +1043,15 @@ final class Obtain {
 		if (d.contains("spare shield") || d.contains("shield again")) return "a shield: " + d;
 		if (d.contains("slime ball")) return "a slime met on the way";
 		return null;
+	}
+
+	/**
+	 * Whether a food run may begin now: by day; at night only under the nether's reserve or hurt with nothing to eat; on the
+	 * route's deep stretch at night with no bed (Alto.deepNight) only hurt with nothing to eat, the mine is the night's place.
+	 */
+	private static boolean foodNow(LocalPlayer p) {
+		if (Alto.deepNight(p)) return hurtAndNoFood(p);
+		return !dark(p) || Alto.foodScore(true) < Alto.NETHER_FOOD_RESERVE || hurtAndNoFood(p);
 	}
 
 	private static boolean hurtAndNoFood(LocalPlayer p) {

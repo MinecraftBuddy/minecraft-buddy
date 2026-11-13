@@ -586,13 +586,37 @@ final class Alto {
 	/**
 	 * The food points a food run gathers: NETHER_FOOD for an order into the nether while in the overworld, 60 otherwise.
 	 * On the route (ObtainRoute) the nether's only from its portal phase on, where the food for the nether is topped up;
-	 * the deep's before it: 96 on the deep stretch (routeDeep).
+	 * the deep's before it: 96 on the deep stretch (routeDeep), ONE_TRIP_FOOD with the autopilot's food_one_trip.
 	 */
 	static int foodUnits(net.minecraft.client.player.LocalPlayer p) {
 		if (kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() && !routeBefore(p, ObtainRoute.M3_4)) return NETHER_FOOD;
 		// (on the route's deep stretch twelve steaks: a run to 60 from its floor of 40 would bring two and a half, and the next
 		// climb soon after)
-		return routeDeep(p) ? 96 : 60;
+		if (!routeDeep(p)) return 60;
+		return oneTrip() ? ONE_TRIP_FOOD : 96;
+	}
+
+	/**
+	 * The food points one trip up from the deep stretch gathers with the autopilot's food_one_trip (a fix of 13 Nov 2026, on):
+	 * twenty-four steaks, from the floor of 40 about an hour of mining and fighting. Up to 96 the gold phase climbed three or
+	 * four times, 8 to 12 game minutes each, some 35 minutes of the 146 of M3.3's smoke 5 run 3 (and 19 of run 1's 64); one
+	 * trip brings the rest of the phase, cooked in one batch at the end of the hunt (CollectFoodTask).
+	 */
+	static final int ONE_TRIP_FOOD = 192;
+
+	/** The autopilot's food_one_trip switch (on by default); off without the autopilot. */
+	static boolean oneTrip() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("food_one_trip", 0) > 0;
+	}
+
+	/**
+	 * The night on the route's deep stretch with no bed in the bag, under food_one_trip: the mine is the night's shelter. No
+	 * hole at the surface (one shut the buddy in for 15 minutes after a full bag had thrown its bed, M3.3's smoke 5), a food
+	 * run under way gives way and the order's staircase takes the buddy down; the next food run waits for the morning unless
+	 * it is hurt with nothing to eat. With a bed the night is slept where it is, as before.
+	 */
+	static boolean deepNight(net.minecraft.client.player.LocalPlayer p) {
+		return oneTrip() && routeDeep(p) && Obtain.dark(p) && !ObtainSafe.hasBed(p);
 	}
 
 	/**
@@ -1362,12 +1386,17 @@ final class Alto {
 	/**
 	 * The food run a food step starts: from the surface when it begins under the ground on the route's deep stretch
 	 * (SurfaceFoodTask: up a staircase first, then the hunt under the sky), else where it stands. Twenty game minutes for
-	 * the climb and the hunt.
+	 * the climb and the hunt, thirty with food_one_trip.
 	 */
 	static Run foodRun(net.minecraft.client.player.LocalPlayer p, double units) {
+		// (thirty game minutes for food_one_trip's twice as much)
 		if (routeDeep(p) && !p.level().canSeeSky(p.blockPosition().above()))
-			return new Run("collect food from the surface, " + Math.round(units) + " points", 20 * 60_000,
+			return new Run("collect food from the surface, " + Math.round(units) + " points", (oneTrip() ? 30 : 20) * 60_000L,
 				() -> night(new adris.altoclef.tasks.resources.SurfaceFoodTask(units)));
+		// (and begun under the sky on the deep stretch, twenty-five instead of fifteen for food_one_trip's twice as much)
+		if (routeDeep(p) && oneTrip())
+			return new Run("collect food, " + Math.round(units) + " points", 25 * 60_000L,
+				() -> night(new adris.altoclef.tasks.resources.CollectFoodTask(units)));
 		return food(units);
 	}
 
