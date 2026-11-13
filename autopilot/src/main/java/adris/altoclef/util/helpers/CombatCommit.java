@@ -233,7 +233,10 @@ public final class CombatCommit {
         // (the buddy's fork, S137 step 3, Tuning risk_flee) the danger meter is at flee: the buddy dies before it kills what is
         // on it, or its hp less the next three seconds' loss comes to the margin. it stands for the count rules (a crowd, the
         // flee line, a heavy hitter at its line, a hurt walk under shooters) where the meter decides the runs
-        DANGER
+        DANGER,
+        // (the buddy's fork, Tuning wither_gap) two or three wither skeletons near at good health: the fight from a cell they
+        // cannot enter, found or made, instead of the run (WitherGapRules)
+        GAP
     }
 
     public enum Event {
@@ -253,7 +256,10 @@ public final class CombatCommit {
         // (skel_close_rule) the walk up to a skeleton stopped for a second one in sight, the brain's cover takes the buddy
         FIGHT_TO_COVER,
         // (skel_cover_over_runs) a run under the cover's hp line took a skeleton's arrow: it ends, the buddy digs in where it stands
-        RUN_TO_COVER
+        RUN_TO_COVER,
+        // (Tuning wither_gap) the fight from a cell wither skeletons cannot enter starts and ends; the why, the cell and the
+        // reason are in the gap note that goes out right after
+        GAP_START, GAP_END
     }
 
     // what sort of foe it is, which is the only thing the machine needs to know about a species
@@ -1573,6 +1579,11 @@ public final class CombatCommit {
         perchFailedAt = Long.MIN_VALUE / 2;
         lastPerchAt = Long.MIN_VALUE / 2;
         rePerches = 0;
+        gapFacts = null;
+        gapPlan = null;
+        gapQuietSince = -1;
+        gapAgainAt = Long.MIN_VALUE / 2;
+        gapNote = null;
         lobberGaveUpAt = Long.MIN_VALUE / 2;
         sniperGaveUpAt = Long.MIN_VALUE / 2;
         atRange = false;
@@ -1945,6 +1956,110 @@ public final class CombatCommit {
             }
         }
         return Event.NONE;
+    }
+
+    // ---- GAP (the buddy's fork, Tuning wither_gap, off; WitherGapRules)
+
+    // the world's side of a gap, handed over by the brain every tick of one, right before step. null means no facts, and no gap
+    private WitherGapRules.Facts gapFacts;
+    private WitherGapRules.Plan gapPlan;
+    private long gapStartedAt;
+    private long gapQuietSince = -1;
+    // a gap that failed holds the next one back till this tick (a clock that went back past it lets go at once)
+    private long gapAgainAt = Long.MIN_VALUE / 2;
+    private String gapNote;
+
+    public void gapFacts(WitherGapRules.Facts facts) {
+        this.gapFacts = facts;
+    }
+
+    public boolean gapping() {
+        return mode == Mode.FIGHT && why == Why.GAP;
+    }
+
+    // the cell of the gap that holds now, null for none
+    public WitherGapRules.Plan gapPlan() {
+        return gapping() ? gapPlan : null;
+    }
+
+    public String takeGapNote() {
+        String note = gapNote;
+        gapNote = null;
+        return note;
+    }
+
+    // a run is on, the switch is on and no failed gap holds the next one back: the brain may look for a cell. the start rule
+    // (WitherGapRules.startNo) and the search are the brain's, it has the world
+    public boolean gapMay(long now) {
+        return mode == Mode.RUN && WitherGapRules.on() && (now >= gapAgainAt || now < gapAgainAt - WitherGapRules.RETRY_TICKS);
+    }
+
+    // the run becomes the fight from the plan's cell. run: what the step that started or carried the run handed back. a
+    // RUN_START is not said (the run never took a step), a fight that turned into this run is (as endedFirst). withers and far:
+    // how many wither skeletons and the farthest of them, for the note. NONE when no run is on, the switch is off, a failed gap
+    // holds it back or something we only run from is about
+    public Event startGap(Tick t, int withers, double far, WitherGapRules.Plan plan, Event run) {
+        if (plan == null || !gapMay(t.now())) return Event.NONE;
+        for (Foe foe : t.foes()) {
+            if (foe.kind() == Kind.UNTOUCHABLE && foe.danger(t.guardHealth())) return Event.NONE;
+        }
+        if (run != Event.RUN_START && run != Event.NONE) endedFirst = run;
+        // it stands in for a run, so ending hurt the hold uses the run's hp line
+        runLine = true;
+        boxCorner = false;
+        fastCorner = false;
+        witherCorner = false;
+        fastClearSince = -1;
+        noRoom = false;
+        contacted = false;
+        lobberPick = false;
+        atRange = false;
+        // (unarmed_no_corner_fight) a wall the run was putting up is not the gap's: the cell is
+        walling = false;
+        mode = Mode.FIGHT;
+        why = Why.GAP;
+        targetId = -1;
+        cornered = false;
+        startTick = t.now();
+        farSince = -1;
+        releaseSince = -1;
+        wayBoxSince = -1;
+        outReachSince = -1;
+        gapPlan = plan;
+        gapStartedAt = t.now();
+        gapQuietSince = -1;
+        gapFacts = null;
+        gapNote = WitherGapRules.startLine(withers, far, t.health(), plan);
+        return Event.GAP_START;
+    }
+
+    // the whole gap. as the perch, it skips the target bookkeeping and every bail of the fight: in the cell the wither
+    // skeletons cannot reach us, and what ends it is WitherGapRules.leave (hp, the clock, none left, the cell given up)
+    private Event gap(Tick t) {
+        for (Foe foe : t.foes()) {
+            if (foe.kind() == Kind.UNTOUCHABLE && foe.danger(t.guardHealth())) return leaveGap(t, "something we only run from", true);
+        }
+        WitherGapRules.Facts f = gapFacts;
+        if (f != null && f.withers() > 0) {
+            gapQuietSince = -1;
+        } else if (gapQuietSince < 0) {
+            gapQuietSince = t.now();
+        }
+        long quiet = gapQuietSince < 0 ? 0 : t.now() - gapQuietSince;
+        long in = t.now() - gapStartedAt;
+        String reason = WitherGapRules.leave(f, t.health(), in, quiet);
+        if (reason == null) return Event.NONE;
+        return leaveGap(t, reason, WitherGapRules.failedLeave(f, t.health(), in));
+    }
+
+    private Event leaveGap(Tick t, String reason, boolean failed) {
+        if (failed) gapAgainAt = t.now() + WitherGapRules.RETRY_TICKS;
+        boolean wasIn = gapFacts != null && gapFacts.everIn();
+        String then = failed ? ", the old way for " + WitherGapRules.RETRY_TICKS / 20 + " s" : t.health() < WitherGapRules.leaveHp() ? ", the old way" : "";
+        gapNote = (wasIn ? "in the cell, leaving: " : "leaving before the cell at " + (gapPlan == null ? "?" : gapPlan.at()) + " was reached: ")
+                + reason + then;
+        gapFacts = null;
+        return end(t, Event.GAP_END);
     }
 
     // ---- NONE
@@ -2565,6 +2680,7 @@ public final class CombatCommit {
 
     private Event fight(Tick t) {
         if (why == Why.PERCH) return perch(t);
+        if (why == Why.GAP) return gap(t);
         Foe target = t.target();
         // (the target died or left: the meter's flee of the next ticks is stale, killedAt. once per target, the waits in
         // targetGone come back here every tick)

@@ -165,6 +165,10 @@ public final class Tuning {
             // (13 Nov 2026, off: in the fire-proof camp one wither skeleton by a blaze or by the buddy keeps the chase off,
             // BlazeFight.scan; the A/B block witherwacht)
             java.util.Map.entry("fireproof_wither_one", 0.0),
+            // (13 Nov 2026, off: with 2 or 3 wither skeletons near at 14 hp or more, the fight from a cell they cannot enter, a
+            // 2-high gap found or dug, instead of the run; its knobs wither_gap_hp, wither_gap_leave_hp, wither_gap_search and
+            // the rest have their fallbacks in WitherGapRules)
+            java.util.Map.entry("wither_gap", 0.0),
             // (13 Nov 2026, on: a line only, whether a plain walk reaches a stand under a blaze the chase found no path to)
             java.util.Map.entry("blaze_way_log", 1.0),
             // (a fix of 13 Nov 2026: a branch mine's baritone mine takes only ores in its band, BranchMineTask)

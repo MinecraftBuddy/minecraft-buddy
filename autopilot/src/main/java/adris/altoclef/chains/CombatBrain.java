@@ -16,6 +16,8 @@ import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.MountRules;
 import adris.altoclef.util.helpers.SkelCover;
 import adris.altoclef.util.helpers.WitchRules;
+import adris.altoclef.tasks.speedrun.gamer.tasks.WitherGapTask;
+import adris.altoclef.util.helpers.WitherGapRules;
 import net.minecraft.world.entity.EquipmentSlot;
 import adris.altoclef.util.helpers.PearlHuntHook;
 import net.minecraft.world.entity.monster.Blaze;
@@ -151,6 +153,14 @@ final class CombatBrain {
     private SkelCoverTask.Seen _seen = SkelCoverTask.Seen.NONE;
     // (skel_cover_dig_first, skel_cover_over_runs) the cover task digs first: its key, or the over-runs cover with a melee mob near
     private boolean _coverDig;
+    // (Tuning wither_gap) the gap's task, made with its plan when the gap starts; the wither skeletons it is about (the ones
+    // counted at the start and any on us since), the next tick a cell may be looked for, and the run whose "no safe cell" was said
+    private WitherGapTask _gapTask;
+    private final Set<Integer> _gapIds = new HashSet<>();
+    private long _gapSearchAt = Long.MIN_VALUE / 2;
+    private long _gapNoSaid = Long.MIN_VALUE;
+    // a cell is looked for at most this often while a run goes on
+    private static final long GAP_SEARCH_TICKS = 10;
     private CommittedRunTask _run;
     // (risk_flee) the run as the flee search, one for each run
     private FleeTask _flee;
@@ -512,12 +522,17 @@ final class CombatBrain {
     // in a committed fight the flee line was already the machine's call (a cornered one never bails), so the aura keeps its
     // hands and its shield under it
     boolean auraFighting() {
-        return _commit.mode() == Mode.FIGHT && !_commit.perching();
+        return _commit.mode() == Mode.FIGHT && !_commit.perching() && !_commit.gapping();
     }
 
     // the id the aura should swing at while it is in reach, -1 when nothing is committed
     int fightTarget() {
-        return _commit.mode() == Mode.FIGHT && !_commit.perching() ? _commit.targetId() : -1;
+        return _commit.mode() == Mode.FIGHT && !_commit.perching() && !_commit.gapping() ? _commit.targetId() : -1;
+    }
+
+    // (Tuning wither_gap) the fight from a cell wither skeletons cannot enter: its task swings for itself, as the perch's does
+    boolean gapping() {
+        return _commit.gapping();
     }
 
     // the perch task swings for itself and nothing shields: the top of the pillar reads as a ledge but nothing can knock us off it
@@ -537,7 +552,7 @@ final class CombatBrain {
     }
 
     boolean auraShield() {
-        if (_commit.perching() || _fightWalking) return false;
+        if (_commit.perching() || _commit.gapping() || _fightWalking) return false;
         return _commit.mode() == Mode.FIGHT && (_commit.cornered() || _fightShield) || _rim || blazePocket();
     }
 
@@ -623,6 +638,10 @@ final class CombatBrain {
         _cover.reset();
         _coverTask = null;
         _seen = SkelCoverTask.Seen.NONE;
+        _gapTask = null;
+        _gapIds.clear();
+        _gapSearchAt = Long.MIN_VALUE / 2;
+        _gapNoSaid = Long.MIN_VALUE;
         _run = null;
         _flee = null;
         _fight = null;
@@ -649,6 +668,13 @@ final class CombatBrain {
                         _perch.reset();
                     }
                     return _perch;
+                }
+                // (Tuning wither_gap) the gap's task walks into the cell, digs or roofs it, and swings from it; the commitment
+                // ends it. a chain that cut in and gave the wheel back gets the same task again, the cell is the same
+                if (_commit.gapping()) {
+                    if (_gapTask == null) return _splitHold;
+                    if (_gapTask.stopped()) _gapTask.reset();
+                    return _gapTask;
                 }
                 Entity target = mod.getWorld().getEntity(_commit.targetId());
                 // the fight outlives a dead splitter for a moment (CombatCommit.SPLIT_WAIT_TICKS): stand, the children are coming
@@ -754,6 +780,83 @@ final class CombatBrain {
         }
     }
 
+    // (Tuning wither_gap) the start of a gap, asked after a step that left a run on: the start rule (WitherGapRules.startNo)
+    // on the wither skeletons on us within the start range, then a cell found or made near (WitherGapRules.search), at most
+    // every GAP_SEARCH_TICKS. no cell: one line a run, and the run goes on
+    private Event gapTry(AltoClef mod, LocalPlayer player, long now, CombatCommit.Tick tick, List<Foe> foes, Event run) {
+        if (!_commit.gapMay(now)) return Event.NONE;
+        double range = WitherGapRules.startRange();
+        int withers = 0;
+        int others = 0;
+        double far = 0;
+        for (Foe foe : foes) {
+            if (foe.distance() > range) continue;
+            if (foe.wither()) {
+                if (Math.abs(foe.y()) > WitherGapRules.FLOOR_BAND) continue;
+                withers++;
+                far = Math.max(far, foe.distance());
+            } else if (foe.melee()) {
+                others++;
+            }
+        }
+        // (every one tracked counts toward the most, foe or not: a fourth that has not seen us yet comes all the same)
+        int all = 0;
+        List<double[]> at = new ArrayList<>();
+        for (Mob mob : _crowdBlazes) {
+            if (mob instanceof WitherSkeleton && mob.isAlive() && mob.distanceTo(player) <= range) {
+                all++;
+                at.add(new double[]{mob.getX(), mob.getZ()});
+            }
+        }
+        if (WitherGapRules.startNo(withers, all, others, player.getHealth(), hasSword(mod)) != null) return Event.NONE;
+        if (now < _gapSearchAt && now >= _gapSearchAt - GAP_SEARCH_TICKS) return Event.NONE;
+        _gapSearchAt = now + GAP_SEARCH_TICKS;
+        WitherGapRules.Search search = WitherGapRules.search(WitherGapTask.grid(mod.getWorld()), player.getX(), player.getY(), player.getZ(), at,
+                WitherGapRules.searchRadius(), WitherGapRules.digRange(), WitherGapRules.roofMax(), hasPickaxe(mod),
+                adris.altoclef.tasks.resources.BlazePillboxTask.buildingBlocks(mod));
+        if (search.plan() == null) {
+            if (_gapNoSaid != _commit.startTick()) {
+                _gapNoSaid = _commit.startTick();
+                Debug.logInternal("combat: wither gap: no safe cell within " + WitherGapRules.searchRadius() + " (" + search.no() + "), the old way");
+            }
+            return Event.NONE;
+        }
+        Event event = _commit.startGap(tick, withers, far, search.plan(), run);
+        if (event == Event.GAP_START) {
+            _gapTask = new WitherGapTask(search.plan());
+            _gapIds.clear();
+            for (Foe foe : foes) {
+                if (foe.wither() && foe.distance() <= range) _gapIds.add(foe.id());
+            }
+        }
+        return event;
+    }
+
+    // what the commitment needs of a gap each tick: the task's word on the cell, and how many of the gap's wither skeletons
+    // (the ones it began with and any on us since) are alive within the stay range
+    private WitherGapRules.Facts gapFacts(LocalPlayer player, List<Foe> foes) {
+        double stay = WitherGapRules.stayRange();
+        for (Foe foe : foes) {
+            if (foe.wither() && foe.distance() <= stay) _gapIds.add(foe.id());
+        }
+        int near = 0;
+        for (Mob mob : _crowdBlazes) {
+            if (mob instanceof WitherSkeleton && mob.isAlive() && _gapIds.contains(mob.getId()) && mob.distanceTo(player) <= stay) near++;
+        }
+        WitherGapTask task = _gapTask;
+        return new WitherGapRules.Facts(task != null && task.inCell(), task != null && task.everIn(),
+                task == null ? "no task" : task.failed(), near);
+    }
+
+    // (Tuning wither_gap) a pickaxe in the hand or the bag: without one the gap's search only finds or roofs a cell
+    private static boolean hasPickaxe(AltoClef mod) {
+        if (mod.getPlayer().getMainHandItem().is(net.minecraft.tags.ItemTags.PICKAXES)) return true;
+        for (ItemStack stack : mod.getItemStorage().getItemStacksPlayerInventory(true)) {
+            if (stack.is(net.minecraft.tags.ItemTags.PICKAXES)) return true;
+        }
+        return false;
+    }
+
     // the meter's run as the flee search, one task for each run
     private adris.altoclef.tasksystem.Task flee() {
         if (_flee == null || _flee.stopped()) _flee = new FleeTask();
@@ -848,6 +951,8 @@ final class CombatBrain {
             _wall = null;
             _cover.reset();
             _coverTask = null;
+            _gapTask = null;
+            _gapIds.clear();
             _stance = CombatRules.Stance.CALM;
             return;
         }
@@ -858,7 +963,7 @@ final class CombatBrain {
 
         List<Mob> mobs = new ArrayList<>();
         List<Foe> foes = new ArrayList<>();
-        boolean inFight = _commit.mode() == Mode.FIGHT && !_commit.perching();
+        boolean inFight = _commit.mode() == Mode.FIGHT && !_commit.perching() && !_commit.gapping();
         boolean shotByExcluded = gatherFoes(mod, dimension, book, now, player, mobs, foes, inFight);
         if (inFight) addBlazesThatHitUs(mod, dimension, book, now, player, mobs, foes);
         // a swelling creeper stops being angry at us (the fuse goal pushes the chase aside), so the hostile list drops it right when
@@ -990,13 +1095,22 @@ final class CombatBrain {
             // and no other shooter's line; the bag is asked only with a witch in reach)
             boolean witchReach = WitchRules.meleeReachOn();
             _commit.witchMeleeFacts(witchReach, witchReach && witchInReach(foes) && hasBlade(mod));
-            Event event = _commit.step(new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
+            // (Tuning wither_gap) the world's side of a gap that holds, handed over before the step as the perch's is
+            if (_commit.gapping()) _commit.gapFacts(gapFacts(player, foes));
+            CombatCommit.Tick tick = new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
                     way(mod, mobs, foes).withRim(rim).withLavaClose(lavaClose), armed(mod, foes), tryingToMove(mod, player), creeperRepeat, body(mod, dimension),
-                    boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player)));
+                    boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player));
+            Event event = _commit.step(tick);
             String note = _commit.takeNote();
             if (note != null) Debug.logInternal("combat: [" + dimension.name().toLowerCase(java.util.Locale.ROOT) + "] " + note);
             String perchNote = _commit.takePerchNote();
             if (perchNote != null) Debug.logInternal("combat: [" + dimension.name().toLowerCase(java.util.Locale.ROOT) + "] " + perchNote);
+            // (Tuning wither_gap, off: a run from two or three wither skeletons at good health, begun this step or going on, is
+            // the fight from a cell they cannot enter, found or made, where there is one)
+            if (_commit.mode() == Mode.RUN && dimension == Dimension.NETHER && WitherGapRules.on()) {
+                Event gap = gapTry(mod, player, now, tick, foes, event);
+                if (gap != Event.NONE) event = gap;
+            }
             // (skel_cover) the cover holds only with nothing committed; a run or a fight that takes over ends it, and the next
             // stretch with nothing committed asks again
             if (!coverOn) {
@@ -1055,7 +1169,7 @@ final class CombatBrain {
                 _lastRunHp = _runDanger ? _runHp : -1;
             }
             // a fight that just started has its target in the world right now, which is the only chance to learn its name
-            if (_commit.mode() == Mode.FIGHT && !_commit.perching()) {
+            if (_commit.mode() == Mode.FIGHT && !_commit.perching() && !_commit.gapping()) {
                 _names.note(_commit.targetId(), nameOf(mod, _commit.targetId()));
                 _fightName = _names.of(_commit.targetId());
             }
@@ -1101,10 +1215,12 @@ final class CombatBrain {
                 }
                 // a fight that took over from a run: the run's path is still alive, and CritTiming holds the opener while one is
                 // (the perch stands where we are, the run's path would walk us off before the pillar is up)
-                if (event == Event.RUN_TO_FIGHT || event == Event.RUN_CHASED_FIGHT || event == Event.PERCH_START) {
+                if (event == Event.RUN_TO_FIGHT || event == Event.RUN_CHASED_FIGHT || event == Event.PERCH_START || event == Event.GAP_START) {
                     mod.getClientBaritone().getPathingBehavior().cancelEverything();
                 }
             }
+            String gapNote = _commit.takeGapNote();
+            if (gapNote != null) Debug.logInternal("combat: wither gap: " + gapNote);
         } else if (_commit.mode() != Mode.NONE) {
             // switched off in the middle of one: let go of it, no line (it is not a transition the machine made)
             _commit.reset();
@@ -1127,6 +1243,10 @@ final class CombatBrain {
         if (_commit.mode() != Mode.FIGHT) _fight = null;
         if (!_commit.perching()) _perch = null;
         if (!_commit.walling()) _wall = null;
+        if (!_commit.gapping()) {
+            _gapTask = null;
+            _gapIds.clear();
+        }
 
         // running: a zombie that keeps pace with us is the one we are running from, not one that is stuck
         reach.setFleeing(_commit.mode() == Mode.RUN);
@@ -1181,12 +1301,12 @@ final class CombatBrain {
             if (foe.distance() <= CombatCommit.CONTACT) meleeNear++;
             if (foe.distance() <= CombatRules.SWARM_RANGE) meleeAround++;
         }
-        if (_commit.mode() == Mode.FIGHT && !_commit.perching()) _swingAt.add(_commit.targetId());
+        if (_commit.mode() == Mode.FIGHT && !_commit.perching() && !_commit.gapping()) _swingAt.add(_commit.targetId());
         // (the target can be missing from a hostile pass, and losing the shield for that restarts its 5 ticks)
         Foe fightFoe = target;
         List<Foe> shieldFoes = fightFoe != null && foes.stream().noneMatch(f -> f.id() == fightFoe.id()) ? List.of(fightFoe) : foes;
-        _fightShield = _commit.mode() == Mode.FIGHT && !_commit.perching() && CombatRules.fightShield(_fightShield, _commit.targetId(), shieldFoes);
-        _fightWalking = _commit.mode() == Mode.FIGHT && !_commit.perching() && CombatRules.fightShieldDown(
+        _fightShield = _commit.mode() == Mode.FIGHT && !_commit.perching() && !_commit.gapping() && CombatRules.fightShield(_fightShield, _commit.targetId(), shieldFoes);
+        _fightWalking = _commit.mode() == Mode.FIGHT && !_commit.perching() && !_commit.gapping() && CombatRules.fightShieldDown(
                 mod.getClientBaritone().getPathingBehavior().getCurrent() != null, target != null ? target.distance() : Double.POSITIVE_INFINITY);
         _walkNoArrowShield = _fightWalking && target != null && (target.kind() == Kind.FLYER || target.patrol());
         // (outside a fight the shield pauses pathing, so it waits until the walk is done instead of pinning us on the edge)
@@ -1200,8 +1320,9 @@ final class CombatBrain {
             _rim = true;
             _swingAt.add(rimRun.id());
         }
-        // the perch task swings for itself, the aura would be a second hand on the same sword
-        if (_commit.perching()) {
+        // the perch task swings for itself, the aura would be a second hand on the same sword (and the gap's task too: in the
+        // tunnel its pickaxe and its sword are its own)
+        if (_commit.perching() || _commit.gapping()) {
             _swingAt.clear();
             _rimGuardId = -1;
         }
@@ -1520,7 +1641,8 @@ final class CombatBrain {
         return WeaponPick.best(bagCandidates(mod)) != null;
     }
 
-    // (skel_close_rule) a sword in hand or in the bag, the walk up to a skeleton's weapon (an axe is not)
+    // (skel_close_rule) a sword in hand or in the bag, the walk up to a skeleton's weapon (an axe is not); (wither_gap) the gap's
+    // fight is the sword's too, it never hops or walks up
     private static boolean hasSword(AltoClef mod) {
         for (WeaponPick.Candidate c : bagCandidates(mod)) {
             if (c.item() != null && ItemHelper.isSword(c.item())) return true;
@@ -1625,6 +1747,8 @@ final class CombatBrain {
         // even at the flee line (that one is for runs and fights on the ground), a lit creeper is still a reason not to sit down
         // (only once the pillar is up: a meal while stacking eats the placement clicks and the pillar gives up)
         if (_commit.perching() && !creeperClose && _perch != null && _perch.onTop()) return CombatRules.Stance.CALM;
+        // (Tuning wither_gap) the same in the gap's cell: nothing on our floor reaches in there, the meal is safe
+        if (_commit.gapping() && !creeperClose && _gapTask != null && _gapTask.inCell()) return CombatRules.Stance.CALM;
         // (skel_cover: in cover the meal goes by the heal hold's lines too: none while a skeleton still has a line)
         return CombatCommit.stance(_commit.mode(), mod.getPlayer().getHealth(), nearest, creeperClose, gapple, bite, _commit.recovering() || covering(),
                 mod.getFoodChain().hasFood());

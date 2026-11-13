@@ -54,6 +54,9 @@ public final class CombatLog {
             case FIGHT_TO_COVER -> tag + "fight over, not closing on " + fighting + ", into cover";
             // (the note before it says why: a skeleton's arrow, skel_cover_over_runs, or a mounted mob about, mounted_no_run)
             case RUN_TO_COVER -> tag + "run over, " + blocks + " blocks, at hp " + hp + ", into cover";
+            // (Tuning wither_gap: the counts, the cell and the reason are in the gap note right after, "combat: wither gap: ...")
+            case GAP_START -> tag + "GAP, into a cell wither skeletons cannot enter (hp " + hp + ")";
+            case GAP_END -> tag + "gap over";
         };
     }
 

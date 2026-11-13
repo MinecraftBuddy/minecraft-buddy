@@ -17,7 +17,7 @@ import net.minecraft.world.level.block.Blocks;
 // finished, 0 of 10). a block not in after PLACE_TICKS is left out, the whole after GIVE_UP_TICKS: then the camp is the
 // open one as before. done when every block of the plan is solid. LOADED and PLACE_TICKS by Tuning (pillbox_loaded,
 // pillbox_place_ticks), their defaults what the rod drills' yardstick plays: 1,000,000 (the clock holds no block back) and 300
-final class BlazePillboxTask extends Task {
+public final class BlazePillboxTask extends Task {
     static final double LOADED = 1_000_000;
     static final long PLACE_TICKS = 300;
     static final long GIVE_UP_TICKS = 2400;
@@ -130,6 +130,17 @@ final class BlazePillboxTask extends Task {
             if (!brewItem(item) && (stoneOk || !standStone(item)) && inBag.test(item)) return item;
         }
         return null;
+    }
+
+    // how many blocks a click may place now (buildingBlock's choice, all of them counted): the wither gap's roof asks
+    public static int buildingBlocks(AltoClef mod) {
+        boolean stone = stoneOk(mod);
+        int n = 0;
+        for (Block b : BLOCKS) {
+            net.minecraft.world.item.Item item = b.asItem();
+            if (!brewItem(item) && (stone || !standStone(item))) n += mod.getItemStorage().getItemCount(item);
+        }
+        return n;
     }
 
     // the blocks the builder may place now: BLOCKS, without the stand's stone while it is kept
@@ -573,8 +584,9 @@ final class BlazePillboxTask extends Task {
     // a plain click on a solid face beside the block, the floor or the block under it first (as the portal frame's cells,
     // 7e521bd): Baritone's builder never got its place click in during the fight ("couldn't get a place click in for 2.0s"),
     // with or without the shield, corner23d and corner23f. the builder only when no face is solid. with brew_box on a click
-    // goes out only with its block in hand (held, InteractWithBlockTask.onlyWith): a brewing stand is never a block of the box
-    private static Task click(AltoClef mod, BlockPos pos, boolean stayPut) {
+    // goes out only with its block in hand (held, InteractWithBlockTask.onlyWith): a brewing stand is never a block of the box.
+    // the wither gap's roof is put by the same click (WitherGapTask)
+    public static Task click(AltoClef mod, BlockPos pos, boolean stayPut) {
         net.minecraft.world.item.Item item = buildingBlock(i -> mod.getItemStorage().hasItem(i), stoneOk(mod));
         var level = mod.getWorld();
         if (item != null) {

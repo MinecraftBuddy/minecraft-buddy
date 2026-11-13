@@ -167,8 +167,9 @@ public final class PerchTask extends Task {
         }
     }
 
-    // any point of its box in range with a clear ray from the eye, null when there is none (GolemFightTask has the long version)
-    private static Vec3 reachablePoint(LocalPlayer player, Mob mob) {
+    // any point of its box in range with a clear ray from the eye, null when there is none (GolemFightTask has the long version).
+    // the wither gap swings from its cell by the same test (WitherGapTask)
+    static Vec3 reachablePoint(LocalPlayer player, Mob mob) {
         AABB box = mob.getBoundingBox();
         Vec3 eye = player.getEyePosition();
         List<double[]> points = new ArrayList<>(GolemRules.aimPoints(eye.x, eye.y, eye.z, box.minX, box.minY, box.minZ, box.maxX, box.maxY,
