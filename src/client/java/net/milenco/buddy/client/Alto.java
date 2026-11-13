@@ -1294,6 +1294,17 @@ final class Alto {
 		return t - hungrySince > 200;
 	}
 
+	/** (meal_hand_hold) the autopilot's food chain in a meal: from its first press of the bite to the last swallow. */
+	static boolean eatingNow() {
+		var mod = instance();
+		if (mod == null || mod.getPlayer() == null) return false;
+		try {
+			return mod.getFoodChain().isTryingToEat();
+		} catch (RuntimeException e) {
+			return false;
+		}
+	}
+
 	/** What keeps Soprano's food chain from eating now, for the order's status; empty when nothing does. */
 	static String eatBlock() {
 		var mod = instance();

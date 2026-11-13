@@ -46,4 +46,34 @@ final class DigIn {
 		if (!sides) return "the hole's side opens onto a cave";
 		return null;
 	}
+	/**
+	 * (the autopilot's shelter_dig_clock, a fix of 13 Nov 2026, on) how long the night shelter's dig may go with no block dug
+	 * before the buddy shuts in on the spot from the bag. test heel: two shelters dug for five minutes at full hp with 13 and
+	 * 36 blocks in the bag, "dug 0", until a zombie and a creeper came.
+	 */
+	static final long DIG_CLOCK_MS = 15_000;
+
+	/**
+	 * The dig has made no progress for {@link #DIG_CLOCK_MS}: counted from the latest of when the dig began at its spot, the
+	 * last block dug and the last meal that held the hand (0: none yet).
+	 */
+	static boolean digStalled(long since, long dugAt, long mealAt, long now) {
+		return now - Math.max(since, Math.max(dugAt, mealAt)) > DIG_CLOCK_MS;
+	}
+
+	/**
+	 * The same spot for the dig's clock: the standing cell's column at most one block off sideways, either way, as a step to a
+	 * neighbouring cell and back is (test heel's Finn: five minutes between two cells, the clock started again with each step).
+	 */
+	static boolean sameSpot(int x, int z, int atX, int atZ) {
+		return Math.abs(x - atX) <= 1 && Math.abs(z - atZ) <= 1;
+	}
+
+	/**
+	 * (meal_hand_hold) a meal that holds the hand: the switch on, a meal under way, and that meal no longer than {@code
+	 * maxMs} on (a meal that never ends is left to the food side's own back off rather than hold every step).
+	 */
+	static boolean mealHolds(boolean on, boolean meal, long mealSince, long now, long maxMs) {
+		return on && meal && now - mealSince < maxMs;
+	}
 }

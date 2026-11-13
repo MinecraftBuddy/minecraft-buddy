@@ -643,6 +643,18 @@ final class ObtainSafe {
 		return PathShape.THROWAWAY.contains(id) || id.endsWith("terracotta") && !id.contains("glazed");
 	}
 
+	/** The autopilot's shelter_dig_clock switch (a fix of 13 Nov 2026, on by default); off without the autopilot. */
+	static boolean digClockOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_dig_clock", 0) > 0;
+	}
+
+	/** The block the night shelter puts in first: the first in the bag that passes shelterBlock; null with none. */
+	static String firstShelterBlock(LocalPlayer p) {
+		var in = p.getInventory();
+		for (int i = 0; i < 36; i++) if (shelterBlock(in.getItem(i))) return AfkHelperClient.itemId(in.getItem(i));
+		return null;
+	}
+
 	/** The autopilot's shelter_dig_here switch (a fix of 13 Nov 2026, on by default); off without the autopilot. */
 	static boolean digHereOn() {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_dig_here", 0) > 0;
@@ -991,6 +1003,14 @@ final class ObtainSafe {
 		boolean propDone, nearSite;
 		long propSince;
 		final java.util.Set<BlockPos> nearTried = new java.util.HashSet<>();
+		/**
+		 * (the autopilot's shelter_dig_clock, a fix of 13 Nov 2026, on) the dig's progress clock: digAt the standing cell the dig
+		 * began at (a step to a neighbouring cell keeps it), digSince when, dugAt the last block dug, mealAt the last time a meal
+		 * held the hand. noDig once it ran out: no more digging down, the buddy shuts in on the spot from the bag, walls first.
+		 */
+		BlockPos digAt;
+		long digSince, dugAt, mealAt;
+		boolean noDig;
 		/** Cells where it could not shut itself in: no site within two blocks of them. */
 		final java.util.Set<BlockPos> bad = new java.util.HashSet<>();
 		boolean sealed, open;
@@ -1172,6 +1192,14 @@ final class ObtainSafe {
 				return ObtainSteps.Result.RUN;
 			}
 			if (stepping) { HeldKeys.set(mc.options.keyUp, false); stepping = false; }
+			// (the autopilot's meal_hand_hold) a meal under way: the dig and the blocks wait for the swallow, and the dig's clock
+			// with them (each block put in hand cut the bite off, and the bite took the hand back from the block)
+			if (!sealed && ObtainSteps.mealHold(p)) {
+				phase = "waits for the meal";
+				mealAt = now;
+				Follow.stand();
+				return ObtainSteps.Result.RUN;
+			}
 			// (shelter_dig_here) knocked out of the column before the hole was done: chosen afresh where the buddy stands now
 			if (here != null && bottom == null && !sealed && (f.getX() != here.getX() || f.getZ() != here.getZ())) {
 				here = null; prop = null; propDone = false; dug = 0;
@@ -1183,15 +1211,34 @@ final class ObtainSafe {
 				if (r == ObtainSteps.Result.RUN) return r;
 			}
 			// down: three under the open sky; two where the buddy digs in (shelter_dig_here), open sky or a tree's crown over the hole
-			if (bottom == null && dug < (here != null ? 2 : 3) && (open(level, f) || here != null)) {
+			if (!noDig && bottom == null && dug < (here != null ? 2 : 3) && (open(level, f) || here != null)) {
 				BlockPos under = f.below();
+				boolean clock = digClockOn();
+				if (clock && (digAt == null || !DigIn.sameSpot(f.getX(), f.getZ(), digAt.getX(), digAt.getZ()))) {
+					digAt = f.immutable();
+					digSince = now;
+					dugAt = 0;
+				}
 				if (!safeToDig(level, under)) {
 					if (dug == 0) bottom = f;   // here it does not dig: shut where it stands
 					else bottom = f;
+				} else if (clock && DigIn.digStalled(digSince, dugAt, mealAt, now)) {
+					// (shelter_dig_clock) no block dug in 15 s: shut in here from the bag, walls first and the top last. test heel:
+					// two shelters dug "dug 0" for five minutes at full hp with 13 and 36 blocks in the bag (a meal that took the hand
+					// back each tick; a step back and forth between two cells that started the breaker's clock again each time)
+					noDig = true;
+					bottom = f;
+					String block = firstShelterBlock(p);
+					// (no block in the bag: the walls' own way below, one more from underfoot and then "cannot shut")
+					if (block != null) Exchange.emit("obtain", "action", "shelter", "what", "no dig progress in 15 s, shut in here", "with", block,
+						"x", f.getX(), "y", f.getY(), "z", f.getZ(), "dug", dug, "blocks", shelterBlocks(p));
 				} else {
 					phase = "digs " + under.toShortString();
+					// (shelter_dig_clock) the breaker's own give-up clock kept for the spot, not started again by a step aside
+					breaker.siteClock = clock;
 					ObtainSteps.Result r = breaker.tick(mc, p, under, now);
-					if (r == ObtainSteps.Result.DONE) dug++;
+					breaker.siteClock = false;
+					if (r == ObtainSteps.Result.DONE) { dug++; dugAt = now; }
 					else if (r == ObtainSteps.Result.FAIL) bottom = f;
 					return ObtainSteps.Result.RUN;
 				}
@@ -1199,7 +1246,8 @@ final class ObtainSafe {
 			if (bottom == null) bottom = f;
 			if (!f.equals(bottom) && f.distSqr(bottom) > 2) bottom = f;
 			// every open side shut; from shooters the side they shoot from first
-			for (BlockPos c : duck ? facing(level, p, f) : around(f)) {
+			// (shelter_dig_clock) shut in on the spot: the walls first, for the top goes against them
+			for (BlockPos c : duck ? facing(level, p, f) : noDig ? wallsFirst(f) : around(f)) {
 				if (solid(level, c)) continue;
 				// no block to shut it with: one more from underfoot, where the walls stay whole
 				if (shelterBlocks(p) == 0 && safeToDig(level, f.below()) && extra < 3) {
@@ -1245,16 +1293,19 @@ final class ObtainSafe {
 				// a wall is out of sight). So once the walls stand, one down: the old head cell is the roof's cell then, the walls
 				// round it are what the roof goes against, and the ground round the new feet is wall. Walls alone let a skeleton on
 				// the slope beside it shoot in from above, at one block
-				if (r == ObtainSteps.Result.FAIL && duck && c.equals(f.above(2)) && wallsUp(level, f) && safeToDig(level, f.below()) && extra < 3) {
+				// (shelter_dig_clock: shut in on the spot after a dig with no progress, the same)
+				if (r == ObtainSteps.Result.FAIL && (duck || noDig) && c.equals(f.above(2)) && wallsUp(level, f) && safeToDig(level, f.below()) && extra < 3) {
 					phase = "one down, for a roof";
 					ObtainSteps.Result d = breaker.tick(mc, p, f.below(), now);
 					if (d == ObtainSteps.Result.DONE) { extra++; bottom = null; }
 					else if (d == ObtainSteps.Result.FAIL) extra = 3;
 					return ObtainSteps.Result.RUN;
 				}
-				if (r == ObtainSteps.Result.FAIL && duck && c.equals(f.above(2))) continue;
-				// the roof of a night shelter on open ground touches nothing: down after all, where the ground will be dug
-				if (r == ObtainSteps.Result.FAIL && !duck && c.equals(f.above(2)) && dug == 0 && diggable(level, f)) { bottom = null; dug = 0; return ObtainSteps.Result.RUN; }
+				// (shelter_dig_clock) the walls up and no top to be had: the walls hold off what walks, better than a walk elsewhere
+				if (r == ObtainSteps.Result.FAIL && (duck || noDig && wallsUp(level, f)) && c.equals(f.above(2))) continue;
+				// the roof of a night shelter on open ground touches nothing: down after all, where the ground will be dug (not after
+				// the dig's clock ran out: that was the loop between digging and shutting)
+				if (r == ObtainSteps.Result.FAIL && !duck && !noDig && c.equals(f.above(2)) && dug == 0 && diggable(level, f)) { bottom = null; dug = 0; return ObtainSteps.Result.RUN; }
 				// (shelter_dig_here) dug in and the top with nothing to go against (no prop beside the mouth): one more down, and the
 				// top goes in the ground between the hole's walls
 				if (r == ObtainSteps.Result.FAIL && here != null && c.equals(f.above(2)) && extra < 1 && safeToDig(level, f.below())) {
@@ -1283,6 +1334,8 @@ final class ObtainSafe {
 						bad.add(f.immutable());
 						bottom = null; site = null; siteSince = 0; dug = 0; extra = 0; stuckSince = 0; since = now;
 						here = null; prop = null; propDone = false; nearSite = false;
+						// (shelter_dig_clock) a new spot gets its own dig and its own clock
+						noDig = false; digAt = null; dugAt = 0;
 						Exchange.emit("obtain", "action", "shelter", "what", "tries elsewhere", "x", f.getX(), "y", f.getY(), "z", f.getZ(), "try", elsewhere);
 						return ObtainSteps.Result.RUN;
 					}
@@ -1398,6 +1451,15 @@ final class ObtainSafe {
 		static boolean wallsUp(Level level, BlockPos f) {
 			for (Direction d : Direction.Plane.HORIZONTAL) if (!solid(level, f.relative(d)) || !solid(level, f.above().relative(d))) return false;
 			return true;
+		}
+
+		/** (shelter_dig_clock) the cells of a shut-in on the spot: the walls at the feet, then at the head, the top last. */
+		static List<BlockPos> wallsFirst(BlockPos f) {
+			List<BlockPos> out = new ArrayList<>();
+			for (Direction d : Direction.Plane.HORIZONTAL) out.add(f.relative(d));
+			for (Direction d : Direction.Plane.HORIZONTAL) out.add(f.above().relative(d));
+			out.add(f.above(2));
+			return out;
 		}
 
 		static List<BlockPos> around(BlockPos f) {

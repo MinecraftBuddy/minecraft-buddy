@@ -127,9 +127,37 @@ final class ObtainSteps {
 	static boolean hold(Minecraft mc, LocalPlayer p, Predicate<ItemStack> what, String why) {
 		var in = p.getInventory();
 		if (what.test(in.getItem(in.getSelectedSlot()))) return true;
+		// (meal_hand_hold) a meal under way keeps the hand: the step waits for the swallow
+		if (mealHold(p)) return false;
 		for (int i = 0; i < 9; i++) if (what.test(in.getItem(i))) { in.setSelectedSlot(i); return true; }
 		AfkHelperClient.toHotbar(p, mc, what, java.util.Comparator.comparingInt(s -> 0), why);
 		return false;
+	}
+
+	/**
+	 * (the autopilot's meal_hand_hold, a fix of 13 Nov 2026, on; off without the autopilot) a meal under way: a bite of the
+	 * buddy's own, something eaten or drunk in use, or the autopilot's food chain in a meal. The hand is the meal's then, and a
+	 * step that wants another item in it waits (hold, Work's select). test heel's Jade: the night shelter put its block in hand
+	 * each tick for 4.5 minutes, each swap cut the bite off, no swallow and no block placed, and a zombie came. A meal on for
+	 * longer than MEAL_HOLD_MS is held no longer: the food side's own back off settles that one.
+	 */
+	static boolean mealHold(LocalPlayer p) {
+		if (p == null || !mealHoldOn()) { mealSince = 0; return false; }
+		long now = System.currentTimeMillis();
+		boolean meal = AfkHelperClient.biting() || p.isUsingItem() && p.getUseItem().has(net.minecraft.core.component.DataComponents.CONSUMABLE)
+			|| Alto.eatingNow();
+		if (!meal) { mealSince = 0; return false; }
+		// (a meal seen again after a while without a look is a new one)
+		if (mealSince == 0 || now - mealSeen > 1000) mealSince = now;
+		mealSeen = now;
+		return DigIn.mealHolds(true, true, mealSince, now, MEAL_HOLD_MS);
+	}
+
+	static final long MEAL_HOLD_MS = 8000;
+	private static long mealSince, mealSeen;
+
+	static boolean mealHoldOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("meal_hand_hold", 0) > 0;
 	}
 
 	/** Worth picking up beside what the step is for: what an order takes often. */
@@ -189,10 +217,20 @@ final class ObtainSteps {
 		int offTicks;
 		/** Why the last FAIL: "reach" (no cell to stand in or no way there), "slow" (it did not break in time), "tool". */
 		String failed;
+		/**
+		 * (shelter_dig_clock) the give-up clock kept for the spot: a target one cell off sideways at the same height while the
+		 * last one still stands (the block under the feet after a step to a neighbouring cell) keeps the clock running.
+		 */
+		boolean siteClock;
 
 		Result tick(Minecraft mc, LocalPlayer p, BlockPos b, long now) {
 			Level level = p.level();
-			if (!b.equals(target)) { target = b.immutable(); stand = null; since = now; obstacle = null; offTicks = 0; }
+			if (!b.equals(target)) {
+				boolean keep = siteClock && target != null && b.getY() == target.getY()
+					&& DigIn.sameSpot(b.getX(), b.getZ(), target.getX(), target.getZ()) && !level.getBlockState(target).isAir();
+				target = b.immutable(); stand = null; obstacle = null; offTicks = 0;
+				if (!keep) since = now;
+			}
 			BlockState st = level.getBlockState(b);
 			if (st.isAir()) return Result.DONE;
 			if (now - since > 30_000) { failed = "slow"; return Result.FAIL; }

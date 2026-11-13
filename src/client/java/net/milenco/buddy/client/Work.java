@@ -2003,6 +2003,8 @@ final class Work {
 
 	/** The tool in hand; from the backpack it goes to the hotbar first (and the hit waits a tick). */
 	private static boolean select(Minecraft mc, LocalPlayer p, int tool) {
+		// (the autopilot's meal_hand_hold) a meal under way keeps the hand: the dig waits for the swallow
+		if (ObtainSteps.mealHold(p)) return false;
 		var inv = p.getInventory();
 		if (tool == HAND) {
 			int h = inv.getSelectedSlot();

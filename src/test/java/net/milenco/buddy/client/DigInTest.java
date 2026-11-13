@@ -60,4 +60,34 @@ class DigInTest {
 		assertEquals("a cave or a drop under the hole", DigIn.refusal(true, true, false, false, true));
 		assertEquals("the hole's side opens onto a cave", DigIn.refusal(true, true, false, true, false));
 	}
+	/** (shelter_dig_clock) 15 s with no block dug from the latest of the dig's start, the last block and the last meal. */
+	@Test
+	void theDigGivesUpAfterFifteenSecondsWithNoProgress() {
+		assertFalse(DigIn.digStalled(1000, 0, 0, 1000 + DigIn.DIG_CLOCK_MS));
+		assertTrue(DigIn.digStalled(1000, 0, 0, 1001 + DigIn.DIG_CLOCK_MS));
+		// a block dug starts the 15 s again
+		assertFalse(DigIn.digStalled(1000, 10_000, 0, 20_000));
+		assertTrue(DigIn.digStalled(1000, 10_000, 0, 25_001));
+		// so does a meal that held the hand
+		assertFalse(DigIn.digStalled(1000, 0, 12_000, 20_000));
+	}
+
+	/** (shelter_dig_clock) a step to a neighbouring cell and back keeps the spot; two cells off is another one. */
+	@Test
+	void aStepAsideIsTheSameSpot() {
+		assertTrue(DigIn.sameSpot(10, 20, 10, 20));
+		assertTrue(DigIn.sameSpot(11, 20, 10, 20));
+		assertTrue(DigIn.sameSpot(9, 21, 10, 20));
+		assertFalse(DigIn.sameSpot(12, 20, 10, 20));
+		assertFalse(DigIn.sameSpot(10, 18, 10, 20));
+	}
+
+	/** (meal_hand_hold) a meal holds the hand while the switch is on, for at most the given time. */
+	@Test
+	void aMealHoldsTheHandForAWhile() {
+		assertTrue(DigIn.mealHolds(true, true, 1000, 2000, 8000));
+		assertFalse(DigIn.mealHolds(false, true, 1000, 2000, 8000));
+		assertFalse(DigIn.mealHolds(true, false, 1000, 2000, 8000));
+		assertFalse(DigIn.mealHolds(true, true, 1000, 9000, 8000));
+	}
 }
