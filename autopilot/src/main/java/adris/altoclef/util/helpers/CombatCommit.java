@@ -249,7 +249,9 @@ public final class CombatCommit {
         // the cap came with us still hurt and chased: a fight
         RUN_CHASED_FIGHT,
         // the perch starts and ends. the words are the perch notes', not CombatLog's
-        PERCH_START, PERCH_END
+        PERCH_START, PERCH_END,
+        // (skel_close_rule) the walk up to a skeleton stopped for a second one in sight, the brain's cover takes the buddy
+        FIGHT_TO_COVER
     }
 
     // what sort of foe it is, which is the only thing the machine needs to know about a species
@@ -1114,6 +1116,75 @@ public final class CombatCommit {
         return wallFoeId;
     }
 
+    // (the buddy's fork, Tuning skel_cover and skel_close_rule, fixes of 13 Nov 2026, on; SkelCover has the rules) the overworld's
+    // skeletons as the brain sees them, handed in before each step; null in the other dimensions, with both keys off and in a bare
+    // machine, and every rule below is as before then. kinds: the ids of the skeletons, strays, bogged and parched about; lines:
+    // those of them with a line to the buddy within range, by sight; close: skel_close_rule is on; sword, armour: a sword in the
+    // bag or in hand, the armour pieces worn; cover: the brain's cover takes the buddy this tick (skel_cover: under its hp line,
+    // a skeleton with a line, a block or ground to dig at hand). test heel's five skeleton deaths: runs through or back into the
+    // shooters' lines, and walks up to skeletons hurt, unarmoured or with others in sight
+    public record Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
+                       double range) {
+    }
+
+    private Skel skel;
+    // the skeleton notes go out at most once per SKEL_NOTE_GAP ticks with the same words
+    private static final long SKEL_NOTE_GAP = 100;
+    private String skelSaid;
+    private long skelSaidAt = Long.MIN_VALUE / 2;
+
+    public void skelFacts(Skel facts) {
+        skel = facts;
+    }
+
+    // (skel_cover) the cover takes the buddy and every shooter with a line that hit us lately is a skeleton kind: no run from
+    // their arrows, the cover is the answer
+    private boolean coverForShots(Tick t) {
+        if (skel == null || !skel.cover()) return false;
+        for (Foe foe : t.foes()) {
+            if (foe.ranged() && !foe.creeper() && foe.shooting() && !skel.kinds().contains(foe.id())) return false;
+        }
+        return true;
+    }
+
+    // (skel_cover) a run for low hp or for arrows that skeletons alone make: the cover takes the buddy, every shooter is a skeleton
+    // kind, and nothing but skeletons stands within range (a melee mob or a creeper there is still the run)
+    private boolean coverInstead(Tick t, Why reason, double range) {
+        if ((reason != Why.SHOT && reason != Why.LOW_HP) || !coverForShots(t)) return false;
+        for (Foe foe : t.foes()) {
+            if (foe.distance() <= range && !skel.kinds().contains(foe.id())) return false;
+        }
+        return true;
+    }
+
+    // (skel_close_rule) why a walk up to this skeleton is off, null when it may go or the rule has no say (not the overworld, the
+    // key off, not a skeleton kind)
+    private String closeRefusal(Tick t, Foe foe) {
+        if (skel == null || !skel.close() || !skel.kinds().contains(foe.id())) return null;
+        int others = 0;
+        for (int id : skel.lines()) {
+            if (id != foe.id()) others++;
+        }
+        return SkelCover.closeRefusal(t.health(), skel.sword(), skel.armour(), others, skel.closeHp(), skel.range());
+    }
+
+    // (skel_close_rule) the walk up to this skeleton under way: another skeleton with a line, by sight, stops it
+    private String secondInSight(Foe target) {
+        if (skel == null || !skel.close() || !skel.kinds().contains(target.id())) return null;
+        int others = 0;
+        for (int id : skel.lines()) {
+            if (id != target.id()) others++;
+        }
+        return others == 0 ? null : SkelCover.closeRefusal(Float.MAX_VALUE, true, 1, others, 0, skel.range());
+    }
+
+    private void skelNote(Tick t, String note) {
+        if (note.equals(skelSaid) && t.now() >= skelSaidAt && t.now() - skelSaidAt < SKEL_NOTE_GAP) return;
+        skelSaid = note;
+        skelSaidAt = t.now();
+        idleNote = note;
+    }
+
     private boolean noMelee(Foe foe) {
         return witchNoMelee && foe.kind() == Kind.LOBBER;
     }
@@ -1679,6 +1750,11 @@ public final class CombatCommit {
         // danger is "anything that bad within 8", ignored or not, cooldown or not: leaving is not a fight with that one mob.
         // low hp in the cooldown wants it on top of us or a fresh hit, see trigger
         Why run = unlatched(runReason(t, cooling), t);
+        // (skel_cover) hurt under skeletons' arrows is the cover, not a run through their lines
+        if (coverInstead(t, run, LOW_HP_RANGE)) {
+            skelNote(t, "skeleton cover instead of a run [" + run + "]");
+            run = Why.NONE;
+        }
         if (run != Why.NONE) return runOrBox(t, run);
         // cooldown or not: it is not something hitting us again, it is the creeper step going round in circles. a committed
         // fight asks the same thing at its top, the fight walking us back to the creeper is how the circle keeps going
@@ -1697,6 +1773,11 @@ public final class CombatCommit {
         // (not with the meter deciding: its flee was asked above)
         if (meter == null && recover.on() && endermanAbout(t) == null) {
             Why again = unlatched(rerun(t), t);
+            // (skel_cover) a skeleton's arrow in the heal hold, or one walking about close, is the cover, not a run through its line
+            if (coverInstead(t, again, RecoverHold.RERUN_RANGE)) {
+                skelNote(t, "skeleton cover instead of a run [" + again + "]");
+                again = Why.NONE;
+            }
             if (again != Why.NONE) return runOrBox(t, again);
         }
         // the fight is only for one we have not given up on, or one that has hit us since. with nothing in hand better than a
@@ -1743,17 +1824,30 @@ public final class CombatCommit {
             boolean hurtRun = t.low() && !(realWeapon && shooterFight(candidates(t), cooling, t.guardHealth()));
             // (with the meter deciding, hurt or a second shooter is its call; a sniper we gave up on is still walked away from)
             boolean countRun = meter == null && (hurtRun || secondShooter(shooters));
-            if ((countRun || gaveUpOn(sniper, t.now())) && endermanAbout(t) == null) {
-                return startRun(t, Why.SHOT, Event.RUN_START);
+            // (skel_cover: the cover takes the buddy, so neither that run nor a walk up; the rules after this one still ask)
+            boolean cover = coverForShots(t);
+            boolean runFirst = (countRun || gaveUpOn(sniper, t.now())) && endermanAbout(t) == null;
+            if (runFirst && !cover) return startRun(t, Why.SHOT, Event.RUN_START);
+            if (runFirst) {
+                skelNote(t, "skeleton cover instead of a run [SHOT]");
+            } else {
+                // (the buddy's fork, Tuning shooter_pack, on, a fix: a skeleton standing among wither skeletons is not walked up to,
+                // the walk ends inside their reach; a run out of the shooter's sight instead. box 2's route-19 run 51, 10 Nov 2026: a
+                // fight on a skeleton walked 14 blocks into a pack of 3 the danger meter had at flee, the run began inside it, dead)
+                // (with the meter deciding, the pack's skeleton is not walked up to and not run from: the meter runs when it is too much)
+                boolean pack = realWeapon && shooterPackOn() && shooterInPack(candidates(t), sniper) && endermanAbout(t) == null;
+                if (pack && meter == null) return startRun(t, Why.SHOT, Event.RUN_START);
+                // (bare hands and pickaxes do not go and get a skeleton, they keep walking till it hurts and then it is the run above)
+                if (realWeapon && !pack) {
+                    // (skel_close_rule) in the overworld only at 16 hp or more, with a sword, armour on and no second skeleton in
+                    // sight; else the cover, or the run as above where the cover does not take (with the meter deciding, its call)
+                    String noClose = closeRefusal(t, sniper);
+                    if (noClose == null) return startFight(t, sniper, Why.PINNED, Event.FIGHT_START, false);
+                    boolean away = !cover && meter == null && endermanAbout(t) == null;
+                    skelNote(t, "not closing on the skeleton: " + noClose + (cover ? ", into cover" : away ? ", a run out of its sight" : ""));
+                    if (away) return startRun(t, Why.SHOT, Event.RUN_START);
+                }
             }
-            // (the buddy's fork, Tuning shooter_pack, on, a fix: a skeleton standing among wither skeletons is not walked up to,
-            // the walk ends inside their reach; a run out of the shooter's sight instead. box 2's route-19 run 51, 10 Nov 2026: a
-            // fight on a skeleton walked 14 blocks into a pack of 3 the danger meter had at flee, the run began inside it, dead)
-            // (with the meter deciding, the pack's skeleton is not walked up to and not run from: the meter runs when it is too much)
-            boolean pack = realWeapon && shooterPackOn() && shooterInPack(candidates(t), sniper) && endermanAbout(t) == null;
-            if (pack && meter == null) return startRun(t, Why.SHOT, Event.RUN_START);
-            // (bare hands and pickaxes do not go and get a skeleton, they keep walking till it hurts and then it is the run above)
-            if (realWeapon && !pack) return startFight(t, sniper, Why.PINNED, Event.FIGHT_START, false);
         }
         // not a swing yet, but it is the thing in the way. cooldown or not: the cooldown is about not picking a fight again
         // with what is around us, and this one is a path that cannot go on until it is gone
@@ -2275,6 +2369,17 @@ public final class CombatCommit {
         // (only the part the witch itself causes: a second skeleton or a crowd still ends it, one skeleton is the shooter fight)
         // a second skeleton on us is not the one-target fight any more
         if (bail == Why.NONE && why == Why.PINNED && meter == null && secondShooter(snipers(t, false)) && endermanAbout(t) == null) bail = Why.SHOT;
+        // (skel_close_rule) the walk up to a skeleton in the overworld stops for a second one with a line, by sight (the rule above
+        // waits for its hit): into the cover when it takes the buddy, else the run as above
+        if (bail == Why.NONE && why == Why.PINNED && !contacted && target != null && meter == null && endermanAbout(t) == null) {
+            String second = secondInSight(target);
+            if (second != null) {
+                boolean cover = coverForShots(t);
+                skelNote(t, "not closing on the skeleton: " + second + (cover ? ", into cover" : ", a run out of its sight"));
+                if (cover) return end(t, Event.FIGHT_TO_COVER);
+                bail = Why.SHOT;
+            }
+        }
         if (lobberPick && meter == null && endermanAbout(t) == null) {
             if ((bail == Why.LOW_HP || bail == Why.SHOT) && t.health() > FLEE_HP) bail = runReason(withoutFoe(t, targetId), false, t.nextHit(), true);
             if (bail == Why.NONE && t.health() <= FLEE_HP) bail = Why.LOW_HP;

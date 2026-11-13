@@ -628,7 +628,9 @@ public class FoodChain extends SingleTaskChain {
     // the heal-up hold is on and the bar is not full: eat, the bar being full is what makes the hold short. the stance has
     // already said whether anything is close enough to stop us (the hold eats by the run's bite lines)
     private boolean recoverMeal() {
-        if (_mod == null || _mod.getMobDefenseChain() == null || !_mod.getMobDefenseChain().isRecovering()) return false;
+        // (skel_cover: in cover from skeletons the same)
+        if (_mod == null || _mod.getMobDefenseChain() == null
+                || !(_mod.getMobDefenseChain().isRecovering() || _mod.getMobDefenseChain().isCovering())) return false;
         LocalPlayer player = Minecraft.getInstance().player;
         return player != null && player.getFoodData().getFoodLevel() < RecoverHold.FILL_TO && hasHealFood();
     }

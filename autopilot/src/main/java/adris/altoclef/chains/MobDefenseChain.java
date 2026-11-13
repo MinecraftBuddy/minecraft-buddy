@@ -164,6 +164,12 @@ public class MobDefenseChain extends SingleTaskChain {
         return _brain.recovering();
     }
 
+    // (Tuning skel_cover) in cover from skeletons in the overworld, with nothing committed: the meal there fills the bar as the
+    // heal hold's does (FoodChain.recoverMeal)
+    public boolean isCovering() {
+        return _brain.covering();
+    }
+
     // the wheel is the hold's stand still right now, not a re-run or a creeper step that came up in the middle of it
     public boolean isHealingUp() {
         return _brain.recovering() && _mainTask instanceof HealUpTask;
@@ -325,7 +331,7 @@ public class MobDefenseChain extends SingleTaskChain {
         // user task walks its own route, often straight back at what we ran from
         // (a creeper step does not stand down for a meal either: the line says we stepped, so we step. nor does the heal-up
         // hold: the meal is half of what it is holding for)
-        boolean committed = _brain.mode() != CombatCommit.Mode.NONE || _creeperStep.active() || _brain.recovering();
+        boolean committed = _brain.mode() != CombatCommit.Mode.NONE || _creeperStep.active() || _brain.recovering() || _brain.covering();
         // (in lava with a fire resistance drink to go down, as for a meal: the shields come down, FoodChain.drinkInLava)
         if ((!committed && mod.getFoodChain().needsToEat()) || mod.getFoodChain().drinkInLava(mod) || mod.getMLGBucketChain().isFallingOhNo(mod) ||
                 !mod.getMLGBucketChain().doneMLG() || mod.getMLGBucketChain().isChorusFruiting()) {
@@ -441,7 +447,9 @@ public class MobDefenseChain extends SingleTaskChain {
         // the five a raised shield needs, so the arrow shield alone was up for the volley's tail (2 Nov 2026, three skeletons
         // in a cave: eleven arrows in eight seconds, every one past a shield that was down or still rising)
         boolean fighting = mode == CombatCommit.Mode.FIGHT;
-        boolean mayShield = !creeperShield && !_creeperStep.active() && Baritone.settings().altoDodgeProjectiles.value && hasShield(mod);
+        // (skel_cover: not while a block of the cover goes in, the block is the better answer and the shield would take its click)
+        boolean mayShield = !creeperShield && !_creeperStep.active() && Baritone.settings().altoDodgeProjectiles.value && hasShield(mod)
+                && !_brain.coverPlacing();
         // (never for a ghast's ball, whatever the behaviour's noFireballShield says: the shield takes its damage and none of its
         // blast's knock, which blew it off a platform in the air three times in three in the ghast drill, 3 Nov 2026, and a
         // punch with the shield up is a hit while blocking. punchGhastBall sends it back instead, at no durability)

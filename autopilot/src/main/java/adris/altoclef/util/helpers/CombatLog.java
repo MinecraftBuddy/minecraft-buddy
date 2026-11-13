@@ -51,6 +51,7 @@ public final class CombatLog {
             // (the why, the height and the chasers are in the perch note that goes out right after)
             case PERCH_START -> tag + "PERCH, stacking up out of reach (hp " + hp + ")";
             case PERCH_END -> tag + "perch over";
+            case FIGHT_TO_COVER -> tag + "fight over, not closing on " + fighting + ", into cover";
         };
     }
 

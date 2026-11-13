@@ -11,6 +11,10 @@ import adris.altoclef.tasks.movement.IdleTask;
 import adris.altoclef.tasks.speedrun.gamer.EndermanNook;
 import adris.altoclef.tasks.speedrun.gamer.tasks.CornerWallTask;
 import adris.altoclef.tasks.speedrun.gamer.tasks.PerchTask;
+import adris.altoclef.tasks.speedrun.gamer.tasks.SkelCoverTask;
+import adris.altoclef.util.helpers.ItemHelper;
+import adris.altoclef.util.helpers.SkelCover;
+import net.minecraft.world.entity.EquipmentSlot;
 import adris.altoclef.util.helpers.PearlHuntHook;
 import net.minecraft.world.entity.monster.Blaze;
 import net.minecraft.world.entity.monster.Enderman;
@@ -136,6 +140,11 @@ final class CombatBrain {
     // (Tuning unarmed_no_corner_fight) the wall the run holds behind, one task for each round the machine asks for
     private CornerWallTask _wall;
     private int _wallRound = -1;
+    // (Tuning skel_cover) the overworld's cover from skeletons: the hold that says when it is on, its task (one for each stretch
+    // in cover), and this tick's look at the skeletons about
+    private final SkelCover.Hold _cover = new SkelCover.Hold();
+    private SkelCoverTask _coverTask;
+    private SkelCoverTask.Seen _seen = SkelCoverTask.Seen.NONE;
     private CommittedRunTask _run;
     // (risk_flee) the run as the flee search, one for each run
     private FleeTask _flee;
@@ -540,8 +549,22 @@ final class CombatBrain {
         return switch (_commit.mode()) {
             case FIGHT -> FIGHT_PRIORITY;
             case RUN -> RUN_PRIORITY;
-            default -> _commit.recovering() ? RECOVER_PRIORITY : 0;
+            default -> _commit.recovering() || covering() ? RECOVER_PRIORITY : 0;
         };
+    }
+
+    // (skel_cover) in cover from skeletons, with nothing committed: the wheel is the cover's, at the heal hold's priority
+    boolean covering() {
+        return _commit.mode() == Mode.NONE && _cover.on() && _coverTask != null;
+    }
+
+    // (skel_cover) a block of the cover is on its way in: the arrow shield keeps its hands off the click
+    boolean coverPlacing() {
+        return covering() && _coverTask.placing();
+    }
+
+    private SkelCoverTask.Seen seen() {
+        return _seen;
     }
 
     // the heal-up hold is on (a re-run from it counts too, it comes back to the hold)
@@ -585,6 +608,9 @@ final class CombatBrain {
         _perchStart = Long.MIN_VALUE;
         _wall = null;
         _wallRound = -1;
+        _cover.reset();
+        _coverTask = null;
+        _seen = SkelCoverTask.Seen.NONE;
         _run = null;
         _flee = null;
         _fight = null;
@@ -709,6 +735,8 @@ final class CombatBrain {
                 return _run;
             }
             default:
+                // (skel_cover) a skeleton with a line on the buddy under the hp line: the cover first, the heal stand included
+                if (covering()) return _coverTask;
                 // nothing committed, but hurt from the last one: stand here and heal instead of walking back in
                 return _commit.recovering() ? _healUp : null;
         }
@@ -806,6 +834,8 @@ final class CombatBrain {
             _fight = null;
             _perch = null;
             _wall = null;
+            _cover.reset();
+            _coverTask = null;
             _stance = CombatRules.Stance.CALM;
             return;
         }
@@ -894,6 +924,20 @@ final class CombatBrain {
             _commit.unarmedNoCornerFight(wallOn);
             _commit.wallFacts(wallOn && _commit.mode() == Mode.RUN && CornerWallTask.offered(mod),
                     _wall == null ? CombatCommit.WallState.NONE : _wall.state());
+            // (Tuning skel_cover and skel_close_rule, fixes of 13 Nov 2026, on: the overworld's skeletons. the cover is wanted under
+            // its hp line with one in sight within range, and on offer with a full block in the bag or ground to dig; the machine
+            // hears whether it takes the buddy and what the close rule needs. the nether and the end hand in nothing)
+            boolean overworld = dimension == Dimension.OVERWORLD;
+            boolean coverOn = overworld && SkelCover.coverOn();
+            boolean closeOn = overworld && SkelCover.closeOn();
+            _seen = coverOn || closeOn ? SkelCoverTask.scan(mod, player, SkelCover.range()) : SkelCoverTask.Seen.NONE;
+            int lines = _seen.lines().size();
+            boolean coverWanted = coverOn && SkelCover.wanted(true, player.getHealth(), lines, SkelCover.hpLine());
+            boolean coverOffered = (coverWanted || _cover.on()) && CornerWallTask.offered(mod);
+            boolean coverTakes = coverOn && _cover.takes(now, coverWanted, coverOffered);
+            _commit.skelFacts(coverOn || closeOn ? new CombatCommit.Skel(_seen.kinds(), _seen.lineIds(), closeOn,
+                    closeOn && lines > 0 && hasSword(mod), closeOn && lines > 0 ? armourPieces(player) : 0, coverTakes,
+                    SkelCover.closeHp(), SkelCover.range()) : null);
             Event event = _commit.step(new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
                     way(mod, mobs, foes).withRim(rim).withLavaClose(lavaClose), armed(mod, foes), tryingToMove(mod, player), creeperRepeat, body(mod, dimension),
                     boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player)));
@@ -901,6 +945,24 @@ final class CombatBrain {
             if (note != null) Debug.logInternal("combat: [" + dimension.name().toLowerCase(java.util.Locale.ROOT) + "] " + note);
             String perchNote = _commit.takePerchNote();
             if (perchNote != null) Debug.logInternal("combat: [" + dimension.name().toLowerCase(java.util.Locale.ROOT) + "] " + perchNote);
+            // (skel_cover) the cover holds only with nothing committed; a run or a fight that takes over ends it, and the next
+            // stretch with nothing committed asks again
+            if (!coverOn) {
+                _cover.interrupt(now, overworld ? "skel_cover off" : "left the overworld");
+            } else if (_commit.mode() == Mode.NONE) {
+                _cover.step(now, coverWanted, coverOffered, player.getHealth(), SkelCover.hpLine(), lines, _seen.lineDist(), _seen.nearest(),
+                        mod.getFoodChain().isTryingToEat(), _coverTask == null ? null : _coverTask.failed());
+            } else {
+                _cover.interrupt(now, _commit.mode() == Mode.RUN ? "a run took over" : "a fight took over");
+            }
+            String coverNote = _cover.takeNote();
+            if (coverNote != null) Debug.logInternal("combat: " + coverNote);
+            if (!_cover.on()) {
+                _coverTask = null;
+            } else if (_coverTask == null) {
+                _coverTask = new SkelCoverTask(this::seen);
+                mod.getClientBaritone().getPathingBehavior().cancelEverything();
+            }
             // (unarmed_no_corner_fight) the wall the machine asked for: a new build for each round, the run's path let go of so it
             // does not walk the buddy off the spot
             if (_commit.walling()) {
@@ -985,7 +1047,12 @@ final class CombatBrain {
             // switched off in the middle of one: let go of it, no line (it is not a transition the machine made)
             _commit.reset();
             _ranSince = false;
+            _cover.reset();
+            _coverTask = null;
         } else {
+            // (skel_cover: nothing is committed to while switched off, the cover included)
+            _cover.reset();
+            _coverTask = null;
             // only the heal-up hold: the grudges and the cooldown of an idle machine stay where they were (the night pillar
             // switches us off every tick it stands down)
             dropHold();
@@ -1009,9 +1076,11 @@ final class CombatBrain {
         boolean shotAt = shotByExcluded;
         double nearestFast = Double.POSITIVE_INFINITY;
         double nearestMelee = Double.POSITIVE_INFINITY;
+        boolean covered = covering();
         for (int i = 0; i < foes.size(); i++) {
             Foe foe = foes.get(i);
-            nearest = Math.min(nearest, foe.distance());
+            // (skel_cover) in cover a skeleton with no line is no reason to put off a meal: it cannot shoot and does not walk up
+            if (!(covered && _seen.kinds().contains(foe.id()) && !_seen.lineIds().contains(foe.id()))) nearest = Math.min(nearest, foe.distance());
             // (the nearest fast one gets to say when a bite may start, see CombatRules.RUN_BITE_START_FAST. shooters keep
             // their distance, so they are not chasers)
             if (foe.melee() && foe.distance() < nearestFast && foe.fast()) {
@@ -1204,7 +1273,7 @@ final class CombatBrain {
     private void logStance(AltoClef mod, Dimension dimension, long now, double nearest, boolean creeperClose, CombatCommit.Bite bite) {
         if (_stance == _loggedStance || (now >= _stanceLogAt && now - _stanceLogAt < STANCE_LOG_GAP)) return;
         LocalPlayer player = mod.getPlayer();
-        String why = CombatCommit.stanceWhy(_commit.mode(), player.getHealth(), nearest, creeperClose, bite, _commit.recovering());
+        String why = CombatCommit.stanceWhy(_commit.mode(), player.getHealth(), nearest, creeperClose, bite, _commit.recovering() || covering());
         Debug.logInternal(CombatLog.stance(dimension, _loggedStance, _stance, why, Math.round(player.getHealth())));
         _loggedStance = _stance;
         _stanceLogAt = now;
@@ -1325,6 +1394,26 @@ final class CombatBrain {
         return WeaponPick.best(bagCandidates(mod)) != null;
     }
 
+    // (skel_close_rule) a sword in hand or in the bag, the walk up to a skeleton's weapon (an axe is not)
+    private static boolean hasSword(AltoClef mod) {
+        for (WeaponPick.Candidate c : bagCandidates(mod)) {
+            if (c.item() != null && ItemHelper.isSword(c.item())) return true;
+        }
+        return false;
+    }
+
+    private static final EquipmentSlot[] ARMOUR = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
+
+    // (skel_close_rule) the armour pieces worn: none at all when they give no armour (a carved pumpkin)
+    private static int armourPieces(LocalPlayer player) {
+        if (player.getArmorValue() <= 0) return 0;
+        int n = 0;
+        for (EquipmentSlot slot : ARMOUR) {
+            if (!player.getItemBySlot(slot).isEmpty()) n++;
+        }
+        return n;
+    }
+
     private static List<WeaponPick.Candidate> bagCandidates(AltoClef mod) {
         List<WeaponPick.Candidate> candidates = new ArrayList<>();
         candidates.add(WeaponPick.Candidate.of(StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot())));
@@ -1386,7 +1475,8 @@ final class CombatBrain {
         // even at the flee line (that one is for runs and fights on the ground), a lit creeper is still a reason not to sit down
         // (only once the pillar is up: a meal while stacking eats the placement clicks and the pillar gives up)
         if (_commit.perching() && !creeperClose && _perch != null && _perch.onTop()) return CombatRules.Stance.CALM;
-        return CombatCommit.stance(_commit.mode(), mod.getPlayer().getHealth(), nearest, creeperClose, gapple, bite, _commit.recovering(),
+        // (skel_cover: in cover the meal goes by the heal hold's lines too: none while a skeleton still has a line)
+        return CombatCommit.stance(_commit.mode(), mod.getPlayer().getHealth(), nearest, creeperClose, gapple, bite, _commit.recovering() || covering(),
                 mod.getFoodChain().hasFood());
     }
 

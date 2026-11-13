@@ -253,6 +253,11 @@ hunted; their meat is picked up.
 - **Shooters**: from skeletons and the like, a hole three down right there, or walls built of the blocks in the bag, the
   shooters' side first, kept while one is about. A drowned with a trident counts as a shooter. Under the ground monsters
   on their way are walled out at once. Hit at arm's length inside the walls, the buddy fights.
+- **Skeletons above ground and in caves**: under 18 health with a skeleton, stray or bogged in sight within 16 blocks, the
+  buddy never stands in the open, healing or not: a block from the bag goes on the line between them at head height (the
+  feet's under it where needed), else the buddy digs two down and shuts the top. No run through their arrows. The meal and
+  the healing happen in cover; out at 18 health, or once none is within 20 blocks for 5 seconds. The buddy walks up to
+  one only with 16 health or more, a sword, some armour on and no second one in sight. The nether keeps its own rules.
 - **Places to avoid**: where a patrol of pillagers was seen (twenty minutes) or the buddy was shot (ten), no search
   leg, no ore and no animal within 48 blocks.
 - **No meal with a monster in pursuit** within ten blocks (a wither skeleton: fourteen) or a shooter in sight, unless

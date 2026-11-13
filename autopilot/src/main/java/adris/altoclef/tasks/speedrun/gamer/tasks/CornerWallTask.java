@@ -67,9 +67,13 @@ public final class CornerWallTask extends Task {
     // the top clicks the walls of the hole, then the cell over it; a cell beside the buddy its floor first (the top face one
     // block ahead is in plain view), then the sides, then the cell over it
     private static final Direction[] TOP_SUPPORT = {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
-    private static final Direction[] BESIDE_SUPPORT = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
+    static final Direction[] BESIDE_SUPPORT = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
 
     private final int foeId;
+    // (Tuning skel_cover) the dig alone, no block between: the skeleton cover's way down when no cell between takes a block
+    // (SkelCoverTask). say starts each line this task writes after "combat: "
+    private final boolean digOnly;
+    private final String say;
     private Stage stage = Stage.PICK;
     private long stageSince = Long.MIN_VALUE;
     private String foeName = "mob";
@@ -84,7 +88,18 @@ public final class CornerWallTask extends Task {
     private final Object keys = new Object();
 
     public CornerWallTask(int foeId) {
+        this(foeId, false, "cornered and unarmed: ");
+    }
+
+    private CornerWallTask(int foeId, boolean digOnly, String say) {
         this.foeId = foeId;
+        this.digOnly = digOnly;
+        this.say = say;
+    }
+
+    // two down where the buddy stands and the top shut, nothing else (SkelCoverTask)
+    static CornerWallTask digIn(String say) {
+        return new CornerWallTask(-1, true, say);
     }
 
     // what CombatCommit.wallFacts hears: building until it is up or given up
@@ -119,7 +134,7 @@ public final class CornerWallTask extends Task {
 
     @Override
     protected String toDebugString() {
-        return "Walling off a corner (" + stage + ")";
+        return (digOnly ? "Digging in (" : "Walling off a corner (") + stage + ")";
     }
 
     private void enter(Stage next, long now) {
@@ -133,7 +148,7 @@ public final class CornerWallTask extends Task {
     }
 
     private void fail(String why, long now) {
-        Debug.logInternal("combat: cornered and unarmed: no wall (" + why + ")");
+        Debug.logInternal("combat: " + say + (digOnly ? "no hole (" : "no wall (") + why + ")");
         enter(Stage.FAILED, now);
     }
 
@@ -163,6 +178,17 @@ public final class CornerWallTask extends Task {
         // (in the air after a knock: the machine's WALL_BUILD_TICKS bounds the wait)
         if (!player.onGround()) return stand(mod);
         BlockPos feet = player.blockPosition();
+        if (digOnly) {
+            if (shut(level, feet)) {
+                Debug.logInternal("combat: " + say + "shut in already at " + feet.toShortString());
+                enter(Stage.BUILT, now);
+            } else if (diggable(mod, level, feet)) {
+                startDig(feet, now);
+            } else {
+                fail("no ground to dig at " + feet.toShortString(), now);
+            }
+            return null;
+        }
         Entity foe = level.getEntity(foeId);
         if (!(foe instanceof LivingEntity alive) || !alive.isAlive()) foe = nearestMob(mod, player);
         if (foe != null) foeName = BuiltInRegistries.ENTITY_TYPE.getKey(foe.getType()).getPath();
@@ -179,7 +205,7 @@ public final class CornerWallTask extends Task {
         boolean dig = diggable(mod, level, feet);
         switch (CornerWall.pick(shut(level, feet), cellFree, dig)) {
             case BUILT -> {
-                Debug.logInternal("combat: cornered and unarmed: shut in already at " + feet.toShortString());
+                Debug.logInternal("combat: " + say + "shut in already at " + feet.toShortString());
                 enter(Stage.BUILT, now);
             }
             case BLOCK -> enter(Stage.BLOCK, now);
@@ -203,7 +229,7 @@ public final class CornerWallTask extends Task {
             if (solid(level, cell)) {
                 any = true;
                 if (said.add(cell)) {
-                    Debug.logInternal("combat: cornered and unarmed: a block put between us and the " + foeName + " at "
+                    Debug.logInternal("combat: " + say + "a block put between us and the " + foeName + " at "
                             + cell.getX() + " " + cell.getY() + " " + cell.getZ());
                 }
                 continue;
@@ -283,7 +309,7 @@ public final class CornerWallTask extends Task {
         int deep = column == null ? 0 : column.getY() - mod().getPlayer().blockPosition().getY();
         String what = top == null ? "no top: nothing to shut it with or against"
                 : "the top shut with " + BuiltInRegistries.BLOCK.getKey(level.getBlockState(top).getBlock()).getPath();
-        Debug.logInternal("combat: cornered and unarmed: dug down at " + column.getX() + " " + column.getY() + " " + column.getZ()
+        Debug.logInternal("combat: " + say + (digOnly ? "dug in at " : "dug down at ") + column.getX() + " " + column.getY() + " " + column.getZ()
                 + " (" + deep + " deep, " + what + ")");
         enter(Stage.BUILT, now);
     }
@@ -292,6 +318,11 @@ public final class CornerWallTask extends Task {
     // along that look, then the use. false: nothing to place or no face in sight to click
 
     private boolean click(AltoClef mod, LocalPlayer player, Level level, BlockPos cell, Direction[] order) {
+        return click(mod, player, level, cell, order, keys);
+    }
+
+    // (SkelCoverTask's clicks too) keys: who holds the sneak, let go of by the caller
+    static boolean click(AltoClef mod, LocalPlayer player, Level level, BlockPos cell, Direction[] order, Object keys) {
         Item[] blocks = wallItems(mod);
         if (blocks.length == 0) return false;
         Direction[] face = new Direction[1];
@@ -318,7 +349,7 @@ public final class CornerWallTask extends Task {
         return Vec3.atCenterOf(support).add(face.getStepX() * 0.5, face.getStepY() * 0.5, face.getStepZ() * 0.5);
     }
 
-    private static BlockPos support(Level level, LocalPlayer player, BlockPos cell, Direction[] order) {
+    static BlockPos support(Level level, LocalPlayer player, BlockPos cell, Direction[] order) {
         return support(level, player, cell, order, new Direction[1]);
     }
 
@@ -343,12 +374,12 @@ public final class CornerWallTask extends Task {
     // ---- the world's questions
 
     // a cell a block can still go in: replaceable, dry, and no body in it (ours included)
-    private static boolean open(Level level, BlockPos cell, LocalPlayer player) {
+    static boolean open(Level level, BlockPos cell, LocalPlayer player) {
         return level.getBlockState(cell).canBeReplaced() && level.getFluidState(cell).isEmpty()
                 && level.isUnobstructed(Blocks.STONE.defaultBlockState(), cell, CollisionContext.of(player));
     }
 
-    private static boolean solid(Level level, BlockPos c) {
+    static boolean solid(Level level, BlockPos c) {
         BlockState s = level.getBlockState(c);
         return s.isCollisionShapeFullBlock(level, c) && s.getFluidState().isEmpty();
     }

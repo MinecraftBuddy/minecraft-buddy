@@ -204,6 +204,13 @@ public final class Tuning {
             // down, and is a fight only with nothing to do that with (CombatCommit, CornerWallTask))
             java.util.Map.entry("shelter_dig_here", 1.0),
             java.util.Map.entry("unarmed_no_corner_fight", 1.0),
+            // (fixes of 13 Nov 2026, test heel's five skeleton deaths in the overworld, a block between in the bag every time: under
+            // skel_cover_hp (18) with a skeleton, stray, bogged or parched in sight within skel_cover_range (16), a block between or
+            // two down, the meal and the regen there, and no run from their arrows; a walk up to one only at skel_close_hp (16) or
+            // more, with a sword, armour on and no second one in sight (SkelCover, SkelCoverTask, CombatCommit); the nether's rules
+            // unchanged)
+            java.util.Map.entry("skel_cover", 1.0),
+            java.util.Map.entry("skel_close_rule", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

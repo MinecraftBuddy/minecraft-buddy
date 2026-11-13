@@ -550,4 +550,116 @@ public class CombatCommitPinnedTest {
         assertEquals(Event.NONE, c.step(tick(NOW + 1, 8, zombieOnUs(10), quiet, zombieOnUs(10))));
         assertEquals(Mode.FIGHT, c.mode());
     }
+
+    // ---- (skel_cover, skel_close_rule) the overworld's skeletons, with the brain's facts handed in. no facts (the other
+    // dimensions, both keys off) is every test above
+
+    private static final int SECOND = 7;
+
+    // SKELETON and SECOND are skeletons about; lines: those with a line on the buddy; sword and armour pieces worn; cover: the
+    // brain's cover takes the buddy
+    private static CombatCommit.Skel skel(Set<Integer> lines, boolean sword, int armour, boolean cover) {
+        return new CombatCommit.Skel(Set.of(SKELETON, SECOND), lines, true, sword, armour, cover, SkelCover.CLOSE_HP, SkelCover.RANGE);
+    }
+
+    private static CombatCommit with(CombatCommit.Skel facts) {
+        CombatCommit c = new CombatCommit();
+        c.skelFacts(facts);
+        return c;
+    }
+
+    @Test
+    public void armouredWithASwordAtFullHpItIsStillTheFight() {
+        CombatCommit c = with(skel(Set.of(SKELETON), true, 1, false));
+        assertEquals(Event.FIGHT_START, c.step(tick(NOW, 20, null, shooter())));
+        assertEquals(Why.PINNED, c.why());
+        assertEquals(Event.FIGHT_START, with(skel(Set.of(SKELETON), true, 1, true)).step(tick(NOW, SkelCover.CLOSE_HP, null, shooter())));
+    }
+
+    @Test
+    public void noArmourIsNoWalkUpButARunWhereTheCoverDoesNotTake() {
+        CombatCommit c = with(skel(Set.of(SKELETON), true, 0, false));
+        assertEquals(Event.RUN_START, c.step(tick(NOW, 20, null, shooter())));
+        assertEquals(Why.SHOT, c.why());
+        assertEquals("not closing on the skeleton: no armour on, a run out of its sight", c.takeNote());
+    }
+
+    @Test
+    public void underTheCloseLineItIsTheCover() {
+        CombatCommit c = with(skel(Set.of(SKELETON), true, 2, true));
+        assertEquals(Event.NONE, c.step(tick(NOW, 15, null, shooter())));
+        assertEquals(Mode.NONE, c.mode());
+        assertEquals("not closing on the skeleton: hp 15.0, under 16, into cover", c.takeNote());
+    }
+
+    // counted by sight: a second one that has not hit yet is enough
+    @Test
+    public void aSecondSkeletonInSightStopsTheWalkUp() {
+        Foe watching = skeleton(SECOND, 13, NEVER, true);
+        CombatCommit c = with(skel(Set.of(SKELETON, SECOND), true, 2, true));
+        assertEquals(Event.NONE, c.step(tick(NOW, 17, null, shooter(), watching)));
+        assertEquals(Mode.NONE, c.mode());
+        CombatCommit open = with(skel(Set.of(SKELETON, SECOND), true, 2, false));
+        assertEquals(Event.RUN_START, open.step(tick(NOW, 20, null, shooter(), watching)));
+        assertEquals(Why.SHOT, open.why());
+    }
+
+    // a pillager or a drowned is no skeleton: the rule has no say
+    @Test
+    public void notASkeletonKindIsAsBefore() {
+        CombatCommit c = new CombatCommit();
+        c.skelFacts(new CombatCommit.Skel(Set.of(99), Set.of(99), true, false, 0, false, SkelCover.CLOSE_HP, SkelCover.RANGE));
+        assertEquals(Event.FIGHT_START, c.step(tick(NOW, 12, null, shooter())));
+        assertEquals(Why.PINNED, c.why());
+    }
+
+    // test heel: hurt under two skeletons the run went through their lines. with the cover on offer it is the cover
+    @Test
+    public void hurtUnderTwoSkeletonsItIsTheCoverNotARun() {
+        Foe second = skeleton(SECOND, 9, 20, true);
+        CombatCommit c = with(skel(Set.of(SKELETON, SECOND), true, 2, true));
+        assertEquals(Event.NONE, c.step(tick(NOW, CombatCommit.FLEE_HP, null, shooter(), second)));
+        assertEquals(Mode.NONE, c.mode());
+        CombatCommit open = with(skel(Set.of(SKELETON, SECOND), true, 2, false));
+        assertEquals(Event.RUN_START, open.step(tick(NOW, CombatCommit.FLEE_HP, null, shooter(), second)));
+        assertEquals(Why.SHOT, open.why());
+    }
+
+    // skeletons alone close at low hp are the cover too; a zombie close is still the run
+    @Test
+    public void skeletonsCloseAtLowHpAreTheCoverAZombieIsTheRun() {
+        Foe close = skeleton(SKELETON, 6, 20, true);
+        Foe far = skeleton(SECOND, 12, 30, true);
+        assertEquals(Event.NONE, with(skel(Set.of(SKELETON, SECOND), true, 2, true)).step(tick(NOW, 5, null, close, far)));
+        CombatCommit zombie = with(skel(Set.of(SKELETON, SECOND), true, 2, true));
+        assertEquals(Event.RUN_START, zombie.step(tick(NOW, 5, null, close, far, new Foe(10, 5, false, false, NEVER))));
+        assertEquals(Why.LOW_HP, zombie.why());
+    }
+
+    @Test
+    public void aSecondSkeletonComingIntoSightEndsTheWalkUpInCover() {
+        Foe first = shooter();
+        CombatCommit c = with(skel(Set.of(SKELETON), true, 2, true));
+        assertEquals(Event.FIGHT_START, c.step(tick(NOW, 20, first, first)));
+        c.takeNote();
+        c.skelFacts(skel(Set.of(SKELETON, SECOND), true, 2, true));
+        assertEquals(Event.FIGHT_TO_COVER, c.step(tick(NOW + 1, 17, first, first, skeleton(SECOND, 14, NEVER, true))));
+        assertEquals(Mode.NONE, c.mode());
+
+        CombatCommit open = with(skel(Set.of(SKELETON), true, 2, false));
+        assertEquals(Event.FIGHT_START, open.step(tick(NOW, 20, first, first)));
+        open.skelFacts(skel(Set.of(SKELETON, SECOND), true, 2, false));
+        assertEquals(Event.FIGHT_TO_RUN, open.step(tick(NOW + 1, 20, first, first, skeleton(SECOND, 14, NEVER, true))));
+        assertEquals(Why.SHOT, open.why());
+    }
+
+    // in the heal hold an arrow was a run (aWatchedPickaxeRunsOnAnArrowThatIsNotFresh); with the cover it is the cover
+    @Test
+    public void inTheHoldASkeletonsArrowIsTheCover() {
+        CombatCommit c = inTheHold(false);
+        c.skelFacts(skel(Set.of(SKELETON), false, 0, true));
+        Way tools = new Way(Set.of(), false, 0, false);
+        assertEquals(Event.NONE, c.step(new Tick(NOW + 2, 12, 1, 0, List.of(skeleton(14, 22, true)), null, tools, true, false, false, FED, false, 0, true, false)));
+        assertTrue(c.recovering());
+    }
 }
