@@ -3,6 +3,7 @@ package adris.altoclef.util.helpers;
 import baritone.Baritone;
 import baritone.utils.ToolSet;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.state.BlockState;
@@ -141,12 +142,72 @@ public final class ToolPick {
 
     // the real thing: these stacks against this block
     public static int best(List<ItemStack> stacks, BlockState state) {
+        int rock = rockIndex(stacks, state);
+        if (rock >= 0) return rock;
         return best(optionsOf(stacks, state), ToolSet.calculateSpeedVsBlock(ItemStack.EMPTY, state));
+    }
+
+    // (Tuning gold_rock_iron, 14 Nov 2026) the gold mine digs its rock with an iron pickaxe the kit can spare. the wear chain
+    // takes a spare stone pickaxe first, and on deepslate stone takes 23 ticks a block, iron 15: the mine's tunnel ran at about
+    // half speed. BranchMineTask says how many unworn pickaxes of iron or better the bag holds beyond the kit's (-1: off), until
+    // a wall clock time, so an ore taken within the mine (another task for a moment) is dug to with it as well. never the
+    // diamond pickaxe or better: only iron ones are asked
+    private static volatile int rockFree = -1;
+    private static volatile long rockUntil;
+
+    public static void rockIron(int free, long untilMillis) {
+        rockFree = free;
+        rockUntil = untilMillis;
+    }
+
+    public static void rockIronOff() {
+        rockFree = -1;
+    }
+
+    // rock: stone, deepslate, tuff, granite, diorite, andesite
+    public static boolean rock(BlockState state) {
+        return state.is(BlockTags.BASE_STONE_OVERWORLD);
+    }
+
+    // one stack as the rock pick sees it: an iron pickaxe, not kept back by itemSaver and right for the block, worn past
+    // ToolWear's line (the kit no longer counts it), and the uses it has left
+    public record RockOption(boolean iron, boolean usable, boolean worn, int left) {
+    }
+
+    // the iron pickaxe to dig rock with, -1 for none (the wear chain's choice then, a stone one): the one with the fewest uses
+    // left, as long as it is worn already or one unworn is free beyond the kit's. a worn one goes first, so the kit's count
+    // drops only by a pick that was free
+    public static int rockPick(List<RockOption> options, int free) {
+        int best = -1;
+        for (int i = 0; i < options.size(); i++) {
+            RockOption o = options.get(i);
+            if (!o.iron() || !o.usable()) continue;
+            if (best < 0 || o.left() < options.get(best).left()) best = i;
+        }
+        if (best < 0) return -1;
+        return options.get(best).worn() || free > 0 ? best : -1;
+    }
+
+    // the rock pick's index in these stacks for this block, -1 when it is off, the block is no rock or no iron pickaxe will do
+    static int rockIndex(List<ItemStack> stacks, BlockState state) {
+        int free = rockFree;
+        if (free < 0 || System.currentTimeMillis() > rockUntil || !rock(state)) return -1;
+        List<RockOption> options = new ArrayList<>(stacks.size());
+        for (ItemStack stack : stacks) {
+            boolean iron = stack.is(Items.IRON_PICKAXE);
+            Option o = iron ? optionOf(stack, state) : null;
+            options.add(new RockOption(iron, o != null && o.tool() && o.correct(),
+                    iron && ToolWear.wornOut(stack.getDamageValue(), stack.getMaxDamage()), stack.getMaxDamage() - stack.getDamageValue()));
+        }
+        return rockPick(options, free);
     }
 
     // the one tool the chain would use for this block, -1 if no tool of the right kind and tier. ToolSet.getBestSlot and the
     // hotbar bring-down both ask it
     public static int chainIndex(List<ItemStack> stacks, BlockState state) {
+        // (gold_rock_iron) the gold mine's rock to a spare iron pickaxe, ahead of the chain's stone one
+        int rock = rockIndex(stacks, state);
+        if (rock >= 0) return rock;
         List<Option> options = optionsOf(stacks, state);
         // shears jump the queue in best(), the chain stays out of their way
         for (Option o : options) {

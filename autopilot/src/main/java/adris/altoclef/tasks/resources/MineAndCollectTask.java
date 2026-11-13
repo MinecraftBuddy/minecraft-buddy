@@ -1663,7 +1663,10 @@ public class MineAndCollectTask extends ResourceTask {
                 ore |= id.endsWith("_ore");
                 gold |= id.endsWith("gold_ore") && !id.contains("nether");
             }
-            if (!ore || pos.closerToCenterThan(mod.getPlayer().position(), 5)) return true;
+            // (Tuning gold_poke_shafts) an ore whose face the gold mine's poke holes showed counts wherever it lies: a hole's far
+            // end shows rock 5 to the side, and the buddy walks on along the tunnel
+            if (!ore || pos.closerToCenterThan(mod.getPlayer().position(), 5)
+                    || adris.altoclef.tasks.movement.PokeMineTask.oreShown(pos)) return true;
             if (mod.getPlayer().getArmorValue() < 15) return false;
             // (the buddy's fork, Tuning gold_cave_safe, on by default, 12 Nov 2026, steering 170: with the golden helmet on (15
             // armour) the cave gold the tracker knows counts, not only the tunnel's own walls; none within SCULK_GUARD of sculk

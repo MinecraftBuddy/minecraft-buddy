@@ -1,12 +1,16 @@
 package adris.altoclef.tasks.movement;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import adris.altoclef.util.helpers.PlaceWatch;
+import adris.altoclef.util.helpers.Tuning;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -62,5 +66,24 @@ public class BranchMineBandTest {
         assertTrue(BranchMineTask.inWide(-30));
         assertFalse(BranchMineTask.inWide(-49));
         assertFalse(BranchMineTask.inWide(1));
+    }
+
+    @Test
+    public void theGoldMineKeepsToGoldsOwnBand() {
+        // (gold_band_core) gold's batch peaks at -16 and keeps 75% of the peak from -28 to -4; the slime dig at the same height
+        // keeps the wide band
+        assertArrayEquals(new int[]{-28, -4}, BranchMineTask.band(true));
+        assertArrayEquals(new int[]{-48, 0}, BranchMineTask.band(false));
+        assertTrue(BranchMineTask.gold(new Block[]{Blocks.GOLD_ORE, Blocks.DEEPSLATE_GOLD_ORE}));
+        assertFalse(BranchMineTask.gold(new Block[]{Blocks.NETHER_GOLD_ORE}));
+        assertFalse(BranchMineTask.gold(new Block[]{Blocks.DIAMOND_ORE, Blocks.DEEPSLATE_DIAMOND_ORE}));
+    }
+
+    @Test
+    public void theGoldMinesNewRulesAreOn() {
+        // his word, 14 Nov 2026: the poke holes, gold's own band and the rock with a spare iron pickaxe
+        assertEquals(1.0, Tuning.get("gold_poke_shafts", 0), 0);
+        assertEquals(1.0, Tuning.get("gold_band_core", 0), 0);
+        assertEquals(1.0, Tuning.get("gold_rock_iron", 0), 0);
     }
 }

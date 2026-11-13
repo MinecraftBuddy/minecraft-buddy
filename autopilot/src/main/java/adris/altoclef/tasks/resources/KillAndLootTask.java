@@ -178,7 +178,7 @@ public class KillAndLootTask extends ResourceTask {
         // climbing to 8 for a mine of its own; the gold mine's sculk guards hold there as well)
         return new adris.altoclef.tasks.movement.BranchMineTask(new net.minecraft.world.level.block.Block[]{
                 net.minecraft.world.level.block.Blocks.GOLD_ORE, net.minecraft.world.level.block.Blocks.DEEPSLATE_GOLD_ORE},
-                slimeDigY(adris.altoclef.util.helpers.Tuning.get("gold_mine_y", SLIME_DIG_Y)));
+                slimeDigY(adris.altoclef.util.helpers.Tuning.get("gold_mine_y", SLIME_DIG_Y)), true);
     }
 
     // the slime dig's height: the gold mine's, rounded to a block

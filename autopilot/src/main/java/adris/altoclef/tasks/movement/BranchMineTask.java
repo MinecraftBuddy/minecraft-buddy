@@ -10,6 +10,7 @@ import adris.altoclef.util.RecipeTarget;
 import adris.altoclef.util.helpers.HotbarTools;
 import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.MineLeave;
+import adris.altoclef.util.helpers.ToolPick;
 import adris.altoclef.util.helpers.ToolWear;
 import baritone.Baritone;
 import net.minecraft.core.BlockPos;
@@ -98,7 +99,24 @@ public class BranchMineTask extends Task {
     // staircase back to the height after a drift or a fall. staircases took 35% of the gold's time in the test heel, 65 to
     // 242 of them a run, the tunnel at depth 23%. diamonds and redstone at -50 lie under the band and keep their height
     static final int WIDE_LO = -48, WIDE_HI = 0;
+    // (Tuning gold_band_core, 14 Nov 2026, his word, on) for the gold mine the band it starts and stays in is GOLD_LO to GOLD_HI:
+    // gold's main batch is a triangle from -64 to 32 that peaks at -16, so -28 to -4 keeps 75% of the peak and more, where -48
+    // has a third and 0 two thirds. no staircase back while inside it; outside it, back toward the mine's height. the slime
+    // dig, at the same height, keeps the wide band: its slimes are in any chunk below 40
+    static final int GOLD_LO = -28, GOLD_HI = -4;
+    private final boolean _slimeDig;
     private boolean _reached;
+    // (Tuning gold_poke_shafts, 14 Nov 2026, his word, on) in the wide band's scope (gold and the slime dig) the mine digs its
+    // own pattern of poke holes off a main tunnel (PokeMineTask) in place of baritone's legit mine
+    private PokeMineTask _poke;
+    // (Tuning gold_rock_iron, 14 Nov 2026, his word, on) in the same scope the rock goes to an iron pickaxe the kit can spare
+    // (ToolPick.rockIron): the buddy's kit keeps KIT_PICKS unworn pickaxes of iron or better (the diamond one among them, which
+    // never digs rock), so an iron one is free only past that; a worn one the kit no longer counts. _rockIron: one digs now
+    static final int KIT_PICKS = 2;
+    private long _rockLook = Long.MIN_VALUE;
+    private int _rockFree = -1;
+    private boolean _rockIron;
+    private Boolean _rockSaid;
     // every give-up so far and the last one's line: whoever asked for the mine (the buddy's kit piece) compares the count
     // with the one at its start and fails over to its next piece
     public static volatile int gaveUps;
@@ -149,8 +167,14 @@ public class BranchMineTask extends Task {
             stoneTarget(), stoneTarget(), stoneTarget(), null, new ItemTarget("stick", 1), null, null, new ItemTarget("stick", 1), null}, 1);
 
     public BranchMineTask(Block[] blocks, int y) {
+        this(blocks, y, false);
+    }
+
+    // slimeDig: the slime dig's mine (KillAndLootTask), which keeps the wide band
+    public BranchMineTask(Block[] blocks, int y, boolean slimeDig) {
         _blocks = blocks;
         _y = y;
+        _slimeDig = slimeDig;
     }
 
     // the height to branch mine for these blocks in the overworld of 26.x, null when none of them is an ore of the overworld.
@@ -198,9 +222,13 @@ public class BranchMineTask extends Task {
             // (twelve and not forty: with forty a fall into a cave at y -16 had it branch mine for iron down there in the
             // deepslate, without armour, and a zombie killed it, the runner, 2 Nov 2026)
             _mineY = y < _y && y >= _y - 12 ? y : _y;
-            if (wideBand() && inWide(y)) _mineY = y;
+            if (wideBand() && inBand(y)) _mineY = y;
+            // (gold_band_core) a start a little under the mine's height but out of gold's band mines at the height
+            else if (goldCore() && !inBand(_mineY)) _mineY = _y;
         }
         BlockPos feet = mod.getPlayer().blockPosition();
+        // (gold_rock_iron) which pick digs the rock, before the hotbar is filled for it
+        rockPick(mod, now);
         // the cheap pick for the rock into the hotbar, where baritone's tools can see it (it looks at the hotbar only). first of
         // all: the walk away from sculk digs too, and the iron one went on it with a stone one in the bag (attempt 84)
         HotbarTools.forBlocks(mod, Blocks.STONE, Blocks.DEEPSLATE);
@@ -215,6 +243,8 @@ public class BranchMineTask extends Task {
         if (watch || stall) {
             int fx = watch ? _place.x() : _downFails.x(), fz = watch ? _place.z() : _downFails.z();
             stopMine(mod);
+            // (gold_poke_shafts) the run is not resumed here after the tunnel of its own
+            if (pokeOn()) PokeMineTask.dropRun(watch ? "the place watch fired" : "the way down got nowhere");
             if (adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0) {
                 _fires.add(fx, fz, now);
                 if (_fires.last() >= firesToGiveUp()) return giveUpHere(mod, now, y, fx, fz, !watch);
@@ -373,11 +403,18 @@ public class BranchMineTask extends Task {
         if (wideBand()) {
             if (Math.abs(y - _mineY) <= 3) {
                 _reached = true;
-            } else if (_reached && inWide(y) && Math.abs(y - _mineY) > (_mining ? 8 : 3)) {
+            } else if (_reached && inBand(y) && Math.abs(y - _mineY) > (_mining ? 8 : 3)) {
                 stopMine(mod);
-                adris.altoclef.Debug.logInternal("branch mine: at y " + y + ", in the band " + WIDE_LO + " to " + WIDE_HI
-                        + ": mining here, no staircase back to y " + _mineY + " (gold_wide_band)");
+                adris.altoclef.Debug.logInternal("branch mine: at y " + y + ", in the band " + bandLo() + " to " + bandHi()
+                        + ": mining here, no staircase back to y " + _mineY + " (gold_wide_band" + (goldCore() ? ", gold_band_core" : "") + ")");
                 _mineY = y;
+                _step = null;
+            } else if (_reached && goldCore() && !inBand(y) && _mineY != _y) {
+                // (gold_band_core) out of the gold band: back toward the mine's height, and the band's edge is mined once reached
+                stopMine(mod);
+                adris.altoclef.Debug.logInternal("branch mine: at y " + y + ", out of the gold band " + GOLD_LO + " to " + GOLD_HI
+                        + ": back toward y " + _y + " (gold_band_core)");
+                _mineY = _y;
                 _step = null;
             }
         }
@@ -516,6 +553,29 @@ public class BranchMineTask extends Task {
             }
             setDebugState("A staircase down to y " + _mineY + " to branch mine");
             return new GetToBlockTask(_step);
+        }
+        if (pokeOn()) {
+            // (gold_poke_shafts) the pattern of poke holes in place of baritone's straight legit tunnel; the branch mine's heading
+            // follows the run's, so a fire of the place watch turns from the way the run went
+            stopMine(mod);
+            if (_poke == null || _poke.y() != _mineY) _poke = new PokeMineTask(_blocks, _mineY);
+            if (_poke.takeFallback()) {
+                int t = _dx;
+                _dx = -_dz;
+                _dz = t;
+                _tunnelUntil = now + 1200;
+                _tunnel = null;
+                setDebugState("Poke holes found no way into the rock here, a tunnel of its own");
+                return null;
+            }
+            int[] h = PokeMineTask.runHeading();
+            if (h != null) {
+                _dx = h[0];
+                _dz = h[1];
+            }
+            _poke.heading(_dx, _dz);
+            setDebugState("Poke holes at y " + _mineY);
+            return _poke;
         }
         Baritone.settings().legitMineYLevel.value = _mineY;
         var mine = mod.getClientBaritone().getMineProcess();
@@ -720,6 +780,81 @@ public class BranchMineTask extends Task {
         return wideBand(_y) && adris.altoclef.util.helpers.Tuning.get("gold_wide_band", 0) > 0;
     }
 
+    // (gold_band_core) the gold mine (not the slime dig) keeps to gold's own band
+    private boolean goldCore() {
+        return !_slimeDig && wideBand(_y) && gold(_blocks) && adris.altoclef.util.helpers.Tuning.get("gold_band_core", 0) > 0;
+    }
+
+    private int bandLo() {
+        return band(goldCore())[0];
+    }
+
+    private int bandHi() {
+        return band(goldCore())[1];
+    }
+
+    private boolean inBand(int y) {
+        return y >= bandLo() && y <= bandHi();
+    }
+
+    // the band a mine below 0 starts and stays in: gold's core, or the wide one
+    static int[] band(boolean goldCore) {
+        return goldCore ? new int[]{GOLD_LO, GOLD_HI} : new int[]{WIDE_LO, WIDE_HI};
+    }
+
+    static boolean gold(Block[] blocks) {
+        for (Block b : blocks) {
+            String id = BuiltInRegistries.BLOCK.getKey(b).getPath();
+            if (id.endsWith("gold_ore") && !id.contains("nether")) return true;
+        }
+        return false;
+    }
+
+    // (gold_poke_shafts) the poke hole pattern for this mine: gold and the slime dig, the wide band's scope
+    private boolean pokeOn() {
+        return wideBand(_y) && adris.altoclef.util.helpers.Tuning.get("gold_poke_shafts", 0) > 0;
+    }
+
+    // (gold_rock_iron) the pickaxes in the bag, once a second: how many unworn ones of iron or better pass the kit's, whether an
+    // iron one is free to dig rock (worn already, or unworn and past the kit's), and that to ToolPick for the next 30 s. a line
+    // when it changes
+    private void rockPick(AltoClef mod, long now) {
+        if (!wideBand(_y) || adris.altoclef.util.helpers.Tuning.get("gold_rock_iron", 0) <= 0) {
+            _rockIron = false;
+            return;
+        }
+        if (now >= _rockLook && now - _rockLook < 20) {
+            ToolPick.rockIron(_rockFree, System.currentTimeMillis() + 30_000);
+            return;
+        }
+        _rockLook = now;
+        var inv = mod.getPlayer().getInventory();
+        int up = 0;
+        boolean wornIron = false, unwornIron = false;
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack st = inv.getItem(i);
+            boolean iron = st.is(Items.IRON_PICKAXE);
+            if (!iron && !st.is(Items.DIAMOND_PICKAXE) && !st.is(Items.NETHERITE_PICKAXE)) continue;
+            boolean worn = ToolWear.wornOut(st.getDamageValue(), st.getMaxDamage());
+            if (!worn) up++;
+            boolean saved = Baritone.settings().itemSaver.value && st.getMaxDamage() > 1
+                    && st.getDamageValue() + Baritone.settings().itemSaverThreshold.value >= st.getMaxDamage();
+            if (iron && !saved) {
+                if (worn) wornIron = true;
+                else unwornIron = true;
+            }
+        }
+        _rockFree = Math.max(0, up - KIT_PICKS);
+        _rockIron = wornIron || unwornIron && _rockFree > 0;
+        ToolPick.rockIron(_rockFree, System.currentTimeMillis() + 30_000);
+        if (_rockSaid == null || _rockSaid != _rockIron) {
+            _rockSaid = _rockIron;
+            adris.altoclef.Debug.logInternal("branch mine: the rock " + (_rockIron ? "with an iron pickaxe (" + (wornIron ? "a worn one" : _rockFree + " free")
+                    + " past the kit's " + KIT_PICKS + ")" : "with the cheapest pickaxe, no iron one free past the kit's " + KIT_PICKS
+                    + " (" + up + " unworn of iron or better)") + " (gold_rock_iron)");
+        }
+    }
+
     static boolean wideBand(int targetY) {
         return targetY < WIDE_HI && targetY >= WIDE_LO;
     }
@@ -847,7 +982,8 @@ public class BranchMineTask extends Task {
             _tableUntil = now + 600;
             return null;
         }
-        if (now < _cheapAfter || !needsBetterThanStone(_blocks) || cheapPicks(mod) > 0) {
+        // (gold_rock_iron) no stone pickaxes made while an iron one is free for the rock
+        if (now < _cheapAfter || !needsBetterThanStone(_blocks) || cheapPicks(mod) > 0 || _rockIron) {
             return null;
         }
         int stone = mod.getItemStorage().getItemCount(Items.COBBLESTONE, Items.COBBLED_DEEPSLATE, Items.BLACKSTONE);
@@ -1073,11 +1209,13 @@ public class BranchMineTask extends Task {
     @Override
     protected void onStop(AltoClef mod, Task interruptTask) {
         stopMine(mod);
+        // (gold_rock_iron) the mine is over; stopped for an ore it takes (another task) the iron pick holds for 30 s
+        if (interruptTask == null) ToolPick.rockIronOff();
     }
 
     @Override
     protected boolean isEqual(Task other) {
-        return other instanceof BranchMineTask b && b._y == _y && Arrays.equals(b._blocks, _blocks);
+        return other instanceof BranchMineTask b && b._y == _y && b._slimeDig == _slimeDig && Arrays.equals(b._blocks, _blocks);
     }
 
     @Override

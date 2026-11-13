@@ -254,6 +254,13 @@ public final class Tuning {
             // three times within ten blocks counts as a fire of the place watch; a fire leaves a walk along under way going,
             // BranchMineTask)
             java.util.Map.entry("mine_leave_given_up", 1.0),
+            // (his word, 14 Nov 2026, the test heel's gold: the gold mine (and the slime dig at its height) digs poke holes off its
+            // tunnel, a 1x1 hole 4 deep each side at head height every 4 steps, dug standing, legs 12 apart, out of caves; for gold
+            // the band it stays in is -28 to -4; its rock goes to an iron pickaxe the kit can spare, BranchMineTask, PokeMineTask,
+            // ToolPick)
+            java.util.Map.entry("gold_poke_shafts", 1.0),
+            java.util.Map.entry("gold_band_core", 1.0),
+            java.util.Map.entry("gold_rock_iron", 1.0),
             // (fixes of 13 Nov 2026, test heel's night start with an empty bag on grass over stone, read for the buddy's ObtainSafe:
             // with fewer than 5 blocks to build with, no shooter close and no dig here, the night shelter first breaks up to 6
             // surface cells of grass or dirt within 3 blocks by hand and picks the dirt up; ground counts as dug for the shelter only
