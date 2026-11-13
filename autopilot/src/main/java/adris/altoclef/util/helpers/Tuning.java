@@ -165,6 +165,8 @@ public final class Tuning {
             // (13 Nov 2026, off: in the fire-proof camp one wither skeleton by a blaze or by the buddy keeps the chase off,
             // BlazeFight.scan; the A/B block witherwacht)
             java.util.Map.entry("fireproof_wither_one", 0.0),
+            // (13 Nov 2026, on: a line only, whether a plain walk reaches a stand under a blaze the chase found no path to)
+            java.util.Map.entry("blaze_way_log", 1.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),
             // (11 Nov 2026, a fix: the pillbox the route's brew was made in stayed the fight's camp and corner under the brewed
             // potion, as the brewed one followed the traded one with no gap; once the brew is through and the potion on, the camp

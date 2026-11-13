@@ -181,6 +181,17 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
             _misses += noWayMiss ? 2 : 1;
             if (_misses >= 2) {
                 Debug.logMessage("No path to " + _entity.getType().getDescriptionId() + ", not chasing it.");
+                // (Tuning blaze_way_log, on, 13 Nov 2026: a line only, no behaviour: whether a plain walk, no block placed or
+                // broken, reaches a stand under the blaze (CubeWay.way), to tell a blaze with no way from a search that ran out of
+                // its 2 s. in route-58's lost phase-6 runs 1943 of 1969 failed searches took 1.9 s or more)
+                if (_entity instanceof net.minecraft.world.entity.monster.Blaze
+                        && adris.altoclef.util.helpers.Tuning.get("blaze_way_log", 0) > 0) {
+                    net.minecraft.core.BlockPos feet = mod.getPlayer().blockPosition(), at = _entity.blockPosition();
+                    boolean way = adris.altoclef.util.helpers.CubeWay.way(adris.altoclef.util.helpers.GhastCover.walkCells(mod),
+                            feet.getX(), feet.getY(), feet.getZ(), at.getX(), at.getY(), at.getZ());
+                    Debug.logInternal(String.format(java.util.Locale.ROOT, "rods: no path to a blaze %.1f off, %.1f above us: a walk to its stand %s",
+                            mod.getPlayer().distanceTo(_entity), _entity.getY() - mod.getPlayer().getY(), way ? "exists" : "none"));
+                }
                 if (_onNoPath != null) {
                     _onNoPath.run();
                     // the ban would have stopped us at the reachable check below, a callback has to do it itself
