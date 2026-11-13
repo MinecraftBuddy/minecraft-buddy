@@ -1056,6 +1056,64 @@ public final class CombatCommit {
         witchNoMelee = on;
     }
 
+    // (the buddy's fork, Tuning unarmed_no_corner_fight, a fix of 13 Nov 2026, on; the brain hands it in before each step, off in
+    // a bare machine) unarmed, a run with no room is no fight: the brain puts a block between the buddy and the mob, or digs down
+    // and shuts the cell over the buddy's head (CornerWallTask), and the run holds there. only with neither to be had (no full
+    // block in the bag and no ground to dig) is it the fight as before, the last resort. armed, nothing changes. test heel's
+    // first six deaths: two were this fight, bare-handed, "cornered, no room, fighting zombie", 20 to 0 hp in 12 s with sand or
+    // dirt in hand
+    private boolean unarmedWall;
+    // the world's side, handed in before each step: a wall is to be had here (a full block in the bag, or ground under the
+    // buddy to dig), and how the brain's build of the current one stands
+    private boolean wallOffered;
+    private WallState wallState = WallState.NONE;
+    private boolean walling;
+    // counts every wall and every round of one: the brain starts a new build when it changes
+    private int wallRound;
+    // the rounds of the wall under way: a melee hit past a wall that stood is the next round (a block on the side the mob came
+    // round to, or deeper down), WALL_ROUNDS at most
+    private int wallRounds;
+    private int wallFoeId = -1;
+    private long wallSince = -1;
+    private long wallBuiltAt = -1;
+    private long wallFailedAt = Long.MIN_VALUE / 2;
+
+    // up within WALL_BUILD_TICKS (two cells dug by hand and the top shut is about 3 s), held WALL_HOLD_TICKS at most with
+    // something still about; a hit that lands WALL_SETTLE_TICKS after the wall stood got past it; a wall given up is not tried
+    // again for WALL_RETRY_TICKS (the fight then, the last resort)
+    public static final long WALL_BUILD_TICKS = 160;
+    public static final long WALL_HOLD_TICKS = 600;
+    public static final long WALL_SETTLE_TICKS = 10;
+    public static final int WALL_ROUNDS = 4;
+    public static final long WALL_RETRY_TICKS = 200;
+
+    // how the brain's build stands: none under way, building, up, or given up
+    public enum WallState {
+        NONE, BUILDING, BUILT, FAILED
+    }
+
+    public void unarmedNoCornerFight(boolean on) {
+        unarmedWall = on;
+    }
+
+    public void wallFacts(boolean offered, WallState state) {
+        wallOffered = offered;
+        wallState = state == null ? WallState.NONE : state;
+    }
+
+    // a run held behind its wall: the brain builds it, then the buddy stands
+    public boolean walling() {
+        return mode == Mode.RUN && walling;
+    }
+
+    public int wallRound() {
+        return wallRound;
+    }
+
+    public int wallFoeId() {
+        return wallFoeId;
+    }
+
     private boolean noMelee(Foe foe) {
         return witchNoMelee && foe.kind() == Kind.LOBBER;
     }
@@ -1243,6 +1301,14 @@ public final class CombatCommit {
         lobberGaveUpAt = Long.MIN_VALUE / 2;
         sniperGaveUpAt = Long.MIN_VALUE / 2;
         atRange = false;
+        walling = false;
+        wallRounds = 0;
+        wallFoeId = -1;
+        wallSince = -1;
+        wallBuiltAt = -1;
+        wallFailedAt = Long.MIN_VALUE / 2;
+        wallState = WallState.NONE;
+        wallOffered = false;
         recover.reset();
     }
 
@@ -2553,6 +2619,7 @@ public final class CombatCommit {
         contacted = false;
         lobberPick = false;
         atRange = foe.kind() == Kind.LOBBER || reason == Why.PINNED;
+        walling = false;
         mode = Mode.FIGHT;
         why = reason;
         targetId = foe.id();
@@ -2579,6 +2646,7 @@ public final class CombatCommit {
         holdId = -1;
         fleeWord = -1;
         lostSince = -1;
+        walling = false;
         mode = Mode.RUN;
         why = reason;
         targetId = -1;
@@ -2610,6 +2678,81 @@ public final class CombatCommit {
         return event;
     }
 
+    // (unarmed_no_corner_fight) the corner of an unarmed run: true when a wall goes up instead of the fight (the brain builds it,
+    // the run holds behind it, wallHold). false is the fight: armed, the switch off, nothing to wall with, or a wall given up lately
+    private boolean wallInstead(Tick t, Foe foe) {
+        if (!unarmedWall || t.armed() || !foe.melee()) return false;
+        boolean failedLately = t.now() >= wallFailedAt && t.now() - wallFailedAt < WALL_RETRY_TICKS;
+        if (!wallOffered || failedLately) {
+            idleNote = "cornered and unarmed, " + (wallOffered ? "the wall given up " + (t.now() - wallFailedAt) / 20 + " s ago" : "no block")
+                    + ": fighting as the last resort";
+            return false;
+        }
+        walling = true;
+        wallRound++;
+        wallRounds = 1;
+        wallFoeId = foe.id();
+        wallSince = t.now();
+        wallBuiltAt = -1;
+        // (the run's own clocks start over behind the wall: the buddy stands still there by design)
+        noRoomSince = -1;
+        noRoom = false;
+        cornerSince = -1;
+        stuckSince = -1;
+        clearSince = -1;
+        idleNote = String.format(java.util.Locale.ROOT, "cornered and unarmed: a wall instead of a fight with foe #%d %.1f blocks off (hp %.1f)",
+                foe.id(), foe.distance(), t.health());
+        return true;
+    }
+
+    // (unarmed_no_corner_fight) the run held behind its wall. let go of (null: the run's own rules from this tick, and a corner
+    // is the fight then) when the build failed, was not up within WALL_BUILD_TICKS, something we only run from came, or melee
+    // hits got past it WALL_ROUNDS times; a hit past it before that is the next round. over as a run when nothing melee is
+    // within CORNER_WATCH for RUN_CLEAR_TICKS, or WALL_HOLD_TICKS after it stood (the run ends, no fight: what cannot reach the
+    // buddy is no reason for one)
+    private Event wallHold(Tick t) {
+        String lost = null;
+        if (wallState == WallState.FAILED) lost = "the build failed";
+        else if (untouchable(t)) lost = "something we only run from";
+        if (lost == null && wallBuiltAt < 0 && wallState == WallState.BUILT) wallBuiltAt = t.now();
+        if (lost == null && wallBuiltAt < 0 && t.now() - wallSince >= WALL_BUILD_TICKS) lost = "not up in " + WALL_BUILD_TICKS / 20 + " s";
+        if (lost == null && wallBuiltAt >= 0) {
+            for (Foe foe : t.foes()) {
+                long at = t.now() - foe.sinceHit() - clockSkew;
+                if (!foe.melee() || !foe.hitUs() || at <= wallBuiltAt + WALL_SETTLE_TICKS) continue;
+                if (wallRounds >= WALL_ROUNDS) {
+                    lost = "hit past it " + wallRounds + " times";
+                    break;
+                }
+                wallRounds++;
+                wallRound++;
+                wallFoeId = foe.id();
+                wallSince = t.now();
+                wallBuiltAt = -1;
+                idleNote = "cornered and unarmed: foe #" + foe.id() + " hit past the wall, round " + wallRounds;
+                return Event.NONE;
+            }
+        }
+        if (lost != null) {
+            walling = false;
+            wallFailedAt = t.now();
+            idleNote = "cornered and unarmed: the wall given up (" + lost + "), the run's own rules again";
+            return null;
+        }
+        double nearest = Double.POSITIVE_INFINITY;
+        for (Foe foe : t.foes()) {
+            if (foe.melee()) nearest = Math.min(nearest, foe.distance());
+        }
+        if (nearest > CORNER_WATCH) {
+            if (clearSince < 0) clearSince = t.now();
+            if (t.now() - clearSince >= RUN_CLEAR_TICKS) return end(t, Event.RUN_CLEAR);
+        } else {
+            clearSince = -1;
+        }
+        if (wallBuiltAt >= 0 && t.now() - wallBuiltAt >= WALL_HOLD_TICKS) return end(t, Event.RUN_CAP);
+        return Event.NONE;
+    }
+
     // a run that is not moving us with a melee foe in reach: nowhere to run, so this is the cornered fight already. the same
     // exit as the corner window below, only quicker, and it needs a gap somebody measured (see Foe.reachGap)
     private Event noRoomFight(Tick t) {
@@ -2632,6 +2775,8 @@ public final class CombatCommit {
             noRoomCount++;
         }
         if (noRoomCount < NO_ROOM_TICKS) return Event.NONE;
+        // (unarmed_no_corner_fight) unarmed: a wall instead, the fight only with nothing to wall with
+        if (wallInstead(t, onUs)) return Event.NONE;
         Event event = hold(startFight(t, onUs, Why.CORNERED, Event.RUN_TO_FIGHT, true), onUs);
         noRoom = true;
         return event;
@@ -2645,6 +2790,11 @@ public final class CombatCommit {
         // hit twice, and the wither ticks are already eating the hp the fight would need)
         if (ender != null && why != Why.HEAVY && !danger(t)) {
             return startFight(t, ender, Why.CHASED, Event.RUN_CHASED_FIGHT, false);
+        }
+        // (unarmed_no_corner_fight) a run held behind its wall has the wall's ends, none of the run's below
+        if (walling) {
+            Event held = wallHold(t);
+            if (held != null) return held;
         }
         // melee only things we cannot outrun: stack up right here instead of jogging (and instead of turning round on them later)
         int perchH = perchAt(t);
@@ -2741,6 +2891,8 @@ public final class CombatCommit {
         }
         // nobody worth a fight: the run goes on, the cap or the mob settles it
         if (closest == null) return Event.NONE;
+        // (unarmed_no_corner_fight) unarmed: a wall instead, the fight only with nothing to wall with
+        if (wallInstead(t, closest)) return Event.NONE;
         return hold(startFight(t, closest, Why.CORNERED, Event.RUN_TO_FIGHT, true), closest);
     }
 
@@ -2990,6 +3142,7 @@ public final class CombatCommit {
         cornerSince = -1;
         stuckSince = -1;
         losRun = false;
+        walling = false;
         cooldownUntil = t.now() + COOLDOWN;
         return event;
     }

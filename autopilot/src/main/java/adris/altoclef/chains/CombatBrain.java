@@ -9,6 +9,7 @@ import adris.altoclef.util.baritone.GoalFlee;
 import adris.altoclef.tasks.movement.HealUpTask;
 import adris.altoclef.tasks.movement.IdleTask;
 import adris.altoclef.tasks.speedrun.gamer.EndermanNook;
+import adris.altoclef.tasks.speedrun.gamer.tasks.CornerWallTask;
 import adris.altoclef.tasks.speedrun.gamer.tasks.PerchTask;
 import adris.altoclef.util.helpers.PearlHuntHook;
 import net.minecraft.world.entity.monster.Blaze;
@@ -132,6 +133,9 @@ final class CombatBrain {
     // the perch task is the same object for the whole perch, a new one each tick would pillar from scratch every time
     private PerchTask _perch;
     private long _perchStart = Long.MIN_VALUE;
+    // (Tuning unarmed_no_corner_fight) the wall the run holds behind, one task for each round the machine asks for
+    private CornerWallTask _wall;
+    private int _wallRound = -1;
     private CommittedRunTask _run;
     // (risk_flee) the run as the flee search, one for each run
     private FleeTask _flee;
@@ -579,6 +583,8 @@ final class CombatBrain {
         _shotTick = PerchRules.Facts.NEVER;
         _perch = null;
         _perchStart = Long.MIN_VALUE;
+        _wall = null;
+        _wallRound = -1;
         _run = null;
         _flee = null;
         _fight = null;
@@ -619,6 +625,8 @@ final class CombatBrain {
                 return _fight;
             }
             case RUN: {
+                // (unarmed_no_corner_fight) a run held behind its wall: the build, then standing still behind it
+                if (_commit.walling() && _wall != null) return _wall;
                 // (the buddy's fork, S137 step 3, Tuning risk_flee: the run is the flee search, to the nearest calm cell by the
                 // mob field; it stands there till the meter says the run is over. the corner and the stand model are cells the
                 // search finds or passes by their price)
@@ -797,6 +805,7 @@ final class CombatBrain {
             _flee = null;
             _fight = null;
             _perch = null;
+            _wall = null;
             _stance = CombatRules.Stance.CALM;
             return;
         }
@@ -879,6 +888,12 @@ final class CombatBrain {
                     steering != null && goalWay(mod, player, now, steering), fleeAhead, verdictHp(player));
             // (Tuning witch_no_melee, a fix of 13 Nov 2026, on: a witch is a run out of its range, never a melee fight)
             _commit.witchNoMelee(adris.altoclef.util.helpers.Tuning.get("witch_no_melee", 0) > 0);
+            // (Tuning unarmed_no_corner_fight, a fix of 13 Nov 2026, on: unarmed, a run with no room puts up a wall, CornerWallTask;
+            // the world is asked only during a run, the only time the machine wants the answer)
+            boolean wallOn = adris.altoclef.util.helpers.Tuning.get("unarmed_no_corner_fight", 0) > 0;
+            _commit.unarmedNoCornerFight(wallOn);
+            _commit.wallFacts(wallOn && _commit.mode() == Mode.RUN && CornerWallTask.offered(mod),
+                    _wall == null ? CombatCommit.WallState.NONE : _wall.state());
             Event event = _commit.step(new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
                     way(mod, mobs, foes).withRim(rim).withLavaClose(lavaClose), armed(mod, foes), tryingToMove(mod, player), creeperRepeat, body(mod, dimension),
                     boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player)));
@@ -886,6 +901,17 @@ final class CombatBrain {
             if (note != null) Debug.logInternal("combat: [" + dimension.name().toLowerCase(java.util.Locale.ROOT) + "] " + note);
             String perchNote = _commit.takePerchNote();
             if (perchNote != null) Debug.logInternal("combat: [" + dimension.name().toLowerCase(java.util.Locale.ROOT) + "] " + perchNote);
+            // (unarmed_no_corner_fight) the wall the machine asked for: a new build for each round, the run's path let go of so it
+            // does not walk the buddy off the spot
+            if (_commit.walling()) {
+                if (_wall == null || _wallRound != _commit.wallRound()) {
+                    _wall = new CornerWallTask(_commit.wallFoeId());
+                    _wallRound = _commit.wallRound();
+                    mod.getClientBaritone().getPathingBehavior().cancelEverything();
+                }
+            } else {
+                _wall = null;
+            }
             // the heal wait starts when the run (and the fight it may have turned into) is all over
             if (_commit.mode() == Mode.RUN) {
                 // (the repair after smoke8, risk_camp_back) the most hp a run for the danger meter began at since the last
@@ -971,6 +997,7 @@ final class CombatBrain {
         }
         if (_commit.mode() != Mode.FIGHT) _fight = null;
         if (!_commit.perching()) _perch = null;
+        if (!_commit.walling()) _wall = null;
 
         // running: a zombie that keeps pace with us is the one we are running from, not one that is stuck
         reach.setFleeing(_commit.mode() == Mode.RUN);
