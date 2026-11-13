@@ -865,7 +865,7 @@ public final class FireResTrade {
         }
         if (_toWastes == null) {
             Spot to = spawner == null ? null : new Spot(spawner.getX(), spawner.getZ());
-            Spot target = FireResTradeRules.wastesTarget(wastesChunks(mod, player.getBlockY()), player.getX(), player.getZ(), to,
+            Spot target = FireResTradeRules.wastesTarget(wastesChunks(mod, player.getBlockY(), false), player.getX(), player.getZ(), to,
                     knownBastions(mod));
             if (target == null) {
                 settleWastes(now, "strategy trade: no wastes in the loaded chunks, searching here");
@@ -908,6 +908,12 @@ public final class FireResTrade {
         if (_searchCentre == null) {
             _searchCentre = _wastesAt != null ? _wastesAt : player.blockPosition();
             _searchFrom = Math.atan2(player.getZ() - _searchCentre.getZ(), player.getX() - _searchCentre.getX());
+            // (Tuning trade_search_onward, a fix of 13 Nov 2026, on: after a walk to wastes the rings start on the bearing walked,
+            // from the trade's start through the wastes and on, not from the buddy at the target back the way it came: a run of
+            // route-58 reached the wastes in 9 s, and the first point lay back toward the start, through the basalt deltas)
+            if (onward() && Math.hypot(_searchCentre.getX() - _startX, _searchCentre.getZ() - _startZ) > 8) {
+                _searchFrom = Math.atan2(_searchCentre.getZ() - _startZ, _searchCentre.getX() - _startX);
+            }
             _searchK = 0;
             _searchWalk = null;
             _searchRingSaid = 0;
@@ -924,12 +930,14 @@ public final class FireResTrade {
             // off: the eerstedrank measurement's run 28, as 11 runs of the same start before)
             if (adris.altoclef.util.helpers.Tuning.get("trade_search_wastes", 1) > 0 && _searchWastesTries < SEARCH_WASTES_TRIES
                     && !inWastes(mod, player.blockPosition())) {
-                Spot w = FireResTradeRules.wastesTarget(wastesChunks(mod, player.getBlockY()), player.getX(), player.getZ(), null, bastions);
+                Spot w = FireResTradeRules.wastesTarget(wastesChunks(mod, player.getBlockY(), true), player.getX(), player.getZ(), null, bastions);
                 if (w != null && (_searchWastesLast == null || w.distanceTo(_searchWastesLast.x(), _searchWastesLast.z()) > SEARCH_WASTES_APART)) {
                     _searchWastesTries++;
                     _searchWastesLast = w;
                     Debug.logInternal(String.format(Locale.ROOT, "strategy trade: wastes in the loaded chunks at %d %d, %.0f blocks, the search goes there and on round them",
                             w.x(), w.z(), w.distanceTo(player.getX(), player.getZ())));
+                    // (trade_search_onward: the rings round them start on the side away from where the buddy stands now)
+                    if (onward()) _searchFrom = Math.atan2(w.z() - player.getZ(), w.x() - player.getX());
                     _searchCentre = new BlockPos(w.x(), player.getBlockY(), w.z());
                     _searchK = 0;
                     _searchRingSaid = 0;
@@ -1007,13 +1015,29 @@ public final class FireResTrade {
     }
 
     // the middle of every loaded chunk with nether wastes at height y
-    private static List<Spot> wastesChunks(AltoClef mod, int y) {
+    // (Tuning trade_wastes_heights, a fix of 13 Nov 2026, on: in the search after the first walk, or 16 or 32 above or below
+    // it, inside the nether's floor and roof. nether biomes change with the height: a basalt deltas start of route-58 found no
+    // wastes chunk at its own height in ten minutes of search, and wastes lay about 220 blocks east, where another run of that
+    // start traded. the first walk keeps the buddy's own height: its last stretch walks to the sampled block at that height)
+    private static List<Spot> wastesChunks(AltoClef mod, int y, boolean heights) {
         List<Spot> out = new ArrayList<>();
+        int[] dy = heights && Tuning.get("trade_wastes_heights", 0) > 0 ? new int[]{0, 16, -16, 32, -32} : new int[]{0};
         for (ChunkPos chunk : mod.getChunkTracker().getLoadedChunks()) {
-            BlockPos middle = new BlockPos(chunk.getMiddleBlockX(), y, chunk.getMiddleBlockZ());
-            if (inWastes(mod, middle)) out.add(new Spot(middle.getX(), middle.getZ()));
+            for (int d : dy) {
+                int h = y + d;
+                if (h < 8 || h > 120) continue;
+                BlockPos middle = new BlockPos(chunk.getMiddleBlockX(), h, chunk.getMiddleBlockZ());
+                if (inWastes(mod, middle)) {
+                    out.add(new Spot(middle.getX(), middle.getZ()));
+                    break;
+                }
+            }
         }
         return out;
+    }
+
+    private static boolean onward() {
+        return Tuning.get("trade_search_onward", 0) > 0;
     }
 
     // the bastion blocks the code knows of: the fortress sweep's memory, and what the block tracker holds while it tracks them

@@ -157,6 +157,11 @@ public final class Tuning {
             java.util.Map.entry("box_living_only", 1.0),
             // (a fix of 13 Nov 2026: the ghast shelter takes no cover within 3 blocks of the one held, look 73)
             java.util.Map.entry("ghast_cover_near_stay", 1.0),
+            // (fixes of 13 Nov 2026, route-58's phase 2: no punch of a ghast's ball with a zombified piglin by its way back; the
+            // trade's search rings start on the side away from the start, and wastes are looked for 16 and 32 above and below too)
+            java.util.Map.entry("ghast_punch_zp_guard", 1.0),
+            java.util.Map.entry("trade_search_onward", 1.0),
+            java.util.Map.entry("trade_wastes_heights", 1.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),
             // (11 Nov 2026, a fix: the pillbox the route's brew was made in stayed the fight's camp and corner under the brewed
             // potion, as the brewed one followed the traded one with no gap; once the brew is through and the potion on, the camp

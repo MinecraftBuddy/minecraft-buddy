@@ -49,6 +49,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.skeleton.AbstractSkeleton;
 import net.minecraft.world.entity.monster.zombie.Drowned;
+import net.minecraft.world.entity.monster.zombie.ZombifiedPiglin;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.entity.projectile.hurtingprojectile.DragonFireball;
@@ -624,6 +625,28 @@ public class MobDefenseChain extends SingleTaskChain {
         }
         Entity shooter = best.getOwner();
         boolean atShooter = shooter != null && shooter.isAlive() && shooter.distanceTo(player) < 64;
+        // (Tuning ghast_punch_zp_guard, a fix of 13 Nov 2026, on: no punch while a zombified piglin stands by the line the ball
+        // would fly back on, from the ball through its ghast and on past it; the shield is raised for it instead, as for a ball
+        // inside the punch's minimum. a ball sent back that hits one counts as the buddy's hit and its pack bites: two deaths
+        // in phase 2 of the route series of 13 Nov, each hit for 5.5 to 6 about 20 blocks off, the pack on the buddy 1 to 6 s
+        // later; see PunchLine)
+        if (adris.altoclef.util.helpers.Tuning.get("ghast_punch_zp_guard", 0) > 0 && !_punched.containsKey(best.getId())) {
+            Vec3 from = best.getBoundingBox().getCenter();
+            Vec3 dir = atShooter ? shooter.getBoundingBox().getCenter().subtract(from) : from.subtract(eye);
+            for (ZombifiedPiglin zp : mod.getEntityTracker().getTrackedEntities(ZombifiedPiglin.class)) {
+                if (!zp.isAlive()) continue;
+                Vec3 c = zp.getBoundingBox().getCenter();
+                if (!adris.altoclef.util.helpers.PunchLine.near(from.x, from.y, from.z, dir.x, dir.y, dir.z,
+                        adris.altoclef.util.helpers.PunchLine.LENGTH, adris.altoclef.util.helpers.PunchLine.RADIUS, c.x, c.y, c.z)) continue;
+                _ballInsideAt = now;
+                if (best.getId() != _punchSkipLoggedId) {
+                    _punchSkipLoggedId = best.getId();
+                    Debug.logInternal("combat: a ghast's ball at " + String.format("%.1f", bestGap) + ", a zombified piglin "
+                            + String.format("%.0f", c.distanceTo(eye)) + " blocks off by its way back: not punched, the shield");
+                }
+                return;
+            }
+        }
         mod.getControllerExtras().aimAtOverPath(atShooter ? shooter : best);
         // (again only with the look on its ghast: with the look on the ball itself a second punch sends it into the floor)
         if (_punched.containsKey(best.getId()) && !atShooter) return;
