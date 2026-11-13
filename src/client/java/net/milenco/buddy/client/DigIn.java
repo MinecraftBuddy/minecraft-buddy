@@ -99,4 +99,57 @@ final class DigIn {
 	static boolean downAfterAll(boolean faceRule, boolean duck, boolean noDig, boolean top, int dug, boolean diggable, boolean digRuns) {
 		return !duck && !noDig && top && dug == 0 && diggable && (!faceRule || digRuns);
 	}
+
+	/**
+	 * (the autopilot's shelter_blocks_first, a fix of 13 Nov 2026, on) with fewer blocks than this in the bag the night shelter
+	 * first breaks cells of ground for blocks, when it cannot dig its hole where it stands or near.
+	 */
+	static final int BLOCKS_FIRST_UNDER = 5;
+	/** At most this many cells broken, within this many blocks of the standing cell, in this long. */
+	static final int GATHER_CELLS = 6, GATHER_RANGE = 3;
+	static final long GATHER_MS = 40_000;
+	/** Blocks enough to stop early: the eight walls of open ground, the top and a block on a wall for it. */
+	static final int GATHER_ENOUGH = 10;
+
+	/** Ground the hand breaks quickly and that drops a block for a wall: dirt (grass, podzol, mycelium) or coarse dirt. */
+	private static final java.util.Set<String> HAND_GROUND = java.util.Set.of("grass_block", "dirt", "coarse_dirt", "podzol", "mycelium");
+
+	static boolean handGround(String id) { return id != null && HAND_GROUND.contains(id); }
+
+	/**
+	 * (shelter_blocks_first) blocks first: the switch on, fewer than {@link #BLOCKS_FIRST_UNDER} blocks to build with, no
+	 * monster about ({@code foes}), and no hole to dig where the buddy stands or near ({@code digs}: three down, two down
+	 * here or a step off, or a site of three to walk to; each of those digs its own blocks). test heel's night start with an
+	 * empty bag on grass over stone: "no hole here", "cannot shut, blocks 0", the walls shut with 1 and then 0 blocks while
+	 * skeletons shot 20 to 5.
+	 */
+	static boolean blocksFirst(boolean on, int blocks, boolean foes, boolean digs) {
+		return on && blocks < BLOCKS_FIRST_UNDER && !foes && !digs;
+	}
+
+	/**
+	 * A cell {@code dx}, {@code dz} off the standing cell the blocks-first step may break: within {@link #GATHER_RANGE}, not the
+	 * standing cell nor one of its four sides (the ground the walls stand on), and beside no cell broken already ({@code
+	 * broken}, offsets as dx, dz), so that each hole's own sides stay ground for a buddy who ends up standing in it.
+	 */
+	static boolean gatherCell(int dx, int dz, java.util.List<int[]> broken) {
+		if (Math.abs(dx) > GATHER_RANGE || Math.abs(dz) > GATHER_RANGE || Math.abs(dx) + Math.abs(dz) <= 1) return false;
+		for (int[] b : broken) if (Math.abs(b[0] - dx) + Math.abs(b[1] - dz) == 1) return false;
+		return true;
+	}
+
+	/** The blocks-first step is over: its cells broken, blocks enough in the bag, or its time up. */
+	static boolean gatherDone(int broken, int blocks, long since, long now) {
+		return broken >= GATHER_CELLS || blocks >= GATHER_ENOUGH || now - since > GATHER_MS;
+	}
+
+	/**
+	 * (the autopilot's shelter_hand_dig, a fix of 13 Nov 2026, on) the cell will not shut and the bag is empty: rather than a
+	 * wait half shut (or another try at the same kind of spot), a cell within 16 where two of ground come out by hand, and the
+	 * buddy digs in there, the top shut with the dug block, as the autopilot's own dug-in cover did that night. Three such walks
+	 * at most; {@code digHere} is the dig-in's own switch (shelter_dig_here), which does the digging.
+	 */
+	static boolean handDig(boolean on, boolean digHere, boolean duck, int blocks, int tries) {
+		return on && digHere && !duck && blocks == 0 && tries < 3;
+	}
 }

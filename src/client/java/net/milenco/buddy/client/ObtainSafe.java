@@ -674,6 +674,21 @@ final class ObtainSafe {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_place_face", 0) > 0;
 	}
 
+	/** The autopilot's shelter_blocks_first switch (a fix of 13 Nov 2026, on by default); off without the autopilot. */
+	static boolean blocksFirstOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_blocks_first", 0) > 0;
+	}
+
+	/** The autopilot's shelter_tool_dig switch (a fix of 13 Nov 2026, on by default); off without the autopilot. */
+	static boolean toolDigOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_tool_dig", 0) > 0;
+	}
+
+	/** The autopilot's shelter_hand_dig switch (a fix of 13 Nov 2026, on by default); off without the autopilot. */
+	static boolean handDigOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_hand_dig", 0) > 0;
+	}
+
 	/** The block the night shelter puts in first: the first in the bag that passes shelterBlock; null with none. */
 	static String firstShelterBlock(LocalPlayer p) {
 		var in = p.getInventory();
@@ -1179,6 +1194,25 @@ final class ObtainSafe {
 		 * ground under the feet no ground to dig, or a block that would not break.
 		 */
 		boolean stoppedShort;
+		/**
+		 * (the autopilot's shelter_blocks_first, a fix of 13 Nov 2026, on) blocks from the ground round the spot before the
+		 * shelter is built: gatherHome the standing cell it began at, gatherCell the cell being broken, gathered the cells broken
+		 * (offsets from gatherHome), gatherTried those not to try again, gatherSince when it began, lastBreakAt the last break
+		 * (its drop a moment from showing), gatherDecided once asked, gatherDone once over.
+		 */
+		BlockPos gatherHome, gatherCell;
+		final List<int[]> gathered = new ArrayList<>();
+		final java.util.Set<BlockPos> gatherTried = new java.util.HashSet<>();
+		final ObtainSteps.Pickup gatherPickup = new ObtainSteps.Pickup();
+		long gatherSince, lastBreakAt;
+		boolean gatherDecided, gatherDone;
+		/**
+		 * (the autopilot's shelter_hand_dig, a fix of 13 Nov 2026, on) handWalk: the site is a cell to dig in at by hand, walked
+		 * to from wherever the buddy stands; handDigs: such walks so far.
+		 */
+		boolean handWalk;
+		int handDigs;
+		long handLookAt;
 		/** Cells where it could not shut itself in: no site within two blocks of them. */
 		final java.util.Set<BlockPos> bad = new java.util.HashSet<>();
 		boolean sealed, open;
@@ -1293,19 +1327,26 @@ final class ObtainSafe {
 			BlockPos f = p.blockPosition();
 			// from shooters: three down where it stands when the ground is good, or else walled in where it stands, never a walk
 			// to a site (on the slope of a cave the walk and the arrows' knock-back took it down four blocks and three arrows)
-			if (duck && bottom == null && dug == 0 && (walls || !diggable(level, f))) bottom = f;
+			if (duck && bottom == null && dug == 0 && (walls || !diggable(level, p, f))) bottom = f;
+			// (the autopilot's shelter_blocks_first, a fix of 13 Nov 2026, on) with few blocks to build with and no hole to dig here
+			// or near: cells of grass or dirt round the spot broken by hand first, and their dirt picked up
+			if (!gatherDone && !duck && !walls && !wound && !sealed && here == null && bottom == null && dug == 0 && !nearSite && !handWalk) {
+				ObtainSteps.Result g = blocksFirst(mc, p, level, f, now);
+				if (g == ObtainSteps.Result.RUN) return g;
+			}
 			// (the autopilot's shelter_dig_here, a fix of 13 Nov 2026, on) with no three blocks of ground under the feet: two down
 			// where the buddy stands, as a player digs in, and a block over the head, with no walk to a site. test heel's first
 			// night deaths: 10 s stuck in a pit on the walk to a site and killed there, three sites tried in a minute and none shut.
 			// A cell refused (water or lava by the hole, a cave under it, stone and no pickaxe) gives the next one within two
 			// steps, and with none of those the site walk as before
-			if (here == null && !duck && !walls && bottom == null && dug == 0 && open(level, f) && !diggable(level, f) && digHereOn()
+			if (here == null && !duck && !walls && bottom == null && dug == 0 && open(level, f) && !diggable(level, p, f) && digHereOn()
 					&& bad.stream().noneMatch(b -> Math.abs(b.getX() - f.getX()) <= 2 && Math.abs(b.getZ() - f.getZ()) <= 2)) {
 				String why = digInRefusal(level, p, f);
 				if (why == null) {
 					here = f.immutable();
 					site = null;
 					nearSite = false;
+					handWalk = false;
 					Exchange.emit("obtain", "action", "shelter", "what", "digs in here", "x", f.getX(), "y", f.getY(), "z", f.getZ(), "blocks", shelterBlocks(p));
 				} else {
 					if (!f.equals(refusedAt)) {
@@ -1327,7 +1368,10 @@ final class ObtainSafe {
 				}
 			}
 			// under the open sky: to a spot within a few steps with three blocks of ground under it, and dig there
-			if (here == null && bottom == null && dug == 0 && open(level, f) && !diggable(level, f)) {
+			// (shelter_hand_dig: the walk to a cell to dig in at by hand goes from wherever the buddy stands, a half-shut cell too)
+			if (here == null && bottom == null && dug == 0 && (handWalk && site != null || open(level, f) && !diggable(level, p, f))) {
+				// (shelter_hand_dig) there: the dig below takes it from here
+				if (handWalk && f.equals(site)) handWalk = false;
 				if (!nearSite && (site == null || now - siteSince > 15_000)) { site = site(level, p, bad); siteSince = now; }
 				// a block off counts as there: the walker calls a cell beside it arrived and stops, and it stood two minutes a
 				// block from its site on the sand at dusk; and a site not reached in twenty seconds is given up for walls where it
@@ -1389,7 +1433,7 @@ final class ObtainSafe {
 					digSince = now;
 					dugAt = 0;
 				}
-				if (!safeToDig(level, under)) {
+				if (!safeToDig(level, p, under)) {
 					if (dug == 0) bottom = f;   // here it does not dig: shut where it stands
 					else bottom = f;
 					stoppedShort = true;
@@ -1433,7 +1477,7 @@ final class ObtainSafe {
 			for (BlockPos c : duck ? facing(level, p, f) : noDig ? wallsFirst(f) : around(f)) {
 				if (solid(level, c)) continue;
 				// no block to shut it with: one more from underfoot, where the walls stay whole
-				if (shelterBlocks(p) == 0 && safeToDig(level, f.below()) && extra < 3) {
+				if (shelterBlocks(p) == 0 && safeToDig(level, p, f.below()) && extra < 3) {
 					ObtainSteps.Result d = breaker.tick(mc, p, f.below(), now);
 					if (d == ObtainSteps.Result.DONE) { extra++; bottom = null; }
 					else if (d == ObtainSteps.Result.FAIL) extra = 3;
@@ -1477,7 +1521,7 @@ final class ObtainSafe {
 				// round it are what the roof goes against, and the ground round the new feet is wall. Walls alone let a skeleton on
 				// the slope beside it shoot in from above, at one block
 				// (shelter_dig_clock: shut in on the spot after a dig with no progress, the same)
-				if (r == ObtainSteps.Result.FAIL && (duck || noDig) && c.equals(f.above(2)) && wallsUp(level, f) && safeToDig(level, f.below()) && extra < 3) {
+				if (r == ObtainSteps.Result.FAIL && (duck || noDig) && c.equals(f.above(2)) && wallsUp(level, f) && safeToDig(level, p, f.below()) && extra < 3) {
 					phase = "one down, for a roof";
 					ObtainSteps.Result d = breaker.tick(mc, p, f.below(), now);
 					if (d == ObtainSteps.Result.DONE) { extra++; bottom = null; }
@@ -1501,13 +1545,13 @@ final class ObtainSafe {
 				// the dig's clock ran out: that was the loop between digging and shutting)
 				// (the autopilot's shelter_place_face, a fix of 13 Nov 2026, on: only where the dig below runs, open ground or dug in
 				// here; else this cell will not shut, and 20 s later the buddy tries elsewhere)
-				if (r == ObtainSteps.Result.FAIL && DigIn.downAfterAll(placeFaceOn(), duck, noDig, c.equals(f.above(2)), dug, diggable(level, f), open(level, f) || here != null)) {
+				if (r == ObtainSteps.Result.FAIL && DigIn.downAfterAll(placeFaceOn(), duck, noDig, c.equals(f.above(2)), dug, diggable(level, p, f), open(level, f) || here != null)) {
 					bottom = null; dug = 0;
 					return ObtainSteps.Result.RUN;
 				}
 				// (shelter_dig_here) dug in and the top with nothing to go against (no prop beside the mouth): one more down, and the
 				// top goes in the ground between the hole's walls
-				if (r == ObtainSteps.Result.FAIL && here != null && c.equals(f.above(2)) && extra < 1 && safeToDig(level, f.below())) {
+				if (r == ObtainSteps.Result.FAIL && here != null && c.equals(f.above(2)) && extra < 1 && safeToDig(level, p, f.below())) {
 					phase = "one down, for the top";
 					ObtainSteps.Result d = breaker.tick(mc, p, f.below(), now);
 					if (d == ObtainSteps.Result.DONE) { extra++; bottom = null; }
@@ -1517,7 +1561,7 @@ final class ObtainSafe {
 				if (r == ObtainSteps.Result.FAIL) {
 					// a side with nothing to put a block against (an open cave round it): one down, and the floor round it is the wall
 					// (three minutes it waited in a cave with a skeleton about)
-					if (safeToDig(level, f.below()) && extra < 3 && !c.equals(f.above(2))) {
+					if (safeToDig(level, p, f.below()) && extra < 3 && !c.equals(f.above(2))) {
 						phase = "one down, for a wall " + c.toShortString();
 						ObtainSteps.Result d = breaker.tick(mc, p, f.below(), now);
 						if (d == ObtainSteps.Result.DONE) { extra++; bottom = null; }
@@ -1528,14 +1572,29 @@ final class ObtainSafe {
 					if (now - noted > 30_000) { noted = now; Exchange.emit("obtain", "action", "shelter", "what", "cannot shut", "x", c.getX(), "y", c.getY(), "z", c.getZ(), "blocks", shelterBlocks(p)); }
 					// twenty seconds and still not shut: another site, not this one again (on a mountain's slope it waited seven
 					// minutes for a roof that would not go on, and a skeleton shot it from 13 to 1)
-					if (!duck && now - stuckSince > 20_000 && elsewhere < 3) {
-						elsewhere++;
+					// (the autopilot's shelter_hand_dig, a fix of 13 Nov 2026, on) with an empty bag: a cell within 16 where two of ground
+					// come out by hand, rather than another spot of the same kind or a wait half shut. test heel: three tries elsewhere
+					// on grass over stone with no block in the bag, "shut but for 2 cells" under a skeleton's arrows, 20 to 5 hp, until
+					// the autopilot's own cover dug two down in dirt by hand and held till the morning
+					// (looked for once in 10 s: a look is some thousand columns)
+					BlockPos hand = null;
+					if (!duck && now - stuckSince > 20_000 && now - handLookAt > 10_000 && DigIn.handDig(handDigOn(), digHereOn(), duck, shelterBlocks(p), handDigs)) {
+						handLookAt = now;
+						hand = handSite(level, p, f, bad);
+					}
+					if (!duck && now - stuckSince > 20_000 && (hand != null || elsewhere < 3)) {
+						if (hand != null) handDigs++;
+						else elsewhere++;
 						bad.add(f.immutable());
 						bottom = null; site = null; siteSince = 0; dug = 0; extra = 0; stuckSince = 0; since = now;
-						here = null; prop = null; propDone = false; nearSite = false;
+						here = null; prop = null; propDone = false; nearSite = false; handWalk = false;
 						// (shelter_dig_clock) a new spot gets its own dig and its own clock
 						noDig = false; digAt = null; dugAt = 0; stoppedShort = false;
-						Exchange.emit("obtain", "action", "shelter", "what", "tries elsewhere", "x", f.getX(), "y", f.getY(), "z", f.getZ(), "try", elsewhere);
+						if (hand != null) {
+							site = hand; siteSince = now; nearSite = true; handWalk = true;
+							Exchange.emit("obtain", "action", "shelter", "what", "digs in by hand elsewhere", "x", hand.getX(), "y", hand.getY(), "z", hand.getZ(),
+								"from", f.toShortString(), "try", handDigs);
+						} else Exchange.emit("obtain", "action", "shelter", "what", "tries elsewhere", "x", f.getX(), "y", f.getY(), "z", f.getZ(), "try", elsewhere);
 						return ObtainSteps.Result.RUN;
 					}
 					// (shelter_refused_walls) shut in on the spot: the other walls and the top still go up round a cell that will not
@@ -1596,9 +1655,12 @@ final class ObtainSafe {
 			return true;
 		}
 
-		/** Three blocks of ground to dig under this standing cell, and solid under them. */
-		static boolean diggable(Level level, BlockPos f) {
-			return safeToDig(level, f.below()) && safeToDig(level, f.below(2)) && safeToDig(level, f.below(3));
+		/**
+		 * Three blocks of ground to dig under this standing cell, and solid under them; with shelter_tool_dig each one the bag's
+		 * tools take out (stone only with a pickaxe).
+		 */
+		static boolean diggable(Level level, LocalPlayer p, BlockPos f) {
+			return safeToDig(level, p, f.below()) && safeToDig(level, p, f.below(2)) && safeToDig(level, p, f.below(3));
 		}
 
 		/**
@@ -1612,7 +1674,7 @@ final class ObtainSafe {
 			double bd = 1e9;
 			for (int dx = -16; dx <= 16; dx++) for (int dz = -16; dz <= 16; dz++) {
 				BlockPos c = ObtainSteps.surface(level, f.getX() + dx, f.getZ() + dz);
-				if (c == null || Math.abs(c.getY() - f.getY()) > 4 || !diggable(level, c)) continue;
+				if (c == null || Math.abs(c.getY() - f.getY()) > 4 || !diggable(level, p, c)) continue;
 				if (bad.stream().anyMatch(b -> Math.abs(b.getX() - c.getX()) <= 2 && Math.abs(b.getZ() - c.getZ()) <= 2)) continue;
 				double d = dx * dx + dz * dz + Math.abs(c.getY() - f.getY());
 				if (d < bd) { bd = d; best = c; }
@@ -1753,6 +1815,117 @@ final class ObtainSafe {
 			return best;
 		}
 
+		/**
+		 * (shelter_blocks_first) blocks first: decided once, on the first tick on the ground (DigIn.blocksFirst); then up to six
+		 * cells of grass or dirt within three blocks of the standing cell broken by hand, the nearest first, and each one's dirt
+		 * picked up before the next. Over once DigIn.gatherDone says so, no cell is left, or a monster comes. RUN while it goes on,
+		 * DONE once over or not wanted.
+		 */
+		ObtainSteps.Result blocksFirst(Minecraft mc, LocalPlayer p, Level level, BlockPos f, long now) {
+			if (gatherDone) return ObtainSteps.Result.DONE;
+			boolean foes = !foes(p).isEmpty() || shooterWithin(p, 12);
+			if (!gatherDecided) {
+				gatherDecided = true;
+				boolean open = open(level, f);
+				boolean digs = diggable(level, p, f)
+					|| digHereOn() && open && (digInRefusal(level, p, f) == null || digInNear(level, p, f, java.util.Set.of()) != null)
+					|| open && site(level, p, bad) != null;
+				if (!DigIn.blocksFirst(blocksFirstOn(), shelterBlocks(p), foes, digs)) {
+					gatherDone = true;
+					return ObtainSteps.Result.DONE;
+				}
+				gatherHome = f.immutable();
+				gatherSince = now;
+				Exchange.emit("obtain", "action", "shelter", "what", "blocks first", "x", f.getX(), "y", f.getY(), "z", f.getZ(), "blocks", shelterBlocks(p));
+			}
+			if (foes) return gatherEnd(p, now, "a monster about");
+			// the dirt of a broken cell, on the floor of its hole: fetched before the next
+			if (gatherPickup.tick(mc, p, now, ObtainSafe::shelterBlock)) { phase = "picks up dirt"; return ObtainSteps.Result.RUN; }
+			boolean over = DigIn.gatherDone(gathered.size(), shelterBlocks(p), gatherSince, now);
+			// the last drop shows a moment after its block went
+			if (over && now - lastBreakAt < 1500 && now - gatherSince <= DigIn.GATHER_MS) { Follow.stand(); return ObtainSteps.Result.RUN; }
+			if (over) return gatherEnd(p, now, "done");
+			if (gatherCell == null) {
+				gatherCell = nextGatherCell(level, p);
+				if (gatherCell == null) return gatherEnd(p, now, "no more ground to break by hand");
+			}
+			phase = "breaks " + gatherCell.toShortString() + " for blocks";
+			ObtainSteps.Result r = breaker.tick(mc, p, gatherCell, now);
+			if (r == ObtainSteps.Result.RUN) return r;
+			if (r == ObtainSteps.Result.DONE) {
+				gathered.add(new int[] {gatherCell.getX() - gatherHome.getX(), gatherCell.getZ() - gatherHome.getZ()});
+				gatherPickup.at(Vec3.atCenterOf(gatherCell));
+				lastBreakAt = now;
+			}
+			gatherTried.add(gatherCell);
+			gatherCell = null;
+			return ObtainSteps.Result.RUN;
+		}
+
+		ObtainSteps.Result gatherEnd(LocalPlayer p, long now, String why) {
+			gatherDone = true;
+			gatherCell = null;
+			Exchange.emit("obtain", "action", "shelter", "what", "blocks first over", "why", why, "cells", gathered.size(), "blocks", shelterBlocks(p),
+				"s", (now - gatherSince) / 1000);
+			return ObtainSteps.Result.DONE;
+		}
+
+		/**
+		 * The next cell for blocks first: grass or dirt (DigIn.handGround) the hand takes out, a surface cell (nothing in the cell
+		 * over it, ground under it, no water or lava by it) from one below to one above the ground the buddy began on, at an
+		 * offset DigIn.gatherCell allows, not tried yet and not the block the buddy stands on; the nearest to the eye first.
+		 */
+		BlockPos nextGatherCell(Level level, LocalPlayer p) {
+			BlockPos best = null, under = p.blockPosition().below();
+			double bd = Double.MAX_VALUE;
+			Vec3 eye = p.getEyePosition();
+			for (int dx = -DigIn.GATHER_RANGE; dx <= DigIn.GATHER_RANGE; dx++) for (int dz = -DigIn.GATHER_RANGE; dz <= DigIn.GATHER_RANGE; dz++) {
+				if (!DigIn.gatherCell(dx, dz, gathered)) continue;
+				for (int dy = 0; dy >= -2; dy--) {
+					BlockPos c = gatherHome.offset(dx, dy, dz);
+					BlockState st = level.getBlockState(c);
+					if (!DigIn.handGround(net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(st.getBlock()).getPath())) continue;
+					BlockState over = level.getBlockState(c.above());
+					if (!over.canBeReplaced() || !over.getFluidState().isEmpty()) continue;
+					if (c.equals(under) || gatherTried.contains(c) || !solid(level, c.below()) || !ObtainSteps.Breaker.breakable(level, c)) break;
+					boolean wet = false;
+					for (Direction d : Direction.values()) wet |= !level.getFluidState(c.relative(d)).isEmpty();
+					if (wet || Work.toolFor(p, st) == Work.NONE) break;
+					double d = eye.distanceToSqr(Vec3.atCenterOf(c));
+					if (d < bd) { bd = d; best = c; }
+					break;
+				}
+			}
+			return best;
+		}
+
+		/** A live shooter within {@code r} blocks. */
+		static boolean shooterWithin(LocalPlayer p, double r) {
+			for (var m : p.level().getEntitiesOfClass(net.minecraft.world.entity.monster.Monster.class, p.getBoundingBox().inflate(r, 6, r)))
+				if (m.isAlive() && shoots(m) && m.distanceTo(p) <= r) return true;
+			return false;
+		}
+
+		/**
+		 * (shelter_hand_dig) the nearest standing cell under the open sky within sixteen blocks, on the ground and no more than four
+		 * up or down, where the buddy can dig in two down with the tools at hand (digInRefusal), not within two blocks of a cell
+		 * given up or of {@code f}; null when there is none.
+		 */
+		static BlockPos handSite(Level level, LocalPlayer p, BlockPos f, java.util.Set<BlockPos> bad) {
+			BlockPos best = null;
+			double bd = Double.MAX_VALUE;
+			for (int dx = -16; dx <= 16; dx++) for (int dz = -16; dz <= 16; dz++) {
+				if (Math.abs(dx) <= 2 && Math.abs(dz) <= 2) continue;
+				BlockPos c = ObtainSteps.surface(level, f.getX() + dx, f.getZ() + dz);
+				if (c == null || Math.abs(c.getY() - f.getY()) > 4) continue;
+				if (bad.stream().anyMatch(b -> Math.abs(b.getX() - c.getX()) <= 2 && Math.abs(b.getZ() - c.getZ()) <= 2)) continue;
+				if (!Bed.free(level, c) || !Bed.free(level, c.above()) || !open(level, c) || digInRefusal(level, p, c) != null) continue;
+				double d = dx * dx + dz * dz + Math.abs(c.getY() - f.getY());
+				if (d < bd) { bd = d; best = c; }
+			}
+			return best;
+		}
+
 		/** Breaking this block under the buddy: it is ground, and under it is ground too, with no lava or water about. */
 		static boolean safeToDig(Level level, BlockPos b) {
 			BlockState st = level.getBlockState(b);
@@ -1760,6 +1933,17 @@ final class ObtainSafe {
 			if (!solid(level, b.below())) return false;
 			for (Direction d : Direction.values()) if (!level.getFluidState(b.relative(d)).isEmpty() || !level.getFluidState(b.below().relative(d)).isEmpty()) return false;
 			return true;
+		}
+
+		/**
+		 * The same for the night shelter's own dig, and (the autopilot's shelter_tool_dig, a fix of 13 Nov 2026, on) only with a
+		 * tool in the bag, or the hand, that takes the block out (Work.toolFor; the walker's break refuses one with no tool, and
+		 * stone broken by hand drops nothing). test heel's night start with an empty bag on grass over stone: the walk to a site
+		 * went to stone the hand could not dig, and the block from underfoot was stone.
+		 */
+		static boolean safeToDig(Level level, LocalPlayer p, BlockPos b) {
+			if (!safeToDig(level, b)) return false;
+			return p == null || !toolDigOn() || Work.toolFor(p, level.getBlockState(b)) != Work.NONE;
 		}
 
 		/** The walls' click, and the way to land's (its leaks): each clicks only on the face it aims at. */

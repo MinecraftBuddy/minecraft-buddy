@@ -119,4 +119,75 @@ class DigInTest {
 		assertFalse(DigIn.downAfterAll(true, false, true, true, 0, true, true));
 		assertFalse(DigIn.downAfterAll(true, false, false, true, 0, false, true));
 	}
+
+	// ---- (shelter_blocks_first) blocks from the ground first, (shelter_hand_dig) a dig-in by hand elsewhere
+
+	@Test
+	void grassAndDirtAreTheHandsGround() {
+		assertTrue(DigIn.handGround("grass_block"));
+		assertTrue(DigIn.handGround("dirt"));
+		assertTrue(DigIn.handGround("coarse_dirt"));
+		assertTrue(DigIn.handGround("podzol"));
+		assertTrue(DigIn.handGround("mycelium"));
+		// stone drops nothing by hand; sand and gravel fall; a path or a farm is a player's
+		assertFalse(DigIn.handGround("stone"));
+		assertFalse(DigIn.handGround("sand"));
+		assertFalse(DigIn.handGround("gravel"));
+		assertFalse(DigIn.handGround("farmland"));
+		assertFalse(DigIn.handGround("dirt_path"));
+		assertFalse(DigIn.handGround(null));
+	}
+
+	@Test
+	void blocksFirstWithFewBlocksAndNoHoleToDig() {
+		// test heel's night start: an empty bag, grass over stone
+		assertTrue(DigIn.blocksFirst(true, 0, false, false));
+		assertTrue(DigIn.blocksFirst(true, DigIn.BLOCKS_FIRST_UNDER - 1, false, false));
+		assertFalse(DigIn.blocksFirst(true, DigIn.BLOCKS_FIRST_UNDER, false, false));
+		// a hole to dig here or near digs its own blocks
+		assertFalse(DigIn.blocksFirst(true, 0, false, true));
+		// a monster about: the shelter at once
+		assertFalse(DigIn.blocksFirst(true, 0, true, false));
+		assertFalse(DigIn.blocksFirst(false, 0, false, false));
+	}
+
+	@Test
+	void theCellsBrokenForBlocksKeepTheWallsGround() {
+		java.util.List<int[]> none = java.util.List.of();
+		// not the standing cell nor its four sides
+		assertFalse(DigIn.gatherCell(0, 0, none));
+		assertFalse(DigIn.gatherCell(1, 0, none));
+		assertFalse(DigIn.gatherCell(0, -1, none));
+		// a corner, and up to three off
+		assertTrue(DigIn.gatherCell(1, 1, none));
+		assertTrue(DigIn.gatherCell(-3, 3, none));
+		assertFalse(DigIn.gatherCell(4, 0, none));
+		// never beside a cell broken already, a corner of one is fine
+		java.util.List<int[]> one = java.util.List.of(new int[] {2, 1});
+		assertFalse(DigIn.gatherCell(2, 0, one));
+		assertFalse(DigIn.gatherCell(3, 1, one));
+		assertTrue(DigIn.gatherCell(3, 2, one));
+	}
+
+	@Test
+	void blocksFirstEndsOnItsCellsItsBlocksOrItsTime() {
+		assertFalse(DigIn.gatherDone(0, 0, 0, 1000));
+		assertTrue(DigIn.gatherDone(DigIn.GATHER_CELLS, 0, 0, 1000));
+		assertTrue(DigIn.gatherDone(2, DigIn.GATHER_ENOUGH, 0, 1000));
+		assertTrue(DigIn.gatherDone(2, 3, 0, DigIn.GATHER_MS + 1));
+		assertFalse(DigIn.gatherDone(DigIn.GATHER_CELLS - 1, DigIn.GATHER_ENOUGH - 1, 0, DigIn.GATHER_MS));
+	}
+
+	@Test
+	void aDigInByHandElsewhereOnlyWithAnEmptyBag() {
+		assertTrue(DigIn.handDig(true, true, false, 0, 0));
+		assertTrue(DigIn.handDig(true, true, false, 0, 2));
+		assertFalse(DigIn.handDig(true, true, false, 1, 0));
+		assertFalse(DigIn.handDig(true, true, false, 0, 3));
+		// from shooters the shelter ducks where it stands
+		assertFalse(DigIn.handDig(true, true, true, 0, 0));
+		// the dig-in's own switch does the digging
+		assertFalse(DigIn.handDig(true, false, false, 0, 0));
+		assertFalse(DigIn.handDig(false, true, false, 0, 0));
+	}
 }
