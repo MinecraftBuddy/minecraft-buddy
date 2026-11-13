@@ -90,6 +90,17 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
         return null;
     }
 
+    // (Tuning blaze_stand_goal, off: a blaze is walked to by a stand on the ground under it, GoalBlazeStand)
+    private baritone.api.pathing.goals.Goal goal(AltoClef mod) {
+        if (_entity instanceof net.minecraft.world.entity.monster.Blaze
+                && adris.altoclef.util.helpers.Tuning.get("blaze_stand_goal", 0) > 0) {
+            net.minecraft.core.BlockPos at = _entity.blockPosition();
+            int gy = adris.altoclef.util.helpers.CubeWay.ground(adris.altoclef.util.helpers.GhastCover.walkCells(mod), at.getX(), at.getY(), at.getZ());
+            return new adris.altoclef.util.baritone.GoalBlazeStand(_entity, gy);
+        }
+        return new GoalFollowEntity(_entity, _closeEnoughDistance);
+    }
+
     private Task getFenceUnstuckTask() {
         return new SafeRandomShimmyTask();
     }
@@ -210,7 +221,7 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
         if (!mod.getClientBaritone().getCustomGoalProcess().isActive()) {
             _calcWatch.arm(mod.getClientBaritone().getPathingBehavior().calcFailures());
             _noWayWatch.arm(mod.getClientBaritone().getPathingBehavior().calcNoWay());
-            mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(new GoalFollowEntity(_entity, _closeEnoughDistance));
+            mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(goal(mod));
         }
 
         if (mod.getPlayer().closerThan(_entity, _closeEnoughDistance)) {
