@@ -8,6 +8,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.Level;
@@ -648,6 +649,31 @@ final class ObtainSafe {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_dig_clock", 0) > 0;
 	}
 
+	/** The autopilot's shelter_refused_walls switch (a fix of 13 Nov 2026, on by default); off without the autopilot. */
+	static boolean refusedWallsOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_refused_walls", 0) > 0;
+	}
+
+	/** The autopilot's shelter_jump_top switch (a fix of 13 Nov 2026, on by default); off without the autopilot. */
+	static boolean jumpTopOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_jump_top", 0) > 0;
+	}
+
+	/** The autopilot's place_into_replaceable switch (a fix of 13 Nov 2026, on by default); off without the autopilot. */
+	static boolean intoReplaceableOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("place_into_replaceable", 0) > 0;
+	}
+
+	/** The autopilot's place_click_clock switch (a fix of 13 Nov 2026, on by default); off without the autopilot. */
+	static boolean clickClockOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("place_click_clock", 0) > 0;
+	}
+
+	/** The autopilot's shelter_place_face switch (a fix of 13 Nov 2026, on by default); off without the autopilot. */
+	static boolean placeFaceOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_place_face", 0) > 0;
+	}
+
 	/** The block the night shelter puts in first: the first in the bag that passes shelterBlock; null with none. */
 	static String firstShelterBlock(LocalPlayer p) {
 		var in = p.getInventory();
@@ -900,6 +926,16 @@ final class ObtainSafe {
 	}
 
 	/**
+	 * A face to put a block against: a whole block with no block entity (a click on a furnace, a chest or a barrel opens it).
+	 * The Placer's own test, and (the autopilot's shelter_place_face, a fix of 13 Nov 2026, on) the night shelter's open() asks
+	 * the same: a furnace beside the cell over the head was something to shut the top against for open() and none for the
+	 * Placer, and the shelter went round between the two for five minutes with no block placed.
+	 */
+	static boolean placeFace(Level level, BlockPos c) {
+		return solid(level, c) && level.getBlockEntity(c) == null;
+	}
+
+	/**
 	 * A block placed into a cell from a solid face beside it: the crosshair on that face within reach and in sight, the
 	 * click at the start of the tick. One placement at a time.
 	 */
@@ -911,6 +947,8 @@ final class ObtainSafe {
 		/** What it places: a block to spend, or what the caller says (obsidian for a portal). */
 		java.util.function.Predicate<net.minecraft.world.item.ItemStack> item = ObtainSafe::throwaway;
 		String itemName = "blocks";
+		/** (place_click_clock) how long each cell has been aimed at with no block in it, and the cells given up. */
+		final PlaceClock clock = new PlaceClock();
 
 		Placer() {}
 
@@ -919,8 +957,15 @@ final class ObtainSafe {
 		/** RUN while it aims or clicks, DONE once the cell is solid, FAIL when it cannot. */
 		ObtainSteps.Result tick(Minecraft mc, LocalPlayer p, BlockPos target) {
 			Level level = p.level();
-			if (solid(level, target)) { cell = null; return ObtainSteps.Result.DONE; }
+			long now = System.currentTimeMillis();
+			settleJump(mc, p, now);
+			jumping = false;
+			if (solid(level, target)) { cell = null; clock.done(target.asLong()); return ObtainSteps.Result.DONE; }
 			if (!level.getBlockState(target).canBeReplaced()) return ObtainSteps.Result.FAIL;
+			// (the autopilot's place_click_clock, a fix of 13 Nov 2026, on) a cell given up a moment ago fails at once, and the
+			// Placer stays on the cell it was on, so the caller's other cells go on in the meantime
+			boolean timed = clickClockOn();
+			if (timed && clock.resting(target.asLong(), now)) return ObtainSteps.Result.FAIL;
 			if (!target.equals(cell)) { cell = target.immutable(); on = null; }
 			if (!has(p)) return ObtainSteps.Result.FAIL;
 			// its own body in the cell (a step off the middle of its own, in a one-wide tunnel): the game refuses the block
@@ -941,7 +986,7 @@ final class ObtainSafe {
 				double best = 1e9;
 				for (Direction d : Direction.values()) {
 					BlockPos n = target.relative(d);
-					if (!solid(level, n) || level.getBlockEntity(n) != null) continue;
+					if (!placeFace(level, n)) continue;
 					Vec3 pt = Vec3.atCenterOf(n).add(Vec3.atLowerCornerOf(d.getOpposite().getUnitVec3i()).scale(0.5));
 					double dist = eye.distanceTo(pt);
 					if (dist > 4.3) continue;
@@ -955,13 +1000,31 @@ final class ObtainSafe {
 			Vec3 pt = Vec3.atCenterOf(on).add(Vec3.atLowerCornerOf(face.getUnitVec3i()).scale(0.5));
 			Follow.stand();
 			Follow.aimExact(p, pt);
+			// (place_click_clock) aimed at this cell for PlaceClock.AIM_MS with no block in it: the cell fails, and the caller's
+			// own ways for a cell that will not take a block go on. test heel's night shelter: a one-layer snow in a wall cell took
+			// the crosshair before the face aimed at, no click went, and five minutes the step stood with no clock of its own
+			if (timed && clock.aimed(cell.asLong(), now)) {
+				Exchange.emit("obtain", "action", "place gave up", "x", cell.getX(), "y", cell.getY(), "z", cell.getZ(), "on", on.toShortString(),
+					"face", face.getName(), "sight", Work.sight(mc), "clicks", clicks, "s", PlaceClock.AIM_MS / 1000);
+				return ObtainSteps.Result.FAIL;
+			}
 			return ObtainSteps.Result.RUN;
 		}
 
 		void startTick(Minecraft mc) {
 			LocalPlayer p = mc.player;
+			// (shelter_jump_top) in a jump the face is the top of the block under the jump's cell
+			BlockPos cell = jumping ? jumpCell : this.cell, on = jumping ? jumpCell.below() : this.on;
+			Direction face = jumping ? Direction.UP : this.face;
 			if (cell == null || on == null || p == null || mc.gameMode == null) return;
-			if (!(mc.hitResult instanceof BlockHitResult bh) || bh.getType() != HitResult.Type.BLOCK || !bh.getBlockPos().equals(on) || bh.getDirection() != face) return;
+			if (!(mc.hitResult instanceof BlockHitResult bh) || bh.getType() != HitResult.Type.BLOCK) return;
+			// on the face aimed at; or (the autopilot's place_into_replaceable, a fix of 13 Nov 2026, on) on what fills the cell itself
+			// when the game puts the block in its place: a one-layer snow or short grass in the cell takes the crosshair before the
+			// face under it (the aim found that face with a clip through what has no collision), and a click on it is a placement
+			// into the cell, as for a player
+			boolean aimed = bh.getBlockPos().equals(on) && bh.getDirection() == face;
+			boolean into = !aimed && bh.getBlockPos().equals(cell) && intoReplaceableOn() && placesInto(p, bh, cell);
+			if (!aimed && !into) return;
 			if (!item.test(p.getMainHandItem())) return;
 			long now = System.currentTimeMillis();
 			if (now - clickAt < 300) return;
@@ -969,15 +1032,115 @@ final class ObtainSafe {
 			InteractionResult r = AfkHelperClient.useOn(p, InteractionHand.MAIN_HAND, bh);
 			if (r.consumesAction()) Game.swingUse(p, InteractionHand.MAIN_HAND);
 			if (++clicks % 8 == 1) Exchange.emit("obtain", "action", "place click", "x", cell.getX(), "y", cell.getY(), "z", cell.getZ(),
-				"on", on.toShortString(), "face", face.getName(), "result", r.toString(), "clicks", clicks);
+				"on", into ? bh.getBlockPos().toShortString() : on.toShortString(), "face", (into ? bh.getDirection() : face).getName(), "result", r.toString(),
+				"clicks", clicks, "into", into);
 		}
 
 		int clicks;
+
+		/** The game puts the block in hand into {@code cell} for a click on this hit (a replaceable block there), and it may go there. */
+		static boolean placesInto(LocalPlayer p, BlockHitResult bh, BlockPos cell) {
+			var held = p.getMainHandItem();
+			if (held.isEmpty() || !(held.getItem() instanceof net.minecraft.world.item.BlockItem)) return false;
+			var ctx = new net.minecraft.world.item.context.BlockPlaceContext(
+				new net.minecraft.world.item.context.UseOnContext(p.level(), p, InteractionHand.MAIN_HAND, held, bh) {});
+			return ctx.getClickedPos().equals(cell) && ctx.canPlace();
+		}
 
 		boolean has(LocalPlayer p) {
 			var in = p.getInventory();
 			for (int i = 0; i < 36; i++) if (item.test(in.getItem(i))) return true;
 			return false;
+		}
+
+		/**
+		 * (shelter_jump_top) the jump in hand: the cell it is for, the look held through it (yaw, pitch), the jumps made for the
+		 * cell, the last one's time, whether the key is down, and the cells given up after five jumps with no block. jumping: the
+		 * last call was a jump's, so the click goes on the jump's face (a plain tick in between sets it back).
+		 */
+		boolean jumping;
+		BlockPos jumpCell;
+		float[] jumpLook;
+		int jumps;
+		long jumpAt;
+		boolean jumpHeld;
+		final java.util.Set<BlockPos> jumpsGaveUp = new java.util.HashSet<>();
+
+		/**
+		 * (the autopilot's shelter_jump_top, a fix of 13 Nov 2026, on) a block into {@code target} on the top face of the block
+		 * under it, clicked from the top of a jump, as a player puts a block on a wall over the head: from the ground the eye is
+		 * under that face. The look is set on the ground, toward the face as the eye will see it near the jump's top, and held
+		 * through the jump; the click is startTick's, once the crosshair is on that face. RUN while it goes on, DONE once the cell
+		 * is solid, FAIL when it cannot (no such face in sight from the jump's top, or five jumps with no block in the cell).
+		 */
+		ObtainSteps.Result jumpTick(Minecraft mc, LocalPlayer p, BlockPos target, long now) {
+			Level level = p.level();
+			settleJump(mc, p, now);
+			if (solid(level, target)) { letGo(mc); jumping = false; return ObtainSteps.Result.DONE; }
+			if (jumpsGaveUp.contains(target)) { jumping = false; return ObtainSteps.Result.FAIL; }
+			if (!target.equals(jumpCell)) {
+				// the look is worked out on the ground; a cell with no face to be had fails without taking the Placer from its own
+				if (!p.onGround()) return ObtainSteps.Result.RUN;
+				float[] look = jumpLook(level, p, target);
+				if (look == null) { jumping = false; return ObtainSteps.Result.FAIL; }
+				jumpCell = target.immutable();
+				jumpLook = look;
+				jumps = 0;
+			}
+			if (!has(p)) { jumping = false; return ObtainSteps.Result.FAIL; }
+			jumping = true;
+			if (!ObtainSteps.hold(mc, p, item, itemName)) return ObtainSteps.Result.RUN;
+			float dy = Mth.wrapDegrees(jumpLook[0] - p.getYRot()), dp = jumpLook[1] - p.getXRot();
+			MouseTurn.toward(p, p.getYRot() + Mth.clamp(dy, -14f, 14f), p.getXRot() + Mth.clamp(dp, -10f, 10f), 0.1f);
+			// in the air, or the key down a moment ago: the look held, the click is startTick's
+			if (jumpHeld || !p.onGround()) return ObtainSteps.Result.RUN;
+			if (jumps >= 5) {
+				jumpsGaveUp.add(jumpCell);
+				jumping = false;
+				Exchange.emit("obtain", "action", "place jump gave up", "x", target.getX(), "y", target.getY(), "z", target.getZ(), "jumps", jumps);
+				return ObtainSteps.Result.FAIL;
+			}
+			if (Math.abs(dy) > 1.5f || Math.abs(dp) > 1.5f || now - jumpAt < 700) return ObtainSteps.Result.RUN;
+			Follow.stand();
+			HeldKeys.set(mc.options.keyJump, true);
+			jumpHeld = true;
+			jumpAt = now;
+			if (++jumps == 1) Exchange.emit("obtain", "action", "place jump", "x", target.getX(), "y", target.getY(), "z", target.getZ(),
+				"on", jumpCell.below().toShortString());
+			return ObtainSteps.Result.RUN;
+		}
+
+		/** The jump key back up once the buddy is off the ground, or a moment after the press (held on, it jumps again on landing). */
+		void settleJump(Minecraft mc, LocalPlayer p, long now) {
+			if (jumpHeld && (!p.onGround() || now - jumpAt > 250)) letGo(mc);
+		}
+
+		void letGo(Minecraft mc) {
+			if (!jumpHeld) return;
+			HeldKeys.set(mc.options.keyJump, false);
+			jumpHeld = false;
+		}
+
+		/**
+		 * The look for a click on the top face of the block under {@code target} from near the top of a jump where the buddy
+		 * stands (yaw, pitch); null when there is none: the cell taken or wet, no whole block under it, the face out of reach or
+		 * out of sight from there, no room over the head for the jump, or the cell in the way of the buddy's own body.
+		 */
+		static float[] jumpLook(Level level, LocalPlayer p, BlockPos target) {
+			if (!level.getBlockState(target).canBeReplaced() || !level.getFluidState(target).isEmpty()) return null;
+			BlockPos under = target.below();
+			if (!placeFace(level, under)) return null;
+			// a jump lifts the eye about 1.25; a little less for the look, so the face is in sight over most of the jump
+			Vec3 top = p.getEyePosition().add(0, 1.2, 0);
+			Vec3 pt = Vec3.atCenterOf(under).add(0, 0.5, 0);
+			if (top.y < pt.y + 0.3 || top.distanceTo(pt) > 4.3) return null;
+			if (!level.noCollision(p, p.getBoundingBox().move(0, 1.0, 0))) return null;
+			if (p.getBoundingBox().move(0, 1.25, 0).intersects(new net.minecraft.world.phys.AABB(target))) return null;
+			BlockHitResult hit = level.clip(new net.minecraft.world.level.ClipContext(top, pt.add(0, -0.02, 0),
+				net.minecraft.world.level.ClipContext.Block.OUTLINE, net.minecraft.world.level.ClipContext.Fluid.NONE, p));
+			if (hit.getType() != HitResult.Type.BLOCK || !hit.getBlockPos().equals(under) || hit.getDirection() != Direction.UP) return null;
+			double dx = pt.x - top.x, dy = pt.y - top.y, dz = pt.z - top.z;
+			return new float[] {(float) Math.toDegrees(Math.atan2(-dx, dz)), (float) -Math.toDegrees(Math.atan2(dy, Math.hypot(dx, dz)))};
 		}
 	}
 
@@ -1011,6 +1174,11 @@ final class ObtainSafe {
 		BlockPos digAt;
 		long digSince, dugAt, mealAt;
 		boolean noDig;
+		/**
+		 * (the autopilot's shelter_refused_walls, a fix of 13 Nov 2026, on) the dig stopped short of its depth at this spot: the
+		 * ground under the feet no ground to dig, or a block that would not break.
+		 */
+		boolean stoppedShort;
 		/** Cells where it could not shut itself in: no site within two blocks of them. */
 		final java.util.Set<BlockPos> bad = new java.util.HashSet<>();
 		boolean sealed, open;
@@ -1071,6 +1239,8 @@ final class ObtainSafe {
 
 		ObtainSteps.Result tick(Minecraft mc, LocalPlayer p, long now) {
 			Level level = p.level();
+			// (shelter_jump_top) the jump key back up once off the ground: the step returns in the air before the placer is asked
+			placer.settleJump(mc, p, now);
 			// three minutes down and the shooters still by the hole: no climb out among them, a tunnel away under the ground
 			// or twenty seconds that a side would not shut, under the ground: away rather than wait in the open cell
 			boolean stuck = stuckSince != 0 && now - stuckSince > 20_000 && !level.canSeeSky(p.blockPosition());
@@ -1222,6 +1392,7 @@ final class ObtainSafe {
 				if (!safeToDig(level, under)) {
 					if (dug == 0) bottom = f;   // here it does not dig: shut where it stands
 					else bottom = f;
+					stoppedShort = true;
 				} else if (clock && DigIn.digStalled(digSince, dugAt, mealAt, now)) {
 					// (shelter_dig_clock) no block dug in 15 s: shut in here from the bag, walls first and the top last. test heel:
 					// two shelters dug "dug 0" for five minutes at full hp with 13 and 36 blocks in the bag (a meal that took the hand
@@ -1239,12 +1410,24 @@ final class ObtainSafe {
 					ObtainSteps.Result r = breaker.tick(mc, p, under, now);
 					breaker.siteClock = false;
 					if (r == ObtainSteps.Result.DONE) { dug++; dugAt = now; }
-					else if (r == ObtainSteps.Result.FAIL) bottom = f;
+					else if (r == ObtainSteps.Result.FAIL) { bottom = f; stoppedShort = true; }
 					return ObtainSteps.Result.RUN;
 				}
 			}
 			if (bottom == null) bottom = f;
 			if (!f.equals(bottom) && f.distSqr(bottom) > 2) bottom = f;
+			// (the autopilot's shelter_refused_walls, a fix of 13 Nov 2026, on) the dig stopped short (no ground to dig with the tools
+			// at hand, or a block that would not break) and the top has nothing to go against: shut in on the spot, walls first and
+			// the top last, by the roof's own ways (one down where the floor breaks, else a block on a wall from a jump). test heel's
+			// night on a snowy slope: the top tried first and refused, three tries elsewhere, then a wait in an open hole
+			boolean refusedWalls = refusedWallsOn();
+			if (!noDig && DigIn.shutOnSpot(refusedWalls, stoppedShort, duck, open(level, f))) {
+				noDig = true;
+				Exchange.emit("obtain", "action", "shelter", "what", "no hole here, shut in on the spot", "x", f.getX(), "y", f.getY(), "z", f.getZ(),
+					"dug", dug, "blocks", shelterBlocks(p), "with", String.valueOf(firstShelterBlock(p)));
+			}
+			// (shelter_refused_walls) the cells of a shut-in on the spot that would not shut, passed over for the rest
+			int left = 0;
 			// every open side shut; from shooters the side they shoot from first
 			// (shelter_dig_clock) shut in on the spot: the walls first, for the top goes against them
 			for (BlockPos c : duck ? facing(level, p, f) : noDig ? wallsFirst(f) : around(f)) {
@@ -1301,11 +1484,27 @@ final class ObtainSafe {
 					else if (d == ObtainSteps.Result.FAIL) extra = 3;
 					return ObtainSteps.Result.RUN;
 				}
+				// (the autopilot's shelter_jump_top, a fix of 13 Nov 2026, on) shut in on the spot, the walls up, the top with nothing to
+				// go against and no going down (snow and no shovel): a block on top of a wall from the top of a jump, as a player puts
+				// it there, and the top against its side. test heel's night on a snowy slope: no top, and a skeleton shot in
+				if (r == ObtainSteps.Result.FAIL && noDig && c.equals(f.above(2)) && wallsUp(level, f) && jumpTopOn()) {
+					for (Direction d : Direction.Plane.HORIZONTAL) {
+						ObtainSteps.Result u = placer.jumpTick(mc, p, c.relative(d), now);
+						if (u == ObtainSteps.Result.FAIL) continue;
+						if (u == ObtainSteps.Result.RUN) phase = "jumps to put a block on " + c.relative(d).below().toShortString();
+						return ObtainSteps.Result.RUN;
+					}
+				}
 				// (shelter_dig_clock) the walls up and no top to be had: the walls hold off what walks, better than a walk elsewhere
 				if (r == ObtainSteps.Result.FAIL && (duck || noDig && wallsUp(level, f)) && c.equals(f.above(2))) continue;
 				// the roof of a night shelter on open ground touches nothing: down after all, where the ground will be dug (not after
 				// the dig's clock ran out: that was the loop between digging and shutting)
-				if (r == ObtainSteps.Result.FAIL && !duck && !noDig && c.equals(f.above(2)) && dug == 0 && diggable(level, f)) { bottom = null; dug = 0; return ObtainSteps.Result.RUN; }
+				// (the autopilot's shelter_place_face, a fix of 13 Nov 2026, on: only where the dig below runs, open ground or dug in
+				// here; else this cell will not shut, and 20 s later the buddy tries elsewhere)
+				if (r == ObtainSteps.Result.FAIL && DigIn.downAfterAll(placeFaceOn(), duck, noDig, c.equals(f.above(2)), dug, diggable(level, f), open(level, f) || here != null)) {
+					bottom = null; dug = 0;
+					return ObtainSteps.Result.RUN;
+				}
 				// (shelter_dig_here) dug in and the top with nothing to go against (no prop beside the mouth): one more down, and the
 				// top goes in the ground between the hole's walls
 				if (r == ObtainSteps.Result.FAIL && here != null && c.equals(f.above(2)) && extra < 1 && safeToDig(level, f.below())) {
@@ -1335,12 +1534,20 @@ final class ObtainSafe {
 						bottom = null; site = null; siteSince = 0; dug = 0; extra = 0; stuckSince = 0; since = now;
 						here = null; prop = null; propDone = false; nearSite = false;
 						// (shelter_dig_clock) a new spot gets its own dig and its own clock
-						noDig = false; digAt = null; dugAt = 0;
+						noDig = false; digAt = null; dugAt = 0; stoppedShort = false;
 						Exchange.emit("obtain", "action", "shelter", "what", "tries elsewhere", "x", f.getX(), "y", f.getY(), "z", f.getZ(), "try", elsewhere);
 						return ObtainSteps.Result.RUN;
 					}
+					// (shelter_refused_walls) shut in on the spot: the other walls and the top still go up round a cell that will not
+					// shut, rather than a wait with all of them open
+					if (noDig && refusedWalls) { left++; continue; }
 					return ObtainSteps.Result.WAIT;
 				}
+			}
+			if (left > 0) {
+				phase = "shut but for " + left + (left == 1 ? " cell" : " cells");
+				Follow.stand();
+				return ObtainSteps.Result.WAIT;
 			}
 			stuckSince = 0;
 			if (!sealed) {
@@ -1367,7 +1574,7 @@ final class ObtainSafe {
 		}
 
 		@Override
-		void stop() { uncrouch(AfkHelperClient.mc()); }
+		void stop() { uncrouch(AfkHelperClient.mc()); placer.letGo(AfkHelperClient.mc()); }
 
 		BlockPos site;
 		long siteSince;
@@ -1379,7 +1586,13 @@ final class ObtainSafe {
 		static boolean open(Level level, BlockPos f) {
 			BlockPos roof = f.above(2);
 			if (solid(level, roof)) return false;
-			for (Direction d : Direction.Plane.HORIZONTAL) if (solid(level, roof.relative(d))) return false;
+			// (the autopilot's shelter_place_face, a fix of 13 Nov 2026, on) something to shut the top against is what the Placer
+			// puts a block against: a furnace or a chest beside the cell over the head is none
+			boolean faces = placeFaceOn();
+			for (Direction d : Direction.Plane.HORIZONTAL) {
+				BlockPos n = roof.relative(d);
+				if (faces ? placeFace(level, n) : solid(level, n)) return false;
+			}
 			return true;
 		}
 

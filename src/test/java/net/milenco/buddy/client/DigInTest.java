@@ -90,4 +90,33 @@ class DigInTest {
 		assertFalse(DigIn.mealHolds(true, false, 1000, 2000, 8000));
 		assertFalse(DigIn.mealHolds(true, true, 1000, 9000, 8000));
 	}
+
+	/** (shelter_refused_walls) a dig that stopped short on open ground shuts in on the spot; not off, not ducking, not under a top. */
+	@Test
+	void aDigStoppedShortOnOpenGroundShutsInOnTheSpot() {
+		assertTrue(DigIn.shutOnSpot(true, true, false, true));
+		assertFalse(DigIn.shutOnSpot(false, true, false, true));
+		assertFalse(DigIn.shutOnSpot(true, false, false, true));
+		assertFalse(DigIn.shutOnSpot(true, true, true, true));
+		assertFalse(DigIn.shutOnSpot(true, true, false, false));
+	}
+
+	/**
+	 * (shelter_place_face) down after all only where the dig runs: a furnace beside the cell over the head made the ground not
+	 * open, the dig never ran, and the shelter went round between the two.
+	 */
+	@Test
+	void downAfterAllOnlyWhereTheDigRuns() {
+		// the old rule: the top refused, nothing dug, ground to dig
+		assertTrue(DigIn.downAfterAll(false, false, false, true, 0, true, false));
+		// with the face rule, only where the dig below runs
+		assertFalse(DigIn.downAfterAll(true, false, false, true, 0, true, false));
+		assertTrue(DigIn.downAfterAll(true, false, false, true, 0, true, true));
+		// never for a wall, after a dig, ducking, after the dig's clock, or with no ground to dig
+		assertFalse(DigIn.downAfterAll(true, false, false, false, 0, true, true));
+		assertFalse(DigIn.downAfterAll(true, false, false, true, 1, true, true));
+		assertFalse(DigIn.downAfterAll(true, true, false, true, 0, true, true));
+		assertFalse(DigIn.downAfterAll(true, false, true, true, 0, true, true));
+		assertFalse(DigIn.downAfterAll(true, false, false, true, 0, false, true));
+	}
 }

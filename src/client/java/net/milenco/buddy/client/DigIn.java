@@ -76,4 +76,27 @@ final class DigIn {
 	static boolean mealHolds(boolean on, boolean meal, long mealSince, long now, long maxMs) {
 		return on && meal && now - mealSince < maxMs;
 	}
+
+	/**
+	 * (the autopilot's shelter_refused_walls, a fix of 13 Nov 2026, on) the dig stopped short of its depth (the ground under the
+	 * feet no ground to dig, or a block that would not break) where the top has nothing to go against: the buddy shuts in on the
+	 * spot from the bag, walls first and the top last, as after the dig's clock. Not when ducking from shooters, whose own order
+	 * puts the side they shoot from first. test heel's night on a snowy slope: "no ground to dig with the tools at hand" (snow, a
+	 * wooden pickaxe, 24 blocks in the bag), the top tried first and refused, three tries elsewhere and then a wait in an open
+	 * hole until a zombie reached in.
+	 */
+	static boolean shutOnSpot(boolean on, boolean stoppedShort, boolean duck, boolean open) {
+		return on && stoppedShort && !duck && open;
+	}
+
+	/**
+	 * The top refused on open ground with nothing dug: down after all where three blocks of ground can be dug. With {@code
+	 * faceRule} (the autopilot's shelter_place_face, a fix of 13 Nov 2026, on) only where the dig will run ({@code digRuns}: open
+	 * ground, or dug in where the buddy stands); else the cell counts as one that will not shut, and 20 s later the buddy tries
+	 * elsewhere. test heel: a furnace beside the cell over the head was something to shut against for the shelter and no face for
+	 * the placer, and "down after all" with no dig to run went round for five silent minutes.
+	 */
+	static boolean downAfterAll(boolean faceRule, boolean duck, boolean noDig, boolean top, int dug, boolean diggable, boolean digRuns) {
+		return !duck && !noDig && top && dug == 0 && diggable && (!faceRule || digRuns);
+	}
 }
