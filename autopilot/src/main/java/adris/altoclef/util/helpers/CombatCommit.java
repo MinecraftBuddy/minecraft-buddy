@@ -251,7 +251,9 @@ public final class CombatCommit {
         // the perch starts and ends. the words are the perch notes', not CombatLog's
         PERCH_START, PERCH_END,
         // (skel_close_rule) the walk up to a skeleton stopped for a second one in sight, the brain's cover takes the buddy
-        FIGHT_TO_COVER
+        FIGHT_TO_COVER,
+        // (skel_cover_over_runs) a run under the cover's hp line took a skeleton's arrow: it ends, the buddy digs in where it stands
+        RUN_TO_COVER
     }
 
     // what sort of foe it is, which is the only thing the machine needs to know about a species
@@ -1133,8 +1135,15 @@ public final class CombatCommit {
     // bag or in hand, the armour pieces worn; cover: the brain's cover takes the buddy this tick (skel_cover: under its hp line,
     // a skeleton with a line, a block or ground to dig at hand). test heel's five skeleton deaths: runs through or back into the
     // shooters' lines, and walks up to skeletons hurt, unarmoured or with others in sight
+    // (skel_cover_over_runs, a fix of 14 Nov 2026) dig: two down where the buddy stands come out with the tools at hand and the
+    // floor holds (the dug-in cover is on offer, the one that keeps melee mobs off too); lavaNear: lava within a knock of the
+    // feet, or under an open edge there; overRuns: the key
     public record Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
-                       double range) {
+                       double range, boolean dig, boolean lavaNear, boolean overRuns) {
+        public Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
+                    double range) {
+            this(kinds, lines, close, sword, armour, cover, closeHp, range, false, false, false);
+        }
     }
 
     private Skel skel;
@@ -1158,13 +1167,54 @@ public final class CombatCommit {
     }
 
     // (skel_cover) a run for low hp or for arrows that skeletons alone make: the cover takes the buddy, every shooter is a skeleton
-    // kind, and nothing but skeletons stands within range (a melee mob or a creeper there is still the run)
+    // kind, and nothing but skeletons stands within range (a melee mob or a creeper there is still the run). (skel_cover_over_runs)
+    // or the dug-in cover in place of the run with melee mobs about, coverOverRun
     private boolean coverInstead(Tick t, Why reason, double range) {
+        if (coverOverRun(t, reason)) return true;
         if ((reason != Why.SHOT && reason != Why.LOW_HP) || !coverForShots(t)) return false;
         for (Foe foe : t.foes()) {
             if (foe.distance() <= range && !skel.kinds().contains(foe.id())) return false;
         }
         return true;
+    }
+
+    // (Tuning skel_cover_over_runs, a fix of 14 Nov 2026, on) test heel: in 10 of 23 skeleton deaths the cover never got to hold,
+    // a low hp, crowd or unarmed run (6 at night on open ground, 4 in crowded caves) took the wheel and the arrows landed during
+    // it; 91 of the last 155 arrows landed in runs. two down with the top shut keeps zombies and spiders off as well as arrows
+    // (CornerWall: the head under the feet of one at the rim, no line for its swing), so the cover takes the place of the low hp,
+    // crowd and unarmed run (and the shot run) when the cover takes the buddy, every mob about is a skeleton kind or a plain melee
+    // mob, no creeper within SkelCover.CREEPER_RANGE, no enderman about and no lava within a knock, and with a melee mob about
+    // only where the ground digs. the run stays where it helps: a creeper close, lava near, a witch, a heavy hitter, ground that
+    // will not dig with melee mobs about, no block and no ground at all (the cover is not on offer then)
+    private boolean coverOverRun(Tick t, Why reason) {
+        if (skel == null || !skel.overRuns() || !skel.cover() || skel.lavaNear()) return false;
+        if (reason != Why.SHOT && reason != Why.LOW_HP && reason != Why.CROWD && reason != Why.UNARMED) return false;
+        if (!coverForShots(t) || endermanAbout(t) != null || t.creeperRepeat()) return false;
+        boolean melee = false;
+        for (Foe foe : t.foes()) {
+            if (skel.kinds().contains(foe.id())) continue;
+            if (foe.creeper()) {
+                if (foe.distance() <= SkelCover.CREEPER_RANGE) return false;
+                continue;
+            }
+            if (!foe.melee() || foe.kind() != Kind.NORMAL || foe.wither()) return false;
+            melee = true;
+        }
+        return !melee || skel.dig();
+    }
+
+    // (skel_cover_over_runs) a run under the cover's hp line (the cover takes the buddy) that took a skeleton's arrow since it
+    // started, where the ground digs: it ends and the buddy digs in where it stands. not a run from something only run from, a
+    // creeper's, a witch's, the meter's, nor one held behind its wall
+    private boolean arrowEndsRun(Tick t) {
+        if (skel == null || !skel.overRuns() || !skel.dig() || walling) return false;
+        if (why != Why.SHOT && why != Why.LOW_HP && why != Why.CROWD && why != Why.UNARMED) return false;
+        boolean arrow = false;
+        for (Foe foe : t.foes()) {
+            if (!foe.ranged() || foe.creeper() || !skel.kinds().contains(foe.id()) || foe.sinceHit() > FRESH) continue;
+            if (t.now() - foe.sinceHit() - clockSkew > startTick) arrow = true;
+        }
+        return arrow && coverOverRun(t, why);
     }
 
     // (skel_close_rule) why a walk up to this skeleton is off, null when it may go or the rule has no say (not the overworld, the
@@ -1763,6 +1813,9 @@ public final class CombatCommit {
         // (skel_cover) hurt under skeletons' arrows is the cover, not a run through their lines
         if (coverInstead(t, run, LOW_HP_RANGE)) {
             skelNote(t, "skeleton cover instead of a run [" + run + "]");
+            // (skel_cover_over_runs) the cover in place of the run holds the wheel: no fight on what is on us either, that is
+            // what the run was for
+            if (coverOverRun(t, run)) return Event.NONE;
             run = Why.NONE;
         }
         if (run != Why.NONE) return runOrBox(t, run);
@@ -1786,6 +1839,7 @@ public final class CombatCommit {
             // (skel_cover) a skeleton's arrow in the heal hold, or one walking about close, is the cover, not a run through its line
             if (coverInstead(t, again, RecoverHold.RERUN_RANGE)) {
                 skelNote(t, "skeleton cover instead of a run [" + again + "]");
+                if (coverOverRun(t, again)) return Event.NONE;
                 again = Why.NONE;
             }
             if (again != Why.NONE) return runOrBox(t, again);
@@ -1815,6 +1869,16 @@ public final class CombatCommit {
             }
             // (witch_no_melee: with an enderman about the witch is no run and no fight either, the rules below go on)
             if (!noMelee(hit)) {
+                // (skel_cover_over_runs) under skeletons' arrows with the dug-in cover to be had: the hole, not the unarmed run
+                // through their lines nor a fight in them (27 of the last 155 arrows landed in fights); a skeleton that walked up
+                // and hit is fought only where the close rule would walk up to it (the hp, a sword, armour, no second one)
+                boolean skelHit = skel != null && skel.kinds().contains(hit.id());
+                String noClose = skelHit && t.armed() ? closeRefusal(t, hit) : null;
+                if ((!skelHit || !t.armed() || noClose != null) && coverOverRun(t, Why.UNARMED)) {
+                    skelNote(t, !t.armed() ? "skeleton cover instead of a run [UNARMED]"
+                            : "skeleton cover instead of a fight with foe #" + hit.id() + (noClose != null ? ": " + noClose : ""));
+                    return Event.NONE;
+                }
                 if (!t.armed() && !hit.standsAndFights() && !enderAbout) return startRun(t, Why.UNARMED, Event.RUN_START);
                 return startFight(t, hit, Why.HIT, Event.FIGHT_START, false);
             }
@@ -2916,6 +2980,12 @@ public final class CombatCommit {
         if (walling) {
             Event held = wallHold(t);
             if (held != null) return held;
+        }
+        // (skel_cover_over_runs) a skeleton's arrow in the run under the cover's hp line: the run ends, the buddy digs in here
+        if (arrowEndsRun(t)) {
+            skelNote(t, String.format(java.util.Locale.ROOT, "skeleton cover: an arrow in the run [%s] at %.1f hp, digging in where the buddy stands",
+                    why, t.health()));
+            return end(t, Event.RUN_TO_COVER);
         }
         // melee only things we cannot outrun: stack up right here instead of jogging (and instead of turning round on them later)
         int perchH = perchAt(t);

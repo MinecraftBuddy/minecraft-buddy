@@ -1,5 +1,6 @@
 package adris.altoclef.util.helpers;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -147,5 +148,138 @@ public class SkelCoverTest {
         assertEquals("skeleton cover: out of cover: a run took over", h.takeNote());
         // a run is no reason to wait
         assertTrue(h.takes(301, true, true));
+    }
+
+    // ---- (skel_cover_dig_first, skel_cover_hold, skel_cover_wet_fail) the fixes of 14 Nov 2026
+
+    @Test
+    public void theCoverDigsFirstThenTheBoxFromTheBag() {
+        assertEquals(SkelCover.Way.SHUT, SkelCover.way(true, true, true, true));
+        assertEquals(SkelCover.Way.DIG, SkelCover.way(false, false, true, true));
+        assertEquals(SkelCover.Way.DIG, SkelCover.way(false, false, true, false));
+        assertEquals(SkelCover.Way.BOX, SkelCover.way(false, false, false, true));
+        // a hole or a nook with the top missing: the top from the bag, not two more down
+        assertEquals(SkelCover.Way.BOX, SkelCover.way(false, true, true, true));
+        assertEquals(SkelCover.Way.DIG, SkelCover.way(false, true, true, false));
+        assertEquals(SkelCover.Way.NONE, SkelCover.way(false, false, false, false));
+    }
+
+    @Test
+    public void theBoxGoesUpOnTheSkeletonsSideFirst() {
+        List<int[]> east = SkelCover.boxSides(10, 2);
+        assertArrayEquals(new int[]{1, 0}, east.get(0));
+        assertArrayEquals(new int[]{0, 1}, east.get(1));
+        assertArrayEquals(new int[]{0, -1}, east.get(2));
+        assertArrayEquals(new int[]{-1, 0}, east.get(3));
+        List<int[]> north = SkelCover.boxSides(-1, -5);
+        assertArrayEquals(new int[]{0, -1}, north.get(0));
+        assertArrayEquals(new int[]{-1, 0}, north.get(1));
+        assertArrayEquals(new int[]{1, 0}, north.get(2));
+        assertArrayEquals(new int[]{0, 1}, north.get(3));
+    }
+
+    // test heel: dug three deep with no top, shot into the hole from the rim
+    @Test
+    public void aHoleWithNoTopIsNoCoverFromASkeleton() {
+        assertFalse(SkelCover.holeHolds(true, false));
+        assertTrue(SkelCover.holeHolds(true, true));
+        assertTrue(SkelCover.holeHolds(false, false));
+    }
+
+    // test heel: the cover task stood 36 s in water
+    @Test
+    public void offTheGroundASecondIsACoverThatFailed() {
+        assertFalse(SkelCover.offGroundFailed(-1, 500));
+        assertFalse(SkelCover.offGroundFailed(100, 100 + SkelCover.OFF_GROUND_TICKS - 1));
+        assertTrue(SkelCover.offGroundFailed(100, 100 + SkelCover.OFF_GROUND_TICKS));
+        // a clock that went back is no second off the ground
+        assertFalse(SkelCover.offGroundFailed(100, 50));
+    }
+
+    private static SkelCover.Hold held(long at, float hp) {
+        SkelCover.Hold h = new SkelCover.Hold();
+        h.holdRules(true);
+        h.step(at, true, true, hp, LINE, 1, 12, 12, false, null, true, false);
+        assertTrue(h.on());
+        h.takeNote();
+        return h;
+    }
+
+    // test heel: five let go at 18 hp with a skeleton's line on them
+    @Test
+    public void theHpLineIsNotLeftWithALine() {
+        SkelCover.Hold h = held(0, 10);
+        h.step(10, false, true, 18, LINE, 1, 12, 12, false, null, true, false);
+        assertTrue(h.on());
+        long lastLine = 10;
+        h.step(lastLine + SkelCover.LINE_GONE_TICKS - 1, false, true, 18.5f, LINE, 0, Double.POSITIVE_INFINITY, 12, false, null, true, false);
+        assertTrue(h.on());
+        h.step(lastLine + SkelCover.LINE_GONE_TICKS, false, true, 18.5f, LINE, 0, Double.POSITIVE_INFINITY, 12, false, null, true, false);
+        assertFalse(h.on());
+        assertEquals("skeleton cover: out of cover: hp 18.5, no line for 5 s", h.takeNote());
+    }
+
+    @Test
+    public void fullHpLetsGoWhateverTheLine() {
+        SkelCover.Hold h = held(0, 10);
+        h.step(5, false, true, SkelCover.FULL_HP, LINE, 2, 9, 9, false, null, true, false);
+        assertFalse(h.on());
+        assertEquals("skeleton cover: out of cover: hp 20.0", h.takeNote());
+    }
+
+    // switched off it is the old hold: out at the line, line or not
+    @Test
+    public void withoutTheHoldRulesTheLineLetsGoAsBefore() {
+        SkelCover.Hold h = new SkelCover.Hold();
+        h.step(0, true, true, 10, LINE, 1, 12, 12, false, null, true, false);
+        h.step(5, false, true, 18, LINE, 1, 12, 12, false, null, true, false);
+        assertFalse(h.on());
+    }
+
+    // test heel: four held unhit with no food and walked into the line after the stall's minute
+    @Test
+    public void theStallLeavesOnlyIntoNoLine() {
+        SkelCover.Hold h = held(0, 6);
+        long stall = SkelCover.STALL_TICKS;
+        h.step(stall, false, true, 6, LINE, 0, Double.POSITIVE_INFINITY, 12, false, null, false, false);
+        assertTrue(h.on());
+        assertEquals("skeleton cover: no hp back in 60 s, no food, staying while a skeleton is within 16", h.takeNote());
+        // said once
+        h.step(stall + 1, false, true, 6, LINE, 0, Double.POSITIVE_INFINITY, 12, false, null, false, false);
+        assertEquals(null, h.takeNote());
+        // the skeleton walks off past the cover's range: out, and the retry waits as before
+        long out = stall + 40;
+        h.step(out, false, true, 6, LINE, 0, Double.POSITIVE_INFINITY, 17, false, null, false, false);
+        assertFalse(h.on());
+        assertEquals("skeleton cover: out of cover: no hp back in 60 s, no food, no skeleton within 16", h.takeNote());
+        assertFalse(h.takes(out + SkelCover.RETRY_STALL_TICKS - 1, true, true));
+    }
+
+    @Test
+    public void theStallWithALineAllAlongLetsGoAtItsCap() {
+        SkelCover.Hold h = held(0, 6);
+        long cap = SkelCover.STALL_TICKS + SkelCover.STALL_CAP_TICKS;
+        for (long now = 20; now < cap; now += 20) {
+            h.step(now, false, true, 6, LINE, 1, 12, 12, false, null, false, false);
+            assertTrue("tick " + now, h.on());
+        }
+        h.takeNote();
+        h.step(cap, false, true, 6, LINE, 1, 12, 12, false, null, false, false);
+        assertFalse(h.on());
+        assertEquals("skeleton cover: out of cover: no hp back in 60 s, no food, a skeleton about for 5 min", h.takeNote());
+    }
+
+    // (skel_cover_over_runs) a zombie at the rim keeps the dug-in cover as a skeleton within 20 does
+    @Test
+    public void aMeleeMobNearKeepsTheCover() {
+        SkelCover.Hold h = held(0, 10);
+        for (long now = 10; now <= 10 + 2 * SkelCover.LEAVE_TICKS; now += 10) {
+            h.step(now, false, true, 11, LINE, 0, Double.POSITIVE_INFINITY, 30, false, null, true, true);
+        }
+        assertTrue(h.on());
+        long from = 20 + 2 * SkelCover.LEAVE_TICKS;
+        h.step(from, false, true, 11, LINE, 0, Double.POSITIVE_INFINITY, 30, false, null, true, false);
+        h.step(from + SkelCover.LEAVE_TICKS, false, true, 11, LINE, 0, Double.POSITIVE_INFINITY, 30, false, null, true, false);
+        assertFalse(h.on());
     }
 }

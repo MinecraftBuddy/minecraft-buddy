@@ -52,6 +52,7 @@ public final class CombatLog {
             case PERCH_START -> tag + "PERCH, stacking up out of reach (hp " + hp + ")";
             case PERCH_END -> tag + "perch over";
             case FIGHT_TO_COVER -> tag + "fight over, not closing on " + fighting + ", into cover";
+            case RUN_TO_COVER -> tag + "run over, " + blocks + " blocks, an arrow at hp " + hp + ", digging in";
         };
     }
 

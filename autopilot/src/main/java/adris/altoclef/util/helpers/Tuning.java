@@ -211,6 +211,16 @@ public final class Tuning {
             // unchanged)
             java.util.Map.entry("skel_cover", 1.0),
             java.util.Map.entry("skel_close_rule", 1.0),
+            // (fixes of 14 Nov 2026, test heel's 23 skeleton deaths since the cover, mostly early with no armour at night: the cover
+            // digs in first, two down with the top shut, a pillbox from the bag where the ground will not dig, a hole with no top
+            // failed, an arrow in cover the next block or the dig; out of cover at full hp, or at the line with no line for 5 s,
+            // the stall only into no line; off the ground a second (in water) no cover; the dug-in cover in place of the low hp,
+            // crowd and unarmed runs with melee mobs about too, and a run under the line that takes an arrow digs in where it
+            // stands (SkelCover, SkelCoverTask, CornerWallTask, CombatCommit, CombatBrain))
+            java.util.Map.entry("skel_cover_dig_first", 1.0),
+            java.util.Map.entry("skel_cover_hold", 1.0),
+            java.util.Map.entry("skel_cover_wet_fail", 1.0),
+            java.util.Map.entry("skel_cover_over_runs", 1.0),
             // (fixes of 13 Nov 2026, test heel's night deaths, two stalls of five minutes at full hp with blocks in the bag and one
             // bare-handed fight: the night shelter's dig with no block dug in 15 s shuts the buddy in on the spot from the bag,
             // the breaker's clock kept for the spot (the buddy's ObtainSafe); while a meal is under way the buddy's own steps leave
@@ -270,6 +280,11 @@ public final class Tuning {
             java.util.Map.entry("shelter_blocks_first", 1.0),
             java.util.Map.entry("shelter_tool_dig", 1.0),
             java.util.Map.entry("shelter_hand_dig", 1.0),
+            // (a fix of 14 Nov 2026, a live look at the test heel's night shelter, a cell that would not shut with 12 logs and an
+            // axe and a wait half shut for good: once the three tries elsewhere are spent the dig-in by hand is the way out with
+            // blocks in the bag too, and a try elsewhere that leaves the feet where they were keeps the shut-in on the spot, so the
+            // other walls and the top still go up round the cell that will not shut, the buddy's ObtainSafe and DigIn)
+            java.util.Map.entry("shelter_stuck_way_out", 1.0),
             // (a fix of 13 Nov 2026, test heel's first stone under the rigs' anti-xray, where every buried block below y 64 reaches
             // the client as an ore: with legitMine on in the overworld and the best stone more than 8 blocks below the feet, or
             // none known, a pit four deep at the feet first, so the real stone shows and the look round the feet takes it,

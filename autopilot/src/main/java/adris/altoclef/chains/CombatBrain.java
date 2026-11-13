@@ -145,6 +145,8 @@ final class CombatBrain {
     private final SkelCover.Hold _cover = new SkelCover.Hold();
     private SkelCoverTask _coverTask;
     private SkelCoverTask.Seen _seen = SkelCoverTask.Seen.NONE;
+    // (skel_cover_dig_first, skel_cover_over_runs) the cover task digs first: its key, or the over-runs cover with a melee mob near
+    private boolean _coverDig;
     private CommittedRunTask _run;
     // (risk_flee) the run as the flee search, one for each run
     private FleeTask _flee;
@@ -936,11 +938,22 @@ final class CombatBrain {
             _seen = coverOn || closeOn ? SkelCoverTask.scan(mod, player, SkelCover.range()) : SkelCoverTask.Seen.NONE;
             int lines = _seen.lines().size();
             boolean coverWanted = coverOn && SkelCover.wanted(true, player.getHealth(), lines, SkelCover.hpLine());
-            boolean coverOffered = (coverWanted || _cover.on()) && CornerWallTask.offered(mod);
+            // (Tuning skel_cover_wet_fail, a fix of 14 Nov 2026, on: no cover is offered in water, the run's rules have it)
+            boolean wetFail = coverOn && SkelCover.wetFailOn();
+            boolean coverOffered = (coverWanted || _cover.on()) && CornerWallTask.offered(mod) && !(wetFail && player.isInWater());
             boolean coverTakes = coverOn && _cover.takes(now, coverWanted, coverOffered);
+            // (Tuning skel_cover_over_runs and skel_cover_dig_first, fixes of 14 Nov 2026, on: the machine hears whether the
+            // ground digs here and whether lava is near, asked only while the cover is in play; the cover digs first with its
+            // key, or with a melee mob about)
+            boolean overRuns = coverOn && SkelCover.overRunsOn();
+            boolean asked = overRuns && (coverWanted || _cover.on());
+            boolean digHere = asked && ((_coverTask != null && _coverTask.digging())
+                    || (player.onGround() && CornerWallTask.diggable(mod, mod.getWorld(), player.blockPosition())));
+            boolean lavaNear = asked && lavaAbout(mod, player);
+            _coverDig = (coverOn && SkelCover.digFirstOn()) || (overRuns && meleeWithin(foes, _seen, CombatCommit.FOE_RANGE));
             _commit.skelFacts(coverOn || closeOn ? new CombatCommit.Skel(_seen.kinds(), _seen.lineIds(), closeOn,
                     closeOn && lines > 0 && hasSword(mod), closeOn && lines > 0 ? armourPieces(player) : 0, coverTakes,
-                    SkelCover.closeHp(), SkelCover.range()) : null);
+                    SkelCover.closeHp(), SkelCover.range(), digHere, lavaNear, overRuns) : null);
             Event event = _commit.step(new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
                     way(mod, mobs, foes).withRim(rim).withLavaClose(lavaClose), armed(mod, foes), tryingToMove(mod, player), creeperRepeat, body(mod, dimension),
                     boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player)));
@@ -953,8 +966,12 @@ final class CombatBrain {
             if (!coverOn) {
                 _cover.interrupt(now, overworld ? "skel_cover off" : "left the overworld");
             } else if (_commit.mode() == Mode.NONE) {
+                // (Tuning skel_cover_hold, a fix of 14 Nov 2026, on: out at full hp, or at the line with no line for 5 s; the stall
+                // out only into no line) (skel_cover_over_runs: a melee mob close to the cover keeps it as a skeleton does)
+                _cover.holdRules(SkelCover.holdOn());
                 _cover.step(now, coverWanted, coverOffered, player.getHealth(), SkelCover.hpLine(), lines, _seen.lineDist(), _seen.nearest(),
-                        mod.getFoodChain().isTryingToEat(), _coverTask == null ? null : _coverTask.failed());
+                        mod.getFoodChain().isTryingToEat(), _coverTask == null ? null : _coverTask.failed(), mod.getFoodChain().hasFood(),
+                        overRuns && meleeWithin(foes, _seen, CombatCommit.LOW_HP_RANGE));
             } else {
                 _cover.interrupt(now, _commit.mode() == Mode.RUN ? "a run took over" : "a fight took over");
             }
@@ -963,7 +980,7 @@ final class CombatBrain {
             if (!_cover.on()) {
                 _coverTask = null;
             } else if (_coverTask == null) {
-                _coverTask = new SkelCoverTask(this::seen);
+                _coverTask = new SkelCoverTask(this::seen, () -> _coverDig, () -> _shotTick);
                 mod.getClientBaritone().getPathingBehavior().cancelEverything();
             }
             // (unarmed_no_corner_fight) the wall the machine asked for: a new build for each round, the run's path let go of so it
@@ -1177,6 +1194,24 @@ final class CombatBrain {
     private static boolean lavaClose(AltoClef mod, LocalPlayer player, List<Foe> foes, Foe target) {
         if (mod.getClientBaritone().bsi == null || !CombatRules.cubeAbout(foes, target)) return false;
         return LavaShore.lavaDeepNear(CliffAvoidance.of(mod.getClientBaritone().bsi), player.getX(), player.getY(), player.getZ(), LavaShore.GROUND_CLEAR);
+    }
+
+    // (skel_cover_over_runs) a plain melee mob among the foes within range (no skeleton kind, creeper, witch, heavy hitter or
+    // enderman): the cover against it is the dug-in one
+    private static boolean meleeWithin(List<Foe> foes, SkelCoverTask.Seen seen, double range) {
+        for (Foe foe : foes) {
+            if (foe.melee() && foe.kind() == CombatCommit.Kind.NORMAL && foe.distance() <= range && !seen.kinds().contains(foe.id())) return true;
+        }
+        return false;
+    }
+
+    // (skel_cover_over_runs) lava within a knock of the feet (GROUND_CLEAR), at the feet's level or under an open edge: a hit
+    // there can put the buddy in it, the run keeps away from it
+    private static boolean lavaAbout(AltoClef mod, LocalPlayer player) {
+        if (mod.getClientBaritone().bsi == null) return false;
+        var cells = CliffAvoidance.of(mod.getClientBaritone().bsi);
+        return LavaShore.lavaNear(cells, player.getX(), player.getY(), player.getZ(), LavaShore.GROUND_CLEAR)
+                || LavaShore.lavaDeepNear(cells, player.getX(), player.getY(), player.getZ(), LavaShore.GROUND_CLEAR);
     }
 
     private static boolean blazeInContact(AltoClef mod, LocalPlayer player) {

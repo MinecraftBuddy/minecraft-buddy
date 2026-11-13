@@ -89,6 +89,9 @@ public final class CornerWallTask extends Task {
     private BlockPos column;
     private int floorY;
     private int depth;
+    // the hole is shut over the head (a top went in, or it was shut already): SkelCoverTask's dig_first counts a hole without
+    // one as no cover from a skeleton
+    private boolean topShut;
     private final Object keys = new Object();
 
     public CornerWallTask(int foeId) {
@@ -115,6 +118,11 @@ public final class CornerWallTask extends Task {
     // two down where the buddy stands and the top shut, nothing else (SkelCoverTask)
     static CornerWallTask digIn(String say) {
         return new CornerWallTask(-1, true, say, CornerWall.DEPTH, true);
+    }
+
+    // built with the cell over the head shut (false while building, for a wall of blocks and for a hole left open)
+    public boolean topShut() {
+        return topShut;
     }
 
     // what CombatCommit.wallFacts hears: building until it is up or given up
@@ -201,6 +209,7 @@ public final class CornerWallTask extends Task {
         if (digOnly) {
             if (shut(level, feet)) {
                 Debug.logInternal("combat: " + say + "shut in already at " + feet.toShortString());
+                topShut = true;
                 enter(Stage.BUILT, now);
             } else if (diggable(mod, level, feet, digDepth)) {
                 startDig(feet, now);
@@ -226,6 +235,7 @@ public final class CornerWallTask extends Task {
         switch (CornerWall.pick(shut(level, feet), cellFree, dig)) {
             case BUILT -> {
                 Debug.logInternal("combat: " + say + "shut in already at " + feet.toShortString());
+                topShut = true;
                 enter(Stage.BUILT, now);
             }
             case BLOCK -> enter(Stage.BLOCK, now);
@@ -332,6 +342,7 @@ public final class CornerWallTask extends Task {
     }
 
     private void built(Level level, BlockPos top, long now) {
+        topShut = top != null;
         int deep = column == null ? 0 : column.getY() - mod().getPlayer().blockPosition().getY();
         String what = top == null ? "no top: nothing to shut it with or against"
                 : "the top shut with " + BuiltInRegistries.BLOCK.getKey(level.getBlockState(top).getBlock()).getPath();
@@ -411,7 +422,7 @@ public final class CornerWallTask extends Task {
     }
 
     // the buddy's two cells walled on every side and roofed
-    private static boolean shut(Level level, BlockPos feet) {
+    static boolean shut(Level level, BlockPos feet) {
         if (!solid(level, feet.above(2))) return false;
         for (Direction d : Direction.Plane.HORIZONTAL) {
             if (!solid(level, feet.relative(d)) || !solid(level, feet.above().relative(d))) return false;
