@@ -43,4 +43,43 @@ public final class PlaceWatch {
     public int z() {
         return az;
     }
+
+    // the fires of a watch, counted: true once count of them fell within window ticks of each other and within radius
+    // blocks, level distance, of the latest. a place the watch keeps firing at is one the task does not get out of
+    public static final class Fires {
+        private final int count;
+        private final long window;
+        private final double radius;
+        private final java.util.ArrayDeque<long[]> fires = new java.util.ArrayDeque<>();
+        private int last;
+
+        public Fires(int count, long window, double radius) {
+            this.count = count;
+            this.window = window;
+            this.radius = radius;
+        }
+
+        // a fire at (x, z): true when it makes count
+        public boolean add(int x, int z, long now) {
+            fires.removeIf(f -> now < f[0] || now - f[0] > window);
+            fires.addLast(new long[]{now, x, z});
+            int n = 0;
+            for (long[] f : fires) {
+                double dx = f[1] - x, dz = f[2] - z;
+                if (dx * dx + dz * dz <= radius * radius) n++;
+            }
+            last = n;
+            return n >= count;
+        }
+
+        // the fires near the latest at the last add
+        public int last() {
+            return last;
+        }
+
+        public void clear() {
+            fires.clear();
+            last = 0;
+        }
+    }
 }

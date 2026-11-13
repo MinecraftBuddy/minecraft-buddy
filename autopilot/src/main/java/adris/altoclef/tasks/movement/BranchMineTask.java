@@ -79,6 +79,21 @@ public class BranchMineTask extends Task {
     // each start again with every turn of that round, so none ever fired. then a tunnel of its own for two game minutes, a
     // quarter turned, out of the place; mc-test1 t10, realfort-ow-old-mc1 run 5)
     private final adris.altoclef.util.helpers.PlaceWatch _place = new adris.altoclef.util.helpers.PlaceWatch(10, 3600, 600);
+    // (Tuning mine_water_roof, a fix of 13 Nov 2026, on: the place watch fired three times in ten game minutes within ten
+    // blocks of one spot gives up the depth there. a flooded cave by the sea at y 54 to 62 for copper at 48 had the watch
+    // hand the same tunnel back every three game minutes for 45 minutes, and the piece hit its limit and was asked again)
+    private final adris.altoclef.util.helpers.PlaceWatch.Fires _fires = new adris.altoclef.util.helpers.PlaceWatch.Fires(3, 12000, 10);
+    // every give-up so far and the last one's line: whoever asked for the mine (the buddy's kit piece) compares the count
+    // with the one at its start and fails over to its next piece
+    public static volatile int gaveUps;
+    public static volatile String gaveUpLine = "";
+    // (mine_water_roof) out of water under a roof: the dry cell walked to, since when, the cells not reached in time, and the
+    // last dry cell stood on (the way the buddy came)
+    private BlockPos _dry, _lastDry;
+    private long _drySince;
+    private final java.util.Set<BlockPos> _dryTried = new java.util.HashSet<>();
+    private static final long DRY_STEP = 400;
+    static final int DRY_REACH = 12, DRY_BACK = 48;
     // the cell the walk along (the sculk's, or the 32 blocks of a stuck staircase) came from: never stepped back onto
     private BlockPos _awayPrev;
     // the rock goes to a cheap pick and the iron one is kept for the ore. an iron pickaxe is through in 250 blocks and a staircase
@@ -151,6 +166,9 @@ public class BranchMineTask extends Task {
         HotbarTools.forBlocks(mod, Blocks.STONE, Blocks.DEEPSLATE);
         if (_place.tick(feet.getX(), feet.getZ(), now)) {
             stopMine(mod);
+            if (adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0 && _fires.add(_place.x(), _place.z(), now)) {
+                return giveUpHere(mod, now, y);
+            }
             int turn = _dx;
             _dx = -_dz;
             _dz = turn;
@@ -176,8 +194,24 @@ public class BranchMineTask extends Task {
         // two checks below took the tick back from it every tick: a start on a frozen ocean walked to a land it never reached,
         // the place watch gave the tunnel its two minutes every three and the tunnel never got one step, 35 minutes on one
         // spot (M3.3's smoke 5, run 2)
+        // (Tuning mine_water_roof, a fix of 13 Nov 2026, on) in water under a roof (a flooded cave) as in open water: out of the
+        // water first, to the nearest dry cell to stand in or back the way the buddy came, then the staircase or the tunnel
+        // from there. the two water checks below need the sky, so in a flooded cave by the sea neither fired: baritone would
+        // not dig by the water ("No path found", a wander of five blocks), the feet bobbed between y 56 and 57 and the tunnel
+        // at y 48 and the staircase took turns for 45 minutes
+        boolean water = mod.getPlayer().isInWater();
+        boolean roofed = water && adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0 && !mod.getWorld().canSeeSky(feet.above());
+        if (!water && mod.getPlayer().onGround()) {
+            _lastDry = feet;
+            _dry = null;
+            _dryTried.clear();
+        }
+        if (roofed) {
+            Task out = outOfRoofedWater(mod, feet, now);
+            if (out != null) return out;
+        }
         if (now < _tunnelUntil && adris.altoclef.util.helpers.Tuning.get("ice_start_tunnel_hold", 0) > 0) {
-            boolean wet = mod.getPlayer().isInWater() && mod.getWorld().canSeeSky(feet.above());
+            boolean wet = roofed || mod.getPlayer().isInWater() && mod.getWorld().canSeeSky(feet.above());
             if (wet || adris.altoclef.util.helpers.LandFinder.ice(mod.getWorld().getBlockState(feet.below())) || iceColumn(mod, feet)) {
                 return holdTunnel(mod, feet, now, wet);
             }
@@ -443,6 +477,86 @@ public class BranchMineTask extends Task {
         return null;
     }
 
+    // (mine_water_roof) the place watch fired three times in ten game minutes here: the depth is given up at this spot. the
+    // count tells the caller (the buddy's piece fails over to its next one); left to itself the mine walks 32 blocks on, a
+    // quarter turned, and starts afresh there
+    private Task giveUpHere(AltoClef mod, long now, int y) {
+        String line = "branch mine: the place watch fired " + _fires.last() + " times at " + _place.x() + ", " + _place.z()
+                + ", giving up y " + _mineY + " here";
+        adris.altoclef.Debug.logInternal(line + " (at y " + y + ", mine_water_roof)");
+        gaveUpLine = line;
+        gaveUps++;
+        _fires.clear();
+        _tunnelUntil = now;
+        _tunnel = null;
+        _step = null;
+        _starts.clear();
+        _minePos = null;
+        int t = _dx;
+        _dx = -_dz;
+        _dz = t;
+        if (_dx == 0 && _dz == 0) _dx = 1;
+        _awaySteps = 32;
+        _awayWhy = "Gave up y " + _mineY + " here: along";
+        _awayStep = null;
+        _awayPrev = null;
+        setDebugState("The place watch fired three times here, giving up y " + _mineY + " here");
+        return null;
+    }
+
+    // (mine_water_roof) in water under a roof: the walk to the nearest dry cell to stand in within DRY_REACH, else back to the
+    // last dry cell stood on within DRY_BACK; a cell not reached in 20 game seconds is passed over for another. null when there
+    // is none, and the checks after this have the tick
+    private Task outOfRoofedWater(AltoClef mod, BlockPos feet, long now) {
+        if (_dry != null && now - _drySince > DRY_STEP && !feet.equals(_dry)) {
+            _dryTried.add(_dry);
+            _dry = null;
+        }
+        if (_dry == null || feet.equals(_dry)) {
+            _dry = dryCell(mod, feet, _dryTried);
+            if (_dry == null && _lastDry != null && !_dryTried.contains(_lastDry) && _lastDry.closerThan(feet, DRY_BACK)) _dry = _lastDry;
+            _drySince = now;
+            if (_dry == null) return null;
+            adris.altoclef.Debug.logInternal("branch mine: in water under a roof at " + feet.toShortString() + ", out of the water first, to "
+                    + _dry.toShortString() + (_dry.equals(_lastDry) ? " (the way it came)" : "") + " (mine_water_roof)");
+        }
+        stopMine(mod);
+        setDebugState("In water under a roof, out of the water first, to " + _dry.toShortString());
+        return new GetToBlockTask(_dry);
+    }
+
+    // the nearest cell within DRY_REACH, four up or down, that the buddy can stand in out of the water: the cell and the one
+    // over it free of blocks and fluid, a solid block under it with no fluid in it. by distance, a cell above counting as
+    // farther than one level with it
+    private static BlockPos dryCell(AltoClef mod, BlockPos feet, java.util.Set<BlockPos> skip) {
+        var level = mod.getWorld();
+        BlockPos best = null;
+        double bestD = Double.MAX_VALUE;
+        for (BlockPos pos : BlockPos.betweenClosed(feet.offset(-DRY_REACH, -4, -DRY_REACH), feet.offset(DRY_REACH, 4, DRY_REACH))) {
+            int dx = pos.getX() - feet.getX(), dy = pos.getY() - feet.getY(), dz = pos.getZ() - feet.getZ();
+            double d = dx * dx + dz * dz + (dy > 0 ? 4.0 * dy * dy : dy * dy);
+            if (d >= bestD) continue;
+            if (!standable(level.getBlockState(pos.below()), level.getBlockState(pos), level.getBlockState(pos.above()))) continue;
+            BlockPos im = pos.immutable();
+            if (skip.contains(im)) continue;
+            best = im;
+            bestD = d;
+        }
+        return best;
+    }
+
+    // a cell to stand in out of the water: feet and head free of blocks and fluid, a solid floor with no fluid in it
+    static boolean standable(net.minecraft.world.level.block.state.BlockState floor, net.minecraft.world.level.block.state.BlockState cell,
+                             net.minecraft.world.level.block.state.BlockState head) {
+        return floor.isSolid() && floor.getFluidState().isEmpty()
+                && free(cell) && free(head);
+    }
+
+    private static boolean free(net.minecraft.world.level.block.state.BlockState st) {
+        return st.getFluidState().isEmpty() && !st.isSolid() && !st.is(Blocks.LAVA) && !st.is(Blocks.FIRE)
+                && !st.is(Blocks.POWDER_SNOW) && !st.is(Blocks.COBWEB);
+    }
+
     // (ice_start_tunnel_hold) one step of the tunnel of its own on ice or open water: straight on at the feet's height
     private long _holdLogged = Long.MIN_VALUE;
 
@@ -450,7 +564,7 @@ public class BranchMineTask extends Task {
         stopMine(mod);
         if (_holdLogged != _tunnelUntil) {
             _holdLogged = _tunnelUntil;
-            adris.altoclef.Debug.logInternal("branch mine: the tunnel of its own keeps the tick on " + (wet ? "open water" : "ice") + " at "
+            adris.altoclef.Debug.logInternal("branch mine: the tunnel of its own keeps the tick on " + (wet ? "water" : "ice") + " at "
                     + feet.toShortString() + ", level at y " + feet.getY() + " for " + (_tunnelUntil - now) / 20 + " s (ice_start_tunnel_hold)");
         }
         if (_dx == 0 && _dz == 0) {

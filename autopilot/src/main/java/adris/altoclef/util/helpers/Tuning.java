@@ -219,6 +219,12 @@ public final class Tuning {
             java.util.Map.entry("shelter_dig_clock", 1.0),
             java.util.Map.entry("meal_hand_hold", 1.0),
             java.util.Map.entry("unarmed_no_chase_fight", 1.0),
+            // (fixes of 13 Nov 2026, test heel's whole-game run, 45 minutes in a flooded cave at y 54 to 62 for copper at 48: in
+            // water under a roof a branch mine first gets out of the water to the nearest dry cell, as in open water, and the
+            // place watch fired three times in ten game minutes at one spot gives up the depth there, BranchMineTask; a route
+            // piece that failed waits ten minutes while the phase's next piece goes on, the buddy's ObtainRoute)
+            java.util.Map.entry("mine_water_roof", 1.0),
+            java.util.Map.entry("kit_failed_skip", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

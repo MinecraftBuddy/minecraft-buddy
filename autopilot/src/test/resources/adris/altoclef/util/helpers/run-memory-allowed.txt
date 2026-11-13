@@ -43,6 +43,7 @@ adris.altoclef.tasks.entity.AbstractDoToEntityTask#LAVA_STARES,LAVA_WAITS a cons
 adris.altoclef.tasks.entity.AbstractKillEntityTask#_loggedPick,_swingsAtSwap unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
 adris.altoclef.tasks.entity.SelfCareTask#beds,debugStateName,diamondArmorSet,diamondToolSet,equipArmorSet,getToolSet,ironArmorSet,ironToolSet,netheriteArmorSet,netheriteToolSet,stoneToolSet,woodToolSet unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
 adris.altoclef.tasks.movement.HealUpTask#ghastHitAt,ghastLevel,ghastPlayer,ghastSeen unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
+adris.altoclef.tasks.movement.BranchMineTask#gaveUps,gaveUpLine a count of give-ups and its last line, read only against the count at the start of the caller's own step
 adris.altoclef.tasks.movement.MLGBucketTask#_config settings loaded from the config files
 adris.altoclef.tasks.movement.PickupDroppedItemTask#getPickaxeFirstTask,isGettingPickaxeFirstFlag unreviewed at 33b6aca: a time stamp or a mark of the work under way, as it was
 adris.altoclef.tasks.resources.BlazePillboxTask#BLOCKS a constant table (the scan sees an array store beside a read of it)

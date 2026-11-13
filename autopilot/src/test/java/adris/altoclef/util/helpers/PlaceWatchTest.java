@@ -40,4 +40,28 @@ public class PlaceWatchTest {
         assertFalse(stay(w, 100, 200, 5400, 8900));
         assertTrue(stay(w, 100, 200, 8920, 9100));
     }
+
+    // (mine_water_roof) three fires within ten game minutes and ten blocks of the latest: the depth is given up there
+    @Test
+    public void threeFiresAtOneSpotGiveUp() {
+        PlaceWatch.Fires f = new PlaceWatch.Fires(3, 12000, 10);
+        assertFalse(f.add(100, 200, 4000));
+        assertFalse(f.add(104, 203, 7700));
+        assertTrue(f.add(98, 205, 11400));
+        assertTrue(f.last() == 3);
+    }
+
+    @Test
+    public void firesFarApartOrLongAgoDoNotCount() {
+        PlaceWatch.Fires f = new PlaceWatch.Fires(3, 12000, 10);
+        assertFalse(f.add(100, 200, 4000));
+        // 30 blocks on: another spot
+        assertFalse(f.add(130, 200, 7700));
+        assertFalse(f.add(100, 200, 11400));
+        // the first of these two is more than ten game minutes old by now
+        assertFalse(f.add(100, 200, 16100));
+        assertTrue(f.add(100, 200, 19800));
+        f.clear();
+        assertFalse(f.add(100, 200, 23500));
+    }
 }
