@@ -188,4 +188,45 @@ public class WitchHitTest {
         assertEquals(Event.FIGHT_START, c.step(tick(gaveUp + 20, null, lobber(2, 2))));
         assertEquals(Mode.FIGHT, c.mode());
     }
+
+    // ---- witch_no_melee (13 Nov 2026, M3.3's smoke 5 run 1: 20 hp to 1 in 6 s in a melee fight with a witch)
+
+    @Test
+    public void withNoMeleeAWitchThatPoisonedUsIsARunOutOfItsRangeAtOnce() {
+        CombatCommit c = new CombatCommit();
+        c.witchNoMelee(true);
+        assertEquals(Event.RUN_START, c.step(tick(NOW, null, lobber(8, 3))));
+        assertEquals(Mode.RUN, c.mode());
+        assertEquals(CombatCommit.Why.LOBBER, c.why());
+        assertTrue(c.takeNote().startsWith("witch_no_melee"));
+    }
+
+    @Test
+    public void withNoMeleeAWitchInContactIsARunToo() {
+        CombatCommit c = new CombatCommit();
+        c.witchNoMelee(true);
+        assertEquals(Event.RUN_START, c.step(tick(NOW, null, lobber(2, 2))));
+        assertEquals(CombatCommit.Why.LOBBER, c.why());
+    }
+
+    @Test
+    public void withNoMeleeAZombieBitingUsIsStillFoughtWithAWitchAbout() {
+        CombatCommit c = new CombatCommit();
+        c.witchNoMelee(true);
+        Foe zombie = new Foe(7, 2, false, false, 3, Kind.NORMAL, 2.0);
+        assertEquals(Event.FIGHT_START, c.step(tick(NOW, null, zombie, lobber(8, 3))));
+        assertEquals(7, c.targetId());
+        // the zombie dead and the witch still throwing: no fight on the witch next
+        Event after = c.step(tick(NOW + 1, null, lobber(8, 2)));
+        assertTrue(after.toString(), c.mode() != Mode.FIGHT || c.targetId() != 5);
+    }
+
+    @Test
+    public void withoutTheSwitchTheMachineIsAsBefore() {
+        CombatCommit c = new CombatCommit();
+        c.witchNoMelee(false);
+        assertEquals(Event.FIGHT_START, c.step(tick(NOW, null, lobber(8, 3))));
+        assertEquals(Mode.FIGHT, c.mode());
+    }
 }
+

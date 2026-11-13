@@ -121,7 +121,7 @@ public class CollectFoodTask extends Task {
 
     private final double _unitsNeeded;
     private final TimerGame _checkNewOptionsTimer = new TimerGame(10);
-    private SmeltInSmokerTask _smeltTask = null;
+    private adris.altoclef.tasks.ResourceTask _smeltTask = null;
     private Task _currentResourceTask = null;
 
     // the animal we are after, kept so the next pick can stay on it (see FoodHunt.STICKY_FACTOR). _huntTask is the task
@@ -437,8 +437,7 @@ public class CollectFoodTask extends Task {
                 if (rawCount > 0 && AsyncSmelting.pendingFoodUnits() == 0) {
                     //Debug.logMessage("STARTING COOK OF " + cookable.getRaw().getTranslationKey());
                     int toSmelt = rawCount + mod.getItemStorage().getItemCount(cookable.getCooked());
-                    _smeltTask = new SmeltInSmokerTask(new SmeltTarget(new ItemTarget(cookable.cookedFood, toSmelt), new ItemTarget(cookable.rawFood, rawCount)));
-                    _smeltTask.ignoreMaterials();
+                    _smeltTask = cook(mod, new SmeltTarget(new ItemTarget(cookable.cookedFood, toSmelt), new ItemTarget(cookable.rawFood, rawCount)));
                     return _smeltTask;
                 }
             }
@@ -449,8 +448,7 @@ public class CollectFoodTask extends Task {
                 int rawCount = mod.getItemStorage().getItemCount(raw);
                 if (rawCount > 0 && AsyncSmelting.pendingFoodUnits() == 0) {
                     int toSmelt = rawCount + mod.getItemStorage().getItemCount(cooked);
-                    _smeltTask = new SmeltInSmokerTask(new SmeltTarget(new ItemTarget(rawCooked[1], toSmelt), new ItemTarget(rawCooked[0], rawCount)));
-                    _smeltTask.ignoreMaterials();
+                    _smeltTask = cook(mod, new SmeltTarget(new ItemTarget(rawCooked[1], toSmelt), new ItemTarget(rawCooked[0], rawCount)));
                     return _smeltTask;
                 }
             }
@@ -572,6 +570,23 @@ public class CollectFoodTask extends Task {
         return new TimeoutWanderTask();
     }
 
+    // the cook of one batch: in a smoker, as ever, or (the buddy's fork, Tuning bag_keep_stations, a fix of 13 Nov 2026, on) in the
+    // bag's furnace while the bag holds one and no smoker. a smoker is made of a furnace and four logs: the food run of M3.3's
+    // smoke 5 made one of the gold batch's furnace, and the next gold batch had no furnace and no wood for a table to make one.
+    // a furnace cooks half as fast and costs nothing, and goes back in the bag after (StationsBack)
+    private static adris.altoclef.tasks.ResourceTask cook(AltoClef mod, SmeltTarget target) {
+        if (adris.altoclef.util.helpers.GarbageRules.keepStationsOn() && mod.getItemStorage().getItemCount(Items.FURNACE) > 0
+                && mod.getItemStorage().getItemCount(Items.SMOKER) == 0) {
+            Debug.logInternal("food: cooked in the bag's furnace, no smoker made of it (bag_keep_stations)");
+            adris.altoclef.tasks.container.SmeltInFurnaceTask furnace = new adris.altoclef.tasks.container.SmeltInFurnaceTask(target);
+            furnace.ignoreMaterials();
+            return furnace;
+        }
+        SmeltInSmokerTask smoker = new SmeltInSmokerTask(target);
+        smoker.ignoreMaterials();
+        return smoker;
+    }
+
     // out on open water for half a game minute: to land (LandFinder.Steer). null on land
     private Task toLand(AltoClef mod) {
         Task t = _toLand.next(mod);
@@ -584,8 +599,10 @@ public class CollectFoodTask extends Task {
     protected void onStop(AltoClef mod, Task interruptTask) {
         // the cook we started may be cut off with the meat already in the smoker (a mob, a death): leave the job for it, or the
         // meat sits there with nobody knowing. a no-op when it handed off or never loaded anything
-        if (_smeltTask != null && _smeltTask.isActive()) {
-            _smeltTask.recordLeftBehind(mod);
+        if (_smeltTask instanceof SmeltInSmokerTask smoker && smoker.isActive()) {
+            smoker.recordLeftBehind(mod);
+        } else if (_smeltTask instanceof adris.altoclef.tasks.container.SmeltInFurnaceTask furnace && furnace.isActive()) {
+            furnace.recordLeftBehind(mod);
         }
         mod.getBehaviour().pop();
         mod.getBlockTracker().stopTracking(Blocks.HAY_BLOCK);

@@ -53,4 +53,14 @@ public final class BurnClock {
         if (fireRes || ticks <= 0) return 0;
         return Math.ceil(ticks / 20.0);
     }
+
+    // (Tuning witch_no_melee, a fix of 13 Nov 2026, on under risk_flee) the hp a poison still takes: a point each 25 ticks at level I,
+    // halved for each level above (at least each tick), never the last one (poison stops at 1 hp). unlike the burn the client
+    // knows the poison's time left and level itself. a witch's poison took the buddy from 20 to 1 in 6 s with its harming
+    // potions while the meter's hp left read the hp as it was (M3.3's smoke 5, run 1)
+    public static double poisonHp(int ticksLeft, int amplifier, double hp) {
+        if (ticksLeft <= 0 || hp <= 1) return 0;
+        int every = Math.max(1, 25 >> Math.max(0, amplifier));
+        return Math.min(ticksLeft / every, Math.floor(hp - 1));
+    }
 }

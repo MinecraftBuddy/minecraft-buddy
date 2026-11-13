@@ -21,6 +21,19 @@ public class BurnClockTest {
         assertEquals(159, clock.step(true, BurnClock.FIREBALL_TICKS, 1));
     }
 
+    // witch_no_melee: a poison's hp still to come, a point each 25 ticks at level I, each 12 at level II, never the last hp
+    @Test
+    public void aPoisonTakesAPointEachIntervalButNeverTheLast() {
+        // 45 s of poison I at full health: 36 points to come, all but the last hp of the 20
+        assertEquals(19, BurnClock.poisonHp(900, 0, 20), 0);
+        assertEquals(4, BurnClock.poisonHp(100, 0, 20), 0);
+        assertEquals(8, BurnClock.poisonHp(100, 1, 20), 0);
+        assertEquals(5, BurnClock.poisonHp(900, 0, 6), 0);
+        assertEquals(0, BurnClock.poisonHp(900, 0, 1), 0);
+        assertEquals(0, BurnClock.poisonHp(0, 0, 20), 0);
+        assertEquals(0, BurnClock.poisonHp(20, 0, 20), 0);
+    }
+
     @Test
     public void lavaHoldsFifteenSecondsWhileIn() {
         BurnClock clock = new BurnClock();

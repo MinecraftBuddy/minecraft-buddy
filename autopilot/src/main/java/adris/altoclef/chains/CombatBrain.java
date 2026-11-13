@@ -873,6 +873,8 @@ final class CombatBrain {
             }
             _commit.meter(steering, steering != null && calmHere(mod, player, now, steering),
                     steering != null && goalWay(mod, player, now, steering), fleeAhead, verdictHp(player));
+            // (Tuning witch_no_melee, a fix of 13 Nov 2026, on: a witch is a run out of its range, never a melee fight)
+            _commit.witchNoMelee(adris.altoclef.util.helpers.Tuning.get("witch_no_melee", 0) > 0);
             Event event = _commit.step(new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
                     way(mod, mobs, foes).withRim(rim).withLavaClose(lavaClose), armed(mod, foes), tryingToMove(mod, player), creeperRepeat, body(mod, dimension),
                     boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player)));
@@ -990,7 +992,9 @@ final class CombatBrain {
                     && CombatCommit.shotAt(foe, foe.distance() <= CombatRules.SHOOTER_RANGE && !foe.sight() && mobs.get(i).hasLineOfSight(player))) {
                 shotAt = true;
             }
-            if (foe.hitUs() && foe.distance() <= CombatCommit.CONTACT) _swingAt.add(foe.id());
+            // (witch_no_melee: not a witch either, the machine runs from it and the aura keeps its hands off it)
+            if (foe.hitUs() && foe.distance() <= CombatCommit.CONTACT
+                    && !(foe.kind() == Kind.LOBBER && adris.altoclef.util.helpers.Tuning.get("witch_no_melee", 0) > 0)) _swingAt.add(foe.id());
             // (a creeper is not a melee foe to the rules but it is one to a bite, it walks up and goes off)
             // (the fight target counts whatever it is: a skeleton at point blank is no time to chew, and a melee target knocked back to
             // five blocks is not a walk-up, the swap to food would eat its swing cooldown. only a shooter we are closing on is)

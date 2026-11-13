@@ -114,6 +114,11 @@ public class SmeltInFurnaceTask extends ResourceTask implements AsyncSmelting.Ha
     protected void onResourceStop(AltoClef mod, Task interruptTask) {
         mod.getBlockTracker().stopTracking(Blocks.FURNACE);
         mod.getBehaviour().pop();
+        // (the buddy's fork, Tuning bag_keep_stations) done, and nothing left cooking in it: the furnace this smelt put down
+        // itself goes back in the bag (StationsBack)
+        if (isFinished(mod) && !handedOff()) {
+            adris.altoclef.tasks.misc.StationsBack.left(mod, _doTask.ownStation(mod));
+        }
         // Close furnace screen
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
         if (!cursorStack.isEmpty()) {
@@ -125,7 +130,11 @@ public class SmeltInFurnaceTask extends ResourceTask implements AsyncSmelting.Ha
             Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
             // Try throwing away cursor slot if it's garbage
             garbage.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP));
-            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+            // (the buddy's fork, Tuning bag_keep_stations: a bed or a station with no slot and nothing to swap it with stays on the
+            // cursor, the cursor task finds it room)
+            if (moveTo.isPresent() || garbage.isPresent() || !StorageHelper.keptOnCursor(cursorStack)) {
+                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+            }
         } else {
             StorageHelper.closeScreen();
         }

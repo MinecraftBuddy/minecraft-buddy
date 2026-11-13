@@ -176,6 +176,18 @@ public final class Tuning {
             java.util.Map.entry("blaze_stand_goal", 0.0),
             // (a fix of 13 Nov 2026: the food run's climb reads the height again where it stands, SurfaceFoodTask)
             java.util.Map.entry("food_climb_again", 1.0),
+            // (fixes of 13 Nov 2026, the read of M3.3's smoke 5: one food trip for the rest of the phase, cooked in one batch, and
+            // the night in the mine instead of a hole at the surface (the buddy's Alto and Obtain); a full bag throws cinnabar,
+            // sulfur, clay, bone and raw copper first (GarbageRules.junkFirst); a bed, furnace, smoker or crafting table is never
+            // thrown, the furnace, smoker or table a smelt or craft put down goes back in the bag (StationsBack), and the food is
+            // cooked in the bag's furnace rather than a smoker made of it; a witch is no melee fight, a run out of its range
+            // (CombatCommit), and the poison still to come counts with the burn (DangerShadow); the tunnel of its own keeps the
+            // tick on ice or open water for its whole time (BranchMineTask))
+            java.util.Map.entry("food_one_trip", 1.0),
+            java.util.Map.entry("bag_junk_first", 1.0),
+            java.util.Map.entry("bag_keep_stations", 1.0),
+            java.util.Map.entry("witch_no_melee", 1.0),
+            java.util.Map.entry("ice_start_tunnel_hold", 1.0),
             // (fixes of 13 Nov 2026, route-60 and route-61's phase 2: with no fire resistance the trade walks off the blazes and
             // never into the blaze camp, TradeBlazeZones; wastes come into view give the search 120 s more before the bound; no
             // punch of a ghast's ball with a zombified piglin within 6 of the buddy or the ball)

@@ -117,7 +117,10 @@ public class EnsureFreeCursorSlotTask extends Task {
     private static boolean keeps(ItemStack stack) {
         return AltoSettings.isImportant(stack.getItem()) || isGear(stack.getItem())
                 // a bed on the cursor during a run: the End counts it, the throw-what-we-don't-keep branch would not
-                || DropRoom.isBed(stack.getItem()) && EndGear.reserveBeds() > 0;
+                || DropRoom.isBed(stack.getItem()) && EndGear.reserveBeds() > 0
+                // (the buddy's fork, Tuning bag_keep_stations: a bed, furnace, smoker or crafting table on the cursor goes back in the
+                // bag in place of the last resort's stack, never over the edge)
+                || adris.altoclef.util.helpers.GarbageRules.keepStationsOn() && adris.altoclef.util.helpers.GarbageRules.station(stack.getItem());
     }
 
     static boolean isGear(Item item) {

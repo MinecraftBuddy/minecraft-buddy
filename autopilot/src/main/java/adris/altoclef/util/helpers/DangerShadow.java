@@ -161,9 +161,18 @@ public final class DangerShadow {
         return Tuning.get("risk_flee", 0) >= 1 && Tuning.get("risk_far_push", 1) > 0;
     }
 
-    // the hp the burn still takes, 0 with the key off, not burning or under fire resistance
+    // (Tuning witch_no_melee, on under risk_flee) the poison still to come counts with the burn: hp already spent
+    private static double poisonLeft;
+
+    static boolean poisonOn() {
+        return Tuning.get("risk_flee", 0) >= 1 && Tuning.get("witch_no_melee", 0) > 0;
+    }
+
+    // the hp the burn still takes, 0 with the key off, not burning or under fire resistance; and the poison's still to take
+    // (BurnClock.poisonHp, witch_no_melee)
     public static double burnHp() {
-        return on() && burnOn() ? BurnClock.hp(burnClock.ticks(), burnFireRes) : 0;
+        if (!on()) return 0;
+        return (burnOn() ? BurnClock.hp(burnClock.ticks(), burnFireRes) : 0) + (poisonOn() ? poisonLeft : 0);
     }
 
     // (S137, one system) the hp the next piece needs (DangerMeter.need), the most the runs' reading asked while its level
@@ -296,8 +305,11 @@ public final class DangerShadow {
             int lit = player.isInLava() ? BurnClock.LAVA_TICKS : inFire(level, player) ? BurnClock.FIRE_TICKS : 0;
             if (litByFireball) lit = Math.max(lit, BurnClock.FIREBALL_TICKS);
             burnClock.step(player.isOnFire(), lit, player.getAttributeValue(Attributes.BURNING_TIME));
+            MobEffectInstance poison = player.getEffect(MobEffects.POISON);
+            poisonLeft = poison == null ? 0 : BurnClock.poisonHp(poison.getDuration(), poison.getAmplifier(), player.getHealth());
         } else {
             burnClock.reset();
+            poisonLeft = 0;
         }
         litByFireball = false;
         hp2 = dead ? 0 : hp1;

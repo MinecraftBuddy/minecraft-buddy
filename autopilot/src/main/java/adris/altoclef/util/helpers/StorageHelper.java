@@ -213,7 +213,7 @@ public class StorageHelper {
         Bag bag = bag(mod);
         int units = bagFoodUnits(mod);
         return at(bag, GarbageRules.nextPick(entries(mod, bag, units), reserve(), Baritone.settings().altoThrowAwayUnusedItems.value,
-                units, Baritone.settings().altoFoodKeepUnits.value));
+                units, Baritone.settings().altoFoodKeepUnits.value, GarbageRules.junkFirstNow()));
     }
 
     // one look at the bag: its slots, what is in them (read off the menu slot itself: under a menu Slot has no type for, window 45
@@ -297,7 +297,10 @@ public class StorageHelper {
     // worse tools and, with altoThrowAwayUnusedItems, anything the task is not using, which is not room anybody should plan on
     public static Optional<Slot> getJunkSlot(AltoClef mod) {
         Bag bag = bag(mod);
-        return at(bag, GarbageRules.junkPick(entries(mod, bag, bagFoodUnits(mod)), reserve()));
+        List<GarbageRules.Entry> entries = entries(mod, bag, bagFoodUnits(mod));
+        // (bag_junk_first: the deep mine's leftovers are junk too, ahead of the rest)
+        int first = GarbageRules.junkFirstPick(entries, GarbageRules.junkFirstNow());
+        return at(bag, first >= 0 ? first : GarbageRules.junkPick(entries, reserve()));
     }
 
     // the End's beds and wool in this slot (DropRoom.reserved). the victim throw's last look, the bag may have changed since the room decision
@@ -338,6 +341,7 @@ public class StorageHelper {
         private final boolean _throwUnused;
         private final int _reserve;
         private final int _pick;
+        private final java.util.function.ToIntFunction<Item> _junkFirst;
 
         private GarbageView(AltoClef mod) {
             _mod = mod;
@@ -348,7 +352,8 @@ public class StorageHelper {
             _floor = Baritone.settings().altoFoodKeepUnits.value;
             _throwUnused = Baritone.settings().altoThrowAwayUnusedItems.value;
             _reserve = reserve();
-            _pick = GarbageRules.nextPick(_entries, _reserve, _throwUnused, _foodUnits, _floor);
+            _junkFirst = GarbageRules.junkFirstNow();
+            _pick = GarbageRules.nextPick(_entries, _reserve, _throwUnused, _foodUnits, _floor, _junkFirst);
         }
 
         public boolean isThrowaway(Item item) {
@@ -376,7 +381,7 @@ public class StorageHelper {
             int after = GarbageRules.unitsAfterSwap(_foodUnits, _bag.stacks.get(_pick), drop);
             GarbageRules.Entry in = new GarbageRules.Entry(drop, ItemHelper.canDropStack(_mod, drop, after) && !wouldWear(_mod, drop),
                     _ranks.getOrDefault(drop.getItem(), -1));
-            return GarbageRules.dropIsNextPick(entriesAt(after), _pick, in, _reserve, _throwUnused, after, _floor);
+            return GarbageRules.dropIsNextPick(entriesAt(after), _pick, in, _reserve, _throwUnused, after, _floor, _junkFirst);
         }
 
         // room for a drop with the bag as it is: FIT, EVICT a slot, or NONE (see DropRoom). the death pile's filter, the
@@ -414,7 +419,9 @@ public class StorageHelper {
                 // wouldWear too: wear[] only keeps the best piece per slot, a second helmet for a bare head still counts
                 // (Tuning potion_room: a protected stack is never a victim, the trade's gold while it runs; a core drop could take
                 // a second stack of gold for a surplus before)
+                // (bag_keep_stations: a bed and the stations are never a victim either)
                 boolean keep = forTheEnd[i] || _bag.wear[i] || wouldWear(_mod, stack) || AltoSettings.isImportant(item)
+                        || (GarbageRules.keepStationsOn() && GarbageRules.station(item))
                         || (Tuning.get("potion_room", 1) > 0 && _mod.getBehaviour().isProtected(item))
                         || (stack.isEnchanted() && Baritone.settings().altoDontThrowAwayEnchantedItems.value)
                         || (stack.has(DataComponents.CUSTOM_NAME) && Baritone.settings().altoDontThrowAwayCustomNameItems.value)
@@ -477,6 +484,11 @@ public class StorageHelper {
         return ItemPickupRules.hasRoom(counts, sameKind, drop.getMaxStackSize());
     }
 
+    // (the buddy's fork, Tuning bag_keep_stations) a stack a task's stop must not throw off the cursor: a bed or a station
+    public static boolean keptOnCursor(ItemStack stack) {
+        return !stack.isEmpty() && GarbageRules.keepStationsOn() && GarbageRules.station(stack.getItem());
+    }
+
     // EnsureFreeCursorSlotTask's way out when it holds something we keep and getGarbageSlot has nothing: the lowest bag stack that
     // is not on the important list (or armor we would wear, or the End's, DropRoom.reserved). the food floor and the protect list are
     // soft, a deadlock is not
@@ -489,6 +501,10 @@ public class StorageHelper {
         for (int i = 0; i < bag.slots.size(); i++) {
             ItemStack stack = bag.stacks.get(i);
             if (stack.isEmpty() || forTheEnd[i] || bag.wear[i] || AltoSettings.isImportant(stack.getItem()))
+                continue;
+            // (Tuning bag_keep_stations: a bed, furnace, smoker or crafting table is not even the last resort; one of each was the
+            // smallest stack in the bag, so it was always the first to go)
+            if (GarbageRules.keepStationsOn() && GarbageRules.station(stack.getItem()))
                 continue;
             guarded[cands.size()] = ItemHelper.isStackProtected(mod, stack);
             slots.add(bag.slots.get(i));

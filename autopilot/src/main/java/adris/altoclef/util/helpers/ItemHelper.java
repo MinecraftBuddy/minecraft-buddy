@@ -433,6 +433,9 @@ public class ItemHelper {
             return true;
         if (mod.getBehaviour().isProtected(stack.getItem()) || AltoSettings.isImportant(stack.getItem()))
             return true;
+        // (the buddy's fork, Tuning bag_keep_stations: a bed, furnace, smoker or crafting table is never what a full bag throws)
+        if (GarbageRules.keepStationsOn() && GarbageRules.station(stack.getItem()))
+            return true;
         // the count is only read for the core kinds, this is asked about every bag stack
         return isCoreBuildBlock(stack.getItem())
                 && GarbageRules.protectsCore(true, StorageHelper.getBuildingMaterialCount(mod), Baritone.settings().altoReservedBuildingBlockCount.value);

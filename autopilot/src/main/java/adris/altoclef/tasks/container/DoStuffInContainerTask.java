@@ -81,6 +81,13 @@ public abstract class DoStuffInContainerTask extends Task {
         return _placeTask instanceof PlaceStationTask station ? station.getPlaced() : ((PlaceBlockNearbyTask) _placeTask).getPlaced();
     }
 
+    // (the buddy's fork, Tuning bag_keep_stations) the table, furnace or smoker our own placer put down for this task, while it
+    // still stands there; null for one we found, one of another kind (an anvil, a stand) or none
+    public BlockPos ownStation(AltoClef mod) {
+        BlockPos at = _stationKind == null ? null : placedPos();
+        return at != null && isContainerBlockInWorld(mod, at) ? at.immutable() : null;
+    }
+
     public DoStuffInContainerTask(Block containerBlock, ItemTarget containerTarget) {
         this(new Block[]{containerBlock}, containerTarget);
     }

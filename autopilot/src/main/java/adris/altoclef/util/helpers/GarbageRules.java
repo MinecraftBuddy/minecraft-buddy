@@ -156,6 +156,19 @@ public final class GarbageRules {
     // block once they are past the building reserve), then the worse of two tools of a family, then with throwUnused anything by
     // pick's order. StorageHelper used to do this over live slots, here it can also be asked about a bag that does not exist yet
     public static int nextPick(List<Entry> bag, int reserve, boolean throwUnused, int foodUnits, int foodFloor) {
+        return nextPick(bag, reserve, throwUnused, foodUnits, foodFloor, item -> -1);
+    }
+
+    // (Tuning bag_junk_first, a fix of 13 Nov 2026, on) the same with a tier ahead of all the rest: what the deep mine fills the
+    // bag with and no order of the buddy's wants (junkFirst's rank, -1 for anything else), whatever the building reserve says.
+    // with the old order a full bag threw the bed, then the furnace (one of each, the smallest stacks of the "anything" tier)
+    // while thirty raw copper and a stack of cinnabar stayed: M3.3's smoke 5, run 3
+    public static int nextPick(List<Entry> bag, int reserve, boolean throwUnused, int foodUnits, int foodFloor,
+                               java.util.function.ToIntFunction<Item> junkFirst) {
+        int first = junkFirstPick(bag, junkFirst);
+        if (first >= 0) {
+            return first;
+        }
         int junk = junkPick(bag, reserve);
         if (junk >= 0) {
             return junk;
@@ -165,6 +178,52 @@ public final class GarbageRules {
             return tool;
         }
         return restPick(bag, foodUnits, foodFloor);
+    }
+
+    // the junk-first tier: the stack of the lowest rank that may go, bag order breaking a tie; -1 for none
+    static int junkFirstPick(List<Entry> bag, java.util.function.ToIntFunction<Item> junkFirst) {
+        int best = -1;
+        int bestRank = Integer.MAX_VALUE;
+        for (int i = 0; i < bag.size(); i++) {
+            Entry e = bag.get(i);
+            if (!e.mayGo() || e.stack().isEmpty()) {
+                continue;
+            }
+            int rank = junkFirst.applyAsInt(e.stack().getItem());
+            if (rank >= 0 && rank < bestRank) {
+                best = i;
+                bestRank = rank;
+            }
+        }
+        return best;
+    }
+
+    // (bag_junk_first) the deep mine's leftovers, in the order they go: the two stones of the deep that are no building block
+    // here (cinnabar and sulfur), clay, bone, and raw copper (the copper armour is made before the deep, M2.1). -1 for anything else
+    public static int junkFirstRank(Item item) {
+        if (item == net.minecraft.world.item.Items.CINNABAR) return 0;
+        if (item == net.minecraft.world.item.Items.SULFUR) return 1;
+        if (item == net.minecraft.world.item.Items.CLAY_BALL) return 2;
+        if (item == net.minecraft.world.item.Items.BONE) return 3;
+        if (item == net.minecraft.world.item.Items.RAW_COPPER) return 4;
+        return -1;
+    }
+
+    // the junk-first tier the game side goes by: junkFirstRank with the key on, nothing with it off
+    public static java.util.function.ToIntFunction<Item> junkFirstNow() {
+        return Tuning.get("bag_junk_first", 0) > 0 ? GarbageRules::junkFirstRank : item -> -1;
+    }
+
+    // (Tuning bag_keep_stations, a fix of 13 Nov 2026, on) what a full bag never throws: a bed (the night's sleep) and the stations
+    // the deep stretch smelts and crafts with. one of each was the smallest stack of the "anything" tier, so they went first:
+    // the bed, then 15 minutes in a hole for the night; the furnace, then no gold smelted (M3.3's smoke 5)
+    public static boolean station(Item item) {
+        return item == net.minecraft.world.item.Items.FURNACE || item == net.minecraft.world.item.Items.SMOKER
+                || item == net.minecraft.world.item.Items.CRAFTING_TABLE || DropRoom.isBed(item);
+    }
+
+    public static boolean keepStationsOn() {
+        return Tuning.get("bag_keep_stations", 0) > 0;
     }
 
     // by throwaway list order, bag order only breaks a tie. the old getJunkSlot walked the list item by item, and going by bag
@@ -235,12 +294,18 @@ public final class GarbageRules {
     // the drop in the pick's slot, so a stone sword in the bag makes a wooden sword drop the next garbage even while the current
     // pick is a string in the "anything" tier. checking tiers one at a time missed that and the two took turns on the floor
     public static boolean dropIsNextPick(List<Entry> bag, int pick, Entry drop, int reserve, boolean throwUnused, int foodUnits, int foodFloor) {
+        return dropIsNextPick(bag, pick, drop, reserve, throwUnused, foodUnits, foodFloor, item -> -1);
+    }
+
+    // the same with the junk-first tier (bag_junk_first)
+    public static boolean dropIsNextPick(List<Entry> bag, int pick, Entry drop, int reserve, boolean throwUnused, int foodUnits, int foodFloor,
+                                         java.util.function.ToIntFunction<Item> junkFirst) {
         if (pick < 0) {
             return false;
         }
         List<Entry> after = new ArrayList<>(bag);
         after.set(pick, drop);
-        int next = nextPick(after, reserve, throwUnused, foodUnits, foodFloor);
+        int next = nextPick(after, reserve, throwUnused, foodUnits, foodFloor, junkFirst);
         return next == pick || (next >= 0 && after.get(next).stack().getItem() == drop.stack().getItem());
     }
 

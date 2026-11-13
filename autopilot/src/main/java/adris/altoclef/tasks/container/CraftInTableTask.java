@@ -131,8 +131,14 @@ public class CraftInTableTask extends ResourceTask {
      */
     @Override
     protected void onResourceStop(AltoClef mod, Task interruptTask) {
+        // (the buddy's fork, Tuning bag_keep_stations) done: the crafting table this craft put down itself goes back in the bag
+        // (StationsBack)
+        if (isFinished(mod)) {
+            adris.altoclef.tasks.misc.StationsBack.left(mod, _craftTask.ownStation(mod));
+        }
         // Get the item stack in the cursor slot.
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
+        boolean keepHeld = false;
 
         // If the cursor stack is not empty, handle it.
         if (!cursorStack.isEmpty()) {
@@ -150,13 +156,18 @@ public class CraftInTableTask extends ResourceTask {
             // Find the garbage slot and move the item from the cursor slot to the garbage slot.
             Optional<Slot> garbageSlot = StorageHelper.getGarbageSlot(mod);
             garbageSlot.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP));
+            // (the buddy's fork, Tuning bag_keep_stations: a bed or a station made here with no slot and nothing to swap it with
+            // stays on the cursor, the cursor task finds it room)
+            keepHeld = moveToSlot.isEmpty() && garbageSlot.isEmpty() && StorageHelper.keptOnCursor(cursorStack);
         } else {
             // If the cursor stack is empty, close the screen.
             StorageHelper.closeScreen();
         }
 
         // Pick up an undefined slot.
-        mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+        if (!keepHeld) {
+            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+        }
     }
 
     /**

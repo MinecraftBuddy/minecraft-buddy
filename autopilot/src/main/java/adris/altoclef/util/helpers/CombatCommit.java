@@ -1039,6 +1039,21 @@ public final class CombatCommit {
         meter(level, false);
     }
 
+    // (the buddy's fork, Tuning witch_no_melee, a fix of 13 Nov 2026, on; the brain hands it in before each step, off in a bare
+    // machine) a witch is no melee fight: one whose throw or poison hit us is a run out of its range (Why.LOBBER) at once, and it is
+    // never a fight's target, next target or a corner's. walked up to, it drinks its healing, throws harming and poison point blank
+    // and slowness on top: one went from 20 hp to 1 in 6 s while the buddy fought it at the gold mine, and skeletons finished it
+    // (M3.3's smoke 5, run 1)
+    private boolean witchNoMelee;
+
+    public void witchNoMelee(boolean on) {
+        witchNoMelee = on;
+    }
+
+    private boolean noMelee(Foe foe) {
+        return witchNoMelee && foe.kind() == Kind.LOBBER;
+    }
+
     public void meter(DangerMeter.Level level, boolean calmHere) {
         meter(level, calmHere, false);
     }
@@ -1228,6 +1243,8 @@ public final class CombatCommit {
     // a ranged foe that hit us when we already failed to reach one of its kind lately: running is the answer, a second fight
     // would stall the same (one that has walked into contact is a plain fight, that is the reachable witch)
     private boolean gaveUpOn(Foe foe, long now) {
+        // (witch_no_melee: every witch, in contact too, is one we only run from)
+        if (noMelee(foe)) return true;
         long at = foe.kind() == Kind.LOBBER ? lobberGaveUpAt : sniperGaveUpAt;
         boolean ranged = foe.kind() == Kind.LOBBER || foe.sniper();
         long patience = foe.kind() == Kind.LOBBER ? LOBBER_GIVE_UP_TICKS : SNIPER_GIVE_UP_TICKS;
@@ -1629,9 +1646,15 @@ public final class CombatCommit {
         if (hit != null) {
             // (no run for these while an enderman is about: it follows, so a swing at what is on us is the better trade)
             boolean enderAbout = endermanAbout(t) != null;
-            if (gaveUpOn(hit, t.now()) && !enderAbout) return startRun(t, Why.LOBBER, Event.RUN_START);
-            if (!t.armed() && !hit.standsAndFights() && !enderAbout) return startRun(t, Why.UNARMED, Event.RUN_START);
-            return startFight(t, hit, Why.HIT, Event.FIGHT_START, false);
+            if (gaveUpOn(hit, t.now()) && !enderAbout) {
+                if (noMelee(hit)) idleNote = "witch_no_melee: a witch hit us from " + Math.round(hit.distance()) + " blocks, no melee fight: a run out of its range";
+                return startRun(t, Why.LOBBER, Event.RUN_START);
+            }
+            // (witch_no_melee: with an enderman about the witch is no run and no fight either, the rules below go on)
+            if (!noMelee(hit)) {
+                if (!t.armed() && !hit.standsAndFights() && !enderAbout) return startRun(t, Why.UNARMED, Event.RUN_START);
+                return startFight(t, hit, Why.HIT, Event.FIGHT_START, false);
+            }
         }
         // a cube or an angry piglin close on a rim and no hit yet: its first hit is the knock into the lava, so we hit first
         Foe rim = rimEngage(t, cooling);
@@ -2486,7 +2509,7 @@ public final class CombatCommit {
             // still boxed in: whatever is touching us and has hit us (bar the one thing that is never a fight, and creepers: that
             // is the creeper step's, a fresh zombie standing next to us is not a reason to keep swinging)
             for (Foe foe : t.foes()) {
-                if (foe.id() != targetId && foe.kind() != Kind.UNTOUCHABLE && !foe.creeper() && foe.hitUs() && foe.distance() <= CORNER_RANGE
+                if (foe.id() != targetId && foe.kind() != Kind.UNTOUCHABLE && !foe.creeper() && !noMelee(foe) && foe.hitUs() && foe.distance() <= CORNER_RANGE
                         && (best == null || foe.distance() < best.distance())) best = foe;
             }
             return best;
@@ -2706,7 +2729,7 @@ public final class CombatCommit {
         Foe closest = null;
         for (Foe foe : t.foes()) {
             if (holds) break;
-            if (foe.distance() > CORNER_WATCH || foe.kind() == Kind.UNTOUCHABLE) continue;
+            if (foe.distance() > CORNER_WATCH || foe.kind() == Kind.UNTOUCHABLE || noMelee(foe)) continue;
             if (foe.creeper() || (foe.distance() > CORNER_RANGE && ignored.containsKey(foe.id()))) continue;
             if (closest == null || foe.distance() < closest.distance()) closest = foe;
         }

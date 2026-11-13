@@ -533,4 +533,50 @@ public class GarbageRulesTest {
         assertEquals(DropRoom.Source.GARBAGE, now.source());
         assertEquals(pick, now.slot());
     }
+
+    // ---- bag_junk_first and bag_keep_stations (13 Nov 2026, M3.3's smoke 5: a full bag threw the bed and the furnace first)
+
+    private static int nextFirst(List<GarbageRules.Entry> bag) {
+        return GarbageRules.nextPick(bag, 64, true, 0, 0, GarbageRules::junkFirstRank);
+    }
+
+    @Test
+    public void theDeepMinesLeftoversGoBeforeTheBedAndTheFurnaceAndTheCobble() {
+        List<GarbageRules.Entry> bag = List.of(e(Items.BED.white(), 1), e(Items.FURNACE, 1), e(Items.RAW_COPPER, 30),
+                junk(Items.COBBLESTONE, 64), junk(Items.COBBLESTONE, 64), e(Items.CINNABAR, 20), e(Items.BONE, 3));
+        // the old order: the second cobble stack past the reserve
+        assertEquals(3, next(bag));
+        // junk first: cinnabar, then the rest by its rank whatever the counts
+        assertEquals(5, nextFirst(bag));
+        // (bone ranks ahead of raw copper)
+        assertEquals(2, nextFirst(List.of(e(Items.BED.white(), 1), e(Items.RAW_COPPER, 30), e(Items.BONE, 3))));
+        assertEquals(1, nextFirst(List.of(e(Items.BED.white(), 1), e(Items.RAW_COPPER, 30))));
+        assertEquals(1, nextFirst(List.of(e(Items.STRING, 1), e(Items.SULFUR, 64), e(Items.CLAY_BALL, 4))));
+        // a stack that may not go (a task holds it) is no pick of the tier
+        assertEquals(0, nextFirst(List.of(e(Items.STRING, 1), new GarbageRules.Entry(new ItemStack(Items.RAW_COPPER, 30), false, -1))));
+        // with nothing of the tier in the bag the old order stands
+        assertEquals(next(List.of(e(Items.STRING, 1), e(Items.STONE_SWORD, 1))), nextFirst(List.of(e(Items.STRING, 1), e(Items.STONE_SWORD, 1))));
+    }
+
+    @Test
+    public void aLeftoverDropIntoABagThrowingLeftoversComesStraightBack() {
+        List<GarbageRules.Entry> bag = List.of(e(Items.STRING, 1), e(Items.CINNABAR, 20));
+        int pick = nextFirst(bag);
+        assertEquals(1, pick);
+        assertTrue(GarbageRules.dropIsNextPick(bag, pick, e(Items.RAW_COPPER, 3), 64, true, 0, 0, GarbageRules::junkFirstRank));
+        assertFalse(GarbageRules.dropIsNextPick(bag, pick, e(Items.COOKED_BEEF, 3), 64, true, 0, 0, GarbageRules::junkFirstRank));
+    }
+
+    @Test
+    public void theBedAndTheStationsAreWhatTheBagKeeps() {
+        for (net.minecraft.world.item.Item kept : new net.minecraft.world.item.Item[]{Items.BED.white(), Items.BED.red(), Items.FURNACE, Items.SMOKER,
+                Items.CRAFTING_TABLE}) {
+            assertTrue(kept.toString(), GarbageRules.station(kept));
+        }
+        for (net.minecraft.world.item.Item other : new net.minecraft.world.item.Item[]{Items.CHEST, Items.BLAST_FURNACE, Items.RAW_COPPER, Items.COBBLESTONE}) {
+            assertFalse(other.toString(), GarbageRules.station(other));
+        }
+        assertEquals(-1, GarbageRules.junkFirstRank(Items.RAW_IRON));
+        assertEquals(-1, GarbageRules.junkFirstRank(Items.RAW_GOLD));
+    }
 }

@@ -171,6 +171,17 @@ public class BranchMineTask extends Task {
             setDebugState("Three game minutes in one place, a tunnel of its own");
             return null;
         }
+        // (Tuning ice_start_tunnel_hold, a fix of 13 Nov 2026, on) the tunnel of its own keeps the tick for its whole time on ice or
+        // in open water too, level at the feet's height, a quarter turned when a step is not reached in ten game seconds. the
+        // two checks below took the tick back from it every tick: a start on a frozen ocean walked to a land it never reached,
+        // the place watch gave the tunnel its two minutes every three and the tunnel never got one step, 35 minutes on one
+        // spot (M3.3's smoke 5, run 2)
+        if (now < _tunnelUntil && adris.altoclef.util.helpers.Tuning.get("ice_start_tunnel_hold", 0) > 0) {
+            boolean wet = mod.getPlayer().isInWater() && mod.getWorld().canSeeSky(feet.above());
+            if (wet || adris.altoclef.util.helpers.LandFinder.ice(mod.getWorld().getBlockState(feet.below())) || iceColumn(mod, feet)) {
+                return holdTunnel(mod, feet, now, wet);
+            }
+        }
         // in open water no staircase or tunnel starts: dry land first. it swam about the sea in steps of five blocks for
         // fifteen game minutes and never got its shield's iron (the runner, 2 Nov 2026)
         if (mod.getPlayer().isInWater() && mod.getWorld().canSeeSky(feet.above())) {
@@ -430,6 +441,37 @@ public class BranchMineTask extends Task {
         }
         setDebugState("Branch mining at y " + _mineY);
         return null;
+    }
+
+    // (ice_start_tunnel_hold) one step of the tunnel of its own on ice or open water: straight on at the feet's height
+    private long _holdLogged = Long.MIN_VALUE;
+
+    private Task holdTunnel(AltoClef mod, BlockPos feet, long now, boolean wet) {
+        stopMine(mod);
+        if (_holdLogged != _tunnelUntil) {
+            _holdLogged = _tunnelUntil;
+            adris.altoclef.Debug.logInternal("branch mine: the tunnel of its own keeps the tick on " + (wet ? "open water" : "ice") + " at "
+                    + feet.toShortString() + ", level at y " + feet.getY() + " for " + (_tunnelUntil - now) / 20 + " s (ice_start_tunnel_hold)");
+        }
+        if (_dx == 0 && _dz == 0) {
+            var dir = mod.getPlayer().getDirection();
+            _dx = dir.getStepX();
+            _dz = dir.getStepZ();
+            if (_dx == 0 && _dz == 0) _dx = 1;
+        }
+        boolean reached = _tunnel != null && feet.getX() == _tunnel.getX() && feet.getZ() == _tunnel.getZ();
+        if (_tunnel != null && !reached && now - _tunnelSince > 200) {
+            int t = _dx;
+            _dx = -_dz;
+            _dz = t;
+            _tunnel = null;
+        }
+        if (_tunnel == null || reached || Math.abs(_tunnel.getY() - feet.getY()) > 1) {
+            _tunnel = new BlockPos(feet.getX() + _dx, feet.getY(), feet.getZ() + _dz);
+            _tunnelSince = now;
+        }
+        setDebugState("A tunnel of its own, level at y " + feet.getY() + " on " + (wet ? "open water" : "ice") + " for its whole time");
+        return new GetToBlockTask(_tunnel);
     }
 
     private static ItemTarget stoneTarget() {
