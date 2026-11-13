@@ -1098,6 +1098,16 @@ public final class CombatCommit {
         unarmedWall = on;
     }
 
+    // (the buddy's fork, Tuning unarmed_no_chase_fight, a fix of 13 Nov 2026, on; handed in by the brain like the corner's switch)
+    // unarmed, the run's turn to fight a chaser it did not shake (the cap, a run come back toward its start) is the cornered
+    // run's wall instead, and the fight only with nothing to wall with. armed, nothing changes. test heel's Hana: "chased too
+    // long, turning to fight zombie" with no weapon, 17 to 8.7 hp in 2 s
+    private boolean chaseWall;
+
+    public void unarmedNoChaseFight(boolean on) {
+        chaseWall = on;
+    }
+
     public void wallFacts(boolean offered, WallState state) {
         wallOffered = offered;
         wallState = state == null ? WallState.NONE : state;
@@ -2786,10 +2796,16 @@ public final class CombatCommit {
     // (unarmed_no_corner_fight) the corner of an unarmed run: true when a wall goes up instead of the fight (the brain builds it,
     // the run holds behind it, wallHold). false is the fight: armed, the switch off, nothing to wall with, or a wall given up lately
     private boolean wallInstead(Tick t, Foe foe) {
-        if (!unarmedWall || t.armed() || !foe.melee()) return false;
+        return wallInstead(t, foe, false);
+    }
+
+    // chased: (unarmed_no_chase_fight) the turn on a chaser the run did not shake, not a corner; the same wall, its own switch
+    private boolean wallInstead(Tick t, Foe foe, boolean chased) {
+        if (!(chased ? chaseWall : unarmedWall) || t.armed() || !foe.melee()) return false;
+        String what = chased ? "chased too long and unarmed" : "cornered and unarmed";
         boolean failedLately = t.now() >= wallFailedAt && t.now() - wallFailedAt < WALL_RETRY_TICKS;
         if (!wallOffered || failedLately) {
-            idleNote = "cornered and unarmed, " + (wallOffered ? "the wall given up " + (t.now() - wallFailedAt) / 20 + " s ago" : "no block")
+            idleNote = what + ", " + (wallOffered ? "the wall given up " + (t.now() - wallFailedAt) / 20 + " s ago" : "no block")
                     + ": fighting as the last resort";
             return false;
         }
@@ -2805,8 +2821,8 @@ public final class CombatCommit {
         cornerSince = -1;
         stuckSince = -1;
         clearSince = -1;
-        idleNote = String.format(java.util.Locale.ROOT, "cornered and unarmed: a wall instead of a fight with foe #%d %.1f blocks off (hp %.1f)",
-                foe.id(), foe.distance(), t.health());
+        idleNote = String.format(java.util.Locale.ROOT, "%s: a wall instead of a fight with foe #%d %.1f blocks off (hp %.1f)",
+                what, foe.id(), foe.distance(), t.health());
         return true;
     }
 
@@ -3013,6 +3029,8 @@ public final class CombatCommit {
         if (runBest - fromOrigin < RUN_TURN_BACK || Tuning.get("run_turn_fight", 0) <= 0) return Event.NONE;
         Foe chaser = chaser(t);
         if (chaser == null || !chaser.melee()) return Event.NONE;
+        // (unarmed_no_chase_fight) unarmed: a wall instead, the fight only with nothing to wall with
+        if (wallInstead(t, chaser, true)) return Event.NONE;
         return startFight(t, chaser, Why.CHASED, Event.RUN_CHASED_FIGHT, true);
     }
 
@@ -3043,6 +3061,8 @@ public final class CombatCommit {
                 if (on == null) return end(t, Event.RUN_CAP);
                 return hold(startFight(t, on, Why.CHASED, Event.RUN_CHASED_FIGHT, true), on);
             }
+            // (unarmed_no_chase_fight) unarmed: a wall instead, the fight only with nothing to wall with
+            if (wallInstead(t, chaser, true)) return Event.NONE;
             return hold(startFight(t, chaser, Why.CHASED, Event.RUN_CHASED_FIGHT, true), chaser);
         }
         // nobody to turn on: the warden (danger starts the next run on the same step), or only a creeper at range or mobs we
@@ -3050,6 +3070,8 @@ public final class CombatCommit {
         // and with danger about a fight would only bail again on the next step, so it is the next run straight away
         if (chaser == null || anyDanger(t) || creeperHolds(t)) return end(t, Event.RUN_CAP);
         if (lowChase(t) && !t.boxed() && fastTarget(t) == null) return startRun(t, Why.LOW_HP, Event.RUN_START);
+        // (unarmed_no_chase_fight) unarmed: a wall instead, the fight only with nothing to wall with
+        if (wallInstead(t, chaser, true)) return Event.NONE;
         return startFight(t, chaser, Why.CHASED, Event.RUN_CHASED_FIGHT, true);
     }
 

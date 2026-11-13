@@ -292,6 +292,11 @@ public final class BiteRules {
             return backoff > 0;
         }
 
+        // (meal_hand_hold) a back off asked for from outside the watch: the bite cut off again and again (CutWatch)
+        public void backOff(int ticks) {
+            backoff = Math.max(backoff, ticks);
+        }
+
         // the clock runs whether or not anyone is eating, that is the point of a back off
         public void tickBackoff() {
             if (backoff > 0) backoff--;
@@ -311,6 +316,54 @@ public final class BiteRules {
         public void clear() {
             reset();
             backoff = 0;
+        }
+    }
+
+    // (the buddy's fork, Tuning meal_hand_hold, a fix of 13 Nov 2026, on) a bite that starts and is cut off before the swallow,
+    // again and again: something else puts another item in the hand every few ticks. test heel's Jade: the night shelter put
+    // its block in hand each tick, "bite started rabbit" every 4 ticks for 4.5 min and no swallow, hunger stuck at 16, no
+    // regen, and the shelter never placed a block either. CUT_LIMIT cuts within CUT_WINDOW ticks back the meal off for
+    // CUT_BACKOFF ticks, so the other side has the hand and the meal starts afresh after
+    public static final int CUT_LIMIT = 5;
+    public static final int CUT_WINDOW = 200;
+    public static final int CUT_BACKOFF = 60;
+    // a use that ends with more than this many ticks still to go was cut off, not swallowed
+    public static final int CUT_LEFT = 3;
+
+    public static final class CutWatch {
+        private final java.util.ArrayDeque<Long> cuts = new java.util.ArrayDeque<>();
+        private boolean wasUsing;
+        private int left;
+
+        // one step a tick of the meal (tick: the game's tick count). the number of cuts once they reach CUT_LIMIT within
+        // CUT_WINDOW ticks (the count then starts over), else 0. a swallow clears the count
+        public int step(boolean using, int remaining, long tick) {
+            while (!cuts.isEmpty() && (tick - cuts.peekFirst() > CUT_WINDOW || tick < cuts.peekFirst())) cuts.pollFirst();
+            int out = 0;
+            if (wasUsing && !using) {
+                if (left > CUT_LEFT) {
+                    cuts.addLast(tick);
+                    if (cuts.size() >= CUT_LIMIT) {
+                        out = cuts.size();
+                        cuts.clear();
+                    }
+                } else {
+                    cuts.clear();
+                }
+            }
+            wasUsing = using;
+            if (using) left = remaining;
+            return out;
+        }
+
+        public int count() {
+            return cuts.size();
+        }
+
+        public void clear() {
+            cuts.clear();
+            wasUsing = false;
+            left = 0;
         }
     }
 }

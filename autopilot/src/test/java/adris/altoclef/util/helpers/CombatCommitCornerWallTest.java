@@ -144,4 +144,65 @@ public class CombatCommitCornerWallTest {
         assertTrue(c.walling());
         assertEquals(round + 1, c.wallRound());
     }
+    // (unarmed_no_chase_fight) a run from three zombies that moves away the whole time with the three on its heels: never
+    // cornered, so at the run's cap it was the turn to fight the closest
+    private static Tick away(long now, boolean armed) {
+        List<Foe> crowd = List.of(new Foe(1, 2, false, false, CombatCommit.NEVER), new Foe(2, 2.4, false, false, CombatCommit.NEVER),
+                new Foe(3, 2.8, false, false, CombatCommit.NEVER));
+        return new Tick(now, 10, 0.25 * (now - NOW), 0, crowd, null, Way.NONE, armed, true);
+    }
+
+    // steps the run until it walls or turns to fight; the turn's event, or NONE once walling. notes: the notes taken on the way
+    private static Event chasedEnd(CombatCommit c, boolean armed, StringBuilder notes) {
+        c.wallFacts(true, WallState.NONE);
+        assertEquals(Event.RUN_START, c.step(away(NOW, armed)));
+        for (long now = NOW + 1; now <= NOW + CombatCommit.RUN_CAP + 200; now++) {
+            c.wallFacts(true, c.walling() ? WallState.BUILDING : WallState.NONE);
+            Event e = c.step(away(now, armed));
+            String n = c.takeNote();
+            if (n != null) notes.append(n).append('\n');
+            if (c.walling()) return Event.NONE;
+            if (e != Event.NONE) return e;
+        }
+        return Event.RUN_CAP;
+    }
+
+    @Test
+    public void unarmedChasedTooLongPutsUpAWallInstead() {
+        CombatCommit c = new CombatCommit();
+        c.unarmedNoChaseFight(true);
+        StringBuilder notes = new StringBuilder();
+        assertEquals(Event.NONE, chasedEnd(c, false, notes));
+        assertTrue(c.walling());
+        assertEquals(Mode.RUN, c.mode());
+        assertTrue(notes.toString(), notes.toString().contains("chased too long and unarmed: a wall instead of a fight with foe #1"));
+    }
+
+    @Test
+    public void unarmedChasedTooLongSwitchedOffIsTheFightAsBefore() {
+        CombatCommit c = new CombatCommit();
+        assertEquals(Event.RUN_CHASED_FIGHT, chasedEnd(c, false, new StringBuilder()));
+        assertFalse(c.walling());
+    }
+
+    @Test
+    public void unarmedChasedTooLongWithNothingToWallWithIsTheFight() {
+        CombatCommit c = new CombatCommit();
+        c.unarmedNoChaseFight(true);
+        assertEquals(Event.RUN_START, c.step(away(NOW, false)));
+        Event seen = Event.NONE;
+        for (long now = NOW + 1; now <= NOW + CombatCommit.RUN_CAP + 200 && seen != Event.RUN_CHASED_FIGHT; now++) {
+            c.wallFacts(false, WallState.NONE);
+            seen = c.step(away(now, false));
+        }
+        assertEquals(Event.RUN_CHASED_FIGHT, seen);
+        assertFalse(c.walling());
+    }
+    @Test
+    public void armedChasedTooLongIsTheFightAsBefore() {
+        CombatCommit c = new CombatCommit();
+        c.unarmedNoChaseFight(true);
+        assertEquals(Event.RUN_CHASED_FIGHT, chasedEnd(c, true, new StringBuilder()));
+        assertFalse(c.walling());
+    }
 }

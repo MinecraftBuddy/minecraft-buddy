@@ -922,7 +922,10 @@ final class CombatBrain {
             // the world is asked only during a run, the only time the machine wants the answer)
             boolean wallOn = adris.altoclef.util.helpers.Tuning.get("unarmed_no_corner_fight", 0) > 0;
             _commit.unarmedNoCornerFight(wallOn);
-            _commit.wallFacts(wallOn && _commit.mode() == Mode.RUN && CornerWallTask.offered(mod),
+            // (Tuning unarmed_no_chase_fight, a fix of 13 Nov 2026, on: unarmed, the chased-too-long turn is the same wall)
+            boolean chaseWallOn = adris.altoclef.util.helpers.Tuning.get("unarmed_no_chase_fight", 0) > 0;
+            _commit.unarmedNoChaseFight(chaseWallOn);
+            _commit.wallFacts((wallOn || chaseWallOn) && _commit.mode() == Mode.RUN && CornerWallTask.offered(mod),
                     _wall == null ? CombatCommit.WallState.NONE : _wall.state());
             // (Tuning skel_cover and skel_close_rule, fixes of 13 Nov 2026, on: the overworld's skeletons. the cover is wanted under
             // its hp line with one in sight within range, and on offer with a full block in the bag or ground to dig; the machine

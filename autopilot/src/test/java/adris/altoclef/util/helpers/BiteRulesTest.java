@@ -436,4 +436,55 @@ public class BiteRulesTest {
         assertEquals(NOT_NOW, BiteRules.verdict(Scene.standing().withMeal(true).withHitAge(5)));
         assertEquals(EAT_NOW, BiteRules.verdict(Scene.standing().withMeal(true).withHitAge(BiteRules.NO_HIT)));
     }
+    // (meal_hand_hold) a bite cut off a few ticks in, five times within 10 s: the back off; a swallow in between clears the count
+    private static int cutBites(BiteRules.CutWatch w, int bites, long[] tick) {
+        int out = 0;
+        for (int b = 0; b < bites; b++) {
+            for (int left = 32; left > 29; left--) out = Math.max(out, w.step(true, left, tick[0]++));
+            out = Math.max(out, w.step(false, 0, tick[0]++));
+        }
+        return out;
+    }
+
+    @Test
+    public void fiveBitesCutOffWithinTenSecondsBackOff() {
+        BiteRules.CutWatch w = new BiteRules.CutWatch();
+        long[] tick = {100};
+        assertEquals(0, cutBites(w, 4, tick));
+        assertEquals(4, w.count());
+        assertEquals(BiteRules.CUT_LIMIT, cutBites(w, 1, tick));
+        assertEquals(0, w.count());
+    }
+
+    @Test
+    public void aSwallowClearsTheCutCount() {
+        BiteRules.CutWatch w = new BiteRules.CutWatch();
+        long[] tick = {100};
+        cutBites(w, 4, tick);
+        for (int left = 32; left > 0; left--) assertEquals(0, w.step(true, left, tick[0]++));
+        assertEquals(0, w.step(false, 0, tick[0]++));
+        assertEquals(0, w.count());
+        assertEquals(0, cutBites(w, 4, tick));
+    }
+
+    @Test
+    public void cutsFurtherApartThanTenSecondsDoNotAddUp() {
+        BiteRules.CutWatch w = new BiteRules.CutWatch();
+        long[] tick = {100};
+        int out = 0;
+        for (int b = 0; b < 8; b++) {
+            out = Math.max(out, cutBites(w, 1, tick));
+            tick[0] += 60;
+        }
+        assertEquals(0, out);
+    }
+
+    @Test
+    public void aBackOffAskedForFromOutsideTheWatchCountsDown() {
+        BiteRules.UseWatch u = new BiteRules.UseWatch();
+        u.backOff(BiteRules.CUT_BACKOFF);
+        assertTrue(u.backingOff());
+        for (int i = 0; i < BiteRules.CUT_BACKOFF; i++) u.tickBackoff();
+        assertFalse(u.backingOff());
+    }
 }

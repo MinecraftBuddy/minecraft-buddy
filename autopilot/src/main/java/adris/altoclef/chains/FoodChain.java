@@ -68,6 +68,8 @@ public class FoodChain extends SingleTaskChain {
     // meal began standing (and so the pause is ours until stopEat), and the counters for the log lines
     private final BiteRules.Waiting _waiting = new BiteRules.Waiting();
     private final BiteRules.UseWatch _useWatch = new BiteRules.UseWatch();
+    // (Tuning meal_hand_hold) the bites cut off before the swallow, for the back off when the hand is taken again and again
+    private final BiteRules.CutWatch _cutWatch = new BiteRules.CutWatch();
     private boolean _biting = false;
     private boolean _standing = false;
     // the starving escape is on: this meal is eaten on the move, no matter what the table says, until stopEat
@@ -333,6 +335,18 @@ public class FoodChain extends SingleTaskChain {
         // (anything eaten or drunk: a potion has no food component, only the consumable one)
         boolean using = player.isUsingItem() && player.getUseItem().has(DataComponents.CONSUMABLE);
         BiteRules.Press press = _useWatch.step(using, player.getUseItemRemainingTicks());
+        // (Tuning meal_hand_hold, a fix of 13 Nov 2026, on) a bite started and cut off five times in 10 s: something else takes
+        // the hand each time, so the meal backs off 3 s and lets it, rather than start a bite every 4 ticks that never ends
+        if (adris.altoclef.util.helpers.Tuning.get("meal_hand_hold", 0) > 0) {
+            int cuts = _cutWatch.step(using, player.getUseItemRemainingTicks(), player.tickCount);
+            if (cuts > 0) {
+                Debug.logInternal(String.format("food: the bite is cut off again and again (%d times in %d s), backing off %d s",
+                        cuts, BiteRules.CUT_WINDOW / 20, BiteRules.CUT_BACKOFF / 20));
+                _useWatch.backOff(BiteRules.CUT_BACKOFF);
+                stopEat(mod);
+                return;
+            }
+        }
         if (_useWatch.startedThisTick()) {
             _stuckLogged = false;
             logBiteStart(mod, player);
@@ -566,6 +580,7 @@ public class FoodChain extends SingleTaskChain {
         super.onStop(mod);
         stopEat(mod);
         _useWatch.clear();
+        _cutWatch.clear();
     }
 
     // everything that makes the eat branch back off. cheap enough to read from getPriority, needsToEat() uses the cached answer
