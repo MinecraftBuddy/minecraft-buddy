@@ -513,6 +513,20 @@ public final class RouteRules {
         return targetTicks > 0 ? fireTicks >= targetTicks : potion;
     }
 
+    // ---- Tuning route_trade_potions (his word, steering 182, 13 Nov 2026: "ja ruil maar door tot een 2de drankje"; 2 by
+    // default): the trade goes on past the first fire resistance potion until the bag holds this many (drinkable and splash
+    // together), so the first two rods have about 6:00 under the traded potions instead of 3:00: route-58's phase 4 lost 14 of
+    // its 18 deaths after the traded potion ran out, 10 of them with 0 or 1 rod (E1112-2100.3). the rest of the route as
+    // before: the wart, the cream and the brew. all the gold handed with fewer: done with what it got. 1: the first potion.
+    // route_trade_fire, when set, decides instead
+    public static int tradePotions() {
+        return (int) Math.max(1, Tuning.get("route_trade_potions", 1));
+    }
+
+    public static boolean tradePotionsEnough(int potions, int target) {
+        return potions >= Math.max(1, target);
+    }
+
     // m:ss for the lines
     public static String clock(int ticks) {
         int s = Math.max(0, ticks) / 20;

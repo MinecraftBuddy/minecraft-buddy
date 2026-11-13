@@ -294,7 +294,10 @@ public final class FireResTrade {
         // (Tuning route_trade_fire: the trade's target is the fire in the bag, not the first potion, RouteRules.tradeEnough)
         int fireTarget = adris.altoclef.util.helpers.RouteRules.tradeFireTicks();
         int fire = fireTarget > 0 ? fireTicks(mod) : 0;
-        boolean enough = adris.altoclef.util.helpers.RouteRules.tradeEnough(fire, fireTarget, potion);
+        // (Tuning route_trade_potions, his word of steering 182: on past the first potion to this many, RouteRules.tradePotions)
+        int potionTarget = fireTarget > 0 ? 1 : adris.altoclef.util.helpers.RouteRules.tradePotions();
+        boolean enough = fireTarget > 0 ? adris.altoclef.util.helpers.RouteRules.tradeEnough(fire, fireTarget, potion)
+                : adris.altoclef.util.helpers.RouteRules.tradePotionsEnough(drink + thrown, potionTarget);
         double blaze = nearestBlaze(mod);
         boolean blazeNear = blaze <= FireResRules.BLAZE_RANGE;
         boolean atFortress = spawner != null && player.position().distanceTo(Vec3.atCenterOf(spawner)) <= FORTRESS_NEAR;
@@ -310,7 +313,7 @@ public final class FireResTrade {
         if (_state == State.WAITING) {
             if (_firstLookAt < 0) _firstLookAt = now;
             String why = fireTarget > 0 && enough ? "fire resistance for " + adris.altoclef.util.helpers.RouteRules.clock(fire) + " in the bag already"
-                    : FireResTradeRules.whyNot(gold, fireTarget > 0 ? false : potion, mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
+                    : FireResTradeRules.whyNot(gold, fireTarget > 0 ? false : enough, mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
             if (why == null && (atFortress || blazeNear)) why = "at the fortress already";
             if (why != null) {
                 if (now - _firstLookAt >= BEGIN_GRACE_TICKS || now < _firstLookAt) {
@@ -427,7 +430,8 @@ public final class FireResTrade {
             case DONE -> {
                 String form = drink > 0 && thrown > 0 ? "drinkable and splash" : drink > 0 ? "drinkable" : "splash";
                 Debug.logInternal("strategy trade: done, a potion after " + given + " ingots in " + FireResTradeRules.seconds(now - _begunAt)
-                        + " seconds (" + form + ", " + gold + " gold left)" + (fireTarget > 0 ? String.format(Locale.ROOT,
+                        + " seconds (" + form + ", " + gold + " gold left" + (potionTarget > 1 ? ", " + (drink + thrown) + " potions" : "") + ")"
+                        + (fireTarget > 0 ? String.format(Locale.ROOT,
                         "; fire resistance %s in the bag, the target %s, %d drinkable and %d splash", adris.altoclef.util.helpers.RouteRules.clock(fire),
                         adris.altoclef.util.helpers.RouteRules.clock(fireTarget), drink, thrown) : ""));
                 _fireAtEnd = fire;
@@ -436,6 +440,16 @@ public final class FireResTrade {
                 return null;
             }
             case GIVE_UP -> {
+                // (Tuning route_trade_potions: a potion in the bag under the count, and the trade ends for any reason, the gold
+                // all handed or the bound: done with what it got, the route goes on as with one)
+                if (potionTarget > 1 && potion) {
+                    Debug.logInternal(String.format(Locale.ROOT, "strategy trade: done, %d of the %d potions after %d ingots in %s seconds (%s;"
+                                    + " %d gold left), %d drinkable and %d splash", drink + thrown, potionTarget, given,
+                            FireResTradeRules.seconds(now - _begunAt), verdict.reason(), gold, drink, thrown));
+                    end(player, now, true, drink, thrown);
+                    FireRes.traded(now, spawner);
+                    return null;
+                }
                 // (Tuning route_trade_fire: all the gold handed with some fire but under the target: done with what it got, the
                 // route goes on as before)
                 if (fireTarget > 0 && potion && FireResTradeRules.OUT_OF_GOLD.equals(verdict.reason())) {

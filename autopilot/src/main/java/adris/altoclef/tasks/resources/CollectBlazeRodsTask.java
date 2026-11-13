@@ -504,7 +504,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // tick so a fight on the way does not end the wait; at the spawner a blaze lets it go, RouteRules.holdPotion)
         // (Tuning route_trade_fire: the potions the trade goes on past, and the way to the fortress after it with no errand, phase 2)
         if (adris.altoclef.util.helpers.RouteRules.holdFightOn() && (_errandOn || _routePhase == adris.altoclef.util.helpers.RouteRules.RODS2
-                || adris.altoclef.util.helpers.RouteRules.tradeFireTicks() > 0 && _routePhase == adris.altoclef.util.helpers.RouteRules.TRADE)) {
+                || (adris.altoclef.util.helpers.RouteRules.tradeFireTicks() > 0 || adris.altoclef.util.helpers.RouteRules.tradePotions() > 1)
+                && _routePhase == adris.altoclef.util.helpers.RouteRules.TRADE)) {
             double toSpawner = _foundBlazeSpawner == null ? Double.POSITIVE_INFINITY : mod.getPlayer().position().distanceTo(Vec3.atCenterOf(_foundBlazeSpawner));
             boolean begun = adris.altoclef.util.helpers.RouteRules.fightBegun(_routePhase, toSpawner);
             // (Tuning route_drink_ready, off by default: at the spawner fight the potion waits for a blaze that can be fought)
