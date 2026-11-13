@@ -1026,7 +1026,7 @@ final class Alto {
 
 			public boolean deepUnder() { return ObtainSafe.deepUnder(p); }
 
-			public boolean slimeNear() { return ObtainSafe.slimeNear(p, 24); }
+			public boolean slimeNear() { return ObtainSafe.slimeNear(p, ObtainSafe.SLIME_SIGHT); }
 
 			public boolean restMissing() { return !routeRest(p, new java.util.ArrayList<>()).isEmpty(); }
 		};

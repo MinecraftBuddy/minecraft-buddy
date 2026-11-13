@@ -495,6 +495,12 @@ final class ObtainSafe {
 	 * A slime within r blocks every way (not a magma cube), or a slime ball lying on the ground within r: one met
 	 * on the way, taken along for the brew's cream (12 Nov 2026: the gold and the slime ball fetched in one stretch).
 	 */
+	/**
+	 * How far a slime counts as met in M3.3 (13 Nov 2026: 24 before; the goudslijm smoke 2 saw twelve slimes in its gold mine,
+	 * the nearest 41 blocks off, and took none). A server tracks monsters to about 48 blocks, so one further is not seen.
+	 */
+	static final int SLIME_SIGHT = 40;
+
 	static boolean slimeNear(LocalPlayer p, int r) {
 		// (as far up and down as across, and no line of sight: the slimes of the goudslijm smoke were 10 to 37 blocks under the
 		// buddy in the rock, never in sight; the kill task digs its way to one it knows of)
