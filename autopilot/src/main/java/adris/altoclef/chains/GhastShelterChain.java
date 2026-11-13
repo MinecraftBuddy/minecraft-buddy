@@ -157,6 +157,14 @@ public class GhastShelterChain extends SingleTaskChain {
                 // (still in a ghast's sight there: from where it is now that cell is no cover, so the next one. the idle there held
                 // the buddy in its sight up to STAY_TICKS)
                 BlockPos other = coverFrom(mod, ghast, null);
+                // (Tuning ghast_cover_near_stay, a fix of 13 Nov 2026, on: a cover within 3 blocks of the one held, or any once the
+                // buddy stays seen, is no other cover. at a shadow's edge one ray a cell flips seen and hidden, and the buddy hopped
+                // five covers 1-2 blocks apart in a second while a ghast circled, both its fireballs landing mid hop, look 73)
+                boolean nearStay = adris.altoclef.util.helpers.Tuning.get("ghast_cover_near_stay", 1) > 0;
+                if (nearStay && other != null && (_stayingSeen || other.distSqr(_cover) <= 9)) other = null;
+                // (the feet a block under the cover cell on soul sand or a slab are in it as well)
+                boolean inCell = nearStay ? player.getBlockX() == _cover.getX() && player.getBlockZ() == _cover.getZ()
+                        && Math.abs(player.getBlockY() - _cover.getY()) <= 1 : player.blockPosition().equals(_cover);
                 if (other != null && !other.equals(_cover)) {
                     Debug.logInternal("ghast shelter: seen in cover at " + _cover.toShortString() + " by the ghast at " + ghast.blockPosition().toShortString()
                             + ", on to cover at " + other.toShortString());
@@ -164,7 +172,7 @@ public class GhastShelterChain extends SingleTaskChain {
                     setTask(_go);
                     return PRIORITY;
                 }
-                if (other == null || player.blockPosition().equals(_cover)) {
+                if (other == null || inCell) {
                     if (bridge) {
                         CliffAvoidance.Cells walk = GhastCover.walkCells(mod);
                         if (_stayingSeen || GhastCover.safeGround(walk, adris.altoclef.util.helpers.SafeStand.cells(level), _cover.getX(), _cover.getY(), _cover.getZ())) {
