@@ -106,6 +106,8 @@ final class CombatBrain {
     private int _meleeAround;
     private boolean _shotAt;
     private long _shotUntil = Long.MIN_VALUE / 2;
+    // (risk_calm_bite) when the line that the meter's calm opened a meal last went out
+    private long _calmMealSaidAt = Long.MIN_VALUE / 2;
     // a melee fight with the target close, the shield is up for its swing (CombatRules.fightShield)
     private boolean _fightShield;
     // a ledge over a lethal drop with a melee foe close: the shield stops the knock that would send us over
@@ -215,6 +217,12 @@ final class CombatBrain {
                     + ", at " + player.getBlockX() + "," + player.getBlockY() + "," + player.getBlockZ());
         }
         return go || kept;
+    }
+
+    // (the repair after smoke8, Tuning risk_calm_bite, on under risk_flee) the meter steers and reads calm this tick
+    static boolean calmBite() {
+        return GoalFlee.on() && adris.altoclef.util.helpers.Tuning.get("risk_calm_bite", 1) > 0
+                && adris.altoclef.util.helpers.DangerShadow.steering() == adris.altoclef.util.helpers.DangerMeter.Level.CALM;
     }
 
     // (the repair after smoke6, Tuning risk_flee_burn) the hp a verdict counts: the buddy's less the burn still to come
@@ -404,6 +412,11 @@ final class CombatBrain {
     private Dimension _dimension;
     // when the last run ended, for the rods task: it waits to heal before it walks back to whatever we ran from
     private long _lastRunEnd = Long.MIN_VALUE / 2;
+    // (the repair after smoke8, risk_camp_back) the hp the meter's runs since the last settle began at, the most of them;
+    // for the last run: -1 when none of its runs was the meter's
+    private float _runHp;
+    private boolean _runDanger;
+    private float _lastRunHp = -1;
     // a run happened and nothing has settled since: the end is stamped when the machine is back to nothing, so a run that
     // turned into a fight counts from when the fight is over
     private boolean _ranSince;
@@ -431,6 +444,11 @@ final class CombatBrain {
 
     long lastRunEnd() {
         return _lastRunEnd;
+    }
+
+    // the most hp (less the burn) a run for the danger meter began at in the last run, -1 when it was none of the meter's
+    float lastRunHp() {
+        return _lastRunHp;
     }
 
     Mode mode() {
@@ -534,6 +552,7 @@ final class CombatBrain {
     void reset() {
         _commit.reset();
         _lastRunEnd = Long.MIN_VALUE / 2;
+        _lastRunHp = -1;
         _ranSince = false;
         _foeMobs = List.of();
         _crowdBlazes = List.of();
@@ -846,8 +865,14 @@ final class CombatBrain {
             // (S137 step 3, Tuning risk_flee: the danger meter decides the runs, where it reads, and the mob field says whether
             // the flee search has anywhere calmer to go than the cell the buddy is in)
             adris.altoclef.util.helpers.DangerMeter.Level steering = GoalFlee.on() ? adris.altoclef.util.helpers.DangerShadow.steering() : null;
+            // (the repair after smoke8, Tuning risk_flee_lost) the walked flee path's rest as the walk's last check priced it
+            double fleeAhead = Double.NaN;
+            if (steering != null && _commit.mode() == Mode.RUN) {
+                baritone.pathing.path.PathExecutor fleeing = mod.getClientBaritone().getPathingBehavior().getCurrent();
+                if (fleeing != null && fleeing.getPath().getGoal() instanceof GoalFlee) fleeAhead = fleeing.riskAhead();
+            }
             _commit.meter(steering, steering != null && calmHere(mod, player, now, steering),
-                    steering != null && goalWay(mod, player, now, steering));
+                    steering != null && goalWay(mod, player, now, steering), fleeAhead, verdictHp(player));
             Event event = _commit.step(new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
                     way(mod, mobs, foes).withRim(rim).withLavaClose(lavaClose), armed(mod, foes), tryingToMove(mod, player), creeperRepeat, body(mod, dimension),
                     boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player)));
@@ -857,10 +882,21 @@ final class CombatBrain {
             if (perchNote != null) Debug.logInternal("combat: [" + dimension.name().toLowerCase(java.util.Locale.ROOT) + "] " + perchNote);
             // the heal wait starts when the run (and the fight it may have turned into) is all over
             if (_commit.mode() == Mode.RUN) {
+                // (the repair after smoke8, risk_camp_back) the most hp a run for the danger meter began at since the last
+                // settle: the camp's way back waits while the hp is no more than that and the group is still there
+                if (!_ranSince) {
+                    _runHp = 0;
+                    _runDanger = false;
+                }
+                if (_commit.why() == CombatCommit.Why.DANGER) {
+                    _runDanger = true;
+                    _runHp = Math.max(_runHp, (float) verdictHp(player));
+                }
                 _ranSince = true;
             } else if (_commit.mode() == Mode.NONE && _ranSince) {
                 _ranSince = false;
                 _lastRunEnd = now;
+                _lastRunHp = _runDanger ? _runHp : -1;
             }
             // a fight that just started has its target in the world right now, which is the only chance to learn its name
             if (_commit.mode() == Mode.FIGHT && !_commit.perching()) {
@@ -993,10 +1029,22 @@ final class CombatBrain {
         // a shooter that was on us a moment ago still is: the ray flickers behind a tree and the skeleton steps in and out of the
         // range line, and a bite started in that blink was an arrow in the face
         // (only the bite hears it, shotAt() stays the raw answer for the meals that ask the chain)
+        // (S137, the repair after smoke8, Tuning risk_calm_bite, on under risk_flee) with the meter reading calm no shooter
+        // keeps a meal closed, neither its line nor the latch: the meter prices each shooter by the chance its shots land
+        // (nothing for a blaze under fire resistance), so calm is calm. smoke8 r4 stood 116 s at 1.1 hp and hunger 15 among
+        // blazes under fire resistance, the meter calm, and its one bite was cut a second in by a blaze stepping into sight
+        boolean calmMeal = calmBite();
+        if (calmMeal && (shotAt || now <= _shotUntil) && player.getHealth() < player.getMaxHealth()
+                && (now - _calmMealSaidAt >= 200 || now < _calmMealSaidAt)) {
+            _calmMealSaidAt = now;
+            Debug.logInternal("food: the meter reads calm, a shooter in sight keeps no meal closed (hp "
+                    + String.format(java.util.Locale.ROOT, "%.1f", player.getHealth()) + ", hunger " + player.getFoodData().getFoodLevel() + ")");
+        }
+        if (calmMeal) shotAt = false;
         boolean biteShot = shotAt;
         if (shotAt) {
             _shotUntil = Math.max(_shotUntil, now + CombatCommit.SHOT_LATCH);
-        } else if (now <= _shotUntil) {
+        } else if (now <= _shotUntil && !calmMeal) {
             biteShot = true;
         }
         _shotAt = shotAt;

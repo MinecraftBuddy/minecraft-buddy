@@ -915,6 +915,8 @@ public final class CombatCommit {
     // field priced calm) and a switch to a blaze cleared it, so 2 of 3 turned fights were a run again within 2 s with the
     // skeleton alive, and three no-room corner fights the same
     private int holdId = -1;
+    // how far off the held chaser may be and still hold the fight: LOW_HP_RANGE, NO_WAY_RANGE for a lost flee's
+    private double holdRange = LOW_HP_RANGE;
     // (risk_flee) when the last fight's target died or left the world. the meter reads every few ticks and counts a mob it
     // saw alive: its flee in the next METER_STALE_TICKS is the dead one's, so it starts and bails nothing (the fourth smoke
     // of S137 step 3: three no-room corner fights ended in a run with nobody left, on the reading that still had the kill
@@ -1042,9 +1044,35 @@ public final class CombatCommit {
     }
 
     public void meter(DangerMeter.Level level, boolean calmHere, boolean goalWay) {
+        meter(level, calmHere, goalWay, Double.NaN, Double.NaN);
+    }
+
+    // fleeAhead: the hp the walked flee path's rest is expected to cost (the walk's last check), NaN for no word (no flee path,
+    // or one not checked yet: a replan's new path keeps the last word); hpLeft: the hp a verdict counts (less the burn)
+    public void meter(DangerMeter.Level level, boolean calmHere, boolean goalWay, double fleeAhead, double hpLeft) {
         meter = level;
         this.calmHere = level != null && calmHere;
         this.goalWay = level != null && goalWay;
+        if (level != null && !Double.isNaN(fleeAhead) && !Double.isNaN(hpLeft)) {
+            this.fleeAhead = fleeAhead;
+            this.fleeHpLeft = hpLeft;
+            fleeWord = fleeAhead >= hpLeft ? 1 : 0;
+        }
+    }
+
+    // (S137, the repair after smoke8, Tuning risk_flee_lost, on under risk_flee) the walked flee path's last word: 1 its rest
+    // is expected to cost the hp left, 0 not, -1 none in this run; since when it has said so, -1 for not
+    private int fleeWord = -1;
+    private long lostSince = -1;
+    private double fleeAhead = Double.NaN;
+    private double fleeHpLeft = Double.NaN;
+    // a flee path priced at the hp left for this long (two of the meter's reads) is no way out
+    static final long NO_WAY_TICKS = 10;
+    // the chaser a lost flee turns on: a melee mob the meter counts (its melee list reaches 16)
+    static final double NO_WAY_RANGE = 16;
+
+    static boolean lostOn() {
+        return Tuning.get("risk_flee", 0) >= 1 && Tuning.get("risk_flee_lost", 1) > 0;
     }
 
     // the meter at flee and somewhere calmer to go: not on ground the field prices calm, not while the field is known blind
@@ -2520,6 +2548,8 @@ public final class CombatCommit {
     private Event startRun(Tick t, Why reason, Event event) {
         noteChase(t);
         holdId = -1;
+        fleeWord = -1;
+        lostSince = -1;
         mode = Mode.RUN;
         why = reason;
         targetId = -1;
@@ -2647,6 +2677,9 @@ public final class CombatCommit {
         Event cramped = holds ? Event.NONE : noRoomFight(t);
         if (cramped != Event.NONE) return cramped;
 
+        Event lost = holds || !meterRun ? Event.NONE : fleeLost(t);
+        if (lost != Event.NONE) return lost;
+
         // (not the meter's run: the flee search prices the mobs on the way, and a way back past the origin can be its cheapest)
         Event turned = holds || meterRun ? Event.NONE : turnedBack(t, fromOrigin);
         if (turned != Event.NONE) return turned;
@@ -2764,8 +2797,37 @@ public final class CombatCommit {
     // (risk_flee) a run turned into a fight on this mob because the run did not shake it: with the meter deciding and a melee
     // mob, the fight holds while it lives within LOW_HP_RANGE (holdId)
     private Event hold(Event event, Foe foe) {
-        if (meter != null && foe.melee() && foe.kind() != Kind.UNTOUCHABLE) holdId = foe.id();
+        return hold(event, foe, LOW_HP_RANGE);
+    }
+
+    // range: how far off the held chaser may be and still hold the fight
+    private Event hold(Event event, Foe foe, double range) {
+        if (meter != null && foe.melee() && foe.kind() != Kind.UNTOUCHABLE) {
+            holdId = foe.id();
+            holdRange = range;
+        }
         return event;
+    }
+
+    // (S137, the repair after smoke8, Tuning risk_flee_lost, on under risk_flee) the meter's run whose own flee path has been
+    // expected to cost the hp left for NO_WAY_TICKS has no way out to walk: armed, it turns on the closest melee mob within
+    // NO_WAY_RANGE now and holds that fight while the mob lives within that range. smoke8 r4: a flee from two wither skeletons
+    // walked a bridge to its end and back past them, its paths priced 15 to 52 hp at 9.6 hp, and turned to fight only at the
+    // run's cap, at 2.1 hp
+    private Event fleeLost(Tick t) {
+        if (fleeWord != 1) lostSince = -1;
+        else if (lostSince < 0 || t.now() < lostSince) lostSince = t.now();
+        if (!lostOn() || lostSince < 0 || t.now() - lostSince < NO_WAY_TICKS || !t.armed() || untouchable(t)) return Event.NONE;
+        Foe pick = null;
+        for (Foe foe : t.foes()) {
+            if (!foe.melee() || foe.creeper() || foe.kind() == Kind.UNTOUCHABLE || foe.distance() > NO_WAY_RANGE) continue;
+            if (foe.mustRun(t.guardHealth()) || gaveUpOn(foe, t.now()) || stillIgnored(foe, t.now())) continue;
+            if (pick == null || foe.distance() < pick.distance()) pick = foe;
+        }
+        if (pick == null) return Event.NONE;
+        idleNote = String.format(java.util.Locale.ROOT, "the flee's own path is expected to cost %.1f hp at %.1f hp: no way out, turning on foe #%d %.1f blocks off",
+                fleeAhead, fleeHpLeft, pick.id(), pick.distance());
+        return hold(startFight(t, pick, Why.CHASED, Event.RUN_CHASED_FIGHT, true), pick, NO_WAY_RANGE);
     }
 
     // the closest melee mob within CORNER_RANGE that is not the target, never the warden, a creeper or one given up on
@@ -2783,9 +2845,9 @@ public final class CombatCommit {
     // once it is dead, gone or farther
     private Foe heldChaser(Tick t) {
         if (holdId < 0) return null;
-        if (t.target() != null && t.target().id() == holdId && t.target().distance() <= LOW_HP_RANGE) return t.target();
+        if (t.target() != null && t.target().id() == holdId && t.target().distance() <= holdRange) return t.target();
         for (Foe foe : t.foes()) {
-            if (foe.id() == holdId && foe.distance() <= LOW_HP_RANGE) return foe;
+            if (foe.id() == holdId && foe.distance() <= holdRange) return foe;
         }
         holdId = -1;
         return null;

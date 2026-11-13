@@ -275,6 +275,24 @@ public final class BlazeFightRules {
         return oneSystem() && Tuning.get("risk_lure_back", 1) > 0;
     }
 
+    // (S137, the repair after smoke8, Tuning risk_camp_back, on under the one system) the camp's way back after a run for the
+    // danger meter (the walk to the camp, round to the pillbox's door, the lure back into its corner) waits while the mob
+    // field, the group that run fled from in its memory, prices the camp's place over calm and the hp less the burn is no more
+    // than the meter's run began at: the meter fled from that place at that hp, so walking back to it is the next run.
+    // lureHold never asked in smoke8, the heal wait already ends at back; 20 of 45 clear runs ran again within 10 s, r4 ten
+    // runs in 106 s from a camp at 18 to 20 hp, each clear in 2 to 19 blocks and `back to camping` 3 to 7 s later. runHp -1:
+    // the last run was none of the meter's. held at most CAMP_BACK_TICKS after the run's end (the memory's full span)
+    public static final long CAMP_BACK_TICKS = 600;
+
+    public static boolean campBackHold(boolean overCalm, long now, long runEnd, double health, double burn, double runHp) {
+        if (!overCalm || runHp < 0 || now < runEnd || now - runEnd > CAMP_BACK_TICKS) return false;
+        return health - Math.max(0, burn) <= runHp;
+    }
+
+    public static boolean campBackOn() {
+        return oneSystem() && Tuning.get("risk_camp_back", 1) > 0;
+    }
+
     // healAfterRun with the hp the wait ends at
     public static boolean healAfterRun(long now, long runEnd, float health, double blazeDistance, float back) {
         return blazeDistance > LATCH_SKIP_BLAZE_RANGE && now >= runEnd && now - runEnd <= RUN_GIVE_UP_TICKS && health < back;

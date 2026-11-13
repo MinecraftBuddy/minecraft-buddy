@@ -100,6 +100,40 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         return adris.altoclef.util.helpers.Tuning.get("risk_flee", 0) >= 1 && adris.altoclef.util.helpers.Tuning.get("risk_goal_once", 1) > 0;
     }
 
+    // (S137, the repair after smoke8; Tuning risk_goal_spot, on under risk_flee) the failed searches by the spot they started
+    // from (SpotFails), and the way the buddy came (Trail): a spot that SPOT_GOALS goals failed from within SPOT_TICKS is left
+    // back along the trail. and a round counts as "no way" for a goal only when its search ran out of nodes after more than
+    // TRIVIAL_MS: a timed out one is "not yet" (smoke8 r3's 2 s time-outs gave the spawner up), one exhausted at once is no
+    // search (r3: the spawner given up on an exhausted ms 1 one block from where a 46-block path was found that second)
+    static final double SPOT_RANGE = 2.5;
+    static final long SPOT_TICKS = 1200;
+    static final int SPOT_GOALS = 3;
+    static final long TRIVIAL_MS = 2;
+    private final SpotFails spotFails = new SpotFails(SPOT_RANGE, SPOT_TICKS);
+    private final Trail trail = new Trail();
+
+    static boolean spotOn() {
+        return adris.altoclef.util.helpers.Tuning.get("risk_flee", 0) >= 1 && adris.altoclef.util.helpers.Tuning.get("risk_goal_spot", 1) > 0;
+    }
+
+    // the goals that failed from around the buddy's feet within SPOT_TICKS, 0 with the key off
+    public int failedGoalsHere() {
+        if (!spotOn()) return 0;
+        BetterBlockPos feet = ctx.playerFeet();
+        return feet == null ? 0 : spotFails.goals(feet.x, feet.y, feet.z, tickCount);
+    }
+
+    // every goal fails from around here: SPOT_GOALS of them within SPOT_TICKS
+    public boolean trappedHere() {
+        return failedGoalsHere() >= SPOT_GOALS;
+    }
+
+    // the newest block of the way the buddy came at least min from its feet, no older than maxAge ticks; null for none
+    public Trail.Point trailBack(double min, long maxAge) {
+        BetterBlockPos feet = ctx.playerFeet();
+        return feet == null ? null : trail.back(feet.x, feet.y, feet.z, min, maxAge, tickCount);
+    }
+
     // (the repair after smoke7) this goal was given up from the block the buddy stands on: a request for it fails at once. a task
     // that walks there takes that as its stall, now rather than after its stuck checks
     public boolean givenUpHere(Goal goal) {
@@ -187,6 +221,11 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         }
 
         expectedSegmentStart = pathStart();
+        // (the repair after smoke8, risk_goal_spot) the way the buddy came, the feet on the ground
+        if (ctx.player() != null && ctx.player().onGround() && ctx.playerFeet() != null) {
+            BetterBlockPos feet = ctx.playerFeet();
+            trail.note(feet.x, feet.y, feet.z, tickCount);
+        }
         boolean telemetry = ExperimentalMovement.sprintTelemetry();
         if (telemetry) {
             sprintTelemetry.begin(current != null);
@@ -976,7 +1015,8 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         boolean ahead = current != null;
         long searchStart = System.nanoTime();
         PathCalculationResult calcResult = pathfinder.calculate(primaryTimeout, failureTimeout);
-        logSearch(start, goal, calcResult, pathfinder, ahead, (System.nanoTime() - searchStart) / 1_000_000L);
+        long tookMs = (System.nanoTime() - searchStart) / 1_000_000L;
+        logSearch(start, goal, calcResult, pathfinder, ahead, tookMs);
         // the search whose result is taken: the priced one, or the unpriced one after it found no path
         AbstractNodeCostSearch found = pathfinder;
         if (unpriced != null && calcResult.getType() == PathCalculationResult.Type.FAILURE && pathfinder.risk() != null
@@ -988,11 +1028,13 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
             if (live) {
                 long again = System.nanoTime();
                 calcResult = unpriced.calculate(primaryTimeout, failureTimeout);
-                logSearch(start, goal, calcResult, unpriced, ahead, (System.nanoTime() - again) / 1_000_000L);
+                tookMs = (System.nanoTime() - again) / 1_000_000L;
+                logSearch(start, goal, calcResult, unpriced, ahead, tookMs);
                 found = unpriced;
             }
         }
         final AbstractNodeCostSearch taken = found;
+        final long takenMs = tookMs;
         synchronized (pathPlanLock) {
             if (inProgress != pathfinder) {
                 // forceCancel nulled us (and maybe a newer search took the slot), so this result is stale
@@ -1043,7 +1085,15 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                             noWayStart = new BetterBlockPos(start);
                             noWayGoal = goal;
                             noWayAt = tickCount;
-                            if (once) givenUp.note(new BetterBlockPos(start), goal, tickCount);
+                            // (the repair after smoke8, risk_goal_spot: only a search that ran out of nodes, and not at once)
+                            if (once && (!spotOn() || (taken.exhausted() && takenMs > TRIVIAL_MS))) {
+                                givenUp.note(new BetterBlockPos(start), goal, tickCount);
+                            }
+                        }
+                        // (the repair after smoke8, risk_goal_spot) every failed search by its spot, whatever its kind
+                        if (calcResult.getType() == PathCalculationResult.Type.FAILURE && spotOn()
+                                && !(goal instanceof adris.altoclef.util.baritone.GoalFlee)) {
+                            spotFails.note(start.getX(), start.getY(), start.getZ(), goal.toString(), tickCount);
                         }
                         calcFailures++;
                         queuePathEvent(PathEvent.CALC_FAILED);

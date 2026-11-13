@@ -112,6 +112,11 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
         _wanderDistanceExtension = 0;
     }
 
+    // (the repair after smoke8, Tuning risk_wander_cap) the longest a growing wander gets, in blocks; 0 for no cap
+    static double wanderCap() {
+        return adris.altoclef.util.helpers.Tuning.get("risk_flee", 0) >= 1 ? adris.altoclef.util.helpers.Tuning.get("risk_wander_cap", 20) : 0;
+    }
+
     // This happens all the time in mineshafts and swamps/jungles
     private BlockPos stuckInBlock(AltoClef mod) {
         BlockPos p = mod.getPlayer().blockPosition();
@@ -388,8 +393,14 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
         mod.getClientBaritone().getPathingBehavior().cancelWhenSafe();
         if (isFinished(mod)) {
             if (_increaseRange) {
-                _wanderDistanceExtension += _distanceToWander;
-                Debug.logMessage("Increased wander range");
+                // (S137, the repair after smoke8; Tuning risk_wander_cap, 20 under risk_flee, 0 no cap) a wander grows no
+                // longer than the cap: smoke8 r3's stall wanders grew from 5 to 110 blocks over 30 minutes
+                double cap = wanderCap();
+                if (cap <= 0 || _distanceToWander + _wanderDistanceExtension < cap) {
+                    _wanderDistanceExtension += _distanceToWander;
+                    if (cap > 0) _wanderDistanceExtension = Math.min(_wanderDistanceExtension, Math.max(0, cap - _distanceToWander));
+                    Debug.logMessage("Increased wander range");
+                }
             }
         }
     }

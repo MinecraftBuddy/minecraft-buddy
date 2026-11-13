@@ -918,6 +918,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // look out to it was cut short by the walk back, "Going to blaze spawner" 23 times and 3 looks in six game minutes,
             // a stall with the box built whole, bent-d run 1)
             double campRadius = _campSpot != null ? (_pillbox != null && _pillboxCornered ? PILLBOX_RADIUS : CAMP_SPOT_RADIUS) : CAMP_RADIUS;
+            // (S137, the repair after smoke8, Tuning risk_camp_back: the way back to the camp's place after a run for the danger
+            // meter waits on the group it fled from, BlazeFightRules.campBackHold)
+            Task backHeld = campBackHeld(mod, _fight.corner() != null ? _fight.corner() : camp);
+            if (backHeld != null) return backHeld;
             // (the buddy's fork, Tuning far_box, off by default, steering 89: the far box's spawn trips, before the walk back into
             // it. out of the box into the spawner's range till a blaze has spawned and seen the buddy, then the walk below and the
             // lure take over)
@@ -3077,6 +3081,64 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // realfort-pair-trade A:7. the ticks waited at one spawner are capped, in all; after that the camp goes on there as with
     // no pack, the fight's own back off from a pack within eight still on. true: wait this tick)
     private final adris.altoclef.util.helpers.BlazeCapRules.SpawnerWait _packWait = new adris.altoclef.util.helpers.BlazeCapRules.SpawnerWait();
+
+    // (S137, the repair after smoke8; Tuning risk_camp_back, on under the one system) the way back to the camp's place (the
+    // fight's corner, else the camp spot) after a run for the danger meter: held while BlazeFightRules.campBackHold says so.
+    // meanwhile the buddy stands where it is if that is calm ground (the flee goal's own test), else takes the flee search to
+    // some; the fight goes first all the same, so a blaze that comes out to the buddy is fought where it stands. null: go on.
+    // already at the place (within 2 blocks): nothing held, the meter decides there
+    private final Task _campStand = new adris.altoclef.tasks.movement.IdleTask();
+    private adris.altoclef.tasks.movement.FleeTask _campFlee;
+    private adris.altoclef.util.baritone.GoalFlee _campProbe;
+    private long _campProbeAt = Long.MIN_VALUE / 2;
+    private long _campHeldFor = Long.MIN_VALUE / 2;
+
+    private Task campBackHeld(AltoClef mod, BlockPos place) {
+        if (!BlazeFightRules.campBackOn() || place == null || adris.altoclef.util.helpers.DangerShadow.steering() == null
+                || mod.getPlayer().position().distanceTo(Vec3.atBottomCenterOf(place)) <= 2) {
+            _campFlee = null;
+            return null;
+        }
+        long now = mod.getWorld().getGameTime();
+        long runEnd = mod.getMobDefenseChain().lastCombatRunEnd();
+        float runHp = mod.getMobDefenseChain().lastCombatRunHp();
+        // (the probe only within the window: outside it nothing is held)
+        if (runHp < 0 || now < runEnd || now - runEnd > BlazeFightRules.CAMP_BACK_TICKS) {
+            _campFlee = null;
+            return null;
+        }
+        if (_campProbe == null || now < _campProbeAt || now - _campProbeAt >= 20) {
+            _campProbe = adris.altoclef.tasks.movement.FleeTask.goal(mod);
+            _campProbeAt = now;
+        }
+        _campProbe.refresh();
+        double rate = _campProbe.rate(place.getX(), place.getY(), place.getZ());
+        double health = mod.getPlayer().getHealth();
+        double burn = adris.altoclef.util.helpers.DangerShadow.burnHp();
+        if (!BlazeFightRules.campBackHold(rate >= adris.altoclef.util.baritone.GoalFlee.calm(), now, runEnd, health, burn, runHp)) {
+            _campFlee = null;
+            return null;
+        }
+        BlockPos feet = mod.getPlayer().blockPosition();
+        boolean calmHere = _campProbe.isInGoal(feet.getX(), feet.getY(), feet.getZ());
+        if (_campHeldFor != runEnd) {
+            _campHeldFor = runEnd;
+            Debug.logInternal(String.format(java.util.Locale.ROOT, "rods: not back to the camp at %s yet: the mob field prices it %.2f hp/s, over calm,"
+                            + " the meter's run from it began at %.1f hp, hp %.1f, burn %.0f, for up to %d s after that run, %s",
+                    place.toShortString(), rate, runHp, health, burn, (BlazeFightRules.CAMP_BACK_TICKS - (now - runEnd)) / 20,
+                    calmHere ? "standing on calm ground" : "the flee search to calm ground"));
+        }
+        // (dead time like any wait at the spawner: the rods watch clocks see it)
+        _camping = true;
+        if (calmHere) {
+            _campFlee = null;
+            setDebugState("Not back to the camp yet, on calm ground");
+            return _campStand;
+        }
+        if (_campFlee == null || _campFlee.stopped()) _campFlee = new adris.altoclef.tasks.movement.FleeTask();
+        setDebugState("Not back to the camp yet, fleeing to calm ground");
+        return _campFlee;
+    }
 
     private boolean packWaits(AltoClef mod, int pack) {
         long cap = adris.altoclef.util.helpers.BlazeCapRules.spawnerWaitCapTicks();

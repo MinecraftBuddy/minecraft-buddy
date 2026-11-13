@@ -1373,8 +1373,12 @@ final class BlazeFight {
             if (crowd.length() > 0) crowd.append(", ");
             crowd.append(BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).getPath()).append(' ').append(Math.round(player.distanceTo(e)));
         }
+        // (S137, the repair after smoke8: under the one system the run is no RUN_DISTANCE block run but the heal wait, on ground
+        // the mob field prices calm or the flee search to it; the line said "50 block run" while the buddy stood, smoke8 r4)
+        boolean oneSystem = BlazeFightRules.oneSystem() && adris.altoclef.util.helpers.DangerShadow.steering() != null;
+        String how = oneSystem ? "the heal wait on calm ground or the flee search to it" : RUN_DISTANCE + " block run";
         return "rods: running at " + String.format(java.util.Locale.ROOT, "%.1f", health) + " hp from " + player.blockPosition().toShortString()
-                + ", " + RUN_DISTANCE + " block run, crowd [" + crowd + "], burning " + player.isOnFire()
+                + ", " + how + ", crowd [" + crowd + "], burning " + player.isOnFire()
                 + ", wither " + player.hasEffect(MobEffects.WITHER);
     }
 

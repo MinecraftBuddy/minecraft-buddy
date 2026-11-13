@@ -37,6 +37,17 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
     // box_no_wander (BoxGuard): the goal one cell off that a step by input walks to instead of the wander, and its ticks left
     private BlockPos _boxStep;
     private int _boxStepTicks;
+    // (S137, the repair after smoke8; Tuning risk_goal_spot, on under risk_flee) a spot every goal fails from (PathingBehavior,
+    // SpotFails) is left back the way the buddy came instead of the wander: to the newest block of its trail at least
+    // BACK_MIN off, no older than BACK_AGE, for at most BACK_TICKS. smoke8 r3 failed 47 times from one patch of 4 blocks in 7
+    // minutes, then wandered 108 times, each wander 5 blocks longer, the last 110. one walk back at a time, anywhere: inside it
+    // the stall is the wander (capped, TimeoutWanderTask)
+    static final double BACK_MIN = 8;
+    static final long BACK_AGE = 6000;
+    static final long BACK_TICKS = 400;
+    private static long backingUntil = Long.MIN_VALUE / 2;
+    private Task _backTask;
+    private long _backUntil = Long.MIN_VALUE / 2;
 
     // This happens all the time in mineshafts and swamps/jungles
 
@@ -232,6 +243,15 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
                     _checker.reset();
                     return _wanderTask;
                 }
+                if (_backTask != null) {
+                    long now = mod.getWorld().getGameTime();
+                    if (now >= _backUntil - BACK_TICKS && now < _backUntil && !_backTask.isFinished(mod)) {
+                        setDebugState("Back the way the buddy came");
+                        _checker.reset();
+                        return _backTask;
+                    }
+                    _backTask = null;
+                }
                 boolean noProgress = !_checker.check(mod);
                 // (S137, the repair after smoke7, Tuning risk_goal_once: the goal given up from where the buddy stands, a round
                 // of search from here found no way: the stall now, not after the checks. smoke7 r2 stood 42 s on one block)
@@ -268,6 +288,8 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
                     return null;
                 }
                 if (noProgress) {
+                    Task back = backTheWayCame(mod);
+                    if (back != null) return back;
                     Debug.logMessage("Failed to make progress on goal, wandering.");
                     onWander(mod);
                     return _wanderTask;
@@ -280,6 +302,30 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
         }
         setDebugState("Completing goal.");
         return null;
+    }
+
+    // (the repair after smoke8, risk_goal_spot) the walk back the way the buddy came, or null for the wander
+    private Task backTheWayCame(AltoClef mod) {
+        long now = mod.getWorld().getGameTime();
+        if (now >= backingUntil - BACK_TICKS && now < backingUntil) return null;
+        var pathing = mod.getClientBaritone().getPathingBehavior();
+        int goals = pathing.failedGoalsHere();
+        if (!pathing.trappedHere()) return null;
+        baritone.behavior.Trail.Point p = pathing.trailBack(BACK_MIN, BACK_AGE);
+        if (p == null) {
+            Debug.logInternal("search: " + goals + " goals failed from around " + mod.getPlayer().blockPosition().toShortString()
+                    + " lately, no way the buddy came on record, wandering");
+            return null;
+        }
+        BlockPos to = new BlockPos(p.x(), p.y(), p.z());
+        Debug.logInternal(String.format(java.util.Locale.ROOT, "search: %d goals failed from around %s lately, back the way the buddy came to %s (%.0f blocks, %.0f s ago)",
+                goals, mod.getPlayer().blockPosition().toShortString(), to.toShortString(),
+                Math.sqrt(to.distSqr(mod.getPlayer().blockPosition())), (now - p.at()) / 20.0));
+        _checker.reset();
+        _backTask = new GetToBlockTask(to, false);
+        _backUntil = now + BACK_TICKS;
+        backingUntil = _backUntil;
+        return _backTask;
     }
 
     // asked on the ticks the goal is about to be handed to baritone again (it is not active: it was reached, or the search

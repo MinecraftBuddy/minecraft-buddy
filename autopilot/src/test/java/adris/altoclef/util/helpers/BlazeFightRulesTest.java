@@ -377,6 +377,26 @@ public class BlazeFightRulesTest {
         assertFalse(BlazeFightRules.lureHold(true, 16, -1, 16));
     }
 
+    // S137, the repair after smoke8 (risk_camp_back): the camp's way back after a run for the meter waits while the place is
+    // priced over calm and the hp less the burn is no more than that run began at, for up to CAMP_BACK_TICKS. smoke8 r4: ten
+    // runs in 106 s from a camp at 18 to 20 hp, `back to camping` 3 to 7 s after each
+    @Test
+    public void theCampWaitsOnTheGroupItsLastRunFledFrom() {
+        long end = 1000;
+        // healed to 18.5 after a run that began at 20: still the group's
+        assertTrue(BlazeFightRules.campBackHold(true, end + 100, end, 18.5, 0, 20));
+        assertTrue(BlazeFightRules.campBackHold(true, end + 100, end, 20, 0, 20));
+        // a run that began at 12 (the margin): back at 18 the place is worth another look
+        assertFalse(BlazeFightRules.campBackHold(true, end + 100, end, 18, 0, 12));
+        // the burn counts against the hp
+        assertTrue(BlazeFightRules.campBackHold(true, end + 100, end, 14, 3, 12));
+        // priced calm, none of the meter's, past the window, or a clock that went back: no wait
+        assertFalse(BlazeFightRules.campBackHold(false, end + 100, end, 10, 0, 20));
+        assertFalse(BlazeFightRules.campBackHold(true, end + 100, end, 10, 0, -1));
+        assertFalse(BlazeFightRules.campBackHold(true, end + BlazeFightRules.CAMP_BACK_TICKS + 1, end, 10, 0, 20));
+        assertFalse(BlazeFightRules.campBackHold(true, end - 1, end, 10, 0, 20));
+    }
+
     // fireproof_wither_one: one wither skeleton by the blaze or by the buddy holds the chase; a blaze within a bite, the
     // switch off, or a blaze out of pick range that is not our target, does not
     @Test

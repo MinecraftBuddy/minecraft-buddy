@@ -174,6 +174,12 @@ public class MobDefenseChain extends SingleTaskChain {
         return _brain.lastRunEnd();
     }
 
+    // (the repair after smoke8, risk_camp_back) the most hp (less the burn) a run for the danger meter began at in the last
+    // run, -1 when none of it was the meter's
+    public float lastCombatRunHp() {
+        return _brain.lastRunHp();
+    }
+
     public String combatFightName() {
         return _brain.fightName();
     }
