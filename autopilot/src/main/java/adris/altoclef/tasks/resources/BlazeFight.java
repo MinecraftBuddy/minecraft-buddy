@@ -92,6 +92,8 @@ final class BlazeFight {
     private boolean packDrop;
     // a pack within PACK_PLAYER_RADIUS of us (packSize of them, around packCenter) and whether it is also inside the back off radius
     private boolean packHere;
+    // the last line of Tuning fireproof_wither_one's hold, one every ten seconds at most
+    private long oneWitherSaidAt = Long.MIN_VALUE / 2;
     private boolean packClose;
     private int packSize;
     private double[] packCenter;
@@ -1494,6 +1496,12 @@ final class BlazeFight {
         boolean bowKit = bowOn && frTicks >= BlazeFightRules.BOW_FR_TICKS && adris.altoclef.tasks.entity.ForcedBowTask.canShoot(mod);
         double swingReach = bowKit ? mod.getControllerExtras().swingReach() : 0;
         Vec3 eye = player.getEyePosition();
+        // (Tuning fireproof_wither_one, off, 13 Nov 2026: in the fire-proof camp one wither skeleton is enough to keep the chase
+        // off, by the blaze or by the buddy, where a pack takes three; only a blaze within a bite is still taken. under the
+        // potion a blaze waited for does no harm, a wither skeleton walked into does: in route-58 nine phase-6 runs died to them
+        // with the potion on, eight with no rod yet, each after leaving the camp after a blaze; the skeleton is met at the camp)
+        boolean oneWither = !errand && fireproofCamp(player) && adris.altoclef.util.helpers.Tuning.get("fireproof_wither_one", 0) > 0;
+        int withersUs = oneWither ? witherSkeletonsNear(mod, player.position(), BlazeFightRules.PACK_PLAYER_RADIUS) : 0;
         for (Blaze blaze : blazes) {
             if (!blaze.isAlive()) continue;
             double distance = player.distanceTo(blaze);
@@ -1501,8 +1509,17 @@ final class BlazeFight {
             boolean inReach = false;
             // a blaze hovering over a wither skeleton pack is theirs, not ours
             // the one we are already after is checked at any distance, so it can't drift out of pick range and keep us walking at a pack
-            boolean packed = packHere || ((distance <= range || blaze == target)
-                    && BlazeFightRules.packNear(witherSkeletonsNear(mod, blaze.position(), BlazeFightRules.PACK_BLAZE_RADIUS)));
+            boolean byUs = distance <= range || blaze == target;
+            int withersBy = byUs ? witherSkeletonsNear(mod, blaze.position(), BlazeFightRules.PACK_BLAZE_RADIUS) : 0;
+            boolean packed = packHere || (byUs && BlazeFightRules.packNear(withersBy));
+            if (!packed && BlazeFightRules.oneWitherHolds(oneWither, byUs, distance, BITE_RANGE, withersBy, withersUs)) {
+                packed = true;
+                if (now - oneWitherSaidAt >= 200 || now < oneWitherSaidAt) {
+                    oneWitherSaidAt = now;
+                    Debug.logInternal(String.format(java.util.Locale.ROOT, "rods: a wither skeleton by %s (%d by the blaze, %d within %.0f of us): the chase waits at the camp",
+                            withersBy > 0 ? "the blaze" : "us", withersBy, withersUs, BlazeFightRules.PACK_PLAYER_RADIUS));
+                }
+            }
             // a pack we already met is still there when one of them walks out of tracking, the zone remembers it for us
             // (not one biting us, nor any under the rush: BlazeFightRules.zoneHides)
             packed |= BlazeFightRules.zoneHides(RunZones.INSTANCE.covers(blaze.getX(), blaze.getZ(), now), rushNow, distance, BITE_RANGE);

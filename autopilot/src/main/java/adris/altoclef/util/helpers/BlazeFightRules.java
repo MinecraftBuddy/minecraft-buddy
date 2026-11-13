@@ -88,6 +88,13 @@ public final class BlazeFightRules {
     private BlazeFightRules() {
     }
 
+    // Tuning fireproof_wither_one (13 Nov 2026, off): in the fire-proof camp one wither skeleton by the blaze, or within
+    // PACK_PLAYER_RADIUS of the buddy, holds the chase for a blaze in pick range or the one we are after; one within a bite
+    // is still taken (BlazeFight.scan)
+    public static boolean oneWitherHolds(boolean on, boolean byUs, double distance, double biteRange, int withersByBlaze, int withersByUs) {
+        return on && byUs && distance > biteRange && (withersByBlaze > 0 || withersByUs > 0);
+    }
+
     // enough wither skeletons around one spot to call it a pack
     public static boolean packNear(int witherSkeletons) {
         return witherSkeletons >= PACK_SIZE;

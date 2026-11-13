@@ -376,4 +376,16 @@ public class BlazeFightRulesTest {
         // a burn that went negative counts as none
         assertFalse(BlazeFightRules.lureHold(true, 16, -1, 16));
     }
+
+    // fireproof_wither_one: one wither skeleton by the blaze or by the buddy holds the chase; a blaze within a bite, the
+    // switch off, or a blaze out of pick range that is not our target, does not
+    @Test
+    public void oneWitherSkeletonHoldsTheChaseInTheFireproofCamp() {
+        assertTrue(BlazeFightRules.oneWitherHolds(true, true, 8, 3.5, 1, 0));
+        assertTrue(BlazeFightRules.oneWitherHolds(true, true, 8, 3.5, 0, 1));
+        assertFalse(BlazeFightRules.oneWitherHolds(true, true, 3, 3.5, 1, 1));
+        assertFalse(BlazeFightRules.oneWitherHolds(false, true, 8, 3.5, 1, 1));
+        assertFalse(BlazeFightRules.oneWitherHolds(true, false, 20, 3.5, 1, 1));
+        assertFalse(BlazeFightRules.oneWitherHolds(true, true, 8, 3.5, 0, 0));
+    }
 }
