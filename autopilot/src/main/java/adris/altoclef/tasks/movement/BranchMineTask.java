@@ -424,6 +424,7 @@ public class BranchMineTask extends Task {
                 setDebugState("Baritone's mine will not start here, a tunnel of its own");
                 return null;
             }
+            bandMine(mod);
             mine.mine(0, _blocks);
             _mining = true;
         }
@@ -653,6 +654,34 @@ public class BranchMineTask extends Task {
             mod.getClientBaritone().getMineProcess().cancel();
             _mining = false;
         }
+        unbandMine();
+    }
+
+    // (Tuning mine_band_ores, a fix of 13 Nov 2026, on: while this mine runs, baritone's mine takes only ores within the 8 the
+    // band allows round the mine's height (its minYLevelWhileMining and maxYLevelWhileMining), and the settings go back when
+    // it stops. it went to ores it knew above the band, out of it, the mine stopped and the staircase down began again: 87
+    // turns of that in the golden helmet's 57 minutes of the goudslijm smoke, about 45 minutes of the run's gold)
+    private Integer _bandMinBefore, _bandMaxBefore;
+
+    private void bandMine(AltoClef mod) {
+        if (_mineY == null || adris.altoclef.util.helpers.Tuning.get("mine_band_ores", 0) <= 0) return;
+        baritone.api.Settings s = baritone.api.BaritoneAPI.getSettings();
+        if (_bandMinBefore == null) {
+            _bandMinBefore = s.minYLevelWhileMining.value;
+            _bandMaxBefore = s.maxYLevelWhileMining.value;
+        }
+        int minY = mod.getWorld().dimensionType().minY();
+        s.minYLevelWhileMining.value = Math.max(0, _mineY - 8 - minY);
+        s.maxYLevelWhileMining.value = _mineY + 8;
+    }
+
+    private void unbandMine() {
+        if (_bandMinBefore == null) return;
+        baritone.api.Settings s = baritone.api.BaritoneAPI.getSettings();
+        s.minYLevelWhileMining.value = _bandMinBefore;
+        s.maxYLevelWhileMining.value = _bandMaxBefore;
+        _bandMinBefore = null;
+        _bandMaxBefore = null;
     }
 
     @Override

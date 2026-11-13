@@ -167,6 +167,8 @@ public final class Tuning {
             java.util.Map.entry("fireproof_wither_one", 0.0),
             // (13 Nov 2026, on: a line only, whether a plain walk reaches a stand under a blaze the chase found no path to)
             java.util.Map.entry("blaze_way_log", 1.0),
+            // (a fix of 13 Nov 2026: a branch mine's baritone mine takes only ores in its band, BranchMineTask)
+            java.util.Map.entry("mine_band_ores", 1.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),
             // (11 Nov 2026, a fix: the pillbox the route's brew was made in stayed the fight's camp and corner under the brewed
             // potion, as the brewed one followed the traded one with no gap; once the brew is through and the potion on, the camp
