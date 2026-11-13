@@ -161,7 +161,10 @@ public class GhastShelterChain extends SingleTaskChain {
                 // buddy stays seen, is no other cover. at a shadow's edge one ray a cell flips seen and hidden, and the buddy hopped
                 // five covers 1-2 blocks apart in a second while a ghast circled, both its fireballs landing mid hop, look 73)
                 boolean nearStay = adris.altoclef.util.helpers.Tuning.get("ghast_cover_near_stay", 1) > 0;
-                if (nearStay && other != null && (_stayingSeen || other.distSqr(_cover) <= 9)) other = null;
+                // (13 Nov 2026, look 74: the held cover, not none: with none the buddy stayed seen one cell beside the cover it held
+                // (there is within 2) and never stepped into it, the cell that may still hide it; five fireballs, 20 to 13.8 hp, while
+                // the order waited 2 min 47 s. now a refused near cover is the held one, and the branch below walks into its cell)
+                if (nearStay && other != null && (_stayingSeen || other.distSqr(_cover) <= 9)) other = _cover;
                 // (the feet a block under the cover cell on soul sand or a slab are in it as well)
                 boolean inCell = nearStay ? player.getBlockX() == _cover.getX() && player.getBlockZ() == _cover.getZ()
                         && Math.abs(player.getBlockY() - _cover.getY()) <= 1 : player.blockPosition().equals(_cover);
