@@ -689,6 +689,11 @@ final class ObtainSafe {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_hand_dig", 0) > 0;
 	}
 
+	/** The autopilot's shelter_stuck_way_out switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
+	static boolean stuckWayOutOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_stuck_way_out", 0) > 0;
+	}
+
 	/** The block the night shelter puts in first: the first in the bag that passes shelterBlock; null with none. */
 	static String firstShelterBlock(LocalPlayer p) {
 		var in = p.getInventory();
@@ -1190,6 +1195,11 @@ final class ObtainSafe {
 		long digSince, dugAt, mealAt;
 		boolean noDig;
 		/**
+		 * (the autopilot's shelter_stuck_way_out, a fix of 14 Nov 2026, on) the standing cell a try elsewhere kept the shut-in on
+		 * the spot at (DigIn.keepNoDig); null when none is kept.
+		 */
+		BlockPos noDigKeptAt;
+		/**
 		 * (the autopilot's shelter_refused_walls, a fix of 13 Nov 2026, on) the dig stopped short of its depth at this spot: the
 		 * ground under the feet no ground to dig, or a block that would not break.
 		 */
@@ -1424,6 +1434,10 @@ final class ObtainSafe {
 				ObtainSteps.Result r = prop(mc, p, level, now);
 				if (r == ObtainSteps.Result.RUN) return r;
 			}
+			// (shelter_stuck_way_out) the shut-in on the spot a try elsewhere kept holds only while the feet stay where it was kept
+			if (noDigKeptAt != null && !DigIn.feetStayed(f.getX(), f.getZ(), noDigKeptAt.getX(), noDigKeptAt.getZ())) {
+				noDig = false; stoppedShort = false; noDigKeptAt = null;
+			}
 			// down: three under the open sky; two where the buddy digs in (shelter_dig_here), open sky or a tree's crown over the hole
 			if (!noDig && bottom == null && dug < (here != null ? 2 : 3) && (open(level, f) || here != null)) {
 				BlockPos under = f.below();
@@ -1577,19 +1591,28 @@ final class ObtainSafe {
 					// on grass over stone with no block in the bag, "shut but for 2 cells" under a skeleton's arrows, 20 to 5 hp, until
 					// the autopilot's own cover dug two down in dirt by hand and held till the morning
 					// (looked for once in 10 s: a look is some thousand columns)
+					// (the autopilot's shelter_stuck_way_out, a fix of 14 Nov 2026, on) once the three tries elsewhere are spent, the
+					// dig-in by hand is the way out with blocks in the bag too: a live look at the test heel, 12 logs and an axe, a
+					// wait half shut for good till a stray shot in through the open side
+					boolean stuckWayOut = stuckWayOutOn();
 					BlockPos hand = null;
-					if (!duck && now - stuckSince > 20_000 && now - handLookAt > 10_000 && DigIn.handDig(handDigOn(), digHereOn(), duck, shelterBlocks(p), handDigs)) {
+					if (!duck && now - stuckSince > 20_000 && now - handLookAt > 10_000
+							&& DigIn.handDig(handDigOn(), digHereOn(), duck, shelterBlocks(p), handDigs, DigIn.triesSpent(stuckWayOut, elsewhere))) {
 						handLookAt = now;
 						hand = handSite(level, p, f, bad);
 					}
-					if (!duck && now - stuckSince > 20_000 && (hand != null || elsewhere < 3)) {
+					if (!duck && now - stuckSince > 20_000 && (hand != null || elsewhere < DigIn.ELSEWHERE_TRIES)) {
 						if (hand != null) handDigs++;
 						else elsewhere++;
 						bad.add(f.immutable());
 						bottom = null; site = null; siteSince = 0; dug = 0; extra = 0; stuckSince = 0; since = now;
 						here = null; prop = null; propDone = false; nearSite = false; handWalk = false;
 						// (shelter_dig_clock) a new spot gets its own dig and its own clock
-						noDig = false; digAt = null; dugAt = 0; stoppedShort = false;
+						// (shelter_stuck_way_out: a try elsewhere keeps the shut-in on the spot while the feet stay where they are,
+						// so the pass over the cell that will not shut still lets the other walls and the top go up)
+						boolean keep = DigIn.keepNoDig(stuckWayOut, noDig, hand != null);
+						noDigKeptAt = keep ? f.immutable() : null;
+						noDig = keep; digAt = null; dugAt = 0; stoppedShort = keep && stoppedShort;
 						if (hand != null) {
 							site = hand; siteSince = now; nearSite = true; handWalk = true;
 							Exchange.emit("obtain", "action", "shelter", "what", "digs in by hand elsewhere", "x", hand.getX(), "y", hand.getY(), "z", hand.getZ(),

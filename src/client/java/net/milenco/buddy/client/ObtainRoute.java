@@ -10,7 +10,7 @@ import java.util.function.Predicate;
 /**
  * The overworld's way to the nether in a fixed order of phases, for an order whose way goes into the nether and that began
  * in the overworld. Three milestones: M1 everything ready for the first iron, M2 iron tools and armour, M3 ready for the
- * nether (a diamond pickaxe, ten obsidian, flint and steel, 128 gold, a golden helmet, a slime ball). The kit (Alto.kit) asks the pieces
+ * nether (a diamond pickaxe, ten obsidian, flint and steel, 96 gold, a golden helmet, a slime ball). The kit (Alto.kit) asks the pieces
  * of the phase under way in their order and goes on to the next phase once nothing of it is left to ask; the whole order
  * (the autopilot's own way in: the frame from the bag's obsidian, lit, and through) comes only after the last phase. Each
  * phase says a line when it begins ("route: phase m2.1 armour") and one when it is left unmet ("route: phase m2.1 short"),
@@ -42,9 +42,9 @@ final class ObtainRoute {
 	static final int WOOD = 16 * 4;
 
 	/** Gold kept for the piglins' trade: what M3 is ready with, besides a golden helmet worn and a spare (96 since 12 Nov
-	 * 2026: 64 proved too few for a potion; 128 since that evening: the first potion near certain, 1 in 90 runs without one
-	 * against 1 in 30 at 96, and no longer in the nether, as the trade stops at the first potion). */
-	static final int GOLD = 128;
+	 * 2026: 64 proved too few for a potion; 128 that evening; 96 again since 14 Nov 2026 by the maintainer's word, what the
+	 * phase records count: 96 and 5 more for a golden helmet). */
+	static final int GOLD = 96;
 
 	/** What the route reads of the buddy. */
 	interface Bag {
@@ -256,7 +256,7 @@ final class ObtainRoute {
 	/**
 	 * Whether the bag meets the phase, as the practice rig reads it: a pickaxe; a stone one or better and a furnace held at
 	 * some time; eight food and a bed; three iron (or better) pieces worn and a shield; two iron pickaxes, an iron sword and
-	 * a water bucket; a diamond pickaxe and sword and redstone; ten obsidian; 128 gold with a golden helmet worn and a spare;
+	 * a water bucket; a diamond pickaxe and sword and redstone; ten obsidian; 96 gold with a golden helmet worn and a spare;
 	 * that gold and a slime ball (a ball alone is no progress: a bare start may carry one).
 	 * The portal's phase is the nether itself, never the bag.
 	 */

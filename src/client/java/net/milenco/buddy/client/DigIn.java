@@ -150,6 +150,41 @@ final class DigIn {
 	 * at most; {@code digHere} is the dig-in's own switch (shelter_dig_here), which does the digging.
 	 */
 	static boolean handDig(boolean on, boolean digHere, boolean duck, int blocks, int tries) {
-		return on && digHere && !duck && blocks == 0 && tries < 3;
+		return handDig(on, digHere, duck, blocks, tries, false);
+	}
+
+	/**
+	 * The same, and (the autopilot's shelter_stuck_way_out, a fix of 14 Nov 2026, on) {@code spent}: the three tries elsewhere
+	 * are spent, so the dig-in by hand is the way out with blocks in the bag too. A live look at the test heel: a cell that
+	 * would not shut, three tries elsewhere that left the feet where they were, 12 logs in the bag and only an axe, then a
+	 * wait half shut for good until a stray shot in through the open side.
+	 */
+	static boolean handDig(boolean on, boolean digHere, boolean duck, int blocks, int tries, boolean spent) {
+		return on && digHere && !duck && (blocks == 0 || spent) && tries < 3;
+	}
+
+	/** (shelter_stuck_way_out) the tries elsewhere the night shelter takes before it waits where it is. */
+	static final int ELSEWHERE_TRIES = 3;
+
+	/** (shelter_stuck_way_out) the tries elsewhere are spent: the switch on and {@link #ELSEWHERE_TRIES} of them taken. */
+	static boolean triesSpent(boolean on, int elsewhere) {
+		return on && elsewhere >= ELSEWHERE_TRIES;
+	}
+
+	/**
+	 * (shelter_stuck_way_out) a try elsewhere that found no walk to make keeps the shut-in on the spot ({@code noDig}): the
+	 * dig there ran out already, and dropping it switched off shelter_refused_walls' pass over the cell that will not shut, so
+	 * the other walls and the top never went up. Not for a walk to a dig-in by hand ({@code hand}), which starts afresh.
+	 */
+	static boolean keepNoDig(boolean on, boolean noDig, boolean hand) {
+		return on && noDig && !hand;
+	}
+
+	/**
+	 * (shelter_stuck_way_out) a kept shut-in on the spot holds while the feet stay in the column it was kept at; a walk to
+	 * another cell starts that cell's own dig.
+	 */
+	static boolean feetStayed(int x, int z, int atX, int atZ) {
+		return x == atX && z == atZ;
 	}
 }

@@ -190,4 +190,30 @@ class DigInTest {
 		assertFalse(DigIn.handDig(true, false, false, 0, 0));
 		assertFalse(DigIn.handDig(false, true, false, 0, 0));
 	}
+
+	// (shelter_stuck_way_out) a live look at the test heel: three tries elsewhere spent, 12 logs in the bag, a wait half shut
+	@Test
+	void onceTheTriesElsewhereAreSpentTheHandDigWithBlocksToo() {
+		assertFalse(DigIn.handDig(true, true, false, 12, 0, DigIn.triesSpent(true, 2)));
+		assertTrue(DigIn.handDig(true, true, false, 12, 0, DigIn.triesSpent(true, 3)));
+		assertTrue(DigIn.handDig(true, true, false, 12, 2, DigIn.triesSpent(true, 3)));
+		assertFalse(DigIn.handDig(true, true, false, 12, 3, DigIn.triesSpent(true, 3)));
+		// switched off it is the empty bag only, as before
+		assertFalse(DigIn.handDig(true, true, false, 12, 0, DigIn.triesSpent(false, 3)));
+		assertTrue(DigIn.handDig(true, true, false, 0, 0, DigIn.triesSpent(false, 3)));
+		// from shooters still none
+		assertFalse(DigIn.handDig(true, true, true, 12, 0, DigIn.triesSpent(true, 3)));
+	}
+
+	@Test
+	void aTryElsewhereKeepsTheShutInOnTheSpotWhileTheFeetStay() {
+		assertTrue(DigIn.keepNoDig(true, true, false));
+		// a walk to a dig-in by hand starts afresh
+		assertFalse(DigIn.keepNoDig(true, true, true));
+		assertFalse(DigIn.keepNoDig(true, false, false));
+		assertFalse(DigIn.keepNoDig(false, true, false));
+		assertTrue(DigIn.feetStayed(10, -4, 10, -4));
+		assertFalse(DigIn.feetStayed(11, -4, 10, -4));
+		assertFalse(DigIn.feetStayed(10, -3, 10, -4));
+	}
 }
