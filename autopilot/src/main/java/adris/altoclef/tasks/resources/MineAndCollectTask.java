@@ -841,6 +841,188 @@ public class MineAndCollectTask extends ResourceTask {
             return closestBlock;
         }
 
+        // (the buddy's fork, Tuning stone_pit_first, a fix of 13 Nov 2026, on) the pit for the first stone where the server hides
+        // what is buried (legitMine, the overworld): see StoneDigRank's pit rules. _pit the dig under way, _pitAt its column at
+        // its floor's height, _pitSince when it began (game ticks), _pits this task's, _pitLookAt the last look for one
+        private Task _pit;
+        private BlockPos _pitAt;
+        private long _pitSince;
+        private int _pits;
+        private int _pitLookAt;
+        // the pits dug lately by any task ({x, z, game time}) and when the last ended, kept per world as the band memory is: the
+        // parent builds this task again after every craft
+        private static final List<long[]> PITS = new ArrayList<>();
+        private static long pitEndAt = Long.MIN_VALUE / 2;
+        private static int pitWorld;
+        // a stone this close to the eye ends the pit, the pick hits it from where we stand
+        private static final double PIT_REACH_SQ = 4.5 * 4.5;
+
+        private static void pitMemory(AltoClef mod) {
+            int world = System.identityHashCode(mod.getWorld());
+            if (world != pitWorld) {
+                PITS.clear();
+                pitEndAt = Long.MIN_VALUE / 2;
+                pitWorld = world;
+            }
+        }
+
+        // the pit under way, a new one when it is wanted, else null. a pit that ends starts the search afresh, so the stone it
+        // showed is picked over the one far below
+        private Task stonePit(AltoClef mod) {
+            var player = mod.getPlayer();
+            if (player == null || mod.getWorld() == null) {
+                return null;
+            }
+            pitMemory(mod);
+            long now = mod.getWorld().getGameTime();
+            boolean on = adris.altoclef.util.helpers.Tuning.get("stone_pit_first", 0) > 0 && _stoneOnly
+                    && Baritone.settings().legitMine.value && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD;
+            BlockPos feet = player.blockPosition();
+            if (_pit != null) {
+                String end = on ? StoneDigRank.pitEnd(feet.getY(), _pitAt.getY(), player.onGround(), stoneInReach(mod, player), now - _pitSince)
+                        : "switched off or left the overworld";
+                // in the column, the next cell down wet, or still standing over no floor (what the server showed once the first
+                // broke). a next cell of air is the one just broken, the fall a tick away
+                int x = feet.getX(), z = feet.getZ(), next = feet.getY() - 1;
+                if (end == null && player.onGround() && x == _pitAt.getX() && z == _pitAt.getZ() && feet.getY() > _pitAt.getY()
+                        && (wetAround(mod, x, next, z) || !mod.getWorld().getBlockState(new BlockPos(x, next, z)).isAir() && !floorHolds(mod, x, next - 1, z))) {
+                    end = "water, lava or a drop under the next cell";
+                }
+                if (end == null) {
+                    setDebugState("Digging a pit at " + _pitAt.getX() + " " + _pitAt.getZ() + " so the stone under the ground shows");
+                    return _pit;
+                }
+                Debug.logInternal("stone pit at " + _pitAt.getX() + " " + _pitAt.getZ() + " ends at y " + feet.getY() + ": " + end
+                        + " after " + (now - _pitSince) / 20 + " s (stone_pit_first)");
+                _pit = null;
+                pitEndAt = now;
+                resetSearch();
+                _miningPos = null;
+                _progressChecker.newTarget();
+                _noPath.disarm();
+                return null;
+            }
+            if (!on) {
+                return null;
+            }
+            int t = WorldHelper.getTicks();
+            if (t >= _pitLookAt && t - _pitLookAt < 20) {
+                return null;
+            }
+            _pitLookAt = t;
+            if (!player.onGround() || player.isInWater()) {
+                return null;
+            }
+            Integer bestY = _miningPos != null ? _miningPos.getY() : null;
+            if (!StoneDigRank.pitWanted(_tunnel.latched(), feet.getY(), bestY, _miningPos == null && wasWandering())) {
+                return null;
+            }
+            if (!StoneDigRank.pitAllowed(_pits, now - pitEndAt, StoneDigRank.nearPit(PITS, feet.getX(), feet.getZ(), now))) {
+                return null;
+            }
+            // a stone in reach already (a wall beside us): the pick takes that one
+            if (stoneInReach(mod, player)) {
+                return null;
+            }
+            BlockPos column = pitColumn(mod, feet);
+            if (column == null) {
+                return null;
+            }
+            int floorY = column.getY() - StoneDigRank.PIT_DEPTH;
+            _pit = new adris.altoclef.tasks.movement.GetDownColumnTask(column.getX(), column.getZ(), floorY, false);
+            _pitAt = new BlockPos(column.getX(), floorY, column.getZ());
+            _pitSince = now;
+            _pits++;
+            PITS.add(new long[]{column.getX(), column.getZ(), now});
+            if (PITS.size() > 32) {
+                PITS.remove(0);
+            }
+            Debug.logInternal("no stone within reach, " + (bestY == null ? "none known" : "the best " + (feet.getY() - bestY) + " below the feet")
+                    + ": a pit " + StoneDigRank.PIT_DEPTH + " deep at " + column.getX() + " " + column.getY() + " " + column.getZ()
+                    + " first, so the stone under the ground shows (stone_pit_first)");
+            setDebugState("Digging a pit at " + column.getX() + " " + column.getZ() + " so the stone under the ground shows");
+            return _pit;
+        }
+
+        // a stone of ours the client sees within PIT_REACH_SQ of the eye, from the live look round the feet
+        private boolean stoneInReach(AltoClef mod, net.minecraft.client.player.LocalPlayer player) {
+            Vec3 eye = player.getEyePosition();
+            long gameTime = mod.getWorld().getGameTime();
+            for (StoneDigRank.Scored s : localStones(mod, player.position())) {
+                BlockPos at = s.pos();
+                if (eye.distanceToSqr(Vec3.atCenterOf(at)) > PIT_REACH_SQ) {
+                    continue;
+                }
+                if (mod.getBlockTracker().unreachable(at) || PlacedByUs.GLOBAL.recent(at.getX(), at.getY(), at.getZ(), gameTime)) {
+                    continue;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        // the feet's column for the pit, else one beside the feet with room to step into it; null when none will do
+        private static BlockPos pitColumn(AltoClef mod, BlockPos feet) {
+            if (pitColumnOk(mod, feet)) {
+                return feet;
+            }
+            var world = mod.getWorld();
+            for (Direction d : Direction.Plane.HORIZONTAL) {
+                BlockPos c = feet.relative(d);
+                BlockState at = world.getBlockState(c);
+                BlockState head = world.getBlockState(c.above());
+                if (!at.getCollisionShape(world, c).isEmpty() || !head.getCollisionShape(world, c.above()).isEmpty()
+                        || !at.getFluidState().isEmpty() || !head.getFluidState().isEmpty()) {
+                    continue;
+                }
+                if (pitColumnOk(mod, c)) {
+                    return c;
+                }
+            }
+            return null;
+        }
+
+        private static boolean pitColumnOk(AltoClef mod, BlockPos top) {
+            int x = top.getX();
+            int z = top.getZ();
+            return StoneDigRank.pitColumn(top.getY(), StoneDigRank.PIT_DEPTH, y -> pitCell(mod, x, y, z), y -> wetAround(mod, x, y, z),
+                    y -> floorHolds(mod, x, y, z));
+        }
+
+        // a cell of the pit: a block to break (no air, no bedrock, nothing with contents, nothing protected)
+        private static boolean pitCell(AltoClef mod, int x, int y, int z) {
+            BlockPos at = new BlockPos(x, y, z);
+            var world = mod.getWorld();
+            BlockState state = world.getBlockState(at);
+            if (state.isAir() || state.getDestroySpeed(world, at) < 0 || world.getBlockEntity(at) != null) {
+                return false;
+            }
+            return WorldHelper.canBreak(mod, at);
+        }
+
+        // water or lava in the cell or beside it, above or under it
+        private static boolean wetAround(AltoClef mod, int x, int y, int z) {
+            BlockPos at = new BlockPos(x, y, z);
+            var world = mod.getWorld();
+            if (!world.getFluidState(at).isEmpty()) {
+                return true;
+            }
+            for (Direction d : Direction.values()) {
+                if (!world.getFluidState(at.relative(d)).isEmpty()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // a floor to stand on at the pit's bottom: no air, no fluid, a whole top face
+        private static boolean floorHolds(AltoClef mod, int x, int y, int z) {
+            BlockPos at = new BlockPos(x, y, z);
+            var world = mod.getWorld();
+            BlockState state = world.getBlockState(at);
+            return !state.isAir() && state.getFluidState().isEmpty() && state.isFaceSturdy(world, at, Direction.UP);
+        }
+
         // the tunnel we dig along once the only stone worth having is under our feet (see StoneTunnel)
         private final StoneTunnel _tunnel = new StoneTunnel();
         // the live look around our feet (see localStones) and what it was taken for
@@ -1532,6 +1714,11 @@ public class MineAndCollectTask extends ResourceTask {
 
         @Override
         protected Task onTick(AltoClef mod) {
+            // (Tuning stone_pit_first) the pit first, ahead of the pursuit's watches: what it digs is no stone of ours
+            Task pit = stonePit(mod);
+            if (pit != null) {
+                return pit;
+            }
             if (mod.getClientBaritone().getPathingBehavior().isPathing()) {
                 _progressChecker.reset();
             }

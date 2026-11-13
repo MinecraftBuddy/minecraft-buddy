@@ -203,4 +203,76 @@ public final class StoneDigRank {
         }
         return null;
     }
+
+    // ---- (the buddy's fork, Tuning stone_pit_first, a fix of 13 Nov 2026, on) the pit for the first stone under anti-xray.
+    // a server that hides ores (Paper's anti-xray, engine mode 2, as the rigs run it in the overworld up to y 64) sends every
+    // buried block of stone, dirt and the like as a random ore, and the real one once something next to it opens up. the
+    // stone the client knows is then a cave wall far below, the path to it digs through the fake ores and finds nothing (test
+    // heel: 197 no-path bans on 67 blocks in 7 minutes, the stone 21 to 25 below), and the tunnel above never starts, its
+    // stone line is fake ores too. a player digs down where they stand: a pit PIT_DEPTH deep at the feet, which shows the real
+    // stone round it, and the look round the feet takes it. no x-ray: only the blocks the client is shown
+
+    // the best stone this far below the feet or more is the pit's case
+    public static final int PIT_BELOW = 8;
+    // how deep the pit goes at most; the server shows the real blocks within 2 of each one broken
+    public static final int PIT_DEPTH = 4;
+    // a pit's time, in game ticks (30 s); then the pick as before
+    public static final long PIT_TICKS = 600;
+    // no new pit within PIT_GAP_TICKS of the last one's end, nor within PIT_SAME_RANGE blocks of one dug in the last
+    // PIT_SAME_TICKS (5 minutes), and PIT_MAX for one task: never a loop of pits
+    public static final long PIT_GAP_TICKS = 600;
+    public static final long PIT_SAME_TICKS = 6000;
+    public static final int PIT_SAME_RANGE = 2;
+    public static final int PIT_MAX = 2;
+
+    // a pit is wanted: no tunnel latched (that one walks the stone line it found), and the best stone more than PIT_BELOW under
+    // the feet, or none known at all (bestY null) while the task wanders for want of one
+    public static boolean pitWanted(boolean latched, int feetY, Integer bestY, boolean wandering) {
+        if (latched) {
+            return false;
+        }
+        return bestY == null ? wandering : bestY < feetY - PIT_BELOW;
+    }
+
+    // another pit may start: under PIT_MAX for this task, PIT_GAP_TICKS since the last one ended, none dug near lately
+    public static boolean pitAllowed(int pits, long sinceLastEnd, boolean nearRecent) {
+        return pits < PIT_MAX && sinceLastEnd >= PIT_GAP_TICKS && !nearRecent;
+    }
+
+    // a pit dug within PIT_SAME_RANGE of x, z in the last PIT_SAME_TICKS. recent holds {x, z, game time}
+    public static boolean nearPit(List<long[]> recent, int x, int z, long now) {
+        for (long[] r : recent) {
+            if (now - r[2] < PIT_SAME_TICKS && now >= r[2] && Math.abs(r[0] - x) <= PIT_SAME_RANGE && Math.abs(r[1] - z) <= PIT_SAME_RANGE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // the column under the feet at feetY is one for the pit: its depth cells each a block to break (breakable) and dry (wet:
+    // water or lava in or beside it), and under the last a floor that holds (no air, no fluid): never straight down into a cave,
+    // a drop or water. the server hides no air and no fluid, so what the client sees of those is so
+    public static boolean pitColumn(int feetY, int depth, IntPredicate breakable, IntPredicate wet, IntPredicate floor) {
+        for (int y = feetY - 1; y >= feetY - depth; y--) {
+            if (!breakable.test(y) || wet.test(y)) {
+                return false;
+            }
+        }
+        return floor.test(feetY - depth - 1);
+    }
+
+    // why the pit ends, null while it goes on: a stone in reach (the look round the feet takes it), the feet at its floor, or its
+    // time (ticks since it began) up
+    public static String pitEnd(int feetY, int floorY, boolean onGround, boolean stoneInReach, long ticks) {
+        if (stoneInReach) {
+            return "stone in reach";
+        }
+        if (onGround && feetY <= floorY) {
+            return "at its floor";
+        }
+        if (ticks > PIT_TICKS) {
+            return "no stone in " + PIT_TICKS / 20 + " s";
+        }
+        return null;
+    }
 }

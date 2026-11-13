@@ -254,6 +254,20 @@ public final class Tuning {
             // three times within ten blocks counts as a fire of the place watch; a fire leaves a walk along under way going,
             // BranchMineTask)
             java.util.Map.entry("mine_leave_given_up", 1.0),
+            // (fixes of 13 Nov 2026, test heel's night start with an empty bag on grass over stone, read for the buddy's ObtainSafe:
+            // with fewer than 5 blocks to build with, no shooter close and no dig here, the night shelter first breaks up to 6
+            // surface cells of grass or dirt within 3 blocks by hand and picks the dirt up; ground counts as dug for the shelter only
+            // with a tool that takes it out (stone only with a pickaxe), so no site of stone is walked to with an empty hand; with
+            // an empty bag and a cell that will not shut, a cell within 16 where two of ground come out by hand, and the buddy
+            // digs in there and shuts the top with the dug block)
+            java.util.Map.entry("shelter_blocks_first", 1.0),
+            java.util.Map.entry("shelter_tool_dig", 1.0),
+            java.util.Map.entry("shelter_hand_dig", 1.0),
+            // (a fix of 13 Nov 2026, test heel's first stone under the rigs' anti-xray, where every buried block below y 64 reaches
+            // the client as an ore: with legitMine on in the overworld and the best stone more than 8 blocks below the feet, or
+            // none known, a pit four deep at the feet first, so the real stone shows and the look round the feet takes it,
+            // MineAndCollectTask)
+            java.util.Map.entry("stone_pit_first", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),
