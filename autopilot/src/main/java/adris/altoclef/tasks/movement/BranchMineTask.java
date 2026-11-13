@@ -657,8 +657,8 @@ public class BranchMineTask extends Task {
         unbandMine();
     }
 
-    // (Tuning mine_band_ores, a fix of 13 Nov 2026, on: while this mine runs, baritone's mine takes only ores within the 8 the
-    // band allows round the mine's height (its minYLevelWhileMining and maxYLevelWhileMining), and the settings go back when
+    // (Tuning mine_band_ores, a fix of 13 Nov 2026, on: while this mine runs, baritone's mine takes only ores within 5 of
+    // the mine's height (its minYLevelWhileMining and maxYLevelWhileMining), and the settings go back when
     // it stops. it went to ores it knew above the band, out of it, the mine stopped and the staircase down began again: 87
     // turns of that in the golden helmet's 57 minutes of the goudslijm smoke, about 45 minutes of the run's gold)
     private Integer _bandMinBefore, _bandMaxBefore;
@@ -671,8 +671,10 @@ public class BranchMineTask extends Task {
             _bandMaxBefore = s.maxYLevelWhileMining.value;
         }
         int minY = mod.getWorld().dimensionType().minY();
-        s.minYLevelWhileMining.value = Math.max(0, _mineY - 8 - minY);
-        s.maxYLevelWhileMining.value = _mineY + 8;
+        // (5, not the stop band's 8: an ore at the band's lower edge put the feet at 9 under it and stopped the mine all the
+        // same; the goudslijm smokes 3 and 4 still restarted the staircase 1.2 times a minute, most of it 9 below)
+        s.minYLevelWhileMining.value = Math.max(0, _mineY - 5 - minY);
+        s.maxYLevelWhileMining.value = _mineY + 5;
     }
 
     private void unbandMine() {

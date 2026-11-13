@@ -174,6 +174,8 @@ public final class Tuning {
             // (13 Nov 2026, off: a blaze walked to by a stand on the ground under it, not the blaze in the air; GetToEntityTask,
             // the A/B block standplek)
             java.util.Map.entry("blaze_stand_goal", 0.0),
+            // (a fix of 13 Nov 2026: the food run's climb reads the height again where it stands, SurfaceFoodTask)
+            java.util.Map.entry("food_climb_again", 1.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),
             // (11 Nov 2026, a fix: the pillbox the route's brew was made in stayed the fight's camp and corner under the brewed
             // potion, as the brewed one followed the traded one with no gap; once the brew is through and the potion on, the camp

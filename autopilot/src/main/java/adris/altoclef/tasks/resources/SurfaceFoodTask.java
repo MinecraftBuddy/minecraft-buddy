@@ -50,6 +50,23 @@ public class SurfaceFoodTask extends Task {
             _topY = climbTo(mod.getWorld().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, feet.getX(), feet.getZ()),
                     mod.getWorld().getSeaLevel());
         }
+        // (Tuning food_climb_again, a fix of 13 Nov 2026, on: the height to climb to was read once, at the column the run began
+        // in; the climb's path moves on to other columns, and at the height reached with no sky in view the climb was done and
+        // the run stood still, 20 minutes at a time under a cave's roof at y 69 and 77: about 78 game minutes over the goudslijm
+        // smokes 3 and 4. reached with no sky, the height is read again here; when this column has nothing higher to climb (a
+        // tree's leaves over it), the surface is reached and the food run begins)
+        if (feet.getY() >= _topY && adris.altoclef.util.helpers.Tuning.get("food_climb_again", 0) > 0) {
+            int top = climbTo(mod.getWorld().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, feet.getX(), feet.getZ()),
+                    mod.getWorld().getSeaLevel());
+            if (top > feet.getY()) {
+                adris.altoclef.Debug.logInternal("food: no sky at y " + feet.getY() + ", the surface here is higher: on up to y " + top);
+                _topY = top;
+            } else {
+                adris.altoclef.Debug.logInternal("food: at the surface's height (y " + feet.getY() + ") with no sky in view, the food run begins here");
+                _up = true;
+                return _food;
+            }
+        }
         setDebugState("Up to the surface for food, to y " + _topY);
         return new GetToYTask(_topY);
     }
