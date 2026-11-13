@@ -9,6 +9,7 @@ import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.RecipeTarget;
 import adris.altoclef.util.helpers.HotbarTools;
 import adris.altoclef.util.helpers.ItemHelper;
+import adris.altoclef.util.helpers.MineLeave;
 import adris.altoclef.util.helpers.ToolWear;
 import baritone.Baritone;
 import net.minecraft.core.BlockPos;
@@ -102,6 +103,27 @@ public class BranchMineTask extends Task {
     // with the one at its start and fails over to its next piece
     public static volatile int gaveUps;
     public static volatile String gaveUpLine = "";
+    // (Tuning mine_leave_given_up, a fix of 13 Nov 2026, on) a branch mine that starts or runs within MineLeave.NEAR blocks of a
+    // spot where a mine gave its depth up in the last 30 game minutes first leaves it, MineLeave.FAR blocks off by baritone's
+    // normal goal path, which digs and climbs; a way with no headway in LEAVE_STALL ticks is passed for another, and after
+    // LEAVE_WAYS ways the mine goes on where it is. a kit piece whose mine gave up in a flooded cave failed over, and the next
+    // piece's mine began on the same ledge with a fresh place watch and stalled the same way, for each piece and each of its
+    // three tries (test heel's flooded cave)
+    private MineLeave.Spot _leaveFrom;
+    private Task _leaveTask;
+    private int _leaveTried, _leaveWays, _leaveWay = -1;
+    private double _leaveBest;
+    private long _leaveBestAt;
+    // the spots this task has left, or gave up leaving: once each
+    private final java.util.Set<MineLeave.Spot> _leaveDone = new java.util.HashSet<>();
+    static final long LEAVE_STALL = 2400;
+    static final int LEAVE_WAYS = 3;
+    // (mine_leave_given_up) the way down through the open (nothing under any step) that gets nowhere, counted by place: three
+    // in a row within ten blocks count as a fire of the place watch. baritone breaks nothing beside water, so in a flooded
+    // cave its search found no path, the task wandered five blocks, the staircase stepped back onto a ledge and the search
+    // failed again, every 7 s, and the place watch caught that only every three game minutes
+    private final MineLeave.Streak _downFails = new MineLeave.Streak(3, 10, 1200);
+    private boolean _downStall;
     // (mine_water_roof) out of water under a roof: the dry cell walked to, since when, the cells not reached in time, and the
     // last dry cell stood on (the way the buddy came)
     private BlockPos _dry, _lastDry;
@@ -164,6 +186,8 @@ public class BranchMineTask extends Task {
     protected void onStart(AltoClef mod) {
         // a fresh clock for the staircase up after time away (food, a fight): what it climbed before is no measure now
         _highest = Integer.MIN_VALUE;
+        // and a fresh clock for the leave's way: a fight or a meal is no lack of headway
+        if (_leaveFrom != null) _leaveBestAt = mod.getWorld().getGameTime();
     }
 
     @Override
@@ -180,18 +204,31 @@ public class BranchMineTask extends Task {
         // the cheap pick for the rock into the hotbar, where baritone's tools can see it (it looks at the hotbar only). first of
         // all: the walk away from sculk digs too, and the iron one went on it with a stone one in the bag (attempt 84)
         HotbarTools.forBlocks(mod, Blocks.STONE, Blocks.DEEPSLATE);
-        if (_place.tick(feet.getX(), feet.getZ(), now)) {
+        if (leaveOn()) {
+            Task leave = leaveGivenUp(mod, feet, now);
+            if (leave != null) return leave;
+        }
+        if (Math.abs(y - _mineY) <= 3) _downFails.reset();
+        boolean watch = _place.tick(feet.getX(), feet.getZ(), now);
+        boolean stall = _downStall;
+        _downStall = false;
+        if (watch || stall) {
+            int fx = watch ? _place.x() : _downFails.x(), fz = watch ? _place.z() : _downFails.z();
             stopMine(mod);
             if (adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0) {
-                _fires.add(_place.x(), _place.z(), now);
-                if (_fires.last() >= firesToGiveUp()) return giveUpHere(mod, now, y);
+                _fires.add(fx, fz, now);
+                if (_fires.last() >= firesToGiveUp()) return giveUpHere(mod, now, y, fx, fz, !watch);
             }
-            int turn = _dx;
-            _dx = -_dz;
-            _dz = turn;
-            _awaySteps = 0;
-            _awayStep = null;
-            _awayPrev = null;
+            // (mine_leave_given_up) a walk along under way goes on, way and all: zeroing it here stopped one at 25 blocks to
+            // go, and the mine started again in the place the walk was leaving
+            if (_awaySteps == 0 || !leaveOn()) {
+                int turn = _dx;
+                _dx = -_dz;
+                _dz = turn;
+                _awaySteps = 0;
+                _awayStep = null;
+                _awayPrev = null;
+            }
             _step = null;
             _deepest = Integer.MAX_VALUE;
             _deepestAt = now;
@@ -201,9 +238,10 @@ public class BranchMineTask extends Task {
             _starts.clear();
             _tunnelUntil = now + 2400;
             _tunnel = null;
-            adris.altoclef.Debug.logInternal("branch mine: three game minutes within ten blocks of " + _place.x() + ", " + _place.z()
-                    + " at y " + y + ", a tunnel of its own at y " + _mineY + " for two game minutes");
-            setDebugState("Three game minutes in one place, a tunnel of its own");
+            adris.altoclef.Debug.logInternal("branch mine: " + (watch ? "three game minutes" : "the way down got nowhere three times")
+                    + " within ten blocks of " + fx + ", " + fz + " at y " + y + ", a tunnel of its own at y " + _mineY + " for two game minutes"
+                    + (watch ? "" : " (mine_leave_given_up)"));
+            setDebugState((watch ? "Three game minutes in one place" : "The way down got nowhere three times here") + ", a tunnel of its own");
             return null;
         }
         // (Tuning ice_start_tunnel_hold, a fix of 13 Nov 2026, on) the tunnel of its own keeps the tick for its whole time on ice or
@@ -469,7 +507,7 @@ public class BranchMineTask extends Task {
             // ravine thirty deep it stood for minutes, every step down a drop (the runner, 3 Nov 2026, attempt 108)
             if (noFloorAnyWay(mod, feet)) {
                 setDebugState("Nothing under any step here: baritone's way down to y " + _mineY);
-                return new adris.altoclef.tasks.movement.GetToYTask(_mineY);
+                return leaveOn() ? new DownTask(_mineY) : new adris.altoclef.tasks.movement.GetToYTask(_mineY);
             }
             if (_step == null || feet.equals(_step) || feet.getY() < _step.getY()) {
                 closedWay(mod, feet, -1);
@@ -522,12 +560,16 @@ public class BranchMineTask extends Task {
 
     // (mine_water_roof) the place watch fired three times in ten game minutes here: the depth is given up at this spot. the
     // count tells the caller (the buddy's piece fails over to its next one); left to itself the mine walks 32 blocks on, a
-    // quarter turned, and starts afresh there
-    private Task giveUpHere(AltoClef mod, long now, int y) {
+    // quarter turned, and starts afresh there. with mine_leave_given_up on, the spot is kept for every branch mine after this
+    // one, and this one leaves it 48 blocks first instead of the walk
+    private Task giveUpHere(AltoClef mod, long now, int y, int fx, int fz, boolean stall) {
         int fired = _fires.last();
-        String line = "branch mine: the place watch fired " + fired + " times at " + _place.x() + ", " + _place.z()
+        String line = "branch mine: the place watch fired " + fired + " times at " + fx + ", " + fz
                 + ", giving up y " + _mineY + " here";
-        adris.altoclef.Debug.logInternal(line + " (at y " + y + ", mine_water_roof" + (fired < 3 ? ", mine_own_pit" : "") + ")");
+        adris.altoclef.Debug.logInternal(line + " (at y " + y + ", mine_water_roof" + (fired < 3 ? ", mine_own_pit" : "")
+                + (stall ? ", the last fire the way down's, mine_leave_given_up" : "") + ")");
+        // (mine_leave_given_up) the spot, for any branch mine after this one: the next piece's mine leaves it first
+        if (leaveOn()) MineLeave.GIVEN_UP.record(dimension(), fx, fz, now);
         gaveUpLine = line;
         gaveUps++;
         _fires.clear();
@@ -542,7 +584,10 @@ public class BranchMineTask extends Task {
         _dx = -_dz;
         _dz = t;
         if (_dx == 0 && _dz == 0) _dx = 1;
-        _awaySteps = 32;
+        _downFails.reset();
+        _downStall = false;
+        // (mine_leave_given_up) the leave from the spot takes the next tick, so no walk along: one would be left to run after it
+        _awaySteps = leaveOn() ? 0 : 32;
         _awayWhy = "Gave up y " + _mineY + " here: along";
         _awayStep = null;
         _awayPrev = null;
@@ -553,6 +598,121 @@ public class BranchMineTask extends Task {
     // (mine_water_roof, mine_own_pit) the place watch's fires at one spot that give the depth up there
     static int firesToGiveUp() {
         return adris.altoclef.util.helpers.Tuning.get("mine_own_pit", 0) > 0 ? 2 : 3;
+    }
+
+    static boolean leaveOn() {
+        return adris.altoclef.util.helpers.Tuning.get("mine_leave_given_up", 0) > 0;
+    }
+
+    private static String dimension() {
+        return String.valueOf(adris.altoclef.util.helpers.WorldHelper.getCurrentDimension());
+    }
+
+    // (mine_leave_given_up) the way down through the open whose searches that get nowhere are counted by place
+    private final class DownTask extends adris.altoclef.tasks.movement.GetToYTask {
+        DownTask(int y) {
+            super(y);
+        }
+
+        @Override
+        protected void onNoProgress(AltoClef mod) {
+            BlockPos at = mod.getPlayer().blockPosition();
+            int had = _downFails.count();
+            if (_downFails.fail(at.getX(), at.getZ(), mod.getWorld().getGameTime())) {
+                _downStall = true;
+            } else if (_downFails.count() != had) {
+                adris.altoclef.Debug.logInternal("branch mine: the way down to y " + _mineY + " got nowhere at " + at.toShortString()
+                        + ", " + _downFails.count() + " in a row here (mine_leave_given_up)");
+            }
+        }
+    }
+
+    // (mine_leave_given_up) away from a spot a mine gave its depth up at, or null when there is none near or it is left
+    private Task leaveGivenUp(AltoClef mod, BlockPos feet, long now) {
+        if (_leaveFrom == null) {
+            MineLeave.Spot spot = MineLeave.GIVEN_UP.near(dimension(), feet.getX(), feet.getZ(), now,
+                    MineLeave.NEAR, MineLeave.FRESH, _leaveDone);
+            if (spot == null) return null;
+            _leaveFrom = spot;
+            _leaveTried = 0;
+            _leaveWays = 0;
+            _leaveWay = -1;
+            _leaveTask = null;
+            adris.altoclef.Debug.logInternal("branch mine: " + Math.round(Math.hypot(feet.getX() - spot.x(), feet.getZ() - spot.z())) + " blocks from "
+                    + spot.x() + ", " + spot.z() + ", where a mine gave its depth up " + (now - spot.at()) / 20 + " s ago: "
+                    + (int) MineLeave.FAR + " blocks away from there first (mine_leave_given_up)");
+        }
+        double d = Math.hypot(feet.getX() - _leaveFrom.x(), feet.getZ() - _leaveFrom.z());
+        if (MineLeave.left(feet.getX(), feet.getZ(), _leaveFrom)) {
+            adris.altoclef.Debug.logInternal("branch mine: " + Math.round(d) + " blocks from " + _leaveFrom.x() + ", " + _leaveFrom.z()
+                    + " at " + feet.toShortString() + ", the mine goes on from here (mine_leave_given_up)");
+            endLeave();
+            return null;
+        }
+        if (_leaveWay < 0 || now < _leaveBestAt || now - _leaveBestAt > LEAVE_STALL) {
+            if (_leaveWay >= 0) {
+                adris.altoclef.Debug.logInternal("branch mine: no headway away from " + _leaveFrom.x() + ", " + _leaveFrom.z() + " in "
+                        + LEAVE_STALL / 1200 + " game minutes at " + feet.toShortString() + ", " + Math.round(d) + " blocks off (mine_leave_given_up)");
+            }
+            int[] water = waterByWay(mod, feet);
+            int way = _leaveWays < LEAVE_WAYS ? MineLeave.nextWay(water,
+                    feet.getX() - _leaveFrom.x(), feet.getZ() - _leaveFrom.z(), _leaveTried) : -1;
+            if (way < 0) {
+                adris.altoclef.Debug.logInternal("branch mine: could not get " + (int) MineLeave.FAR + " blocks from "
+                        + _leaveFrom.x() + ", " + _leaveFrom.z() + " in " + _leaveWays + " ways, the mine goes on here at "
+                        + feet.toShortString() + " (mine_leave_given_up)");
+                setDebugState("Could not get away from where a mine gave up, mining here after all");
+                endLeave();
+                return null;
+            }
+            _leaveWays++;
+            _leaveTried |= 1 << way;
+            _leaveWay = way;
+            int[] t = MineLeave.target(_leaveFrom.x(), _leaveFrom.z(), way);
+            _leaveTask = new GetToXZTask(t[0], t[1], MineLeave.TARGET_RADIUS);
+            _leaveBest = d;
+            _leaveBestAt = now;
+            adris.altoclef.Debug.logInternal("branch mine: away from " + _leaveFrom.x() + ", " + _leaveFrom.z() + " to " + t[0] + ", " + t[1]
+                    + ", way " + _leaveWays + " of " + LEAVE_WAYS + ", " + water[way] + " water blocks seen that way (mine_leave_given_up)");
+        }
+        if (d > _leaveBest + 2) {
+            _leaveBest = d;
+            _leaveBestAt = now;
+        }
+        stopMine(mod);
+        setDebugState("Away from where a mine gave up, " + (int) Math.ceil(MineLeave.FAR - d)
+                + " blocks to go (way " + _leaveWays + " of " + LEAVE_WAYS + ")");
+        return _leaveTask;
+    }
+
+    private void endLeave() {
+        _leaveDone.add(_leaveFrom);
+        _leaveFrom = null;
+        _leaveTask = null;
+        _leaveWay = -1;
+        _downFails.reset();
+        _downStall = false;
+        _step = null;
+        _tunnel = null;
+    }
+
+    // (mine_leave_given_up) the water blocks seen each of MineLeave.WAYS: a column six up and down at every six blocks out to 30
+    private static int[] waterByWay(AltoClef mod, BlockPos feet) {
+        int[][] ways = MineLeave.WAYS;
+        int[] out = new int[ways.length];
+        var level = mod.getWorld();
+        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
+        for (int i = 0; i < ways.length; i++) {
+            double len = Math.hypot(ways[i][0], ways[i][1]);
+            for (int r = 6; r <= 30; r += 6) {
+                int x = feet.getX() + (int) Math.round(ways[i][0] * r / len), z = feet.getZ() + (int) Math.round(ways[i][1] * r / len);
+                for (int dy = -6; dy <= 6; dy++) {
+                    p.set(x, feet.getY() + dy, z);
+                    if (baritone.pathing.movement.MovementHelper.isWater(level.getBlockState(p))) out[i]++;
+                }
+            }
+        }
+        return out;
     }
 
     // (gold_wide_band) this mine's height lies below 0 and within the wide band

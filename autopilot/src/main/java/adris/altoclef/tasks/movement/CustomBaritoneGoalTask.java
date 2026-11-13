@@ -288,6 +288,8 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
                     return null;
                 }
                 if (noProgress) {
+                    // (mine_leave_given_up) the subclass hears of each goal that gets nowhere, before the walk back or the wander
+                    onNoProgress(mod);
                     Task back = backTheWayCame(mod);
                     if (back != null) return back;
                     Debug.logMessage("Failed to make progress on goal, wandering.");
@@ -373,5 +375,9 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
     protected abstract Goal newGoal(AltoClef mod);
 
     protected void onWander(AltoClef mod) {
+    }
+
+    // asked when the goal got nowhere (no progress, or a search from here found no way), before the walk back or the wander
+    protected void onNoProgress(AltoClef mod) {
     }
 }

@@ -248,6 +248,12 @@ public final class Tuning {
             java.util.Map.entry("mine_own_pit", 1.0),
             java.util.Map.entry("gold_wide_band", 1.0),
             java.util.Map.entry("creeper_no_heading_block", 1.0),
+            // (a fix of 13 Nov 2026, test heel's flooded cave, a kit piece's mine stalled on a ledge for each piece and try: a
+            // branch mine that starts or runs within 24 blocks of where a mine gave its depth up in the last 30 game minutes first
+            // leaves it 48 blocks by baritone's goal path, three ways at most; the way down through the open that gets nowhere
+            // three times within ten blocks counts as a fire of the place watch; a fire leaves a walk along under way going,
+            // BranchMineTask)
+            java.util.Map.entry("mine_leave_given_up", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

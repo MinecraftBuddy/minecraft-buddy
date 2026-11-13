@@ -25,6 +25,12 @@ public class BranchMineBandTest {
     }
 
     @Test
+    public void theLeaveFromASpotGivenUpIsOn() {
+        // (mine_leave_given_up) on by the code defaults
+        assertTrue(BranchMineTask.leaveOn());
+    }
+
+    @Test
     public void twoBandExitsAtOnePlaceMakeTheTunnelOfItsOwn() {
         // the count the mine keeps: two exits within ten blocks in ten game minutes
         PlaceWatch.Fires exits = new PlaceWatch.Fires(2, 12000, 10);
