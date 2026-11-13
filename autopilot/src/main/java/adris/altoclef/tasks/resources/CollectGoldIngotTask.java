@@ -49,6 +49,10 @@ public class CollectGoldIngotTask extends ResourceTask {
             return unpacked;
         }
         if (WorldHelper.getCurrentDimension() == Dimension.OVERWORLD) {
+            Task back = furnaceBack(mod);
+            if (back != null) {
+                return back;
+            }
             SmeltTarget all = new SmeltTarget(new ItemTarget(Items.GOLD_INGOT, _count), new ItemTarget(Items.RAW_GOLD, _count));
             SmeltTarget batch = batch(mod);
             if (batch != null) all = batch;
@@ -107,13 +111,64 @@ public class CollectGoldIngotTask extends ResourceTask {
         if (_batchTo > 0 && ingots >= _batchTo) {
             Debug.logInternal("gold: a batch smelted, " + ingots + " of " + _count + " ingots");
             _batchTo = 0;
+            noteFurnaceBack(mod);
         }
         int need = _count - ingots;
         if (_batchTo == 0 && need > raw && raw >= GOLD_BATCH) {
             _batchTo = ingots + raw;
+            _furnacesBefore = furnacesNear(mod);
             Debug.logInternal("gold: " + raw + " raw gold smelted now, " + ingots + " ingots of " + _count + " (gold_batch)");
         }
         return _batchTo > 0 ? new SmeltTarget(new ItemTarget(Items.GOLD_INGOT, _batchTo), new ItemTarget(Items.RAW_GOLD, _batchTo)) : null;
+    }
+
+    // (Tuning gold_furnace_back, a fix of 13 Nov 2026, on: after a batch the furnace it smelted in goes back in the bag, as the
+    // branch mine does with its table: the one within FURNACE_NEAR that was not there when the batch began is broken and picked
+    // up, for at most a game half minute. the furnaces of the gold stayed where they were put down, the bag held none and its
+    // deepslate makes none here (DoStuffInContainerTask.spareCobble), so each batch walked back to a furnace up to 128 blocks off,
+    // at the surface: about 50 of the 123 gold minutes of the goudslijm smoke 2's run 3)
+    static final int FURNACE_NEAR = 8;
+    private java.util.Set<BlockPos> _furnacesBefore;
+    private BlockPos _ourFurnace;
+    private int _furnacesHad;
+    private long _furnaceUntil;
+
+    private static java.util.Set<BlockPos> furnacesNear(AltoClef mod) {
+        java.util.Set<BlockPos> out = new java.util.HashSet<>();
+        BlockPos feet = mod.getPlayer().blockPosition();
+        int r = FURNACE_NEAR;
+        for (BlockPos pos : BlockPos.betweenClosed(feet.offset(-r, -r, -r), feet.offset(r, r, r))) {
+            if (mod.getWorld().getBlockState(pos).is(Blocks.FURNACE)) out.add(pos.immutable());
+        }
+        return out;
+    }
+
+    private void noteFurnaceBack(AltoClef mod) {
+        java.util.Set<BlockPos> before = _furnacesBefore;
+        _furnacesBefore = null;
+        if (before == null || adris.altoclef.util.helpers.Tuning.get("gold_furnace_back", 0) <= 0) return;
+        for (BlockPos pos : furnacesNear(mod)) {
+            if (before.contains(pos)) continue;
+            _ourFurnace = pos;
+            _furnacesHad = mod.getItemStorage().getItemCount(Items.FURNACE);
+            _furnaceUntil = mod.getWorld().getGameTime() + 600;
+            Debug.logInternal("gold: the batch's furnace at " + pos.toShortString() + " back in the bag");
+            return;
+        }
+    }
+
+    private Task furnaceBack(AltoClef mod) {
+        if (_ourFurnace == null) return null;
+        if (mod.getWorld().getGameTime() > _furnaceUntil || mod.getItemStorage().getItemCount(Items.FURNACE) > _furnacesHad) {
+            _ourFurnace = null;
+            return null;
+        }
+        if (mod.getWorld().getBlockState(_ourFurnace).is(Blocks.FURNACE)) {
+            setDebugState("The batch's furnace, back in the bag");
+            return new adris.altoclef.tasks.construction.DestroyBlockTask(_ourFurnace);
+        }
+        setDebugState("The batch's furnace it broke, picked up");
+        return new adris.altoclef.tasks.movement.PickupDroppedItemTask(Items.FURNACE, _furnacesHad + 1);
     }
 
     // blocks first (a 2x2 craft, no table), then whole sets of nine nuggets. each one only crafts what we are short of
