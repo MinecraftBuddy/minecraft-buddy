@@ -636,6 +636,7 @@ public final class RouteRules {
         exitGaveUp = false;
         outSaid = false;
         clearAwayZones();
+        TradeBlazeZones.INSTANCE.clear();
     }
 
     // ---- the zones walked away from (Tuning route_away_zone, on by default; route jar 12, 9 Nov 2026, look 35, row L37). the

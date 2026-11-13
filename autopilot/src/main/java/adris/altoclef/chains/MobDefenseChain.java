@@ -647,6 +647,27 @@ public class MobDefenseChain extends SingleTaskChain {
                 return;
             }
         }
+        // (Tuning ghast_punch_zp_near, blocks, a fix of 13 Nov 2026, on at 6: no punch either while a zombified piglin is this
+        // near the buddy or the ball; the shield instead. a ball punched that bursts close by, on a wall or the piglin itself,
+        // counts as the buddy's blast and the pack bites: two phase-2 deaths of route-60 and route-61 had the pack 2 to 6 blocks
+        // off, not by the ball's way back)
+        double zpNear = adris.altoclef.util.helpers.Tuning.get("ghast_punch_zp_near", 0);
+        if (zpNear > 0 && !_punched.containsKey(best.getId())) {
+            Vec3 ballAt = best.getBoundingBox().getCenter();
+            for (ZombifiedPiglin zp : mod.getEntityTracker().getTrackedEntities(ZombifiedPiglin.class)) {
+                if (!zp.isAlive()) continue;
+                Vec3 c = zp.getBoundingBox().getCenter();
+                double d = Math.min(c.distanceTo(eye), c.distanceTo(ballAt));
+                if (d > zpNear) continue;
+                _ballInsideAt = now;
+                if (best.getId() != _punchSkipLoggedId) {
+                    _punchSkipLoggedId = best.getId();
+                    Debug.logInternal("combat: a ghast's ball at " + String.format("%.1f", bestGap) + ", a zombified piglin "
+                            + String.format("%.1f", d) + " blocks off: not punched, the shield");
+                }
+                return;
+            }
+        }
         mod.getControllerExtras().aimAtOverPath(atShooter ? shooter : best);
         // (again only with the look on its ghast: with the look on the ball itself a second punch sends it into the floor)
         if (_punched.containsKey(best.getId()) && !atShooter) return;

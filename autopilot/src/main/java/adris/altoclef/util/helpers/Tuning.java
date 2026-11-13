@@ -176,6 +176,12 @@ public final class Tuning {
             java.util.Map.entry("blaze_stand_goal", 0.0),
             // (a fix of 13 Nov 2026: the food run's climb reads the height again where it stands, SurfaceFoodTask)
             java.util.Map.entry("food_climb_again", 1.0),
+            // (fixes of 13 Nov 2026, route-60 and route-61's phase 2: with no fire resistance the trade walks off the blazes and
+            // never into the blaze camp, TradeBlazeZones; wastes come into view give the search 120 s more before the bound; no
+            // punch of a ghast's ball with a zombified piglin within 6 of the buddy or the ball)
+            java.util.Map.entry("trade_blaze_off", 1.0),
+            java.util.Map.entry("trade_wastes_grace", 120.0),
+            java.util.Map.entry("ghast_punch_zp_near", 6.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),
             // (11 Nov 2026, a fix: the pillbox the route's brew was made in stayed the fight's camp and corner under the brewed
             // potion, as the brewed one followed the traded one with no gap; once the brew is through and the potion on, the camp

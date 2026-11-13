@@ -108,6 +108,16 @@ public final class FireResTradeRules {
     // hoglin known only KNOWN_TICKS past its last free look: a stream of such piglins could hold the trade for ever).
     // twenty minutes leaves the rest of a 90 minute run to the fortress and the blazes
     public static final double STALL_S = 1200;
+
+    // (Tuning trade_wastes_grace, seconds, a fix of 13 Nov 2026, on at 120): wastes that come into view on the search (walked
+    // to, or the feet in them after the walk) give the search at least this long more before the dead end's bound. a basalt
+    // deltas start of the ab15 set found its wastes at 9.5 min in two route-61 runs and the bound fired 32 s later; the run of
+    // that start that passed had its potion at 9.8 min. noneKnownAtWastes: the dead end's clock when they came into view (-1
+    // none since the last ingot)
+    public static long deadWithWastes(long deadTicks, long noneKnownAtWastes, long graceTicks) {
+        if (noneKnownAtWastes < 0 || graceTicks <= 0) return deadTicks;
+        return Math.max(deadTicks, noneKnownAtWastes + graceTicks);
+    }
     // a piglin seen free to take gold is known this long after (game ticks): the hoglin's wait, the walk round a wall, a
     // piglin gone behind a hill a moment
     public static final long KNOWN_TICKS = 90 * 20;

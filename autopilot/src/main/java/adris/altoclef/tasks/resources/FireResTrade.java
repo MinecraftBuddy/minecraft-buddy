@@ -25,6 +25,7 @@ import adris.altoclef.util.helpers.ItemPickupRules;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.RouteRules;
 import adris.altoclef.util.helpers.StorageHelper;
+import adris.altoclef.util.helpers.TradeBlazeZones;
 import adris.altoclef.util.helpers.Tuning;
 import adris.altoclef.util.slots.Slot;
 import baritone.api.utils.Rotation;
@@ -178,6 +179,13 @@ public final class FireResTrade {
     // why the trade ended without its potion (the fallback's line)
     private final Map<Integer, Long> _freeSeen = new HashMap<>();
     private long _noneKnown;
+    // (Tuning trade_wastes_grace) _noneKnown when wastes last came into view on the search, -1 none since the last ingot
+    private long _noneKnownAtWastes = -1;
+    // (Tuning trade_blaze_off) the walk off the blazes with no fire resistance: the task, when it was made, whether its line
+    // was said this yield
+    private Task _blazeRun;
+    private long _blazeRunAt;
+    private boolean _blazeOffSaid;
     private long _lastTickAt = -1;
     private Task _idle;
     private boolean _waitLogged;
@@ -255,6 +263,11 @@ public final class FireResTrade {
         return Math.round(Tuning.get("route_trade_dead_s", FireResTradeRules.DEAD_S) * 20);
     }
 
+    // (Tuning trade_wastes_grace, seconds, a fix of 13 Nov 2026, on at 120: FireResTradeRules.deadWithWastes)
+    private static long wastesGraceTicks() {
+        return Math.round(Tuning.get("trade_wastes_grace", 0) * 20);
+    }
+
     private static boolean knownOn() {
         return Tuning.get("route_trade_known", 0) > 0;
     }
@@ -313,6 +326,8 @@ public final class FireResTrade {
             _handedAt = now;
             _handedSeen = 0;
             _noneKnown = 0;
+            _noneKnownAtWastes = -1;
+            TradeBlazeZones.INSTANCE.clear();
             _lastTickAt = now;
             _goldAtBegin = gold;
             _piglinSeenAt = now;
@@ -339,6 +354,7 @@ public final class FireResTrade {
             _handedSeen = given;
             _handedAt = now;
             _noneKnown = 0;
+            _noneKnownAtWastes = -1;
         }
         if (now < _handedAt) _handedAt = now;
         long dt = _lastTickAt < 0 || now < _lastTickAt ? 0 : now - _lastTickAt;
@@ -393,7 +409,8 @@ public final class FireResTrade {
         // (Tuning route_trade: no give-up on the search's clock, the cap or the fortress; only all the gold handed, or the dead end)
         FireResTradeRules.Verdict verdict = routeOn()
                 ? FireResTradeRules.decideRoute(enough, gold, pending, worn || piece != null, _goldOutAt < 0 ? Long.MAX_VALUE : now - _goldOutAt,
-                now - _handedAt, _noneKnown, _piglinNear, held != null, _yielding, knownOn(), deadTicks(), stallTicks())
+                now - _handedAt, _noneKnown, _piglinNear, held != null, _yielding, knownOn(),
+                FireResTradeRules.deadWithWastes(deadTicks(), _noneKnownAtWastes, wastesGraceTicks()), stallTicks())
                 : FireResTradeRules.decide(potion, gold, pending, worn || piece != null, now - _begunAt,
                 _goldOutAt < 0 ? Long.MAX_VALUE : now - _goldOutAt, now - _piglinSeenAt, _piglinNear, atFortress, _yielding,
                 searchTicks(), maxTicks());
@@ -401,6 +418,10 @@ public final class FireResTrade {
             _progressLogged = given - given % PROGRESS_EVERY;
             Debug.logInternal(String.format(Locale.ROOT, "strategy trade: %d ingots given, %d left, %d piglins in sight, %s s",
                     given, gold, _give.tradeableCount(mod), FireResTradeRules.seconds(now - _begunAt)));
+        }
+        if (verdict.step() != FireResTradeRules.Step.YIELD) {
+            _blazeOffSaid = false;
+            _blazeRun = null;
         }
         switch (verdict.step()) {
             case DONE -> {
@@ -435,6 +456,10 @@ public final class FireResTrade {
                 return null;
             }
             case YIELD -> {
+                // (Tuning trade_blaze_off, a fix of 13 Nov 2026, on: with no fire resistance the trade walks off the blazes and
+                // never hands the tick to the blaze camp, TradeBlazeZones)
+                Task off = blazeOff(mod, now, spawner, blaze);
+                if (off != null) return off;
                 if (!_yieldLogged) {
                     _yieldLogged = true;
                     Debug.logInternal(String.format(Locale.ROOT, "strategy trade: a blaze %.0f blocks off, the fight first", blaze));
@@ -539,6 +564,8 @@ public final class FireResTrade {
         _state = State.ENDED;
         _succeeded = succeeded;
         _endedAt = now;
+        // (trade_blaze_off: the walls are the trade's, phase 3 walks to the fortress)
+        TradeBlazeZones.INSTANCE.clear();
         _lastDrink = drink;
         _lastThrow = thrown;
         // (an effect already on is not the trade's drink)
@@ -791,6 +818,40 @@ public final class FireResTrade {
         return _edgeWalk;
     }
 
+    // ---- blazes by the trade with no fire resistance (Tuning trade_blaze_off, a fix of 13 Nov 2026, on): the yield to a blaze
+    // handed the tick to the rods task's camp, which with no potion is a pillbox, a corner or a hiding pocket by the spawner:
+    // 4 of route-60 and route-61's 17 phase-2 losses died there 5 to 9 minutes on (13 Nov 2026), against the route's rule of
+    // no blazes before the potion. now the trade walks off the blazes TradeBlazeZones.RUN from where they (and the spawner, when
+    // near) are, the walk made again every CUBE_RUN_TICKS as they move; their ground stays a wall for the search's walks a
+    // while; a blaze that comes within a blow is the mob defense's, as any mob's
+    private Task blazeOff(AltoClef mod, long now, BlockPos spawner, double nearest) {
+        if (!routeOn() || Tuning.get("trade_blaze_off", 0) <= 0) return null;
+        LocalPlayer player = mod.getPlayer();
+        if (player.hasEffect(MobEffects.FIRE_RESISTANCE)) return null;
+        List<BlockPos> from = new ArrayList<>();
+        for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+            if (!b.isAlive() || b.distanceTo(player) > FireResTradeRules.BLAZE_KEEP + TradeBlazeZones.SAME) continue;
+            from.add(b.blockPosition());
+            TradeBlazeZones.INSTANCE.note(b.getX(), b.getZ(), now);
+        }
+        if (spawner != null && player.position().distanceTo(Vec3.atCenterOf(spawner)) <= TradeBlazeZones.RUN + TradeBlazeZones.RADIUS) {
+            from.add(spawner);
+            TradeBlazeZones.INSTANCE.note(spawner.getX() + 0.5, spawner.getZ() + 0.5, now);
+        }
+        if (from.isEmpty()) return null;
+        if (!_blazeOffSaid) {
+            _blazeOffSaid = true;
+            Debug.logInternal(String.format(Locale.ROOT, "strategy trade: a blaze %.0f blocks off and no fire resistance: walking off"
+                    + " the blazes (%d about), their ground a wall for the search for a while (trade_blaze_off)", nearest, from.size()));
+        }
+        if (_blazeRun == null || _blazeRun.isFinished(mod) || now - _blazeRunAt >= CUBE_RUN_TICKS || now < _blazeRunAt) {
+            _blazeRun = new RunAwayFromPositionTask(TradeBlazeZones.RUN, from.toArray(new BlockPos[0]));
+            _blazeRunAt = now;
+        }
+        _hud = "Walking off the blazes, no fire resistance yet";
+        return _blazeRun;
+    }
+
     // ---- magma cubes by the trade (Tuning route_trade_cube, the distance; route jar 7, RouteRules.tradeCubeAway): with a cube
     // within the distance the trade hands nothing and walks off the cubes, TRADE_CUBE_RUN from where they stand (the run's
     // goal made again every CUBE_RUN_TICKS as they move), on till none is within the distance and TRADE_CUBE_CLEAR more
@@ -858,6 +919,7 @@ public final class FireResTrade {
         if (_wastesSettled) return null;
         LocalPlayer player = mod.getPlayer();
         if (inWastes(mod, player.blockPosition())) {
+            if (_toWastes != null) _noneKnownAtWastes = _noneKnown;
             settleWastes(now, _toWastes == null ? "strategy trade: in the wastes already, searching here"
                     : String.format(Locale.ROOT, "strategy trade: in the wastes after %s s of walking, %.0f blocks from the start",
                     FireResTradeRules.seconds(_walkTicks), fromStart(player)));
@@ -934,6 +996,7 @@ public final class FireResTrade {
                 if (w != null && (_searchWastesLast == null || w.distanceTo(_searchWastesLast.x(), _searchWastesLast.z()) > SEARCH_WASTES_APART)) {
                     _searchWastesTries++;
                     _searchWastesLast = w;
+                    _noneKnownAtWastes = _noneKnown;
                     Debug.logInternal(String.format(Locale.ROOT, "strategy trade: wastes in the loaded chunks at %d %d, %.0f blocks, the search goes there and on round them",
                             w.x(), w.z(), w.distanceTo(player.getX(), player.getZ())));
                     // (trade_search_onward: the rings round them start on the side away from where the buddy stands now)

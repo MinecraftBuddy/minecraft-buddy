@@ -425,6 +425,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         mod.getBehaviour().avoidWalkingThrough(p -> _zoneNether
                 && (RunZones.INSTANCE.blocks(p.getX(), p.getZ(), _zoneNow, _zoneX, _zoneZ, _goalX, _goalZ)
                 || _deathZones.blocks(p.getX(), p.getZ(), _zoneNow, _zoneX, _zoneZ, _goalX, _goalZ)
+                // (Tuning trade_blaze_off: the ground of the blazes the trade walked off from with no fire resistance, a while)
+                || adris.altoclef.util.helpers.TradeBlazeZones.INSTANCE.wall(p.getX() + 0.5, p.getZ() + 0.5, _zoneNow, _zoneX + 0.5, _zoneZ + 0.5)
                 // (Tuning route_away_wall: the zones walked away from, while the errand runs; the buddy's own zone stays open)
                 || adris.altoclef.util.helpers.RouteRules.awayWallLive()
                 && adris.altoclef.util.helpers.RouteRules.awayWall(p.getX() + 0.5, p.getZ() + 0.5, _zoneNow, _zoneX + 0.5, _zoneZ + 0.5)));
