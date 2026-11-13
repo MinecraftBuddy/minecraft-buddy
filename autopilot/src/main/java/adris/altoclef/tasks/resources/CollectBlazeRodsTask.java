@@ -210,6 +210,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private int _exitWay;
     private final java.util.Set<BlockPos> _exitPassed = new java.util.HashSet<>();
     private boolean _exitDrinkSaid;
+    // (Tuning exit_tracked_stall) the portal the tracked walk heads for, and its walk to within EXIT_NEAR; (Tuning
+    // exit_cap_progress) the exit's own ticks when a walk last came closer
+    private BlockPos _exitTrackedTo;
+    private Task _exitTrackedNear;
+    private long _exitProgressAt;
     private Task _exitDefend;
     private Blaze _exitDefendFor;
 
@@ -2161,8 +2166,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         BlockPos best = null;
         for (java.util.Iterator<BlockPos> it = _portalsSeen.iterator(); it.hasNext(); ) {
             BlockPos p = it.next();
-            // (Tuning route_exit_first: a portal no way led to is passed over, exitStep)
-            if (_exitPassed.contains(p)) continue;
+            // (Tuning route_exit_first: a portal no way led to is passed over, exitStep; exit_tracked_stall: any cell of its frame)
+            if (exitPassedFrame(p)) continue;
             if (mod.getChunkTracker().isChunkLoaded(p) && mod.getWorld().getBlockState(p).getBlock() != Blocks.NETHER_PORTAL) {
                 Debug.logInternal("exit: the portal kept at " + p.toShortString() + " is gone");
                 it.remove();
@@ -2193,11 +2198,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
         long step = first ? adris.altoclef.util.helpers.RouteRules.exitTicks(_exitTickAt, now) : 0;
         _exitTickAt = now;
         _exitTicks += step;
-        Optional<BlockPos> tracked = adris.altoclef.tasks.movement.EnterNetherPortalTask.usablePortal(mod,
-                adris.altoclef.tasks.movement.EnterNetherPortalTask.ANY_PORTAL, me.position());
+        // (Tuning exit_tracked_stall, a fix of 13 Nov 2026, on: a frame passed over is no portal for the tracker's pick either)
+        boolean trackedStall = first && adris.altoclef.util.helpers.Tuning.get("exit_tracked_stall", 0) > 0;
+        java.util.function.Predicate<BlockPos> good = trackedStall ? p -> !exitPassedFrame(p)
+                : adris.altoclef.tasks.movement.EnterNetherPortalTask.ANY_PORTAL;
+        Optional<BlockPos> tracked = adris.altoclef.tasks.movement.EnterNetherPortalTask.usablePortal(mod, good, me.position());
         BlockPos kept = tracked.isPresent() ? null : nearestPortalSeen(mod);
-        String why = adris.altoclef.util.helpers.RouteRules.exitGiveUp(tracked.isPresent() || kept != null, first ? _exitTicks : now - _exitAt,
-                Math.round(adris.altoclef.util.helpers.Tuning.get("route_exit_s", adris.altoclef.util.helpers.RouteRules.EXIT_S) * 20));
+        long capTicks = Math.round(adris.altoclef.util.helpers.Tuning.get("route_exit_s", adris.altoclef.util.helpers.RouteRules.EXIT_S) * 20);
+        // (Tuning exit_cap_progress, a fix of 13 Nov 2026, on: past the cap the exit goes on while a walk came closer lately)
+        String why = first && adris.altoclef.util.helpers.Tuning.get("exit_cap_progress", 0) > 0
+                ? adris.altoclef.util.helpers.RouteRules.exitGiveUp(tracked.isPresent() || kept != null, _exitTicks, capTicks,
+                _exitTicks - _exitProgressAt)
+                : adris.altoclef.util.helpers.RouteRules.exitGiveUp(tracked.isPresent() || kept != null, first ? _exitTicks : now - _exitAt, capTicks);
         if (why != null) {
             if (first && kept == null && !tracked.isPresent() && !_exitPassed.isEmpty()) {
                 why = "no way to the " + _exitPassed.size() + " portal" + (_exitPassed.size() == 1 ? "" : "s") + " kept";
@@ -2209,6 +2221,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // the give-up, back to the spawner, and the buddy stood there till a blaze killed it, route-25 runs 4 and 27)
             if (first) mod.getClientBaritone().getPathingBehavior().cancelEverything();
             return null;
+        }
+        if (tracked.isPresent() && trackedStall) {
+            Task t = exitTracked(mod, tracked.get(), step, good);
+            if (t != null) return t;
+            return exitStep(mod);
         }
         if (tracked.isPresent()) {
             if (_exitEnter == null) {
@@ -2237,6 +2254,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             if (adris.altoclef.util.helpers.RouteRules.exitCloser(_exitBest, d)) {
                 _exitBest = d;
                 _exitStall = 0;
+                _exitProgressAt = _exitTicks;
             } else {
                 _exitStall += step;
             }
@@ -2262,6 +2280,73 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         setDebugState("Back to the portal");
         return _exitWalk;
+    }
+
+    // (Tuning exit_tracked_stall) whether p is a cell of a frame the exit passed over
+    private boolean exitPassedFrame(BlockPos p) {
+        for (BlockPos q : _exitPassed) {
+            if (adris.altoclef.util.helpers.RouteRules.samePortal(p.getX(), p.getY(), p.getZ(), q.getX(), q.getY(), q.getZ())) return true;
+        }
+        return false;
+    }
+
+    // (Tuning exit_tracked_stall, a fix of 13 Nov 2026, on) the way into a portal the tracker knows, with the kept walk's stall
+    // rule: no EXIT_PROGRESS closer in EXIT_STALL_S of the exit's own time, a walk to within EXIT_NEAR of it; again none, its
+    // frame passed over (null: the caller picks again). the tracked branch had no such rule: phase 7's six stalls of 13 Nov
+    // (route-58 to route-61, all with 9 rods) went to the exit's cap on a portal it could not reach, 4 of them another start's
+    // portal by a pit or over the lava sea, Baritone's cell bans taking its cells one by one and coming back after 5 min
+    private Task exitTracked(AltoClef mod, BlockPos portal, long step, java.util.function.Predicate<BlockPos> good) {
+        var me = mod.getPlayer();
+        if (_exitTrackedTo == null || !adris.altoclef.util.helpers.RouteRules.samePortal(portal.getX(), portal.getY(), portal.getZ(),
+                _exitTrackedTo.getX(), _exitTrackedTo.getY(), _exitTrackedTo.getZ())) {
+            _exitTrackedTo = portal;
+            _exitTrackedNear = null;
+            // (the kept walk's counts are its own: it begins anew when it takes over again)
+            _exitWalkTo = null;
+            _exitEnter = new adris.altoclef.tasks.movement.EnterNetherPortalTask(new adris.altoclef.tasks.movement.IdleTask(), Dimension.OVERWORLD, good);
+            _exitWay = 0;
+            _exitBest = null;
+            _exitStall = 0;
+            Debug.logInternal("exit: through the portal at " + portal.toShortString() + ", "
+                    + (int) Math.round(me.position().distanceTo(Vec3.atBottomCenterOf(portal))) + " blocks off, "
+                    + mod.getItemStorage().getItemCount(Items.BLAZE_ROD) + " rods");
+        }
+        double d = me.position().distanceTo(Vec3.atBottomCenterOf(portal));
+        if (adris.altoclef.util.helpers.RouteRules.exitCloser(_exitBest, d)) {
+            _exitBest = d;
+            _exitStall = 0;
+            _exitProgressAt = _exitTicks;
+        } else {
+            _exitStall += step;
+        }
+        int way = adris.altoclef.util.helpers.RouteRules.exitWay(_exitWay, _exitStall);
+        if (way != _exitWay) {
+            long best = Math.round(_exitBest != null ? _exitBest : d);
+            _exitWay = way;
+            _exitStall = 0;
+            _exitBest = null;
+            if (way == 1) {
+                _exitTrackedNear = new adris.altoclef.tasks.movement.GetWithinRangeOfBlockTask(portal, adris.altoclef.util.helpers.RouteRules.EXIT_NEAR);
+                Debug.logInternal("exit: the way into the portal at " + portal.toShortString() + " came no closer than " + best
+                        + " blocks in " + Math.round(adris.altoclef.util.helpers.RouteRules.EXIT_STALL_S) + " s, a walk to within "
+                        + adris.altoclef.util.helpers.RouteRules.EXIT_NEAR + " of it");
+            } else {
+                _exitPassed.add(portal);
+                _exitTrackedTo = null;
+                _exitWalkTo = null;
+                _exitTrackedNear = null;
+                _exitEnter = null;
+                mod.getClientBaritone().getPathingBehavior().cancelEverything();
+                Debug.logInternal("exit: no way into the portal at " + portal.toShortString() + " (" + best + " blocks off at best), passed over");
+                return null;
+            }
+        }
+        if (_exitTrackedNear != null && !_exitTrackedNear.isFinished(mod)) {
+            setDebugState("Out of the nether: to the portal's surroundings");
+            return _exitTrackedNear;
+        }
+        setDebugState("Out of the nether through the portal");
+        return _exitEnter;
     }
 
     // (Tuning camp_near) the camp walk's target, its best distance, its ticks with no progress, its last tick, and whether it

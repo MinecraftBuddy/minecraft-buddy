@@ -769,6 +769,21 @@ public final class RouteRules {
         return null;
     }
 
+    // (Tuning exit_cap_progress, a fix of 13 Nov 2026, on) past the cap the exit gives up only once no walk came closer in
+    // EXIT_CAP_STALL_S of its own time, and at EXIT_CAP_HARD times the cap whatever: phase 7's run 25 of route-61-mc3 walked
+    // 640 blocks at 0.9 a second and the cap fell 86 blocks short; two more were still coming closer when it fell
+    public static final double EXIT_CAP_STALL_S = 120;
+    public static final double EXIT_CAP_HARD = 2;
+
+    public static String exitGiveUp(boolean portalKnown, long sinceBegun, long capTicks, long sinceProgress) {
+        if (!portalKnown) return "no portal known";
+        if (sinceBegun >= Math.round(capTicks * EXIT_CAP_HARD)) return "not out in " + Math.round(capTicks * EXIT_CAP_HARD / 20.0) + " s";
+        if (sinceBegun >= capTicks && sinceProgress >= Math.round(EXIT_CAP_STALL_S * 20)) {
+            return "not out in " + Math.round(sinceBegun / 20.0) + " s, no closer in " + Math.round(EXIT_CAP_STALL_S) + " s";
+        }
+        return null;
+    }
+
     // ---- the camp's walk (Tuning camp_near, a fix of 11 Nov 2026, on by default): a walk onto the spawner's top that comes no
     // closer than CAMP_PROGRESS in CAMP_NEAR_S of its own ticks goes to within the camp's radius of it instead
     public static final double CAMP_NEAR_S = 20;
