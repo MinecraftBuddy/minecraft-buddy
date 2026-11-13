@@ -82,7 +82,22 @@ public class BranchMineTask extends Task {
     // (Tuning mine_water_roof, a fix of 13 Nov 2026, on: the place watch fired three times in ten game minutes within ten
     // blocks of one spot gives up the depth there. a flooded cave by the sea at y 54 to 62 for copper at 48 had the watch
     // hand the same tunnel back every three game minutes for 45 minutes, and the piece hit its limit and was asked again)
+    // (Tuning mine_own_pit, a fix of 13 Nov 2026, on: the second fire gives the depth up, not the third, so a kit piece over a
+    // mine that goes nowhere fails over after about six game minutes and not nine to thirteen)
     private final adris.altoclef.util.helpers.PlaceWatch.Fires _fires = new adris.altoclef.util.helpers.PlaceWatch.Fires(3, 12000, 10);
+    // (Tuning mine_own_pit, a fix of 13 Nov 2026, on) baritone's mine leaving its band, counted by place: the second time within
+    // ten blocks in ten game minutes, the tunnel of its own keeps the tick for the rest of the task within OWN_TUNNEL_REACH of
+    // there. baritone's mine walked up the buddy's own staircase, out of the band, the mine stopped and the staircase ran down
+    // again, every 25 to 30 s for many minutes; each turn started the clocks above again (test heel, look 81)
+    private final adris.altoclef.util.helpers.PlaceWatch.Fires _bandExits = new adris.altoclef.util.helpers.PlaceWatch.Fires(2, 12000, 10);
+    private BlockPos _ownTunnelAt;
+    static final int OWN_TUNNEL_REACH = 48;
+    // (Tuning gold_wide_band, a fix of 13 Nov 2026, on) for a mine whose height lies below 0 and within WIDE_LO (gold's -17, a
+    // slime dig's), the mine starts wherever the buddy is between WIDE_LO and WIDE_HI once it has stood at its height once: no
+    // staircase back to the height after a drift or a fall. staircases took 35% of the gold's time in the test heel, 65 to
+    // 242 of them a run, the tunnel at depth 23%. diamonds and redstone at -50 lie under the band and keep their height
+    static final int WIDE_LO = -48, WIDE_HI = 0;
+    private boolean _reached;
     // every give-up so far and the last one's line: whoever asked for the mine (the buddy's kit piece) compares the count
     // with the one at its start and fails over to its next piece
     public static volatile int gaveUps;
@@ -159,6 +174,7 @@ public class BranchMineTask extends Task {
             // (twelve and not forty: with forty a fall into a cave at y -16 had it branch mine for iron down there in the
             // deepslate, without armour, and a zombie killed it, the runner, 2 Nov 2026)
             _mineY = y < _y && y >= _y - 12 ? y : _y;
+            if (wideBand() && inWide(y)) _mineY = y;
         }
         BlockPos feet = mod.getPlayer().blockPosition();
         // the cheap pick for the rock into the hotbar, where baritone's tools can see it (it looks at the hotbar only). first of
@@ -166,8 +182,9 @@ public class BranchMineTask extends Task {
         HotbarTools.forBlocks(mod, Blocks.STONE, Blocks.DEEPSLATE);
         if (_place.tick(feet.getX(), feet.getZ(), now)) {
             stopMine(mod);
-            if (adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0 && _fires.add(_place.x(), _place.z(), now)) {
-                return giveUpHere(mod, now, y);
+            if (adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0) {
+                _fires.add(_place.x(), _place.z(), now);
+                if (_fires.last() >= firesToGiveUp()) return giveUpHere(mod, now, y);
             }
             int turn = _dx;
             _dx = -_dz;
@@ -315,7 +332,23 @@ public class BranchMineTask extends Task {
             _dz = dir.getStepZ();
             if (_dx == 0 && _dz == 0) _dx = 1;
         }
-        if (now < _tunnelUntil && Math.abs(y - _mineY) <= 8) {
+        if (wideBand()) {
+            if (Math.abs(y - _mineY) <= 3) {
+                _reached = true;
+            } else if (_reached && inWide(y) && Math.abs(y - _mineY) > (_mining ? 8 : 3)) {
+                stopMine(mod);
+                adris.altoclef.Debug.logInternal("branch mine: at y " + y + ", in the band " + WIDE_LO + " to " + WIDE_HI
+                        + ": mining here, no staircase back to y " + _mineY + " (gold_wide_band)");
+                _mineY = y;
+                _step = null;
+            }
+        }
+        if (_ownTunnelAt != null && horizontal(feet, _ownTunnelAt) > OWN_TUNNEL_REACH) {
+            adris.altoclef.Debug.logInternal("branch mine: " + OWN_TUNNEL_REACH + " blocks from " + _ownTunnelAt.toShortString()
+                    + ", baritone's mine may try again (mine_own_pit)");
+            _ownTunnelAt = null;
+        }
+        if ((now < _tunnelUntil || _ownTunnelAt != null) && Math.abs(y - _mineY) <= 8) {
             // straight on at this height, a block at a time; a step not reached in ten game seconds (lava, water, bedrock)
             // turns the tunnel a quarter
             if (_tunnel != null && now - _tunnelSince > 200 && !feet.equals(_tunnel)) {
@@ -329,12 +362,22 @@ public class BranchMineTask extends Task {
                 _tunnel = new BlockPos(feet.getX() + _dx, _mineY, feet.getZ() + _dz);
                 _tunnelSince = now;
             }
-            setDebugState("A tunnel of its own at y " + _mineY);
+            setDebugState(_ownTunnelAt != null ? "A tunnel of its own at y " + _mineY + ", the mine left its band twice here"
+                    : "A tunnel of its own at y " + _mineY);
             return new GetToBlockTask(_tunnel);
         }
         // in the band: 3 blocks to start the mine, 8 to stop it, so a jump does not stop it
         int dy = y - _mineY;
         if (_mining ? Math.abs(dy) > 8 : Math.abs(dy) > 3) {
+            if (_mining && adris.altoclef.util.helpers.Tuning.get("mine_own_pit", 0) > 0 && _ownTunnelAt == null) {
+                _bandExits.add(feet.getX(), feet.getZ(), now);
+                if (_bandExits.last() >= 2) {
+                    _bandExits.clear();
+                    _ownTunnelAt = feet;
+                    adris.altoclef.Debug.logInternal("branch mine: out of its band at y " + y + " twice within ten blocks of "
+                            + feet.getX() + ", " + feet.getZ() + ", a tunnel of its own at y " + _mineY + " from here on (mine_own_pit)");
+                }
+            }
             stopMine(mod);
             long tick = now;
             // a fresh clock for each stretch of stairs: the deepest and highest steps and their times were kept through the
@@ -481,12 +524,15 @@ public class BranchMineTask extends Task {
     // count tells the caller (the buddy's piece fails over to its next one); left to itself the mine walks 32 blocks on, a
     // quarter turned, and starts afresh there
     private Task giveUpHere(AltoClef mod, long now, int y) {
-        String line = "branch mine: the place watch fired " + _fires.last() + " times at " + _place.x() + ", " + _place.z()
+        int fired = _fires.last();
+        String line = "branch mine: the place watch fired " + fired + " times at " + _place.x() + ", " + _place.z()
                 + ", giving up y " + _mineY + " here";
-        adris.altoclef.Debug.logInternal(line + " (at y " + y + ", mine_water_roof)");
+        adris.altoclef.Debug.logInternal(line + " (at y " + y + ", mine_water_roof" + (fired < 3 ? ", mine_own_pit" : "") + ")");
         gaveUpLine = line;
         gaveUps++;
         _fires.clear();
+        _bandExits.clear();
+        _ownTunnelAt = null;
         _tunnelUntil = now;
         _tunnel = null;
         _step = null;
@@ -500,8 +546,30 @@ public class BranchMineTask extends Task {
         _awayWhy = "Gave up y " + _mineY + " here: along";
         _awayStep = null;
         _awayPrev = null;
-        setDebugState("The place watch fired three times here, giving up y " + _mineY + " here");
+        setDebugState("The place watch fired " + fired + " times here, giving up y " + _mineY + " here");
         return null;
+    }
+
+    // (mine_water_roof, mine_own_pit) the place watch's fires at one spot that give the depth up there
+    static int firesToGiveUp() {
+        return adris.altoclef.util.helpers.Tuning.get("mine_own_pit", 0) > 0 ? 2 : 3;
+    }
+
+    // (gold_wide_band) this mine's height lies below 0 and within the wide band
+    private boolean wideBand() {
+        return wideBand(_y) && adris.altoclef.util.helpers.Tuning.get("gold_wide_band", 0) > 0;
+    }
+
+    static boolean wideBand(int targetY) {
+        return targetY < WIDE_HI && targetY >= WIDE_LO;
+    }
+
+    static boolean inWide(int y) {
+        return y >= WIDE_LO && y <= WIDE_HI;
+    }
+
+    private static double horizontal(BlockPos a, BlockPos b) {
+        return Math.hypot(a.getX() - b.getX(), a.getZ() - b.getZ());
     }
 
     // (mine_water_roof) in water under a roof: the walk to the nearest dry cell to stand in within DRY_REACH, else back to the

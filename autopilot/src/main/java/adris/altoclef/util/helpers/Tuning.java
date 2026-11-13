@@ -236,6 +236,18 @@ public final class Tuning {
             java.util.Map.entry("place_into_replaceable", 1.0),
             java.util.Map.entry("place_click_clock", 1.0),
             java.util.Map.entry("shelter_place_face", 1.0),
+            // (fixes of 13 Nov 2026, the test heel's armour and gold read: logs and planks in the bag burn in the furnace past the
+            // wood the task under way still crafts from, and a fuel trip a few smelts short or with no coal ore near fetches logs,
+            // not a coal mine (WoodFuel, CollectFuelTask); the wooden pickaxe a task wants is a stone one with three stone in the bag
+            // (SatisfyMiningRequirementTask); a branch mine that leaves its band twice at one place keeps a tunnel of its own there,
+            // and the place watch's second fire gives the depth up; a mine below 0 starts wherever the buddy is between y -48 and 0
+            // after a drift or a fall (BranchMineTask); a creeper step with no safe heading puts a block between or digs one down,
+            // and the aura hits a mob in reach while the buddy stands (CreeperStepTask, CornerWallTask, MobDefenseChain))
+            java.util.Map.entry("wood_fuel", 1.0),
+            java.util.Map.entry("stone_pick_first", 1.0),
+            java.util.Map.entry("mine_own_pit", 1.0),
+            java.util.Map.entry("gold_wide_band", 1.0),
+            java.util.Map.entry("creeper_no_heading_block", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

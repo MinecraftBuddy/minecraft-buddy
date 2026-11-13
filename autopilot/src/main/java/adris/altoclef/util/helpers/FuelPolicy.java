@@ -30,6 +30,26 @@ public final class FuelPolicy {
 
     public static void clear() {
         set(0, 0, false);
+        planPlanks = 0;
+    }
+
+    // (the buddy's fork, Tuning wood_fuel) the wood the task under way still crafts from, in planks (WoodFuel.refresh). it is the
+    // reserve while no gamer reserve is set (that one comes with coal first, see set): planks first, the rest in logs
+    private static volatile int planPlanks;
+
+    public static void plan(int planks) {
+        planPlanks = Math.max(0, planks);
+    }
+
+    public static int plan() {
+        return planPlanks;
+    }
+
+    // the plan as a {logs, planks} reserve over the planks the bag holds: the planks it holds first, the rest in logs of four
+    static int[] planReserve(int planksHeld, int plan) {
+        int fromPlanks = Math.min(Math.max(0, planksHeld), Math.max(0, plan));
+        int rest = Math.max(0, plan) - fromPlanks;
+        return new int[]{(rest + 3) / 4, fromPlanks};
     }
 
     private static boolean isCoal(Item item) {
@@ -56,7 +76,19 @@ public final class FuelPolicy {
             items[i] = stacks.get(i).getItem();
             counts[i] = stacks.get(i).getCount();
         }
-        return usable(items, counts, keepLogs, keepPlanks);
+        int logs = keepLogs;
+        int planks = keepPlanks;
+        int plan = planPlanks;
+        if (!preferCoal && plan > 0) {
+            int planksHeld = 0;
+            for (int i = 0; i < items.length; i++) {
+                if (in(items[i], ItemHelper.PLANKS)) planksHeld += counts[i];
+            }
+            int[] reserve = planReserve(planksHeld, plan);
+            logs = Math.max(logs, reserve[0]);
+            planks = Math.max(planks, reserve[1]);
+        }
+        return usable(items, counts, logs, planks);
     }
 
     // the same over plain counts and a reserve of the caller's choosing: items[i] is held counts[i] times, the answer is how many of

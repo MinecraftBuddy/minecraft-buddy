@@ -500,7 +500,11 @@ public class MobDefenseChain extends SingleTaskChain {
         _killAura.tickStart();
         // all feet and no hands on a run, the shield only in a committed melee fight or when boxed in. a committed fight keeps the aura going under the flee
         // line and raises the shield mid move, the machine already decided this is a fight
-        _killAura.setPolicy(_brain.auraKiting(), _brain.auraShield(), _brain.auraFighting(), _brain.fightTarget());
+        // (Tuning creeper_no_heading_block) a creeper step that stands with no heading keeps its hands: a run's aura is all feet,
+        // and a zombie hit the buddy 9 times while the step stood on its path (test heel). under the flee line too, as a fight
+        boolean standHit = creeperStandHit();
+        _killAura.setPolicy(_brain.auraKiting() && !standHit, _brain.auraShield(), _brain.auraFighting() || standHit,
+                standHit ? -1 : _brain.fightTarget());
         _killAura.setRimGuard(_brain.auraRimGuard());
 
         // hit what is on us.
@@ -518,7 +522,8 @@ public class MobDefenseChain extends SingleTaskChain {
                             // what a task kept out of mob defense without taking it off the aura (a blaze beside us in
                             // the rod task), that one is the aura's by the task's own say
                             if (LookHelper.seesPlayer(entity, mod.getPlayer(), 10)
-                                    && FoeRules.auraMaySwingAt(_brain.swingsAt(entity.getId()), mod.getBehaviour().shouldExcludeFromMobDefense(entity))) {
+                                    && FoeRules.auraMaySwingAt(_brain.swingsAt(entity.getId()) || standHit && inArmReach(mod, entity),
+                                    mod.getBehaviour().shouldExcludeFromMobDefense(entity))) {
                                 shouldForce = true;
                             }
                         }
@@ -557,6 +562,23 @@ public class MobDefenseChain extends SingleTaskChain {
 
     private void applyForceField(Entity entity) {
         _killAura.applyAura(entity);
+    }
+
+    // (creeper_no_heading_block) the creeper step stands with no heading and its hands are free: behind its wall or waiting on
+    // the path (CreeperStepTask.handsFree), or behind the chain's cap; never with the shield up (cornered) or a cap going in
+    private boolean creeperStandHit() {
+        if (!_creeperStep.active() || _creeperStep.cornered() || _capSneak) return false;
+        if (adris.altoclef.util.helpers.Tuning.get("creeper_no_heading_block", 0) <= 0) return false;
+        if (_mainTask instanceof CreeperStepTask step) return step.handsFree();
+        return _capPlaced && _creeperNoHeading;
+    }
+
+    // (creeper_no_heading_block) a mob, no creeper, within the arm's reach of the buddy's eye
+    private static boolean inArmReach(AltoClef mod, Entity entity) {
+        if (entity instanceof Creeper) return false;
+        Vec3 eye = mod.getPlayer().getEyePosition();
+        AABB box = entity.getBoundingBox();
+        return ReachRules.gap(eye.x, eye.y, eye.z, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ) <= ReachRules.MELEE_REACH;
     }
 
     // a ghast's ball is a redirectable projectile: a punch sends it off along our look, and it costs nothing (no durability, no

@@ -617,6 +617,8 @@ public class StorageHelper {
 
     public static double calculateInventoryFuelCount(AltoClef mod) {
         // FuelPolicy leaves out wood somebody has plans for, so "do we have the fuel" and "what goes in the slot" agree
+        // (the buddy's fork, Tuning wood_fuel: the plan is the wood the task under way still crafts from, WoodFuel)
+        WoodFuel.refresh(mod);
         return FuelPolicy.usableFuel(mod.getItemStorage().getItemStacksPlayerInventory(true), AltoSettings::isSupportedFuel,
                 ItemHelper::getFuelAmount);
     }

@@ -4,7 +4,16 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.TaskCatalogue;
 import adris.altoclef.tasks.movement.DefaultGoToDimensionTask;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.Debug;
+import adris.altoclef.util.helpers.FuelPolicy;
+import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.StorageHelper;
+import adris.altoclef.util.helpers.WoodFuel;
+import baritone.Baritone;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import java.util.Optional;
 import baritone.api.utils.Dimension;
 import adris.altoclef.util.helpers.WorldHelper;
 import net.minecraft.world.item.Items;
@@ -34,9 +43,30 @@ public class CollectFuelTask extends Task {
         return usableFuel >= targetFuel;
     }
 
+    // (the buddy's fork, Tuning wood_fuel) logs or coal, decided once a trip: null till then. the coal ores are tracked from the
+    // trip's start so the decision hears of one in view, and it waits for the tracker's first look at most DECIDE_TICKS
+    private Boolean _logs;
+    private long _startTick = Long.MIN_VALUE;
+    private boolean _tracking;
+    // a log trip that gets no log in LOG_STALL_TICKS goes for coal after all (no tree within its reach)
+    private int _logsHad = -1;
+    private long _logsSince;
+    private static final long DECIDE_TICKS = 40;
+    private static final long LOG_STALL_TICKS = 3600;
+    private static final Block[] COAL_ORES = {Blocks.COAL_ORE, Blocks.DEEPSLATE_COAL_ORE};
+    // a coal ore counts as near within this, as the coal task walks to it: within 5 blocks while it wears less than 15 armour
+    // with the ores hidden (legitMine, MineAndCollectTask.nearUnarmoured), else within 32
+    private static final double COAL_NEAR = 32, COAL_NEAR_UNARMOURED = 5;
+
     @Override
     protected void onStart(AltoClef mod) {
-        // Nothing
+        _logs = null;
+        _startTick = Long.MIN_VALUE;
+        _logsHad = -1;
+        if (WoodFuel.on() && !_tracking) {
+            mod.getBlockTracker().trackBlock(COAL_ORES);
+            _tracking = true;
+        }
     }
 
     @Override
@@ -44,10 +74,17 @@ public class CollectFuelTask extends Task {
 
         switch (WorldHelper.getCurrentDimension()) {
             case OVERWORLD -> {
+                double usable = StorageHelper.calculateInventoryFuelCount(mod);
+                Task logs = WoodFuel.on() ? logTrip(mod, usable) : null;
+                if (logs != null) return logs;
+                if (WoodFuel.on() && _logs == null) {
+                    setDebugState("Looking for coal ore in view first");
+                    return null;
+                }
                 // Just collect coal for now.
                 setDebugState("Collecting coal.");
                 int coal = mod.getItemStorage().getItemCountInventoryOnly(Items.COAL);
-                return TaskCatalogue.getItemTask(Items.COAL, coalWanted(_targetFuel, StorageHelper.calculateInventoryFuelCount(mod), coal));
+                return TaskCatalogue.getItemTask(Items.COAL, coalWanted(_targetFuel, usable, coal));
             }
             case END -> {
                 setDebugState("Going to overworld, since, well, no more fuel can be found here.");
@@ -63,9 +100,49 @@ public class CollectFuelTask extends Task {
         return null;
     }
 
+    // (wood_fuel) the log trip's task, or null for coal (or while the choice waits on the tracker, _logs still null)
+    private Task logTrip(AltoClef mod, double usable) {
+        long now = mod.getWorld().getGameTime();
+        if (_startTick == Long.MIN_VALUE) _startTick = now;
+        double missing = _targetFuel - usable;
+        if (_logs == null) {
+            boolean looked = !_tracking || mod.getBlockTracker().hasBeenScanned(COAL_ORES) || now - _startTick > DECIDE_TICKS;
+            if (!looked && missing > WoodFuel.LOGS_UPTO) return null;
+            boolean coalNear = coalNear(mod);
+            _logs = WoodFuel.logsInstead(missing, coalNear);
+            Debug.logInternal("fuel: " + Math.round(Math.max(0, missing) * 10) / 10.0 + " smelts short, "
+                    + (coalNear ? "coal ore near" : "no coal ore near") + ": " + (_logs ? "logs" : "coal") + " (wood_fuel)");
+        }
+        if (!_logs) return null;
+        int logsHeld = mod.getItemStorage().getItemCountInventoryOnly(ItemHelper.LOG);
+        if (logsHeld != _logsHad) {
+            _logsHad = logsHeld;
+            _logsSince = now;
+        } else if (now - _logsSince > LOG_STALL_TICKS) {
+            Debug.logInternal("fuel: no log in " + LOG_STALL_TICKS / 20 + " s, coal after all (wood_fuel)");
+            _logs = false;
+            return null;
+        }
+        int want = WoodFuel.logsWanted(missing, logsHeld, mod.getItemStorage().getItemCountInventoryOnly(ItemHelper.PLANKS),
+                FuelPolicy.plan());
+        setDebugState("Collecting logs to burn, " + Math.round(Math.max(0, missing) * 10) / 10.0 + " smelts short");
+        return TaskCatalogue.getItemTask("log", Math.max(want, logsHeld + 1));
+    }
+
+    // a coal ore the tracker knows (with the ores hidden, only one that touches air or a fluid) within the coal task's reach
+    private static boolean coalNear(AltoClef mod) {
+        boolean bare = Baritone.settings().legitMine.value && mod.getPlayer().getArmorValue() < 15;
+        double reach = bare ? COAL_NEAR_UNARMOURED : COAL_NEAR;
+        Optional<BlockPos> near = mod.getBlockTracker().getNearestTracking(COAL_ORES);
+        return near.isPresent() && near.get().closerToCenterThan(mod.getPlayer().position(), reach);
+    }
+
     @Override
     protected void onStop(AltoClef mod, Task interruptTask) {
-        // Nothing
+        if (_tracking) {
+            mod.getBlockTracker().stopTracking(COAL_ORES);
+            _tracking = false;
+        }
     }
 
     @Override

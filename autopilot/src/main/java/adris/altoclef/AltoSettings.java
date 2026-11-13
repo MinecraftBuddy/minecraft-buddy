@@ -65,8 +65,11 @@ public final class AltoSettings {
         return Baritone.settings().altoImportantItems.value.contains(item);
     }
 
+    // (the buddy's fork, Tuning wood_fuel: logs and planks the game burns count too, past the wood the task under way still
+    // crafts from, WoodFuel and FuelPolicy.plan)
     public static boolean isSupportedFuel(Item item) {
-        return !Baritone.settings().altoLimitFuelsToSupportedFuels.value || Baritone.settings().altoSupportedFuels.value.contains(item);
+        return !Baritone.settings().altoLimitFuelsToSupportedFuels.value || Baritone.settings().altoSupportedFuels.value.contains(item)
+                || adris.altoclef.util.helpers.WoodFuel.wood(item) && adris.altoclef.util.helpers.WoodFuel.on();
     }
 
     public static Item[] getThrowawayItems(AltoClef mod, boolean includeProtected) {

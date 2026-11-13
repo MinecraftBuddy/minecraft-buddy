@@ -62,6 +62,27 @@ public class FuelPolicyTest {
     }
 
     @Test
+    public void thePlansWoodIsKeptOutOfTheFurnace() {
+        // (wood_fuel) a shield under way keeps six planks and a table's four: nine logs and no planks keep three logs back
+        FuelPolicy.plan(10);
+        List<ItemStack> bag = List.of(new ItemStack(Items.OAK_LOG, 9));
+        assertEquals(6 * 1.5, FuelPolicy.usableFuel(bag, FuelPolicyTest::supported, FuelPolicyTest::fuel), 1e-9);
+        // six planks in the bag: they are kept, and one log for the rest
+        List<ItemStack> withPlanks = List.of(new ItemStack(Items.OAK_LOG, 9), new ItemStack(Items.OAK_PLANKS, 6));
+        assertEquals(8 * 1.5, FuelPolicy.usableFuel(withPlanks, FuelPolicyTest::supported, FuelPolicyTest::fuel), 1e-9);
+        assertEquals(Items.OAK_LOG, FuelPolicy.choose(withPlanks, 1, FuelPolicyTest::supported, FuelPolicyTest::fuel).stack().getItem());
+    }
+
+    @Test
+    public void aGamerReserveComesBeforeThePlan() {
+        // the gamer's own reserve (coal first) is the rule while it is set: the plan does not add to it
+        FuelPolicy.plan(40);
+        FuelPolicy.set(2, 0, true);
+        List<ItemStack> bag = List.of(new ItemStack(Items.OAK_LOG, 9));
+        assertEquals(7 * 1.5, FuelPolicy.usableFuel(bag, FuelPolicyTest::supported, FuelPolicyTest::fuel), 1e-9);
+    }
+
+    @Test
     public void withNoReserveEverythingBurns() {
         List<ItemStack> bag = List.of(new ItemStack(Items.OAK_LOG, 10), new ItemStack(Items.OAK_PLANKS, 5));
         assertEquals(22.5, FuelPolicy.usableFuel(bag, FuelPolicyTest::supported, FuelPolicyTest::fuel), 1e-9);

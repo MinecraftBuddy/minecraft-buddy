@@ -3,7 +3,9 @@ package adris.altoclef.tasks.movement;
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.tasks.speedrun.gamer.tasks.CornerWallTask;
 import adris.altoclef.util.baritone.GoalRunAwayFromEntities;
+import adris.altoclef.util.helpers.CombatCommit;
 import adris.altoclef.util.helpers.CombatLog;
 import adris.altoclef.util.helpers.CreeperEscape;
 import adris.altoclef.util.helpers.CreeperStep;
@@ -51,6 +53,13 @@ public class CreeperStepTask extends CustomBaritoneGoalTask {
     private boolean _rawLogged;
     private boolean _issued;
     private boolean _failLogged;
+    // (Tuning creeper_no_heading_block, a fix of 13 Nov 2026, on) no safe heading: a block between the buddy and the creeper, else
+    // one down where the buddy stands (CornerWallTask.creeper), instead of standing on the path baritone looks for. 3 or 4 of
+    // the test heel's runs died standing there, to the blast or to a zombie that hit 9 times meanwhile; the chain's aura hits a
+    // melee mob in reach while the buddy stands (MobDefenseChain, handsFree). a wall that fails hands back to the path
+    private boolean _noHeading;
+    private CornerWallTask _wall;
+    private boolean _wallFailed;
 
     public CreeperStepTask(int creeperId) {
         // no wander: standing at the goal is the point
@@ -85,17 +94,40 @@ public class CreeperStepTask extends CustomBaritoneGoalTask {
         _rawLogged = false;
         _issued = false;
         _failLogged = false;
+        _noHeading = false;
+        _wall = null;
+        _wallFailed = false;
     }
 
     @Override
     protected Task onTick(AltoClef mod) {
+        if (_wall != null) {
+            if (_wall.state() != CombatCommit.WallState.FAILED) return _wall;
+            _wall = null;
+            _wallFailed = true;
+        }
         // before the baritone bit, so the first tick already moves us
         if (sprintAway(mod)) {
             // the hand sprint owns the tick. no goal goes out meanwhile: a path starting from a standstill let go of the
             // forward key while it thought, and that is where the distance went
             return null;
         }
+        if (_noHeading && !_wallFailed && adris.altoclef.util.helpers.Tuning.get("creeper_no_heading_block", 0) > 0
+                && CornerWallTask.offered(mod, CornerWallTask.CREEPER_DEPTH)) {
+            Debug.logInternal("combat: [" + WorldHelper.getCurrentDimension().name().toLowerCase(java.util.Locale.ROOT)
+                    + "] creeper step: no safe heading, a block between or one down (creeper_no_heading_block)");
+            cancelPath(mod);
+            _wall = CornerWallTask.creeper(_creeperId);
+            return _wall;
+        }
         return super.onTick(mod);
+    }
+
+    // (creeper_no_heading_block) no heading, and no block going in and no dig under way: the aura may hit a melee mob in reach,
+    // behind the wall or while baritone's path is looked for (with no wall to be had). false while the wall's clicks or its dig
+    // run (the look is theirs) and while there is a heading (the hand sprint and the path have the feet)
+    public boolean handsFree() {
+        return _noHeading && (_wall == null || _wall.state() == CombatCommit.WallState.BUILT);
     }
 
     // the keys are ours until the ticks run out or we are clear. every tick looks at the ground again, so a ledge or a wall
@@ -145,6 +177,7 @@ public class CreeperStepTask extends CustomBaritoneGoalTask {
                     : CombatLog.creeperSprint(WorldHelper.getCurrentDimension(), heading.degrees()));
         }
         if (heading == null) {
+            _noHeading = true;
             releaseRaw(mod);
             return false;
         }

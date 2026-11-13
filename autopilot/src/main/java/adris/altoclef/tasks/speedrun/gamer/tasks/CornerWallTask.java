@@ -74,6 +74,10 @@ public final class CornerWallTask extends Task {
     // (SkelCoverTask). say starts each line this task writes after "combat: "
     private final boolean digOnly;
     private final String say;
+    // (Tuning creeper_no_heading_block) how deep the dig goes, and whether the top is shut after it: a creeper's wall digs one
+    // down and leaves the top open (its fuse is a second and a half; two down and a roof take longer than that)
+    private final int digDepth;
+    private final boolean roofs;
     private Stage stage = Stage.PICK;
     private long stageSince = Long.MIN_VALUE;
     private String foeName = "mob";
@@ -88,18 +92,29 @@ public final class CornerWallTask extends Task {
     private final Object keys = new Object();
 
     public CornerWallTask(int foeId) {
-        this(foeId, false, "cornered and unarmed: ");
+        this(foeId, false, "cornered and unarmed: ", CornerWall.DEPTH, true);
     }
 
-    private CornerWallTask(int foeId, boolean digOnly, String say) {
+    private CornerWallTask(int foeId, boolean digOnly, String say, int digDepth, boolean roofs) {
         this.foeId = foeId;
         this.digOnly = digOnly;
         this.say = say;
+        this.digDepth = digDepth;
+        this.roofs = roofs;
     }
+
+    // (the buddy's fork, Tuning creeper_no_heading_block, a fix of 13 Nov 2026) a creeper step with no safe heading: a block
+    // from the bag in a cell beside the buddy toward the creeper (the head's height first, which takes its line and stops the
+    // swell, then the feet's, which takes the blast's rays at its feet), else one down where the buddy stands (CreeperStepTask)
+    public static CornerWallTask creeper(int creeperId) {
+        return new CornerWallTask(creeperId, false, "creeper with no way out: ", CREEPER_DEPTH, false);
+    }
+
+    public static final int CREEPER_DEPTH = 1;
 
     // two down where the buddy stands and the top shut, nothing else (SkelCoverTask)
     static CornerWallTask digIn(String say) {
-        return new CornerWallTask(-1, true, say);
+        return new CornerWallTask(-1, true, say, CornerWall.DEPTH, true);
     }
 
     // what CombatCommit.wallFacts hears: building until it is up or given up
@@ -113,9 +128,14 @@ public final class CornerWallTask extends Task {
 
     // a wall is to be had here: a full block in the bag, or ground under the buddy to dig two down
     public static boolean offered(AltoClef mod) {
+        return offered(mod, CornerWall.DEPTH);
+    }
+
+    // the same for a dig of this depth (the creeper's is one)
+    public static boolean offered(AltoClef mod, int depth) {
         LocalPlayer player = mod.getPlayer();
         if (player == null) return false;
-        return wallItems(mod).length > 0 || (player.onGround() && diggable(mod, mod.getWorld(), player.blockPosition()));
+        return wallItems(mod).length > 0 || (player.onGround() && diggable(mod, mod.getWorld(), player.blockPosition(), depth));
     }
 
     @Override
@@ -182,7 +202,7 @@ public final class CornerWallTask extends Task {
             if (shut(level, feet)) {
                 Debug.logInternal("combat: " + say + "shut in already at " + feet.toShortString());
                 enter(Stage.BUILT, now);
-            } else if (diggable(mod, level, feet)) {
+            } else if (diggable(mod, level, feet, digDepth)) {
                 startDig(feet, now);
             } else {
                 fail("no ground to dig at " + feet.toShortString(), now);
@@ -202,7 +222,7 @@ public final class CornerWallTask extends Task {
         // (the head's cell over open ground has its face only once the feet's cell is placed: that one goes first then)
         boolean cellFree = false;
         for (BlockPos cell : cells) cellFree |= support(level, player, cell, BESIDE_SUPPORT) != null;
-        boolean dig = diggable(mod, level, feet);
+        boolean dig = diggable(mod, level, feet, digDepth);
         switch (CornerWall.pick(shut(level, feet), cellFree, dig)) {
             case BUILT -> {
                 Debug.logInternal("combat: " + say + "shut in already at " + feet.toShortString());
@@ -217,7 +237,7 @@ public final class CornerWallTask extends Task {
 
     private void startDig(BlockPos feet, long now) {
         column = feet;
-        depth = CornerWall.DEPTH;
+        depth = digDepth;
         floorY = feet.getY() - depth;
         enter(Stage.DIG, now);
     }
@@ -239,7 +259,7 @@ public final class CornerWallTask extends Task {
         if (next == null) {
             if (any) {
                 enter(Stage.BUILT, now);
-            } else if (player.onGround() && diggable(mod, level, player.blockPosition())) {
+            } else if (player.onGround() && diggable(mod, level, player.blockPosition(), digDepth)) {
                 startDig(player.blockPosition(), now);
             } else {
                 fail("no block went between us and the " + foeName, now);
@@ -263,6 +283,12 @@ public final class CornerWallTask extends Task {
             return null;
         }
         if (player.onGround() && player.blockPosition().getY() <= floorY) {
+            if (!roofs) {
+                Debug.logInternal("combat: " + say + "dug down at " + column.getX() + " " + column.getY() + " " + column.getZ()
+                        + " (" + depth + " deep, the top left open)");
+                enter(Stage.BUILT, now);
+                return null;
+            }
             enter(Stage.ROOF, now);
             return null;
         }
@@ -396,11 +422,16 @@ public final class CornerWallTask extends Task {
     // two cells under the feet that come out with the tools at hand and stay put (no sand or gravel), no lava or water in or by
     // them or by the floor, and a floor under them that holds (air there is a cave or a drop)
     public static boolean diggable(AltoClef mod, Level level, BlockPos feet) {
+        return diggable(mod, level, feet, CornerWall.DEPTH);
+    }
+
+    // the same for a dig of this depth: that many cells under the feet, the floor under the last
+    public static boolean diggable(AltoClef mod, Level level, BlockPos feet, int depth) {
         boolean pick = havePick(mod);
-        BlockPos a = feet.below();
-        BlockPos b = feet.below(2);
-        if (!digCell(level, a, pick) || !digCell(level, b, pick)) return false;
-        return floorHolds(level, feet.below(3));
+        for (int i = 1; i <= depth; i++) {
+            if (!digCell(level, feet.below(i), pick)) return false;
+        }
+        return floorHolds(level, feet.below(depth + 1));
     }
 
     private static boolean floorHolds(Level level, BlockPos floor) {
