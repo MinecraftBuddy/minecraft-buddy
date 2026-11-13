@@ -150,6 +150,9 @@ public final class InputOverrideHandler extends Behavior implements IInputOverri
             return;
         }
         boolean shiftLastTick = player.input instanceof PlayerMovementInput p && p.keyPresses.shift();
+        // (risk_edge_hold) a path that walked last tick: its let go over a drop holds sneak as a sneak's does
+        boolean walkedLastTick = !shiftLastTick && EdgeSettle.holdOn() && player.input instanceof PlayerMovementInput p
+                && (p.keyPresses.forward() || p.keyPresses.backward() || p.keyPresses.left() || p.keyPresses.right());
         boolean moveKey = false;
         for (Input input : new Input[]{Input.MOVE_FORWARD, Input.MOVE_BACK, Input.MOVE_LEFT, Input.MOVE_RIGHT, Input.JUMP}) {
             moveKey |= isInputForcedDown(input);
@@ -157,7 +160,7 @@ public final class InputOverrideHandler extends Behavior implements IInputOverri
         // a pause that landed or a path that ended or got swapped is a path not steering. the same executor running a tick
         // with no keys is a look wait, not a let go
         boolean idle = exec == null || baritone.getPathingBehavior().pausedLastTick() || changed;
-        settle.tick(player, ctx.world(), ctx.minecraft().options, shiftLastTick, isInputForcedDown(Input.SNEAK), moveKey || !idle);
+        settle.tick(player, ctx.world(), ctx.minecraft().options, shiftLastTick, walkedLastTick, isInputForcedDown(Input.SNEAK), moveKey || !idle);
     }
 
     // PlayerMovementInput lays these over the forced keys: sneak down, no jump, no sprint

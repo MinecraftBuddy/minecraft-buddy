@@ -68,6 +68,20 @@ public final class SpotFails {
         return seen.size();
     }
 
+    // (the repair after smoke9, risk_goal_rounds) the rounds this goal failed from within range of this spot within the window
+    public synchronized int rounds(int x, int y, int z, String goal, long now) {
+        if (goal == null) return 0;
+        int n = 0;
+        for (Fail f : fails) {
+            if (now < f.at || now - f.at > ticks || !f.goal.equals(goal)) continue;
+            double dx = f.x - x;
+            double dy = f.y - y;
+            double dz = f.z - z;
+            if (dx * dx + dy * dy + dz * dz <= range * range) n++;
+        }
+        return n;
+    }
+
     public synchronized void clear() {
         fails.clear();
     }

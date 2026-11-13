@@ -60,6 +60,10 @@ public class CombatCommitFleeLostTest {
         return new Foe(id, distance, true, false, CombatCommit.NEVER);
     }
 
+    private static Foe blaze(int id, double distance) {
+        return new Foe(id, distance, true, false, CombatCommit.NEVER, CombatCommit.Kind.FLYER);
+    }
+
     private static Tick tick(long now, float hp, double x, boolean armed, Foe... foes) {
         return new Tick(now, hp, x, 0, List.of(foes), null, Way.NONE, armed);
     }
@@ -151,5 +155,24 @@ public class CombatCommitFleeLostTest {
         c.step(tick(NOW + 40, 9.6f, 20, true, wither(1, 9.3)));
         c.step(tick(NOW + 50, 9.6f, 21, true, wither(1, 9.3)));
         assertEquals(Mode.RUN, c.mode());
+    }
+    // the repair after smoke9 (Tuning risk_blaze_bite): a blaze in its bite during the run is a melee chaser, so a lost flee
+    // turns on it; as a shooter it is not. smoke9 r4: two blazes bit through a run that fled 1 to 2 blocks, 13.9 hp to 0 in 4 s
+    @Test
+    public void aBlazeInItsBiteIsAChaserALostFleeTurnsOn() {
+        CombatCommit c = new CombatCommit();
+        c.meter(Level.FLEE);
+        assertEquals(Event.RUN_START, c.step(tick(NOW, 13.9f, 0, true, blaze(3, 1.5).inBite())));
+        c.meter(Level.FLEE, false, false, 15, 9.6);
+        c.step(tick(NOW + 40, 9.6f, 1, true, blaze(3, 1.6).inBite()));
+        assertEquals(Event.RUN_CHASED_FIGHT, c.step(tick(NOW + 50, 9.6f, 2, true, blaze(3, 1.6).inBite())));
+        assertEquals(3, c.targetId());
+
+        CombatCommit shooter = new CombatCommit();
+        shooter.meter(Level.FLEE);
+        shooter.step(tick(NOW, 13.9f, 0, true, blaze(3, 1.5)));
+        shooter.meter(Level.FLEE, false, false, 15, 9.6);
+        shooter.step(tick(NOW + 40, 9.6f, 1, true, blaze(3, 1.6)));
+        assertNotEquals(Event.RUN_CHASED_FIGHT, shooter.step(tick(NOW + 50, 9.6f, 2, true, blaze(3, 1.6))));
     }
 }

@@ -94,7 +94,9 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
     // (S137, the repair after smoke7; Tuning risk_goal_once, on under risk_flee) the goals given up from a block: a round from it
     // found no way (the unpriced search after a priced one, or a search the mob field did not price), and the same goal is not
     // searched again from there within NO_WAY_TICKS, it fails at once (GivenUpGoals)
-    private final GivenUpGoals<BetterBlockPos, Goal> givenUp = new GivenUpGoals<>(NO_WAY_TICKS);
+    // (the repair after smoke9) by the goal's text: a goal built anew per request is the same goal (GoalFollowEntity's equals
+    // has where its mob stood; smoke8 searched composite and follow goals again 2 to 5 s after their give-up)
+    private final GivenUpGoals<BetterBlockPos, String> givenUp = new GivenUpGoals<>(NO_WAY_TICKS);
 
     static boolean goalOnce() {
         return adris.altoclef.util.helpers.Tuning.get("risk_flee", 0) >= 1 && adris.altoclef.util.helpers.Tuning.get("risk_goal_once", 1) > 0;
@@ -114,6 +116,42 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
 
     static boolean spotOn() {
         return adris.altoclef.util.helpers.Tuning.get("risk_flee", 0) >= 1 && adris.altoclef.util.helpers.Tuning.get("risk_goal_spot", 1) > 0;
+    }
+
+    // (S137, the repair after smoke9; Tuning risk_goal_rounds, on under risk_flee) a goal that failed this many rounds from one
+    // spot (SpotFails' range and window), whatever kind of failure, is given up from where the last began: smoke9 failed 320
+    // searches, 312 of them 2 s time-outs, so the give-up above (an exhausted search only) never fired, and r2's corner failed
+    // 31 times in 6.4 minutes from one patch. one time-out alone gives nothing up (smoke8 r3: a 132-block way 4 s after one)
+    static final int GOAL_ROUNDS = 2;
+
+    static int goalRounds() {
+        return adris.altoclef.util.helpers.Tuning.get("risk_flee", 0) >= 1
+                ? (int) Math.round(adris.altoclef.util.helpers.Tuning.get("risk_goal_rounds", GOAL_ROUNDS)) : 0;
+    }
+
+    // (S137, the repair after smoke9; Tuning risk_trap_back, on under risk_flee) the spot a walk back left (LeftSpot): a way to
+    // its goal that leads back into it is refused for SPOT_TICKS and the goal given up from where that search began
+    private final LeftSpot leftSpot = new LeftSpot(SPOT_RANGE, SPOT_TICKS);
+
+    static boolean trapBackOn() {
+        return adris.altoclef.util.helpers.Tuning.get("risk_flee", 0) >= 1 && adris.altoclef.util.helpers.Tuning.get("risk_trap_back", 1) > 0;
+    }
+
+    // the key a goal is given up and counted by: its text
+    static String goalKey(Goal goal) {
+        return goal == null ? null : goal.toString();
+    }
+
+    // a walk back leaves the spot the buddy stands on, every goal failed from around it, this one too
+    public void leavingSpot(Goal goal) {
+        BetterBlockPos feet = ctx.playerFeet();
+        if (goal == null || feet == null || !trapBackOn()) return;
+        leftSpot.left(goalKey(goal), feet.x, feet.y, feet.z, tickCount);
+    }
+
+    // this behaviour's own tick count: the clock of the trail's points and the give-ups
+    public long ticks() {
+        return tickCount;
     }
 
     // the goals that failed from around the buddy's feet within SPOT_TICKS, 0 with the key off
@@ -138,7 +176,7 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
     // that walks there takes that as its stall, now rather than after its stuck checks
     public boolean givenUpHere(Goal goal) {
         return goal != null && !(goal instanceof adris.altoclef.util.baritone.GoalFlee) && goalOnce()
-                && givenUp.holds(new BetterBlockPos(ctx.playerFeet()), goal, tickCount);
+                && givenUp.holds(new BetterBlockPos(ctx.playerFeet()), goalKey(goal), tickCount);
     }
 
     private volatile AbstractNodeCostSearch inProgress;
@@ -877,8 +915,8 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         // (S137, the repair after smoke7, risk_goal_once: a goal given up from this block a moment ago is not searched again from
         // here; it fails at once, as a search with no way would. the no-way count first: a task reads the failures first)
         if (current == null && !(goal instanceof adris.altoclef.util.baritone.GoalFlee) && goalOnce()
-                && givenUp.holds(new BetterBlockPos(start), goal, tickCount)) {
-            long ago = givenUp.sayOnce(new BetterBlockPos(start), goal, tickCount);
+                && givenUp.holds(new BetterBlockPos(start), goalKey(goal), tickCount)) {
+            long ago = givenUp.sayOnce(new BetterBlockPos(start), goalKey(goal), tickCount);
             if (ago >= 0) {
                 adris.altoclef.Debug.logInternal("search: no way from " + start.getX() + "," + start.getY() + "," + start.getZ() + " to " + goal
                         + String.format(java.util.Locale.ROOT, " %.1f s ago, given up here for %d s, not searched again", ago / 20.0, NO_WAY_TICKS / 20));
@@ -1061,9 +1099,21 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
             if (current == null) {
                 if (executor.isPresent()) {
                     if (executor.get().getPath().positions().contains(expectedSegmentStart)) {
-                        queuePathEvent(PathEvent.CALC_FINISHED_NOW_EXECUTING);
-                        current = executor.get();
-                        resetEstimatedTicksToGoal(start);
+                        // (the repair after smoke9, risk_trap_back) a way back into the spot a walk back left for this goal
+                        long left = leftSpot.ago(tickCount);
+                        if (trapBackOn() && !(goal instanceof adris.altoclef.util.baritone.GoalFlee)
+                                && leftSpot.leadsBack(goalKey(goal), start.getX(), start.getY(), start.getZ(), executor.get().getPath().positions(), tickCount)) {
+                            givenUp.note(new BetterBlockPos(start), goalKey(goal), tickCount);
+                            adris.altoclef.Debug.logInternal(String.format(java.util.Locale.ROOT,
+                                    "search: the way from %d,%d,%d to %s leads back to %s, left %.0f s ago with every goal failing there: given up from here for %d s",
+                                    start.getX(), start.getY(), start.getZ(), goal, leftSpot.where(), left / 20.0, NO_WAY_TICKS / 20));
+                            calcFailures++;
+                            queuePathEvent(PathEvent.CALC_FAILED);
+                        } else {
+                            queuePathEvent(PathEvent.CALC_FINISHED_NOW_EXECUTING);
+                            current = executor.get();
+                            resetEstimatedTicksToGoal(start);
+                        }
                     } else {
                         logDebug("Warning: discarding orphan path segment with incorrect start");
                     }
@@ -1087,13 +1137,23 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                             noWayAt = tickCount;
                             // (the repair after smoke8, risk_goal_spot: only a search that ran out of nodes, and not at once)
                             if (once && (!spotOn() || (taken.exhausted() && takenMs > TRIVIAL_MS))) {
-                                givenUp.note(new BetterBlockPos(start), goal, tickCount);
+                                givenUp.note(new BetterBlockPos(start), goalKey(goal), tickCount);
                             }
                         }
                         // (the repair after smoke8, risk_goal_spot) every failed search by its spot, whatever its kind
                         if (calcResult.getType() == PathCalculationResult.Type.FAILURE && spotOn()
                                 && !(goal instanceof adris.altoclef.util.baritone.GoalFlee)) {
-                            spotFails.note(start.getX(), start.getY(), start.getZ(), goal.toString(), tickCount);
+                            spotFails.note(start.getX(), start.getY(), start.getZ(), goalKey(goal), tickCount);
+                            // (the repair after smoke9, risk_goal_rounds) the goal's failed rounds from around here
+                            int rounds = goalRounds();
+                            int failed = rounds > 0 && once ? spotFails.rounds(start.getX(), start.getY(), start.getZ(), goalKey(goal), tickCount) : 0;
+                            if (rounds > 0 && failed >= rounds && !givenUp.holds(new BetterBlockPos(start), goalKey(goal), tickCount)) {
+                                givenUp.note(new BetterBlockPos(start), goalKey(goal), tickCount);
+                                adris.altoclef.Debug.logInternal(String.format(java.util.Locale.ROOT,
+                                        "search: %d rounds to %s failed from around %d,%d,%d within %d s (this one %s): given up from here for %d s",
+                                        failed, goal, start.getX(), start.getY(), start.getZ(), SPOT_TICKS / 20,
+                                        taken.exhausted() ? "exhausted" : "timed out", NO_WAY_TICKS / 20));
+                            }
                         }
                         calcFailures++;
                         queuePathEvent(PathEvent.CALC_FAILED);

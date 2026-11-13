@@ -265,6 +265,21 @@ public final class DangerMeter {
         return Math.max(0, loss - share * Math.max(0, 1 - k / HORIZON));
     }
 
+    // (S137, the repair after smoke9, Tuning risk_blaze_bite) a mob that holds its place follows us in its bite (MobThreat.biting)
+    // while it is within its reach with a line to us, and for BITE_KEEP ticks after (two of its bites): our own steps and its
+    // drift take it in and out of reach, and smoke9's meter read calm beside a blaze 2.0 to 2.1 off that bit again within 2 s.
+    // bitAt keeps the tick each was last in reach (the caller's map)
+    static final long BITE_KEEP = 40;
+
+    static boolean bites(java.util.Map<Integer, Long> bitAt, int id, boolean inReach, long now) {
+        if (inReach) {
+            bitAt.put(id, now);
+            return true;
+        }
+        Long at = bitAt.get(id);
+        return at != null && now >= at && now - at <= BITE_KEEP;
+    }
+
     // the time to kill one mob: its hp over our damage a second plus the walk to it, or for a flyer out of reach with a line
     // to it and a bow counted (Us.bowDps), its hp over the bow's damage a second where it is (the forced fight shoots it)
     static double killTime(Mob mob, Us us, double distance, double hp) {
@@ -280,8 +295,8 @@ public final class DangerMeter {
         double scale = scale(row, us);
         double melee = 0;
         if (row.melee() > 0 && (mob.way() || row.flies())) {
-            // (a mob that holds its place, a blaze, bites only where it already reaches)
-            double toReach = row.holds() ? (distance <= row.reach() ? 0 : HORIZON) : Math.max(0, distance - row.reach()) / Math.max(0.05, row.speed());
+            // (a mob that holds its place, a blaze, bites only where it already reaches, or follows a little in its bite)
+            double toReach = Math.min(HORIZON, row.toReach(distance));
             melee = row.melee() * scale * Math.max(0, HORIZON - toReach);
             // a creeper blasts once
             if (row.kind().equals("creeper")) melee = Math.min(melee, row.hit() * scale);

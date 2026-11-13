@@ -52,4 +52,11 @@ public class GoalFollowEntity implements Goal {
     public int hashCode() {
         return Objects.hash(_entity.getId(), _closeEnoughDistance, _madeAt);
     }
+
+    // the mob and the distance, not where it stood: the text a failed search is counted and given up by (PathingBehavior), the
+    // same for every goal a task makes for one mob
+    @Override
+    public String toString() {
+        return "GoalFollowEntity{entity=" + _entity.getId() + ", near=" + _closeEnoughDistance + "}";
+    }
 }

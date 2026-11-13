@@ -95,6 +95,22 @@ public final class DangerShadow {
     static final double LINGER = 3;
     private static Map<Integer, Wanted> wanted = new HashMap<>();
 
+    // (S137, the repair after smoke9, Tuning risk_blaze_bite, on under risk_flee) the blazes in their bite: the tick each was
+    // last within its reach with a line to us (DangerMeter.bites). its row in the meter and the field chases (MobThreat.biting),
+    // and during the meter's run it is a melee foe (CombatBrain). smoke9: 29 blaze bites, 88.7 hp, the meter calm beside a
+    // blaze 2.0 to 2.1 off that bit again within 2 s, r4's death
+    private static Map<Integer, Long> bitAt = new HashMap<>();
+    private static volatile java.util.Set<Integer> biting = java.util.Set.of();
+
+    static boolean biteOn() {
+        return Tuning.get("risk_flee", 0) >= 1 && Tuning.get("risk_blaze_bite", 1) > 0;
+    }
+
+    // the ids of the blazes in their bite at the last reading; empty with the key off or the meter not reading
+    public static java.util.Set<Integer> biting() {
+        return biteOn() && reading ? biting : java.util.Set.of();
+    }
+
     // progress: mobs that were after us at the last sample (id to distance), and the rods we held
     private static Map<Integer, Double> after = new HashMap<>();
     private static int lastRods = -1;
@@ -293,6 +309,8 @@ public final class DangerShadow {
             after = new HashMap<>();
             lastRods = -1;
             wanted = new HashMap<>();
+            bitAt = new HashMap<>();
+            biting = java.util.Set.of();
             need = 0;
             wasFlee = false;
             shares = Map.of();
@@ -448,9 +466,13 @@ public final class DangerShadow {
         long linger = Math.round(Tuning.get("risk_mob_linger", LINGER) * 20);
         if (level != lingerLevel) {
             wanted = new HashMap<>();
+            bitAt = new HashMap<>();
             lingerLevel = level;
         }
         wanted.values().removeIf(w -> now - w.tick() > linger || now < w.tick());
+        bitAt.values().removeIf(at -> now - at > DangerMeter.BITE_KEEP || now < at);
+        boolean biteOn = biteOn();
+        java.util.Set<Integer> bitingNow = new java.util.HashSet<>();
         for (Entity e : level.entitiesForRendering()) {
             if (!(e instanceof Mob mob) || !mob.isAlive()) continue;
             double distance = mob.distanceTo(player);
@@ -470,6 +492,15 @@ public final class DangerShadow {
             double notice = row != null ? row.follow() : MOB_RANGE;
             boolean needSight = (shooter && distance <= row.range()) || (!afterUs && hostileKind && !calm && distance <= notice);
             boolean sees = needSight && LookHelper.seesPlayer(mob, player, Math.max(MOB_RANGE, Math.min(SHOOTER_RANGE, distance + 1)));
+            // (risk_blaze_bite) a blaze in its bite follows us: its row chases (BlazeAttackGoal bites only with a line to us)
+            if (biteOn && row != null && row.holds() && DangerMeter.bites(bitAt, mob.getId(), distance <= row.reach() && sees, now)) {
+                row = MobThreat.biting(row);
+                bitingNow.add(mob.getId());
+                if (!biting.contains(mob.getId())) {
+                    Debug.logInternal(String.format(java.util.Locale.ROOT, "risk: %s #%d in its bite %.1f off: it follows, priced as a chaser",
+                            kind, mob.getId(), distance));
+                }
+            }
             double want = DangerMeter.wantsToHurt(afterUs, hostileKind, calm, sees, distance, notice);
             boolean way = row != null && row.flies() || reach.wayFor(mob, player, now);
             // (a paused task's exclusions count too: the rods task is paused exactly while a run has the wheel)
@@ -503,6 +534,7 @@ public final class DangerShadow {
             }
         }
         pendingAfter = afterNow;
+        biting = java.util.Set.copyOf(bitingNow);
         DangerShadow.counted = inT;
         killSeconds = kills;
         shares = share;

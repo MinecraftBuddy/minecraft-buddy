@@ -18,7 +18,11 @@ import java.util.List;
 // a path that stops steering while we hang off a ledge on sneak used to let go of sneak that same tick, and the leftover
 // creep took the last hundredth of a block of overlap with it. this keeps sneak down and walks us back onto the block we
 // are hanging off. it lives in the input handler and is applied where PlayerMovementInput reads the keys, after every
-// clearAllKeys of the tick, so no cancel path can eat it. the path waits (PathingBehavior.tickPath), searches go on
+// clearAllKeys of the tick, so no cancel path can eat it. the path waits (PathingBehavior.tickPath), searches go on.
+// (S137, the repair after smoke9, Tuning risk_edge_hold, on under risk_flee) and a path that lets go while we walk, not
+// sneak, with the centre out over a drop: smoke9 r2's corner walk went diagonally into a wall corner on a fort rim, the risk
+// replan cancelled it there with the centre over air, the keys went up with no sneak, and the leftover drift (z 0.035 down to
+// 0.006 a tick) took the buddy off: 24 blocks at 20 hp
 public final class EdgeSettle {
 
     // the foot row plus three under it: a drop of three or less costs nothing
@@ -155,7 +159,17 @@ public final class EdgeSettle {
     // (a look wait mid back-place). latched = the last settle on this support gave up and we haven't moved off it since
     public static boolean mayEngage(boolean shiftLastTick, boolean sneakForced, boolean steering, boolean resting,
                                     boolean blocked, boolean humanKey, boolean latched, boolean hanging) {
-        return shiftLastTick && !sneakForced && !steering && resting && !blocked && !humanKey && !latched && hanging;
+        return mayEngage(shiftLastTick, false, sneakForced, steering, resting, blocked, humanKey, latched, hanging);
+    }
+
+    // walkedLastTick = a path pressed a direction last tick (risk_edge_hold): its let go is a let go too
+    public static boolean mayEngage(boolean shiftLastTick, boolean walkedLastTick, boolean sneakForced, boolean steering, boolean resting,
+                                    boolean blocked, boolean humanKey, boolean latched, boolean hanging) {
+        return (shiftLastTick || walkedLastTick) && !sneakForced && !steering && resting && !blocked && !humanKey && !latched && hanging;
+    }
+
+    public static boolean holdOn() {
+        return adris.altoclef.util.helpers.Tuning.get("risk_flee", 0) >= 1 && adris.altoclef.util.helpers.Tuning.get("risk_edge_hold", 1) > 0;
     }
 
     // ticks counts from the engage tick (0). the walk stops at WALK_TICKS, after that we only wait for the creep to die
@@ -235,6 +249,11 @@ public final class EdgeSettle {
 
     // once a tick from InputOverrideHandler.onTick, after the path and every process had their say
     public void tick(LocalPlayer p, Level world, Options options, boolean shiftLastTick, boolean sneakForced, boolean steering) {
+        tick(p, world, options, shiftLastTick, false, sneakForced, steering);
+    }
+
+    public void tick(LocalPlayer p, Level world, Options options, boolean shiftLastTick, boolean walkedLastTick, boolean sneakForced,
+                     boolean steering) {
         // every tick, before any gate. a height that only gets sampled once we let go of sneak has no last tick to compare to
         prevY = p != null && p == heightOf ? lastY : Double.NaN;
         lastY = p == null ? Double.NaN : p.getY();
@@ -261,7 +280,7 @@ public final class EdgeSettle {
             latched = latch.blocks(resting(p, world), under);
         }
         // cheap gates first, the world lookups only for a bot that just let go of sneak
-        if (!shiftLastTick || sneakForced || steering || latched || blocked(p) || humanKey(options)) {
+        if (!(shiftLastTick || walkedLastTick) || sneakForced || steering || latched || blocked(p) || humanKey(options)) {
             return;
         }
         boolean resting = resting(p, world);
@@ -279,7 +298,8 @@ public final class EdgeSettle {
         support = under;
         player = p;
         level = world;
-        Debug.logInternal("edge settle: hanging at " + p.blockPosition().toShortString() + ", support " + under.toShortString() + ", onGround " + p.onGround());
+        Debug.logInternal("edge settle: hanging at " + p.blockPosition().toShortString() + ", support " + under.toShortString() + ", onGround " + p.onGround()
+                + (shiftLastTick ? "" : ", a walk let go"));
     }
 
     // the keys for this tick, read by PlayerMovementInput. yaw is the one moveRelative is about to use

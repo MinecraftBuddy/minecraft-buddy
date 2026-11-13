@@ -318,9 +318,12 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
             return null;
         }
         BlockPos to = new BlockPos(p.x(), p.y(), p.z());
+        // (the trail's clock is the pathing's own tick count, not the world's game time)
         Debug.logInternal(String.format(java.util.Locale.ROOT, "search: %d goals failed from around %s lately, back the way the buddy came to %s (%.0f blocks, %.0f s ago)",
                 goals, mod.getPlayer().blockPosition().toShortString(), to.toShortString(),
-                Math.sqrt(to.distSqr(mod.getPlayer().blockPosition())), (now - p.at()) / 20.0));
+                Math.sqrt(to.distSqr(mod.getPlayer().blockPosition())), (pathing.ticks() - p.at()) / 20.0));
+        // (the repair after smoke9, risk_trap_back) and a way to this goal back into here is refused for a while
+        pathing.leavingSpot(_cachedGoal);
         _checker.reset();
         _backTask = new GetToBlockTask(to, false);
         _backUntil = now + BACK_TICKS;

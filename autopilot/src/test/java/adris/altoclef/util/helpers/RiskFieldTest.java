@@ -216,4 +216,16 @@ public class RiskFieldTest {
         // a zombie as far off does come
         assertTrue(pricer(new World(), 0, true, mob(2, ZOMBIE, 0.5, 0.5, 1)).hp(3, 64, 0, 60, 20, null) > 0);
     }
+    // the repair after smoke9: a blaze in its bite follows a step: a cell a block past its reach costs once the walk gets there
+    // after the blaze could (a zombie's pace), a cell farther never. smoke9 r4 fled 1 to 2 blocks to cells priced 0
+    @Test
+    public void aBlazeInItsBiteFollowsAStep() {
+        RiskField.Pricer p = pricer(new World(), 0, true, mob(1, MobThreat.biting(BLAZE), 0.5, 0.5, 1));
+        assertEquals(3.12, p.hp(2, 64, 0, 0, 20, null), 1e-9);
+        // 3 off: not at once (1 / 2.3 s, 8.7 ticks), at a second yes
+        assertEquals(0, p.hp(3, 64, 0, 0, 20, null), 1e-9);
+        assertEquals(3.12, p.hp(3, 64, 0, 20, 20, null), 1e-9);
+        // 4 off: never
+        assertEquals(0, p.hp(4, 64, 0, 60, 20, null), 1e-9);
+    }
 }

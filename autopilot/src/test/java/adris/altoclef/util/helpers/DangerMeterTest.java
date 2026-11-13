@@ -14,6 +14,7 @@ import adris.altoclef.util.helpers.DangerMeter.Reading;
 import adris.altoclef.util.helpers.DangerMeter.Us;
 import java.util.List;
 import org.junit.Test;
+import static org.junit.Assert.assertSame;
 
 // the shadow danger meter on made-up scenes: who counts, the fire resistance rule, the push term, the levels and their hold
 public class DangerMeterTest {
@@ -270,6 +271,41 @@ public class DangerMeterTest {
         assertTrue(DangerMeter.read(us, List.of(mob("zombie", 2.9, 0, 1, true, true)), List.of()).t() > 1);
         // and without the potion the blaze's fireballs count at any distance in sight, as they did
         assertTrue(DangerMeter.read(us(20, false), List.of(mob("blaze", 2.9, 0, 1, true, true)), List.of()).t() > 1);
+    }
+
+    // S137, the repair after smoke9 (Tuning risk_blaze_bite): a blaze in its bite follows us a step, at a zombie's pace, no
+    // farther than a block past its reach, under fire resistance too (the bite is no fire). smoke9 r4: the meter read calm at
+    // 8.3 hp beside a blaze 2.0 off that bit again the next second, two of them took 13.9 hp in 4 s
+    @Test
+    public void aBlazeInItsBiteFollowsAStep() {
+        MobThreat bite = MobThreat.biting(MobThreat.forMeter("blaze", 1));
+        Us us = us(20, true);
+        double t = DangerMeter.read(us, List.of(new Mob("blaze", bite, 2.1, 0, 0, 1, true, true, 20)), List.of()).t();
+        assertEquals(3.12 * (DangerMeter.HORIZON - 0.1 / MobThreat.BITE_SPEED), t, 1e-6);
+        // a block past its reach and no farther
+        assertTrue(DangerMeter.read(us, List.of(new Mob("blaze", bite, 2.9, 0, 0, 1, true, true, 20)), List.of()).t() > 1);
+        assertEquals(0, DangerMeter.read(us, List.of(new Mob("blaze", bite, 3.1, 0, 0, 1, true, true, 20)), List.of()).t(), 1e-9);
+        // a blaze not in its bite 2.1 off: nothing, as before
+        assertEquals(0, DangerMeter.read(us, List.of(mob("blaze", 2.1, 0, 1, true, true)), List.of()).t(), 1e-9);
+        // r4: two in their bite at 8.3 hp under the potion are no calm
+        Reading r4 = DangerMeter.read(us(8.3, true), List.of(new Mob("blaze", bite, 2.0, 0, 0, 1, true, true, 20),
+                new Mob("blaze", bite, 0, 0, 2.2, 1, true, true, 20)), List.of());
+        assertNotEquals(Level.CALM, levelFrom(Level.CALM, r4));
+        // any other row is itself
+        assertSame(MobThreat.forMeter("zombie", 1), MobThreat.biting(MobThreat.forMeter("zombie", 1)));
+    }
+
+    // in its bite while within its reach with a line, and for BITE_KEEP ticks after
+    @Test
+    public void aBiteIsKeptTwoSeconds() {
+        java.util.Map<Integer, Long> bitAt = new java.util.HashMap<>();
+        assertFalse(DangerMeter.bites(bitAt, 7, false, 100));
+        assertTrue(DangerMeter.bites(bitAt, 7, true, 100));
+        assertTrue(DangerMeter.bites(bitAt, 7, false, 100 + DangerMeter.BITE_KEEP));
+        assertFalse(DangerMeter.bites(bitAt, 7, false, 100 + DangerMeter.BITE_KEEP + 1));
+        // another mob is another bite; a clock that went back counts as long ago
+        assertFalse(DangerMeter.bites(bitAt, 8, false, 110));
+        assertFalse(DangerMeter.bites(bitAt, 7, false, 50));
     }
 
     // ---- the task's goal weighed in (Tuning risk_flee_goal): the mobs a task fights on its own terms count as the next one

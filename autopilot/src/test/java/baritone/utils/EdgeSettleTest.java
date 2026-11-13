@@ -169,6 +169,18 @@ public class EdgeSettleTest {
         assertFalse(EdgeSettle.mayEngage(true, false, false, true, false, false, false, false));
     }
 
+    // the repair after smoke9 (risk_edge_hold): a path that walked last tick and let go is a let go too, with the same gates.
+    // smoke9 r2: the risk replan cancelled a corner walk on a fort rim with the centre over air, no sneak, a 24-block fall
+    @Test
+    public void aWalkThatLetGoEngagesToo() {
+        assertTrue(EdgeSettle.mayEngage(false, true, false, false, true, false, false, false, true));
+        assertFalse(EdgeSettle.mayEngage(false, false, false, false, true, false, false, false, true));
+        // still steering, not resting, or not over a drop: no
+        assertFalse(EdgeSettle.mayEngage(false, true, false, true, true, false, false, false, true));
+        assertFalse(EdgeSettle.mayEngage(false, true, false, false, false, false, false, false, true));
+        assertFalse(EdgeSettle.mayEngage(false, true, false, false, true, false, false, false, false));
+    }
+
     // ---- end: ticks, changed, onGround, blocked, humanKey, inside, speed
 
     @Test

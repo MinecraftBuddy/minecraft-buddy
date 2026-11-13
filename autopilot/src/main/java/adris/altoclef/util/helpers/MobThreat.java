@@ -20,9 +20,16 @@ import java.util.Map;
 // hit: one hit's damage, for counting hits (a knock comes with each); push: how far a hit carries the feet (SafeStand), away
 //   from the mob, or any way round (pushRound, a hoglin's throw)
 // hp: its full health (the danger meter's time to kill it; a live mob's own health wins where the client has it)
+// chase: for a mob that holds its place (holds()), how far past its reach it follows us; 0, it bites only where it reaches
 public record MobThreat(String kind, double width, double height, double eye, double speed, boolean flies, double follow, boolean neutral,
                         double melee, double reach, boolean sphere, double shot, double range, double aim, double burn,
-                        double hit, double push, boolean pushRound, double hp) {
+                        double hit, double push, boolean pushRound, double hp, double chase) {
+
+    public MobThreat(String kind, double width, double height, double eye, double speed, boolean flies, double follow, boolean neutral,
+                     double melee, double reach, boolean sphere, double shot, double range, double aim, double burn,
+                     double hit, double push, boolean pushRound, double hp) {
+        this(kind, width, height, eye, speed, flies, follow, neutral, melee, reach, sphere, shot, range, aim, burn, hit, push, pushRound, hp, 0);
+    }
 
     // a hostile kind with no row of its own: a plain melee mob
     static final MobThreat ANY = new MobThreat("hostile", 0.6, 1.95, 1.74, 3.0, false, 16, false,
@@ -157,6 +164,32 @@ public record MobThreat(String kind, double width, double height, double eye, do
     public static MobThreat forMeter(String kind, int size) {
         MobThreat row = of(kind, size);
         return row != null ? row : MORE.get(kind);
+    }
+
+    // (S137, the repair after smoke9) a blaze in its bite: within its reach with a line to us it moves at our feet on every
+    // tick it bites (BlazeAttackGoal), at its walking pace (its movement speed is a zombie's, 0.23: about 2.3 blocks a second
+    // on the ground, less in the air), so a step or two away does not leave it behind; once we are out of its reach it stops
+    // and shoots again. smoke9 r4: a run fled 1 to 2 blocks to cells priced 0, two blazes followed and bit 3.1 a second, 13.9
+    // hp to 0 in 4 s. its row then chases at that pace, no farther than BITE_CHASE past its reach
+    static final double BITE_SPEED = 2.3;
+    static final double BITE_CHASE = 1.0;
+    private static final MobThreat BLAZE = ROWS.get("blaze");
+    private static final MobThreat BLAZE_BITING = new MobThreat("blaze", BLAZE.width, BLAZE.height, BLAZE.eye, BITE_SPEED, BLAZE.flies,
+            BLAZE.follow, BLAZE.neutral, BLAZE.melee, BLAZE.reach, BLAZE.sphere, BLAZE.shot, BLAZE.range, BLAZE.aim, BLAZE.burn,
+            BLAZE.hit, BLAZE.push, BLAZE.pushRound, BLAZE.hp, BITE_CHASE);
+
+    // the row of a mob in its bite (one row, so the field sees the same object while it stays so); the row itself for any
+    // other
+    static MobThreat biting(MobThreat row) {
+        return row == BLAZE ? BLAZE_BITING : row;
+    }
+
+    // seconds until its melee reaches a point d blocks off (feet to feet for the meter, to a cell's centre for the field);
+    // infinity where it never comes: a mob that holds its place bites only within its reach, or its chase past it
+    double toReach(double d) {
+        if (d <= reach) return 0;
+        if (holds() && d > reach + chase) return Double.POSITIVE_INFINITY;
+        return (d - reach) / Math.max(0.05, speed);
     }
 
     // the row of a kind (the entity type's path, "blaze"), sized for a magma cube or slime (size 1, 2 or 4; others ignore it);

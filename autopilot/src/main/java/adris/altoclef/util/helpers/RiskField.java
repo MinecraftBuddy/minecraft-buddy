@@ -18,7 +18,8 @@ import java.util.function.Predicate;
 // what a mob costs at a cell is what DangerMeter reckons from its MobThreat row, per cell and aware of time:
 //   melee: its hp a second for the time we spend in the cell, when it can be there by the time we are (its distance less its
 //     reach, at its speed, against our arrival). past the horizon its reach stops growing: where a chasing mob is by then
-//     depends on where we went, and the next version says. a blaze's bite only within its reach: it does not chase
+//     depends on where we went, and the next version says. a blaze's bite only within its reach: it does not chase, except
+//     one in its bite, a step past it (MobThreat.biting)
 //   shots: its hp a second at that distance (the aimed share), when the cell is in its range and in sight of its eye: no
 //     block that spans its cell on the line (Cells.blocksSight; fire and a fence are no cover)
 // both times its want (DangerMeter.wantsToHurt) and its armour scale for us (DangerMeter.scale)
@@ -315,9 +316,9 @@ public final class RiskField {
                 double hp = 0;
                 if (row.melee() > 0 && (s.way() || row.flies())) {
                     double d = length(s.x() - cx, s.y() - y, s.z() - cz);
-                    // (a mob that holds its place, a blaze, bites only where it already reaches: MobThreat.holds)
-                    double toReach = row.holds() ? (d <= row.reach() ? 0 : Double.POSITIVE_INFINITY)
-                            : Math.max(0, d - row.reach()) / Math.max(0.05, row.speed()) * 20;
+                    // (a mob that holds its place, a blaze, bites only where it already reaches, or a little past it in its
+                    // bite: MobThreat.toReach)
+                    double toReach = row.toReach(d) * 20;
                     if (toReach <= when) {
                         hp = row.melee() * s.scale() * exposure / 20;
                         // a creeper blasts once

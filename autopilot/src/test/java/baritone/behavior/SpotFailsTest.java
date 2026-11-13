@@ -70,4 +70,19 @@ public class SpotFailsTest {
         assertEquals(2, trail.back(4, 64, 0, 2, 100, 3).x());
         assertEquals(0, trail.back(4, 64, 0, 3, 100, 3).x());
     }
+    // the repair after smoke9 (risk_goal_rounds): the rounds one goal failed from around a spot, whatever their kind
+    @Test
+    public void theRoundsOfOneGoalFromOneSpot() {
+        SpotFails fails = new SpotFails(2.5, 1200);
+        fails.note(10, 64, 10, "GoalBlock{x=1,y=2,z=3}", 100);
+        fails.note(11, 64, 10, "GoalFollowEntity{entity=7, near=3.0}", 120);
+        assertEquals(1, fails.rounds(10, 64, 10, "GoalBlock{x=1,y=2,z=3}", 130));
+        fails.note(12, 64, 11, "GoalBlock{x=1,y=2,z=3}", 140);
+        assertEquals(2, fails.rounds(10, 64, 10, "GoalBlock{x=1,y=2,z=3}", 150));
+        // from another spot, past the window, or another goal: not counted
+        assertEquals(0, fails.rounds(20, 64, 10, "GoalBlock{x=1,y=2,z=3}", 150));
+        assertEquals(1, fails.rounds(10, 64, 10, "GoalBlock{x=1,y=2,z=3}", 100 + 1200 + 1));
+        assertEquals(1, fails.rounds(10, 64, 10, "GoalFollowEntity{entity=7, near=3.0}", 150));
+        assertEquals(0, fails.rounds(10, 64, 10, null, 150));
+    }
 }

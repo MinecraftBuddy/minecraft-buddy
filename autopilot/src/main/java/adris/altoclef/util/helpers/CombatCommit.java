@@ -333,6 +333,12 @@ public final class CombatCommit {
             return new Foe(id, distance, ranged, creeper, sinceHit, kind, reachGap, sight, sinceHitBefore, fast, splitType, splits, x, y, z, knocker, brute, wet, wither, patrol);
         }
 
+        // (S137, the repair after smoke9, Tuning risk_blaze_bite) a blaze in its bite during the meter's run: a melee chaser, so
+        // the hits it lands through the run and a lost flee turn on it as on a wither skeleton (DangerShadow.biting)
+        public Foe inBite() {
+            return new Foe(id, distance, false, creeper, sinceHit, kind, reachGap, sight, sinceHitBefore, fast, splitType, splits, x, y, z, knocker, brute, wet, wither, patrol);
+        }
+
         public Foe withSplit(String splitType, boolean splits, double x, double y, double z) {
             return new Foe(id, distance, ranged, creeper, sinceHit, kind, reachGap, sight, sinceHitBefore, fast, splitType, splits, x, y, z, knocker, brute, wet, wither, patrol);
         }

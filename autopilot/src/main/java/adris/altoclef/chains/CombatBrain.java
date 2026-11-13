@@ -813,6 +813,10 @@ final class CombatBrain {
         // a swelling creeper stops being angry at us (the fuse goal pushes the chase aside), so the hostile list drops it right when
         // the run away from it needs to see it
         if (_commit.mode() == Mode.RUN && _commit.why() == CombatCommit.Why.REPEAT_CREEPER) addNearCreepers(mod, player, mobs, foes);
+        // (S137, the repair after smoke9, Tuning risk_blaze_bite, on under risk_flee) during a run a blaze in its bite is a melee
+        // chaser, the rods task's own included: the hits it lands turn the run on it, and so does a flee whose own path costs
+        // the hp left. smoke9 r4: two blazes bit 3.1 a second through a run that fled 1 to 2 blocks, 13.9 hp to 0 in 4 s, no foe
+        if (_commit.mode() == Mode.RUN && GoalFlee.on()) addBlazesInBite(mod, dimension, book, now, player, mobs, foes);
         sortNearestFirst(mobs, foes);
         _foeMobs = mobs;
         // the hold's re-run source: who threw the last projectile at us, when it is a blaze or a skeleton. the run steers around it
@@ -1125,6 +1129,28 @@ final class CombatBrain {
                 if (distance > FOE_RANGE || !FoeRules.liftsExclusion(typeOf(blaze), true, book.sinceHit(blaze.getId(), now))) continue;
                 mobs.add(blaze);
                 foes.add(foe(dimension, blaze, distance, book, now, player));
+            }
+        } catch (ConcurrentModificationException ignored) {
+            // same as gatherFoes, one tick of stale state is fine
+        }
+    }
+
+    // (risk_blaze_bite) the blazes the danger meter has in their bite, as melee foes: one already a foe turns melee, one a task
+    // kept for itself is added
+    private static void addBlazesInBite(AltoClef mod, Dimension dimension, Provocations book, long now, LocalPlayer player,
+                                        List<Mob> mobs, List<Foe> foes) {
+        java.util.Set<Integer> biting = adris.altoclef.util.helpers.DangerShadow.biting();
+        if (biting.isEmpty()) return;
+        for (int i = 0; i < foes.size(); i++) {
+            if (biting.contains(foes.get(i).id())) foes.set(i, foes.get(i).inBite());
+        }
+        try {
+            for (Blaze blaze : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+                if (!blaze.isAlive() || !biting.contains(blaze.getId()) || mobs.contains(blaze)) continue;
+                double distance = blaze.distanceTo(player);
+                if (distance > FOE_RANGE) continue;
+                mobs.add(blaze);
+                foes.add(foe(dimension, blaze, distance, book, now, player).inBite());
             }
         } catch (ConcurrentModificationException ignored) {
             // same as gatherFoes, one tick of stale state is fine
