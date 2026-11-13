@@ -235,6 +235,11 @@ hunted; their meat is picked up.
   night). Three blocks down under the open sky and shut, or underground the open sides shut right there; out in the
   morning once nothing waits at the hole's mouth. Deep under the ground the night changes nothing and the work goes on.
   A bed in the bag skips the night where the server lets one sleeper do that.
+- **Digging in on the spot**: with no three blocks of ground underfoot, two down right there and a block over the
+  head, never a walk to another spot first. Not over water or lava, a cave or a drop, and not into stone without a
+  pickaxe: then the next spot within two steps, else the walk to ground that will do. Any full block in the bag counts for
+  the walls and the top (logs, planks, stone, dirt), the junk blocks first; sand and gravel do not, nor a crafting table,
+  furnace, chest or bed.
 - **Sleep only outside**: the autopilot's bed at dusk goes down only outside in the overworld. Deep under the ground the buddy
   does not sleep (phantoms come only under the open sky); back outside at night, the bed goes down at once.
 - **Hurt**: under half health with no fight on and food to heal by, a hole until healed; with nothing to eat, food first.
@@ -243,6 +248,8 @@ hunted; their meat is picked up.
   a tunnel and never where there is no way away; a flight that still takes hits from a monster, or that turns back
   toward what it ran from with a monster on its heels, ends in a fight. A run never ends in a corner with a wither
   skeleton beside it.
+- **Cornered with no weapon**: no bare-handed fight. A block goes between the buddy and the monster, or the buddy digs
+  two down and shuts the top, and waits there. Only with no block and no ground to dig is it the fight.
 - **Shooters**: from skeletons and the like, a hole three down right there, or walls built of the blocks in the bag, the
   shooters' side first, kept while one is about. A drowned with a trident counts as a shooter. Under the ground monsters
   on their way are walled out at once. Hit at arm's length inside the walls, the buddy fights.
