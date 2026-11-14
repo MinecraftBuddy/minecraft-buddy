@@ -90,19 +90,37 @@ public class EnterNetherPortalTask extends Task {
     // a tracked cell we'd walk to as it is
     public static Predicate<BlockPos> standablePortal(AltoClef mod, Predicate<BlockPos> goodPortal) {
         Predicate<BlockPos> portalAt = portalAt(mod);
+        boolean every = goodEveryCell();
         return blockPos -> {
-            if (portalAt.test(blockPos)) {
-                return isFeetCell(blockPos, portalAt);
-            }
-            // REQUIRE that there be solid ground beneath us, not more portal.
-            if (!mod.getChunkTracker().isChunkLoaded(blockPos)) {
-                // Eh just assume it's good for now
-                return true;
-            }
+            boolean live = portalAt.test(blockPos);
+            boolean loaded = live || mod.getChunkTracker().isChunkLoaded(blockPos);
+            // REQUIRE that there be solid ground beneath us, not more portal (asked of a stale cell in a loaded chunk only)
             BlockPos below = blockPos.below();
-            boolean canStand = WorldHelper.isSolid(mod, below) && !mod.getBlockTracker().blockIsValid(below, Blocks.NETHER_PORTAL);
-            return canStand && goodPortal.test(blockPos);
+            boolean canStand = !live && loaded && WorldHelper.isSolid(mod, below) && !mod.getBlockTracker().blockIsValid(below, Blocks.NETHER_PORTAL);
+            return standableCell(live, live && isFeetCell(blockPos, portalAt), loaded, canStand, goodPortal, blockPos, every);
         };
+    }
+
+    // (the buddy's fork, Tuning exit_own_portal, a fix of 14 Nov 2026, on) goodPortal is asked of every tracked cell: a live portal's
+    // and one in an unloaded chunk too. it was asked only of a stale cell on loaded ground, so a caller's "not that frame" never
+    // kept a live portal out: the route's exit passed a frame over at 81 blocks off with no way into it and picked it again in
+    // the same tick, twice in phase 7, the buddy's own portal never tried (cascade t7, heel-15 run 4). off: the old rule
+    public static boolean goodEveryCell() {
+        return adris.altoclef.util.helpers.Tuning.get("exit_own_portal", 0) > 0;
+    }
+
+    // the rule standablePortal applies, without the game: a live portal cell is one when it is the bottom of its column, a cell in
+    // an unloaded chunk is trusted, a stale one on loaded ground needs solid ground under it; goodPortal on the last always, and
+    // (every) on the other two as well
+    static <P> boolean standableCell(boolean live, boolean feetCell, boolean loaded, boolean canStand, Predicate<P> goodPortal, P cell, boolean every) {
+        if (live) {
+            return feetCell && (!every || goodPortal.test(cell));
+        }
+        if (!loaded) {
+            // Eh just assume it's good for now
+            return !every || goodPortal.test(cell);
+        }
+        return canStand && goodPortal.test(cell);
     }
 
     // the cell this task would walk to, nearest to `from`: a tracked cell that is standable as it is, or the bottom of the

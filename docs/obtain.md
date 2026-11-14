@@ -167,8 +167,10 @@ gate lacks is fetched by safer steps first, all of it planned together.
      made, the last three cobblestone (or blackstone) in the bag are kept for it and never built into a box.
   6. The rest of the rods under the brewed potions. The order's count stays in the bag; the two rods for the stand
      and its fuel come on top.
-  7. Back to the overworld through the nearest portal seen. The order is done there. With no portal known, it ends in
-     the nether.
+  7. Back to the overworld through the portal the buddy came in by, while there is a way to it; otherwise through the
+     nearest portal seen. A portal with no way into it is not tried again. With no other block to place, the walk out
+     builds with the cobblestone in the bag, three kept for the stand while a brew is still to come. The order is done
+     there. With no portal known, it ends in the nether.
   When the gold gives no potion, the buddy fetches the cream and the wart, gets the first two rods without the potion,
   then brews as above. Without the cream or the wart, there is no brew: the rest of the rods come without it. A potion
   kept for the blazes goes down on the way only when life is at stake: in lava for two seconds or at 12 health, or

@@ -887,4 +887,31 @@ public final class RouteRules {
         if (stallTicks < Math.round(EXIT_STALL_S * 20)) return way;
         return Math.min(way + 1, 2);
     }
+
+    // ---- (Tuning exit_own_portal, a fix of 14 Nov 2026, on) the portal the buddy came into the nether by (MiscBlockTracker) is the
+    // exit's first choice while it is known and its frame was not passed over; the nearest one after that, as before. the first
+    // run from a bare start that met the whole kit took its 10 rods at the spawner, and the exit chose the nearest portal in a
+    // straight line, 235 blocks off across the basalt deltas' lava sea, never the one the buddy built and walked in by 271
+    // blocks off; from a basalt peak no search got closer, and the buddy died on the way out (cascade t7, heel-15 run 4)
+    public static boolean exitOwnOn() {
+        return Tuning.get("exit_own_portal", 0) > 0;
+    }
+
+    public static boolean exitOwnFirst(boolean on, boolean ownKnown, boolean ownPassed) {
+        return on && ownKnown && !ownPassed;
+    }
+
+    // ---- (Tuning exit_free_stone, a fix of 14 Nov 2026, on) the exit's walk with no block it may place: the stone in the bag above
+    // what the order still needs of it (the stand's, while a brew is to come) is the walk's to build with. a ghast's ball knocked
+    // the buddy into the lava sea; the buddy pillared out with basalt until the basalt ran out and stood two minutes on the pillar, every
+    // search "0.0 blocks", with 37 cobblestone in the bag that the walker counted as all spoken for (cascade t7, heel-15 run 4)
+    public static boolean exitFreeStoneOn() {
+        return Tuning.get("exit_free_stone", 0) > 0;
+    }
+
+    // how much of the stone the walk may take: what the bag holds above keep, none when the walk has a block of its own already
+    public static int exitStoneFree(boolean on, boolean walkHasBlock, int stone, int keep) {
+        if (!on || walkHasBlock) return 0;
+        return Math.max(0, stone - Math.max(0, keep));
+    }
 }

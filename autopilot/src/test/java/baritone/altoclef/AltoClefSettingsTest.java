@@ -44,6 +44,7 @@ public class AltoClefSettingsTest {
         s.getProtectedItems().clear();
         s.setProtectedReserve(Map.of());
         s.setInteractionPaused(false);
+        s.capReserve(Map.of(), Long.MIN_VALUE);
     }
 
     // there is no registry in a unit test, so no real Item to protect. null is a fine key for a HashSet and a HashMap,
@@ -232,5 +233,25 @@ public class AltoClefSettingsTest {
         assertNotEquals(idle, s.blockToggleBits());
         s.allowSwimThroughLava(false);
         assertEquals(idle, s.blockToggleBits());
+    }
+
+    // (exit_free_stone) a cap holds the reserve down while it is renewed, and is gone once its time is past
+    @Test
+    public void aCapHoldsTheReserveDownWhileItLasts() {
+        s.getProtectedItems().add(ITEM);
+        Map<Item, Integer> cap = new HashMap<>();
+        cap.put(ITEM, 3);
+        s.capReserve(cap, System.currentTimeMillis() + 60_000);
+        assertEquals(3, s.reservedCount(ITEM));
+        s.capReserve(cap, System.currentTimeMillis() - 1);
+        assertEquals(AltoClefSettings.FULLY_RESERVED, s.reservedCount(ITEM));
+    }
+
+    @Test
+    public void aCapNeverRaisesTheReserve() {
+        assertEquals(2, AltoClefSettings.capped(2, 3));
+        assertEquals(3, AltoClefSettings.capped(AltoClefSettings.FULLY_RESERVED, 3));
+        assertEquals(5, AltoClefSettings.capped(5, null));
+        assertEquals(0, AltoClefSettings.capped(5, -1));
     }
 }

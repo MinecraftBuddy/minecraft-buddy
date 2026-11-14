@@ -522,7 +522,25 @@ public class AltoClefSettings {
             return 0;
         }
         Integer saving = s.protectedReserve == null ? null : s.protectedReserve.get(item);
-        return saving == null ? FULLY_RESERVED : saving;
+        int reserve = saving == null ? FULLY_RESERVED : saving;
+        return capped(reserve, System.currentTimeMillis() <= reserveCapUntil ? reserveCap.get(item) : null);
+    }
+
+    // (the buddy's fork, Tuning exit_free_stone, a fix of 14 Nov 2026, on) a cap on what the movements leave alone of an item, set
+    // by a task that knows what its order still needs of it (the route's exit out of the nether) and renewed while it does, gone
+    // untilMillis after the last renewal. the reserve above is the sum over altoclef's behaviour stack, and that stack can hold
+    // the levels of tasks long finished: their counts outlived what they were for
+    private volatile Map<Item, Integer> reserveCap = java.util.Collections.emptyMap();
+    private volatile long reserveCapUntil = Long.MIN_VALUE;
+
+    public void capReserve(Map<Item, Integer> cap, long untilMillis) {
+        reserveCap = java.util.Collections.unmodifiableMap(new HashMap<>(cap));
+        reserveCapUntil = untilMillis;
+    }
+
+    // the reserve, no more than the cap (null: no cap)
+    static int capped(int reserve, Integer cap) {
+        return cap == null ? reserve : Math.min(reserve, Math.max(0, cap));
     }
 
     // BotBehaviour adds up its whole state stack and hands the sum here. it gets called on every applyState, so a map that
@@ -580,6 +598,8 @@ public class AltoClefSettings {
         jumpsOffUntilTick = Long.MIN_VALUE;
         canWalkOnEndPortal = false;
         endPortalFrameRules = false;
+        reserveCap = java.util.Collections.emptyMap();
+        reserveCapUntil = Long.MIN_VALUE;
     }
 
     public HashSet<BlockPos> getBlocksToAvoidBreaking() {

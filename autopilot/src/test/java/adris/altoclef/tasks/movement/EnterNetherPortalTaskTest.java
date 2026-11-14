@@ -159,4 +159,37 @@ public class EnterNetherPortalTaskTest {
         assertTrue(EnterNetherPortalTask.onTopOfFrame(new Vec3(3.9, 68, 0.5), bottom));
         assertFalse(EnterNetherPortalTask.onTopOfFrame(new Vec3(4.2, 68, 0.5), bottom));
     }
+
+    // (exit_own_portal) the caller's goodPortal is asked of a live cell and of one in an unloaded chunk too, not only of a stale
+    // one on loaded ground
+    @Test
+    public void goodPortalIsAskedOfEveryKindOfCell() {
+        Predicate<BlockPos> notWanted = p -> false;
+        BlockPos c = new BlockPos(0, 64, 0);
+        assertTrue(EnterNetherPortalTask.standableCell(true, true, true, false, notWanted, c, false));
+        assertFalse(EnterNetherPortalTask.standableCell(true, true, true, false, notWanted, c, true));
+        assertTrue(EnterNetherPortalTask.standableCell(false, false, false, false, notWanted, c, false));
+        assertFalse(EnterNetherPortalTask.standableCell(false, false, false, false, notWanted, c, true));
+        assertFalse(EnterNetherPortalTask.standableCell(false, false, true, true, notWanted, c, false));
+        // a live cell above the bottom of its column is none, wanted or not
+        assertFalse(EnterNetherPortalTask.standableCell(true, false, true, false, p -> true, c, true));
+    }
+
+    // (exit_own_portal) the near frame passed over, the far one is the pick; before, the near one was picked again
+    @Test
+    public void aFramePassedOverIsNotPickedAgain() {
+        Set<BlockPos> cells = interior();
+        for (int y = 64; y <= 66; y++) {
+            cells.add(new BlockPos(40, y, 0));
+        }
+        Predicate<BlockPos> portal = cells::contains;
+        Predicate<BlockPos> notPassed = p -> p.getX() > 20;
+        List<BlockPos> tracked = List.of(new BlockPos(0, 64, 0), new BlockPos(40, 65, 0));
+        Predicate<BlockPos> before = p -> EnterNetherPortalTask.standableCell(portal.test(p),
+                portal.test(p) && EnterNetherPortalTask.isFeetCell(p, portal), true, false, notPassed, p, false);
+        Predicate<BlockPos> now = p -> EnterNetherPortalTask.standableCell(portal.test(p),
+                portal.test(p) && EnterNetherPortalTask.isFeetCell(p, portal), true, false, notPassed, p, true);
+        assertEquals(Optional.of(new BlockPos(0, 64, 0)), EnterNetherPortalTask.pickUsable(tracked, portal, before, p -> false, new Vec3(2, 64, 0)));
+        assertEquals(Optional.of(new BlockPos(40, 64, 0)), EnterNetherPortalTask.pickUsable(tracked, portal, now, p -> false, new Vec3(2, 64, 0)));
+    }
 }

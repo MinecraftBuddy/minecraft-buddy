@@ -718,4 +718,23 @@ public class RouteRulesTest {
         assertEquals(150, RouteRules.wartWalkCapS(false, 213), 1e-9);
         assertEquals(150, RouteRules.wartWalkCapS(true, Double.NaN), 1e-9);
     }
+
+    // (exit_own_portal) the portal the buddy came in by first, while it is known and its frame not passed over
+    @Test
+    public void theExitTakesTheOwnPortalFirstWhileThereIsAWay() {
+        assertTrue(RouteRules.exitOwnFirst(true, true, false));
+        assertFalse(RouteRules.exitOwnFirst(true, true, true));
+        assertFalse(RouteRules.exitOwnFirst(true, false, false));
+        assertFalse(RouteRules.exitOwnFirst(false, true, false));
+    }
+
+    // (exit_free_stone) the stone above the stand's keep, and only for a walk with no block of its own
+    @Test
+    public void theExitWalkGetsTheStoneAboveTheKeep() {
+        assertEquals(34, RouteRules.exitStoneFree(true, false, 37, 3));
+        assertEquals(37, RouteRules.exitStoneFree(true, false, 37, 0));
+        assertEquals(0, RouteRules.exitStoneFree(true, true, 37, 3));
+        assertEquals(0, RouteRules.exitStoneFree(false, false, 37, 3));
+        assertEquals(0, RouteRules.exitStoneFree(true, false, 2, 3));
+    }
 }

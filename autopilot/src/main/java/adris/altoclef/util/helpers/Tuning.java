@@ -498,6 +498,15 @@ public final class Tuning {
             // at night the skeleton cover's far exit (no skeleton within 20 for 5 s) waits for full hp (SkelCover.Hold, CombatBrain):
             // early deaths since heel-17 ran at 6 to 7 hp in the dark after the cover was left
             java.util.Map.entry("cover_night_hold", 1.0),
+            // (fixes of 14 Nov 2026, the first run from a bare start that met the whole kit: 10 rods, dead on the way out) phase 7
+            // goes out by the portal the buddy came in by first, and a frame passed over stays out of every pick, a live portal's
+            // cells too (RouteRules.exitOwnFirst, EnterNetherPortalTask.standableCell): the exit picked a portal across the lava
+            // sea twice in the tick it passed it over
+            java.util.Map.entry("exit_own_portal", 1.0),
+            // the exit's walk with no block it may place builds with the bag's cobblestone above the stand's keep (CollectBlazeRodsTask,
+            // AltoClefSettings.capReserve): the buddy stood two minutes on a pillar in the lava sea with 37 cobblestone counted as
+            // spoken for by the levels of user tasks finished long before
+            java.util.Map.entry("exit_free_stone", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

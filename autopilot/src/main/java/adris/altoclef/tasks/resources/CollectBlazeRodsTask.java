@@ -217,6 +217,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private long _exitProgressAt;
     private Task _exitDefend;
     private Blaze _exitDefendFor;
+    // (Tuning exit_own_portal) the own portal and the frames passed over whose lines were said; (Tuning exit_free_stone) the
+    // walk's stone freed this order
+    private BlockPos _exitOwnSaid;
+    private final java.util.Set<BlockPos> _exitRefusedSaid = new java.util.HashSet<>();
+    private boolean _exitStoneFreed;
 
     private BlockPos _foundBlazeSpawner = null;
     // where we camp: a cell out past the spawn area (LavaShore.campSpot), picked once per spawner. null = the room had none, so
@@ -464,10 +469,15 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // walk's block order, so the walks bridge with netherrack first. 0 lifts the count, the stone then free to build with)
     private void reserveStandStone(AltoClef mod) {
         if (behaviourLevel() == null) return;
+        mod.getBehaviour().reserveProtectedItems(behaviourLevel(), java.util.Map.of(Items.COBBLESTONE, standStoneKeep(mod)));
+    }
+
+    // the cobblestone the brewing stand still needs: brew_keep_stone's count while no stand is in the bag and a brew is to come
+    private int standStoneKeep(AltoClef mod) {
         int keep = adris.altoclef.util.helpers.RouteRules.keepStone();
         boolean brewToCome = !_brewGaveUp && !mod.getItemStorage().hasItem(Items.BREWING_STAND)
                 && PotionHelper.count(mod, Potions.WATER) + PotionHelper.count(mod, Potions.AWKWARD) > 0;
-        mod.getBehaviour().reserveProtectedItems(behaviourLevel(), java.util.Map.of(Items.COBBLESTONE, keep > 0 && brewToCome ? keep : 0));
+        return keep > 0 && brewToCome ? keep : 0;
     }
 
     // the camp's point the snowballs are thrown from (RodSnowball): the crowd's hiding place, a standing pillbox's cell, the camp
@@ -2203,12 +2213,23 @@ public class CollectBlazeRodsTask extends ResourceTask {
         long step = first ? adris.altoclef.util.helpers.RouteRules.exitTicks(_exitTickAt, now) : 0;
         _exitTickAt = now;
         _exitTicks += step;
+        exitFreeStone(mod);
         // (Tuning exit_tracked_stall, a fix of 13 Nov 2026, on: a frame passed over is no portal for the tracker's pick either)
         boolean trackedStall = first && adris.altoclef.util.helpers.Tuning.get("exit_tracked_stall", 0) > 0;
         java.util.function.Predicate<BlockPos> good = trackedStall ? p -> !exitPassedFrame(p)
                 : adris.altoclef.tasks.movement.EnterNetherPortalTask.ANY_PORTAL;
+        // (Tuning exit_own_portal, a fix of 14 Nov 2026, on) the portal the buddy came in by first, while its frame was not passed
+        // over: the tracker's pick and the enter task see that frame alone, and with the tracker knowing none of its cells the walk
+        // goes to it as to a portal kept. passed over, the nearest as before
+        BlockPos own = trackedStall ? exitOwn(mod) : null;
+        if (own != null) {
+            good = p -> !exitPassedFrame(p) && adris.altoclef.util.helpers.RouteRules.samePortal(p.getX(), p.getY(), p.getZ(),
+                    own.getX(), own.getY(), own.getZ());
+        } else if (trackedStall) {
+            exitNoteRefused(mod);
+        }
         Optional<BlockPos> tracked = adris.altoclef.tasks.movement.EnterNetherPortalTask.usablePortal(mod, good, me.position());
-        BlockPos kept = tracked.isPresent() ? null : nearestPortalSeen(mod);
+        BlockPos kept = tracked.isPresent() ? null : own != null ? own : nearestPortalSeen(mod);
         long capTicks = Math.round(adris.altoclef.util.helpers.Tuning.get("route_exit_s", adris.altoclef.util.helpers.RouteRules.EXIT_S) * 20);
         // (Tuning exit_cap_progress, a fix of 13 Nov 2026, on: past the cap the exit goes on while a walk came closer lately)
         String why = first && adris.altoclef.util.helpers.Tuning.get("exit_cap_progress", 0) > 0
@@ -2293,6 +2314,59 @@ public class CollectBlazeRodsTask extends ResourceTask {
             if (adris.altoclef.util.helpers.RouteRules.samePortal(p.getX(), p.getY(), p.getZ(), q.getX(), q.getY(), q.getZ())) return true;
         }
         return false;
+    }
+
+    // (Tuning exit_own_portal) the bottom cell of the portal the buddy came into the nether by (MiscBlockTracker), null with the key
+    // off, none known or its frame passed over; a line when it becomes the choice
+    private BlockPos exitOwn(AltoClef mod) {
+        Optional<BlockPos> used = mod.getMiscBlockTracker().getLastUsedNetherPortal(Dimension.NETHER);
+        if (!adris.altoclef.util.helpers.RouteRules.exitOwnFirst(adris.altoclef.util.helpers.RouteRules.exitOwnOn(), used.isPresent(),
+                used.isPresent() && exitPassedFrame(used.get()))) {
+            return null;
+        }
+        BlockPos own = used.get().immutable();
+        if (!own.equals(_exitOwnSaid)) {
+            _exitOwnSaid = own;
+            Debug.logInternal("exit: the way out is the portal the buddy came in by at " + own.toShortString() + ", "
+                    + (int) Math.round(mod.getPlayer().position().distanceTo(Vec3.atBottomCenterOf(own))) + " blocks off (exit_own_portal)");
+        }
+        return own;
+    }
+
+    // (Tuning exit_own_portal) a frame passed over that the old pick would have taken again: a line once a frame
+    private void exitNoteRefused(AltoClef mod) {
+        if (!adris.altoclef.tasks.movement.EnterNetherPortalTask.goodEveryCell() || _exitPassed.isEmpty()) return;
+        Optional<BlockPos> any = adris.altoclef.tasks.movement.EnterNetherPortalTask.usablePortal(mod,
+                adris.altoclef.tasks.movement.EnterNetherPortalTask.ANY_PORTAL, mod.getPlayer().position());
+        if (any.isEmpty() || !exitPassedFrame(any.get())) return;
+        for (BlockPos q : _exitRefusedSaid) {
+            if (adris.altoclef.util.helpers.RouteRules.samePortal(q.getX(), q.getY(), q.getZ(), any.get().getX(), any.get().getY(), any.get().getZ())) return;
+        }
+        _exitRefusedSaid.add(any.get().immutable());
+        Debug.logInternal("exit: the portal at " + any.get().toShortString() + " was passed over, not picked again (exit_own_portal)");
+    }
+
+    // (Tuning exit_free_stone, a fix of 14 Nov 2026, on) the walk out with no block it may place: the cobblestone (and cobbled
+    // deepslate) above the stand's keep is the walk's from then on, the reserve on it capped for as long as the exit runs (renewed
+    // every tick of it, lapsing FREE_HOLD_MS after the last). the reserve the walker reads is the sum over the behaviour stack, and
+    // the stack still holds the levels of user tasks that finished long before: the runner stays up between them (altoRunsWhenIdle)
+    // and a finished root is dropped without a stop, so none of its levels is popped. 37 cobblestone counted as all spoken for
+    private static final long FREE_HOLD_MS = 5000;
+
+    private void exitFreeStone(AltoClef mod) {
+        if (!adris.altoclef.util.helpers.RouteRules.exitFreeStoneOn()) return;
+        int keep = standStoneKeep(mod);
+        if (!_exitStoneFreed) {
+            int stone = mod.getItemStorage().getItemCount(Items.COBBLESTONE, Items.COBBLED_DEEPSLATE);
+            int free = adris.altoclef.util.helpers.RouteRules.exitStoneFree(true,
+                    mod.getClientBaritone().getInventoryBehavior().hasGenericThrowaway(), stone, keep);
+            if (free <= 0) return;
+            _exitStoneFreed = true;
+            Debug.logInternal("exit: no block the walk may place, " + free + " of the bag's " + stone + " cobblestone freed for it, "
+                    + keep + " kept for the stand (exit_free_stone)");
+        }
+        baritone.altoclef.AltoClefSettings.getInstance().capReserve(java.util.Map.of(Items.COBBLESTONE, keep, Items.COBBLED_DEEPSLATE, 0),
+                System.currentTimeMillis() + FREE_HOLD_MS);
     }
 
     // (Tuning exit_tracked_stall, a fix of 13 Nov 2026, on) the way into a portal the tracker knows, with the kept walk's stall
