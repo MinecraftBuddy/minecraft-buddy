@@ -694,6 +694,11 @@ final class ObtainSafe {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_stuck_way_out", 0) > 0;
 	}
 
+	/** The autopilot's shelter_down_from_tree switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
+	static boolean downFromTreeOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_down_from_tree", 0) > 0;
+	}
+
 	/** The block the night shelter puts in first: the first in the bag that passes shelterBlock; null with none. */
 	static String firstShelterBlock(LocalPlayer p) {
 		var in = p.getInventory();
@@ -1223,6 +1228,15 @@ final class ObtainSafe {
 		boolean handWalk;
 		int handDigs;
 		long handLookAt;
+		/**
+		 * (the autopilot's shelter_down_from_tree, a fix of 14 Nov 2026, on) treeGround: the ground cell walked down to from a
+		 * tree, since treeSince; treeGiven once the walk down failed or found no ground, for the rest of this shelter; treeWalks:
+		 * the walks down begun.
+		 */
+		BlockPos treeGround;
+		long treeSince;
+		boolean treeGiven;
+		int treeWalks;
 		/** Cells where it could not shut itself in: no site within two blocks of them. */
 		final java.util.Set<BlockPos> bad = new java.util.HashSet<>();
 		boolean sealed, open;
@@ -1338,6 +1352,15 @@ final class ObtainSafe {
 			// from shooters: three down where it stands when the ground is good, or else walled in where it stands, never a walk
 			// to a site (on the slope of a cave the walk and the arrows' knock-back took it down four blocks and three arrows)
 			if (duck && bottom == null && dug == 0 && (walls || !diggable(level, p, f))) bottom = f;
+			// (the autopilot's shelter_down_from_tree, a fix of 14 Nov 2026, on) on leaves or a log, or more than four over the ground
+			// under the column: down to the nearest ground first, where a hole can be dug and the sites lie. A live look at the test
+			// heel: a bare start at night on oak leaves in a forest's canopy, the floor 5 to 9 below, "no hole here, shut in on the
+			// spot" with no block in the bag and nothing under the feet to dig, then "shut but for 8 cells" until a phantom and
+			// spiders drove the buddy down
+			if (downFromTreeOn() && !treeGiven) {
+				ObtainSteps.Result t = downFromTree(mc, p, level, f, now);
+				if (t == ObtainSteps.Result.RUN) return t;
+			}
 			// (the autopilot's shelter_blocks_first, a fix of 13 Nov 2026, on) with few blocks to build with and no hole to dig here
 			// or near: cells of grass or dirt round the spot broken by hand first, and their dirt picked up
 			if (!gatherDone && !duck && !walls && !wound && !sealed && here == null && bottom == null && dug == 0 && !nearSite && !handWalk) {
@@ -1479,7 +1502,10 @@ final class ObtainSafe {
 			// the top last, by the roof's own ways (one down where the floor breaks, else a block on a wall from a jump). test heel's
 			// night on a snowy slope: the top tried first and refused, three tries elsewhere, then a wait in an open hole
 			boolean refusedWalls = refusedWallsOn();
-			if (!noDig && DigIn.shutOnSpot(refusedWalls, stoppedShort, duck, open(level, f))) {
+			// (the autopilot's shelter_down_from_tree, a fix of 14 Nov 2026, on) not with no block in the bag and nothing under the feet
+			// to dig: the tries elsewhere take over (on the leaves it was declared with 0 blocks and waited half open)
+			if (!noDig && DigIn.shutOnSpot(refusedWalls, stoppedShort, duck, open(level, f))
+					&& !DigIn.shutOnSpotPointless(downFromTreeOn(), shelterBlocks(p), safeToDig(level, p, f.below()))) {
 				noDig = true;
 				Exchange.emit("obtain", "action", "shelter", "what", "no hole here, shut in on the spot", "x", f.getX(), "y", f.getY(), "z", f.getZ(),
 					"dug", dug, "blocks", shelterBlocks(p), "with", String.valueOf(firstShelterBlock(p)));
@@ -1695,14 +1721,22 @@ final class ObtainSafe {
 		static BlockPos site(Level level, LocalPlayer p, java.util.Set<BlockPos> bad) {
 			BlockPos f = p.blockPosition(), best = null;
 			double bd = 1e9;
+			// (shelter_down_from_tree) measured from the ground under the feet: from a canopy every site lay more than four below
+			int base = siteBase(level, f);
 			for (int dx = -16; dx <= 16; dx++) for (int dz = -16; dz <= 16; dz++) {
 				BlockPos c = ObtainSteps.surface(level, f.getX() + dx, f.getZ() + dz);
-				if (c == null || Math.abs(c.getY() - f.getY()) > 4 || !diggable(level, p, c)) continue;
+				if (c == null || Math.abs(c.getY() - base) > 4 || !diggable(level, p, c)) continue;
 				if (bad.stream().anyMatch(b -> Math.abs(b.getX() - c.getX()) <= 2 && Math.abs(b.getZ() - c.getZ()) <= 2)) continue;
-				double d = dx * dx + dz * dz + Math.abs(c.getY() - f.getY());
+				double d = dx * dx + dz * dz + Math.abs(c.getY() - base);
 				if (d < bd) { bd = d; best = c; }
 			}
 			return best;
+		}
+
+		/** (shelter_down_from_tree) the height the sites are measured from (DigIn.siteBase): the ground under the feet, or the feet. */
+		static int siteBase(Level level, BlockPos f) {
+			BlockPos ground = ObtainSteps.surface(level, f.getX(), f.getZ());
+			return DigIn.siteBase(downFromTreeOn(), f.getY(), ground == null ? null : ground.getY());
 		}
 
 		boolean stepping;
@@ -1839,6 +1873,54 @@ final class ObtainSafe {
 		}
 
 		/**
+		 * (shelter_down_from_tree) the walk down from a tree: RUN while it goes on, DONE once the feet are on the ground or the walk
+		 * is given up (no ground within four columns, the walker found no way, or DigIn.TREE_MS passed). On the ground the shelter
+		 * starts afresh there, its spot and its clock new.
+		 */
+		ObtainSteps.Result downFromTree(Minecraft mc, LocalPlayer p, Level level, BlockPos f, long now) {
+			BlockState under = level.getBlockState(f.below());
+			boolean onTree = under.is(net.minecraft.tags.BlockTags.LEAVES) || under.is(net.minecraft.tags.BlockTags.LOGS);
+			BlockPos ground = ObtainSteps.surface(level, f.getX(), f.getZ());
+			if (!DigIn.downFromTree(true, sealed, duck, dug, here != null, onTree, f.getY(), ground == null ? null : ground.getY())) {
+				if (treeGround != null) {
+					// on the ground, or the walk cut short (a shooter to duck from)
+					Exchange.emit("obtain", "action", "shelter", "what", onTree ? "the walk down from the tree stopped" : "down from the tree",
+						"x", f.getX(), "y", f.getY(), "z", f.getZ(), "s", (now - treeSince) / 1000);
+					treeGround = null;
+					bottom = null; site = null; siteSince = 0; nearSite = false; handWalk = false; since = now;
+				}
+				return ObtainSteps.Result.DONE;
+			}
+			if (treeGround == null) {
+				// (a walk down that got there and a tree climbed again: no third walk down)
+				if (treeWalks >= DigIn.TREE_WALKS) return ObtainSteps.Result.DONE;
+				treeGround = ObtainSteps.Mine.groundNear(level, p);
+				treeSince = now;
+				treeWalks++;
+				if (treeGround == null) {
+					treeGiven = true;
+					Exchange.emit("obtain", "action", "shelter", "what", "no ground near to go down to", "x", f.getX(), "y", f.getY(), "z", f.getZ(),
+						"on", onTree ? "tree" : "high ground");
+					return ObtainSteps.Result.DONE;
+				}
+				Exchange.emit("obtain", "action", "shelter", "what", "goes down from the tree", "x", f.getX(), "y", f.getY(), "z", f.getZ(),
+					"to", treeGround.toShortString(), "on", onTree ? "tree" : "high ground", "blocks", shelterBlocks(p));
+			}
+			if (now - treeSince > DigIn.TREE_MS
+					|| !Work.approach(mc, p, "ground-" + treeGround.toShortString(), Vec3.atBottomCenterOf(treeGround), now)) {
+				treeGiven = true;
+				Exchange.emit("obtain", "action", "shelter", "what", "could not get down from the tree", "x", f.getX(), "y", f.getY(), "z", f.getZ(),
+					"to", treeGround.toShortString(), "s", (now - treeSince) / 1000);
+				treeGround = null;
+				return ObtainSteps.Result.DONE;
+			}
+			phase = "down from the tree to " + treeGround.toShortString();
+			// nothing of the spot in the tree is kept for the ground
+			bottom = null; noDig = false; stoppedShort = false; noDigKeptAt = null; site = null; nearSite = false; handWalk = false;
+			return ObtainSteps.Result.RUN;
+		}
+
+		/**
 		 * (shelter_blocks_first) blocks first: decided once, on the first tick on the ground (DigIn.blocksFirst); then up to six
 		 * cells of grass or dirt within three blocks of the standing cell broken by hand, the nearest first, and each one's dirt
 		 * picked up before the next. Over once DigIn.gatherDone says so, no cell is left, or a monster comes. RUN while it goes on,
@@ -1937,13 +2019,15 @@ final class ObtainSafe {
 		static BlockPos handSite(Level level, LocalPlayer p, BlockPos f, java.util.Set<BlockPos> bad) {
 			BlockPos best = null;
 			double bd = Double.MAX_VALUE;
+			// (shelter_down_from_tree) measured from the ground under the feet, as the sites are
+			int base = siteBase(level, f);
 			for (int dx = -16; dx <= 16; dx++) for (int dz = -16; dz <= 16; dz++) {
 				if (Math.abs(dx) <= 2 && Math.abs(dz) <= 2) continue;
 				BlockPos c = ObtainSteps.surface(level, f.getX() + dx, f.getZ() + dz);
-				if (c == null || Math.abs(c.getY() - f.getY()) > 4) continue;
+				if (c == null || Math.abs(c.getY() - base) > 4) continue;
 				if (bad.stream().anyMatch(b -> Math.abs(b.getX() - c.getX()) <= 2 && Math.abs(b.getZ() - c.getZ()) <= 2)) continue;
 				if (!Bed.free(level, c) || !Bed.free(level, c.above()) || !open(level, c) || digInRefusal(level, p, c) != null) continue;
-				double d = dx * dx + dz * dz + Math.abs(c.getY() - f.getY());
+				double d = dx * dx + dz * dz + Math.abs(c.getY() - base);
 				if (d < bd) { bd = d; best = c; }
 			}
 			return best;

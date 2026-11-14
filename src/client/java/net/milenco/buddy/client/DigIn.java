@@ -187,4 +187,43 @@ final class DigIn {
 	static boolean feetStayed(int x, int z, int atX, int atZ) {
 		return x == atX && z == atZ;
 	}
+
+	/** (shelter_down_from_tree) the most the feet may stand over the ground under their column before the shelter goes down. */
+	static final int TREE_HEIGHT = 4;
+
+	/** (shelter_down_from_tree) the walk down from a tree, given up after this long; walks down a shelter takes at most. */
+	static final long TREE_MS = 45_000;
+	static final int TREE_WALKS = 2;
+
+	/**
+	 * (the autopilot's shelter_down_from_tree, a fix of 14 Nov 2026, on) down to the ground first: not shut yet, not ducking
+	 * from shooters, nothing dug and no dig-in chosen ({@code digIn}), and the feet on leaves or a log ({@code onTree}) two or
+	 * more over the ground under their column ({@code groundY}, null when none was found; a bush of one block is no tree), or
+	 * more than {@link #TREE_HEIGHT} over it on anything. A live look at the test heel: a bare start at night on oak leaves in a
+	 * forest's canopy, the floor 5 to 9 below; every site lay more than 4 from the feet, nothing under them could be dug and the
+	 * bag held no block, so the buddy waited "shut but for 8 cells" until a phantom and spiders drove the buddy down.
+	 */
+	static boolean downFromTree(boolean on, boolean sealed, boolean duck, int dug, boolean digIn, boolean onTree, int feetY, Integer groundY) {
+		if (!on || sealed || duck || dug != 0 || digIn) return false;
+		if (groundY == null) return onTree;
+		return onTree && feetY - groundY >= 2 || feetY - groundY > TREE_HEIGHT;
+	}
+
+	/**
+	 * (shelter_down_from_tree) the height the shelter's sites are measured from: the ground under the feet ({@code groundY})
+	 * when it lies below them, else the feet. Under a canopy that is the forest's floor, and under an overhang, where the
+	 * column's ground lies over the head, the feet as before.
+	 */
+	static int siteBase(boolean on, int feetY, Integer groundY) {
+		return on && groundY != null && groundY < feetY ? groundY : feetY;
+	}
+
+	/**
+	 * (shelter_down_from_tree) a shut-in on the spot is no way out with no block in the bag and nothing under the feet to dig
+	 * ({@code underDigs}): on the leaves it was declared with 0 blocks and waited half open; without it the tries elsewhere
+	 * take over.
+	 */
+	static boolean shutOnSpotPointless(boolean on, int blocks, boolean underDigs) {
+		return on && blocks == 0 && !underDigs;
+	}
 }

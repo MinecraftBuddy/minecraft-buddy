@@ -216,4 +216,51 @@ class DigInTest {
 		assertFalse(DigIn.feetStayed(11, -4, 10, -4));
 		assertFalse(DigIn.feetStayed(10, -3, 10, -4));
 	}
+
+	// (shelter_down_from_tree) a live look at the test heel: a bare start at night on oak leaves at y 75, the floor at 66 to 70
+	@Test
+	void fromTheCanopyDownFirst() {
+		assertTrue(DigIn.downFromTree(true, false, false, 0, false, true, 75, 68));
+		// on a log too, and with no ground found under the column
+		assertTrue(DigIn.downFromTree(true, false, false, 0, false, true, 70, null));
+		// more than four over the ground on anything, not on four
+		assertTrue(DigIn.downFromTree(true, false, false, 0, false, false, 75, 70));
+		assertFalse(DigIn.downFromTree(true, false, false, 0, false, false, 74, 70));
+		// on the ground, or on a bush of one block, stays
+		assertFalse(DigIn.downFromTree(true, false, false, 0, false, false, 68, 68));
+		assertFalse(DigIn.downFromTree(true, false, false, 0, false, true, 69, 68));
+		assertTrue(DigIn.downFromTree(true, false, false, 0, false, true, 70, 68));
+		// under an overhang the column's ground lies over the head
+		assertFalse(DigIn.downFromTree(true, false, false, 0, false, false, 60, 80));
+	}
+
+	@Test
+	void noWalkDownOnceTheShelterIsUnderWay() {
+		assertFalse(DigIn.downFromTree(true, true, false, 0, false, true, 75, 68));
+		// ducking from shooters: where it stands
+		assertFalse(DigIn.downFromTree(true, false, true, 0, false, true, 75, 68));
+		assertFalse(DigIn.downFromTree(true, false, false, 1, false, true, 75, 68));
+		assertFalse(DigIn.downFromTree(true, false, false, 0, true, true, 75, 68));
+		assertFalse(DigIn.downFromTree(false, false, false, 0, false, true, 75, 68));
+	}
+
+	@Test
+	void sitesAreMeasuredFromTheGroundUnderTheFeet() {
+		// the canopy: from the floor
+		assertEquals(68, DigIn.siteBase(true, 75, 68));
+		// the ground: the feet; an overhang over the head, or none found: the feet
+		assertEquals(68, DigIn.siteBase(true, 68, 68));
+		assertEquals(60, DigIn.siteBase(true, 60, 80));
+		assertEquals(75, DigIn.siteBase(true, 75, null));
+		// switched off: the feet, as before
+		assertEquals(75, DigIn.siteBase(false, 75, 68));
+	}
+
+	@Test
+	void noShutInOnTheSpotWithNoBlockAndNothingToDig() {
+		assertTrue(DigIn.shutOnSpotPointless(true, 0, false));
+		assertFalse(DigIn.shutOnSpotPointless(true, 1, false));
+		assertFalse(DigIn.shutOnSpotPointless(true, 0, true));
+		assertFalse(DigIn.shutOnSpotPointless(false, 0, false));
+	}
 }
