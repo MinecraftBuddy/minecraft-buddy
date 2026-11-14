@@ -159,6 +159,8 @@ public final class SkelCoverTask extends Task {
     private CornerWallTask dig;
     private long builtAt = -1;
     private String failed;
+    // (cover_low_dig) a give-up at low hp dug in once in this cover
+    private boolean lowDug;
     private boolean placing;
     private int clicks;
     private BlockPos current;
@@ -298,7 +300,7 @@ public final class SkelCoverTask extends Task {
             if (first && !SkelCover.holeHolds(true, dig.topShut())) return fail(mod, "dug in with no top, open to a skeleton over the rim");
             if (arrow && shot > builtAt + SETTLE_TICKS) {
                 shotHandled = shot;
-                return fail(mod, "an arrow in the hole with its top shut");
+                return failOrDig(mod, "an arrow in the hole with its top shut");
             }
             return stand(mod);
         }
@@ -359,6 +361,25 @@ public final class SkelCoverTask extends Task {
         failed = why;
         Debug.logInternal("combat: " + (witch ? "witch" : mount ? "mount" : "skeleton") + " cover: no cover: " + why);
         return stand(mod);
+    }
+
+    // (cover_low_dig) at low hp the give-up digs two down where the buddy stands and shuts the top, once a cover; the cover stays
+    // on, so the hold keeps the buddy in the hole until its exits (the hp, no skeleton about), and no run starts in the open
+    private Task failOrDig(AltoClef mod, String why) {
+        LocalPlayer player = mod.getPlayer();
+        BlockPos feet = player.blockPosition();
+        if (SkelCover.lowDig(SkelCover.lowDigOn(), lowDug, player.getHealth(), player.onGround(),
+                SkelCover.lowDigOn() && CornerWallTask.diggable(mod, mod.getWorld(), feet))) {
+            lowDug = true;
+            boxing = false;
+            builtAt = -1;
+            Debug.logInternal(String.format(Locale.ROOT, "combat: %s cover: %s at %.1f hp: two down and the top shut at %s instead of"
+                    + " the give-up (cover_low_dig)", witch ? "witch" : mount ? "mount" : "skeleton", why, player.getHealth(), feet.toShortString()));
+            dig = CornerWallTask.digIn(lead(seen.get(), player));
+            mod.getClientBaritone().getPathingBehavior().cancelEverything();
+            return dig;
+        }
+        return fail(mod, why);
     }
 
     // ---- (skel_cover_dig_first) dig first, else the pillbox
@@ -454,7 +475,7 @@ public final class SkelCoverTask extends Task {
                     mod.getClientBaritone().getPathingBehavior().cancelEverything();
                     return dig;
                 }
-                return fail(mod, "arrows in the pillbox at " + boxFeet.toShortString() + ", nothing more to put up");
+                return failOrDig(mod, "arrows in the pillbox at " + boxFeet.toShortString() + ", nothing more to put up");
             }
             boxRounds++;
             boxDone = false;
@@ -485,7 +506,7 @@ public final class SkelCoverTask extends Task {
             Debug.logInternal("combat: " + boxLead + "pillbox up at " + boxFeet.toShortString() + ": " + up + " of " + boxCells.size()
                     + " cells shut" + (CornerWallTask.solid(level, boxFeet.above(2)) ? ""
                     : ", no top (nothing to put it against" + (topJumps > 0 ? ", " + topJumps + (topJumps == 1 ? " jump" : " jumps") + " for a support" : "") + ")"));
-            if (up == 0) return fail(mod, "no block of the pillbox went in at " + boxFeet.toShortString());
+            if (up == 0) return failOrDig(mod, "no block of the pillbox went in at " + boxFeet.toShortString());
             return stand(mod);
         }
         if (!next.equals(current)) {

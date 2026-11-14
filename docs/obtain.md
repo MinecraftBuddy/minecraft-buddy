@@ -274,7 +274,8 @@ hunted; their meat is picked up.
   buddy never stands in the open, healing or not: a block from the bag goes on the line between them at head height (the
   feet's under it where needed), else the buddy digs two down and shuts the top. No run through their arrows. The meal and
   the healing happen in cover; out at 18 health, or once none is within 20 blocks for 5 seconds (at night only at full
-  health). The buddy walks up to
+  health). At 8 health or less, a cover that fails (arrows still get in, or no block of the walls goes in) becomes a hole
+  two down with the top shut where the ground digs, in place of a run. The buddy walks up to
   one only with 16 health or more, a sword, some armour on and no second one in sight. The nether keeps its own rules.
 - **Witches**: a witch's throw, or poison with a witch within 16 blocks, sends the buddy into the same cover: two down with
   the top shut, or blocks round the head where the ground will not dig. No run from a witch, except in water or with lava

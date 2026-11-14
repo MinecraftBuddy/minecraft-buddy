@@ -50,6 +50,22 @@ public final class SkelCover {
         return Tuning.get("cover_night_hold", 0) > 0;
     }
 
+    // (Tuning cover_low_dig, a fix of 14 Nov 2026, on) at LOW_DIG_HP or less the cover's give-up for an arrow in the shut hole,
+    // arrows in the finished pillbox or a pillbox with no block in digs two down where the buddy stands and shuts the top, once a
+    // cover, in place of the give-up and the run after it: since heel-17 the cover gave up in 4 of 23 runs (1 of 48 before) and
+    // the buddy ran in the open at 6 to 7 hp and died
+    public static final float LOW_DIG_HP = 8;
+
+    public static boolean lowDigOn() {
+        return Tuning.get("cover_low_dig", 0) > 0;
+    }
+
+    // whether such a give-up digs in instead: the key on, not tried yet in this cover, at LOW_DIG_HP or less, on the ground, and
+    // the ground under the feet digs two down
+    public static boolean lowDig(boolean on, boolean tried, float hp, boolean onGround, boolean diggable) {
+        return on && !tried && hp <= LOW_DIG_HP && onGround && diggable;
+    }
+
     // wet_fail: off the ground OFF_GROUND_TICKS in the cover task (in water) is a cover that failed, and none is offered in water
     public static boolean wetFailOn() {
         return Tuning.get("skel_cover_wet_fail", 0) > 0;
