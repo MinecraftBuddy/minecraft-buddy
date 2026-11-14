@@ -70,6 +70,9 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
     private GoalRunAway branchPointRunaway;
     private int desiredQuantity;
     private int tickCount;
+    // (the buddy's fork, Tuning mine_no_path_tunnel) the mine's stops for no path, counted: the branch mine that started it reads
+    // the count, and two such stops near each other turn it to a tunnel of its own
+    public static volatile int noPathStops;
 
     public MineProcess(Baritone baritone) {
         super(baritone);
@@ -107,6 +110,7 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
                 knownOreLocations.removeIf(blacklist::contains);
             } else {
                 logDirect("Unable to find any path to " + filter + ", canceling mine");
+                noPathStops++;
                 if (Baritone.settings().notificationOnMineFail.value) {
                     logNotification("Unable to find any path to " + filter + ", canceling mine", true);
                 }

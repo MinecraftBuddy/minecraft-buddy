@@ -513,6 +513,14 @@ public final class Tuning {
             // a table, furnace or smoker whose walk got "0.0 blocks" from where the buddy stands is banned at once
             // (DoStuffInContainerTask, PathingBehavior.noStepHere): two minutes of such searches before the fifth miss banned it
             java.util.Map.entry("station_no_step_ban", 1.0),
+            // a branch mine made anew within 48 blocks of the tunnel of its own an earlier mine began at its height goes on with
+            // that tunnel, and the band exits that lead to one count over mines made anew (OwnTunnel, BranchMineTask): a pickaxe
+            // craft made the mine anew twice and each forgot its tunnel, 27 minutes of the iron leggings at 6 of 7 raw iron
+            java.util.Map.entry("mine_own_keep", 1.0),
+            // baritone's mine stopping for no path twice within ten game minutes and 100 blocks turns the branch mine to a tunnel
+            // of its own, a quarter turned; a second such turn within 100 blocks in 30 game minutes gives the depth up
+            // (OwnTunnel, BranchMineTask, MineProcess.noPathStops): it shuttled 88 blocks through an old tunnel, 43 such stops
+            java.util.Map.entry("mine_no_path_tunnel", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

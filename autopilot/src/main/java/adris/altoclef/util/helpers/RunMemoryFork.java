@@ -85,6 +85,10 @@ final class RunMemoryFork {
                 P + "tasks.container.SmeltSplit#fuelGaveUpFor");
         RunMemory.register("death_stash", () -> DeathStash.remembered(), () -> DeathStash.clear(),
                 P + "util.helpers.DeathStash#pending");
+        // a branch mine's tunnel of its own and baritone's mine's stops for no path, kept over a mine made anew (mine_own_keep,
+        // mine_no_path_tunnel)
+        RunMemory.register("own_tunnel", () -> OwnTunnel.KEPT.size(), () -> OwnTunnel.KEPT.clear(),
+                P + "util.helpers.OwnTunnel#KEPT");
     }
 
     // the measure line beyond the sizes: positions known per block (every dimension), the farthest wart known in this

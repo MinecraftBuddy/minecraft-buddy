@@ -94,8 +94,10 @@ The buddy's own parts, all in `net.milenco.buddy.client`:
   ender. A table or furnace with no step nearer to it from where the buddy stands is left alone for five minutes.
 - **Searching** (`BlockScan`, `Stronghold`): the blocks the client has in its loaded chunks, an ore only where it
   touches air or a fluid; mining at the depth an ore is common, by a staircase, never straight down; outward to new
-  ground otherwise, in a widening spiral, remembering the places already searched. The stronghold is where the lines
-  of two throws of an eye of ender cross.
+  ground otherwise, in a widening spiral, remembering the places already searched. A mine whose search finds no way on
+  twice in ten minutes digs a tunnel of its own there, crosswise to the old one; the second time near the same place,
+  that depth is given up. A craft or a pickup in between does not make the mine forget its own tunnel. The stronghold is
+  where the lines of two throws of an eye of ender cross.
 - **The kit** (`ObtainKit`): what the buddy carries before a step of a kind (below).
 - **Staying alive** (`ObtainSafe`): what Follow's chain does already runs first (air, fire, creepers, a fight, getting
   loose, doors, the hunger guard), and on top of it the rules below.

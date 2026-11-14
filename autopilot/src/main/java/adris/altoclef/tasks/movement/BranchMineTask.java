@@ -10,6 +10,7 @@ import adris.altoclef.util.RecipeTarget;
 import adris.altoclef.util.helpers.HotbarTools;
 import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.MineLeave;
+import adris.altoclef.util.helpers.OwnTunnel;
 import adris.altoclef.util.helpers.ToolPick;
 import adris.altoclef.util.helpers.ToolWear;
 import baritone.Baritone;
@@ -129,6 +130,9 @@ public class BranchMineTask extends Task {
     private final adris.altoclef.util.helpers.PlaceWatch.Fires _bandExits = new adris.altoclef.util.helpers.PlaceWatch.Fires(2, 12000, 10);
     private BlockPos _ownTunnelAt;
     static final int OWN_TUNNEL_REACH = 48;
+    // (Tuning mine_no_path_tunnel, a fix of 14 Nov 2026, on) the count of baritone's mine's stops for no path when this mine last
+    // started it (MineProcess.noPathStops, OwnTunnel)
+    private int _noPathSeen;
     // (Tuning gold_wide_band, a fix of 13 Nov 2026, on) for a mine whose height lies below 0 and within WIDE_LO (gold's -17, a
     // slime dig's), the mine starts wherever the buddy is between WIDE_LO and WIDE_HI once it has stood at its height once: no
     // staircase back to the height after a drift or a fall. staircases took 35% of the gold's time in the test heel, 65 to
@@ -324,6 +328,11 @@ public class BranchMineTask extends Task {
             else if (goldCore() && !inBand(_mineY)) _mineY = _y;
         }
         BlockPos feet = mod.getPlayer().blockPosition();
+        // (mine_no_path_tunnel) baritone's mine stopped itself for no path since this mine started it
+        if (_mining && noPathOn() && baritone.process.MineProcess.noPathStops != _noPathSeen) {
+            _noPathSeen = baritone.process.MineProcess.noPathStops;
+            if (noPathStop(mod, feet, y, now)) return null;
+        }
         // (gold_rock_iron) which pick digs the rock, before the hotbar is filled for it
         rockPick(mod, now);
         // (kit_diamond_off_rock) the kit's diamond pickaxe off the rock while another pickaxe digs it, for the next 30 s
@@ -625,10 +634,27 @@ public class BranchMineTask extends Task {
                 _step = null;
             }
         }
+        // (mine_own_keep) a mine made anew near the tunnel of its own an earlier mine for this height began goes on with it
+        if (_ownTunnelAt == null && ownKeepOn()) {
+            OwnTunnel.Kept k = OwnTunnel.KEPT.near(dimension(), _y, feet.getX(), _mineY, feet.getZ(), now, OWN_TUNNEL_REACH);
+            if (k != null) {
+                stopMine(mod);
+                _ownTunnelAt = new BlockPos(k.x(), k.y(), k.z());
+                _mineY = k.y();
+                _dx = k.dx();
+                _dz = k.dz();
+                _tunnel = null;
+                _step = null;
+                adris.altoclef.Debug.logInternal("branch mine: made anew " + Math.round(horizontal(feet, _ownTunnelAt))
+                        + " blocks from the tunnel of its own begun at " + k.x() + ", " + k.z() + ", on with it at y " + _mineY
+                        + " heading " + _dx + ", " + _dz + " (mine_own_keep)");
+            }
+        }
         if (_ownTunnelAt != null && horizontal(feet, _ownTunnelAt) > OWN_TUNNEL_REACH) {
             adris.altoclef.Debug.logInternal("branch mine: " + OWN_TUNNEL_REACH + " blocks from " + _ownTunnelAt.toShortString()
                     + ", baritone's mine may try again (mine_own_pit)");
             _ownTunnelAt = null;
+            if (ownKeepOn()) OwnTunnel.KEPT.drop();
         }
         if ((now < _tunnelUntil || _ownTunnelAt != null) && Math.abs(y - _mineY) <= 8) {
             // straight on at this height, a block at a time; a step not reached in ten game seconds (lava, water, bedrock)
@@ -644,6 +670,7 @@ public class BranchMineTask extends Task {
                 closedWay(mod, feet, 0);
                 _tunnel = new BlockPos(feet.getX() + _dx, _mineY, feet.getZ() + _dz);
                 _tunnelSince = now;
+                keepTunnel(now);
                 // (tunnel_flip_guard) back into the cell just left, the step before back too (A to B to A): a fire of the place
                 // watch here on the next tick, so the second such fire gives the depth up
                 if (flipGuardOn() && _flip.step(feet, _tunnel, reached)) {
@@ -663,10 +690,11 @@ public class BranchMineTask extends Task {
         int dy = y - _mineY;
         if (_mining ? Math.abs(dy) > 8 : Math.abs(dy) > 3) {
             if (_mining && adris.altoclef.util.helpers.Tuning.get("mine_own_pit", 0) > 0 && _ownTunnelAt == null) {
-                _bandExits.add(feet.getX(), feet.getZ(), now);
-                if (_bandExits.last() >= 2) {
-                    _bandExits.clear();
+                bandExits().add(feet.getX(), feet.getZ(), now);
+                if (bandExits().last() >= 2) {
+                    bandExits().clear();
                     _ownTunnelAt = feet;
+                    keepTunnel(now);
                     adris.altoclef.Debug.logInternal("branch mine: out of its band at y " + y + " twice within ten blocks of "
                             + feet.getX() + ", " + feet.getZ() + ", a tunnel of its own at y " + _mineY + " from here on (mine_own_pit)");
                 }
@@ -829,6 +857,7 @@ public class BranchMineTask extends Task {
                 return null;
             }
             bandMine(mod);
+            _noPathSeen = baritone.process.MineProcess.noPathStops;
             mine.mine(0, _blocks);
             _mining = true;
         }
@@ -842,18 +871,24 @@ public class BranchMineTask extends Task {
     // one, and this one leaves it 48 blocks first instead of the walk
     // fired: the fires counted here; lastFire: what the last one was, for the log line ("" for the place watch's own)
     private Task giveUpHere(AltoClef mod, long now, int y, int fx, int fz, int fired, String lastFire) {
-        String line = "branch mine: the place watch fired " + fired + " times at " + fx + ", " + fz
-                + ", giving up y " + _mineY + " here";
-        adris.altoclef.Debug.logInternal(line + " (at y " + y + ", mine_water_roof" + (fired < 3 ? ", mine_own_pit" : "")
-                + lastFire + ")");
+        return giveUpHere(mod, now, y, fx, fz, "the place watch fired " + fired + " times at " + fx + ", " + fz,
+                "mine_water_roof" + (fired < 3 ? ", mine_own_pit" : "") + lastFire,
+                "The place watch fired " + fired + " times here");
+    }
+
+    // what: why, for the line; keys: the keys for the log's brackets; why: the debug state's start
+    private Task giveUpHere(AltoClef mod, long now, int y, int fx, int fz, String what, String keys, String why) {
+        String line = "branch mine: " + what + ", giving up y " + _mineY + " here";
+        adris.altoclef.Debug.logInternal(line + " (at y " + y + ", " + keys + ")");
         // (mine_leave_given_up) the spot, for any branch mine after this one: the next piece's mine leaves it first
         if (leaveOn()) MineLeave.GIVEN_UP.record(dimension(), fx, fz, now);
         gaveUpLine = line;
         gaveUps++;
         fires().clear();
         MineLeave.WALK_OUTS.clearFires();
-        _bandExits.clear();
+        bandExits().clear();
         _ownTunnelAt = null;
+        if (ownKeepOn()) OwnTunnel.KEPT.drop();
         _tunnelUntil = now;
         _tunnel = null;
         _step = null;
@@ -875,8 +910,62 @@ public class BranchMineTask extends Task {
         _awayWhy = "Gave up y " + _mineY + " here: along";
         _awayStep = null;
         _awayPrev = null;
-        setDebugState("The place watch fired " + fired + " times here, giving up y " + _mineY + " here");
+        setDebugState(why + ", giving up y " + _mineY + " here");
         return null;
+    }
+
+    static boolean ownKeepOn() {
+        return adris.altoclef.util.helpers.Tuning.get("mine_own_keep", 0) > 0;
+    }
+
+    static boolean noPathOn() {
+        return adris.altoclef.util.helpers.Tuning.get("mine_no_path_tunnel", 0) > 0;
+    }
+
+    // (mine_own_keep) the band exits of every mine of the dimension, as this one's were
+    private adris.altoclef.util.helpers.PlaceWatch.Fires bandExits() {
+        return ownKeepOn() ? OwnTunnel.KEPT.bandExits(dimension()) : _bandExits;
+    }
+
+    // (mine_own_keep) the tunnel of its own kept for a mine made anew: where it began, its height and heading, as of now
+    private void keepTunnel(long now) {
+        if (_ownTunnelAt != null && ownKeepOn()) {
+            OwnTunnel.KEPT.keep(dimension(), _y, _ownTunnelAt.getX(), _mineY, _ownTunnelAt.getZ(), _dx, _dz, now);
+        }
+    }
+
+    // (mine_no_path_tunnel) a stop of baritone's mine for no path at the feet. the second within ten game minutes and 100 blocks
+    // of the one before turns the mine to a tunnel of its own from here, a quarter turned from the way between the two (its
+    // legit mine starts again with a branch point at the feet each time and shuttles through the tunnel it dug); with such a
+    // turn made within 100 blocks in the last 30 game minutes, the depth is given up here. true when it took the tick
+    private boolean noPathStop(AltoClef mod, BlockPos feet, int y, long now) {
+        String dim = dimension();
+        int[] before = OwnTunnel.KEPT.noPathStop(dim, feet.getX(), feet.getZ(), now);
+        if (before == null || _ownTunnelAt != null) return false;
+        long apart = Math.round(Math.hypot(feet.getX() - before[0], feet.getZ() - before[1]));
+        String two = "baritone's mine found no path twice within ten game minutes, at " + before[0] + ", " + before[1]
+                + " and at " + feet.getX() + ", " + feet.getZ() + " (" + apart + " blocks apart)";
+        stopMine(mod);
+        if (OwnTunnel.KEPT.switchedNear(dim, feet.getX(), feet.getZ(), now)) {
+            OwnTunnel.KEPT.switchSpent();
+            giveUpHere(mod, now, y, feet.getX(), feet.getZ(), two + ", after a tunnel of its own for the same within "
+                    + Math.round(OwnTunnel.NO_PATH_REACH) + " blocks", "mine_no_path_tunnel", "Baritone's mine found no path twice again");
+            return true;
+        }
+        int[] h = OwnTunnel.heading(before[0], before[1], feet.getX(), feet.getZ(), _dx, _dz);
+        OwnTunnel.KEPT.switched(dim, feet.getX(), feet.getZ(), now);
+        _dx = h[0];
+        _dz = h[1];
+        _ownTunnelAt = feet;
+        _tunnel = null;
+        _step = null;
+        _starts.clear();
+        _minePos = null;
+        keepTunnel(now);
+        adris.altoclef.Debug.logInternal("branch mine: " + two + ", a tunnel of its own at y " + _mineY + " from here on, heading "
+                + _dx + ", " + _dz + ", a quarter turned from the way between them (mine_no_path_tunnel)");
+        setDebugState("Baritone's mine found no path twice, a tunnel of its own at y " + _mineY);
+        return true;
     }
 
     // (mine_water_roof, mine_own_pit) the place watch's fires at one spot that give the depth up there
