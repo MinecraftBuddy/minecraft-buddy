@@ -313,6 +313,45 @@ final class ObtainRoute {
 		};
 	}
 
+	/**
+	 * (Tuning gold_runs_on, a fix of 14 Nov 2026, on) the gold piece of M3.3 runs on past its 40 minutes while the gold rises: the
+	 * mine takes 15 to 18 gold ores a game hour, so 96 and the helmets' ten take about six hours, and the route gave the piece three
+	 * tries of 40 minutes; 5 of 22 runs of the test heel gave the gold up while it still rose, one at 90 of 101. A try past its
+	 * time ends once GOLD_NO_RISE passes with no rise; all the piece's tries together end at GOLD_ALL.
+	 */
+	static final long GOLD_NO_RISE = 20 * 60_000L, GOLD_ALL = 6 * 3600_000L;
+
+	/** The gold piece's key (only M3.3's: the slime ball and the helmets keep their own time). */
+	static final String GOLD_KEY = PHASES.get(M3_3) + "/gold";
+
+	/** Where a try of the gold piece stands. */
+	enum GoldClock { ON, EXTENDED, NO_RISE, ALL_TIME }
+
+	/**
+	 * A try that has run {@code ran} ms of its {@code limit}, the gold last rising {@code sinceRise} ms ago (the try's start counts
+	 * as a rise), after {@code before} ms of the piece's earlier tries: on within its time, on past it while the gold rose within
+	 * GOLD_NO_RISE, over with no rise in that long, and over for all tries at GOLD_ALL.
+	 */
+	static GoldClock goldClock(long ran, long sinceRise, long before, long limit) {
+		if (before + ran >= GOLD_ALL) return GoldClock.ALL_TIME;
+		if (ran <= limit) return GoldClock.ON;
+		return sinceRise < GOLD_NO_RISE ? GoldClock.EXTENDED : GoldClock.NO_RISE;
+	}
+
+	/** The gold the gold piece counts: ingots, raw gold and gold ore, a block as nine, five a golden helmet worn or carried. */
+	static int goldCount(Bag b) {
+		return b.inv("gold_ingot") + b.inv("raw_gold") + b.inv("gold_ore") + b.inv("deepslate_gold_ore")
+			+ 9 * (b.inv("gold_block") + b.inv("raw_gold_block"))
+			+ 5 * (b.inv("golden_helmet") + ("golden_helmet".equals(b.wornIn("helmet")) ? 1 : 0));
+	}
+
+	/** The try under way of this piece is its last (gold_runs_on's six hours): its end, counted by {@link #tried}, gives it up. */
+	static void lastTry(String key) {
+		Piece pc = piece(key);
+		int tries = pc == null ? TRIES : pc.tries();
+		TRIED.put(key, Math.max(tries(key), tries - 1));
+	}
+
 	/** The gold M3.3 wants in the bag: the trade's, and five for each golden helmet still to make. */
 	static int goldNeed(Bag b) {
 		return GOLD + ("golden_helmet".equals(b.wornIn("helmet")) ? 0 : 5) + (b.inv("golden_helmet") > 0 ? 0 : 5);

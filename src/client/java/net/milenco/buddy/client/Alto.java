@@ -785,7 +785,21 @@ final class Alto {
 	}
 
 	/** A new order: every piece may be asked again. */
-	static void kitReset() { KIT_FAILED.clear(); }
+	static void kitReset() { KIT_FAILED.clear(); goldSpent = 0; }
+
+	/** (gold_runs_on) the game ms the gold piece's earlier tries of this order ran. */
+	private static long goldSpent;
+
+	/** The autopilot's gold_runs_on switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
+	static boolean goldRunsOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("gold_runs_on", 0) > 0;
+	}
+
+	/** A line of the gold piece's clock, in the autopilot's log and the events. */
+	private static void goldSay(String line, String action, int gold, long ranMs) {
+		if (present()) adris.altoclef.Debug.logInternal(line);
+		Exchange.emit("obtain", "action", action, "piece", ObtainRoute.GOLD_KEY, "gold", gold, "min", ranMs / 60_000);
+	}
 
 	/** How far the order under way goes (Obtain.deepOrder): the deep at least, for the kit. */
 	static volatile ObtainKit.Danger orderDanger = ObtainKit.Danger.DEEP;
@@ -1468,6 +1482,10 @@ final class Alto {
 		private String piece;
 		/** The autopilot's branch mine give-ups when the task began (mine_water_roof): a new one fails a piece of the kit. */
 		private int gaveUpsAtStart;
+		/** (gold_runs_on) the most gold the bag held in this try, when it last rose, the run on past the time said, the try's time banked. */
+		private int goldMax = -1;
+		private long goldRiseAt;
+		private boolean goldOnSaid, goldBanked;
 
 		Run(String what, long limit, java.util.function.Supplier<Object> make) { this.what = what; this.limit = limit; this.make = make; }
 
@@ -1487,7 +1505,55 @@ final class Alto {
 			// a piece of the route counts a try when its task ends by itself, done or not: one the order stops (for food, the
 			// night's hole) is asked again without one
 			if (piece != null && (r == ObtainSteps.Result.DONE || r == ObtainSteps.Result.FAIL)) ObtainRoute.tried(piece);
+			if (r == ObtainSteps.Result.DONE || r == ObtainSteps.Result.FAIL) bankGold(now);
 			return r;
+		}
+
+		/** The gold piece's try, under gold_runs_on. */
+		private boolean gold() { return ObtainRoute.GOLD_KEY.equals(piece) && goldRunsOn(); }
+
+		/** (gold_runs_on) this try's time into the piece's sum, once. */
+		private void bankGold(long now) {
+			if (goldBanked || startedAt < 0 || !ObtainRoute.GOLD_KEY.equals(piece)) return;
+			goldBanked = true;
+			if (now > startedAt) goldSpent += now - startedAt;
+		}
+
+		/**
+		 * (gold_runs_on) the gold piece's clock, in place of the try's plain limit: null while it goes on, else why it ends. A line
+		 * when the try runs on past its time, and when it ends for no rise or for the six hours.
+		 */
+		private String goldEnd(net.minecraft.client.player.LocalPlayer p, long now) {
+			int gold = ObtainRoute.goldCount(routeBag(p));
+			if (gold > goldMax) {
+				goldMax = gold;
+				goldRiseAt = now;
+			}
+			long ran = now - startedAt;
+			switch (ObtainRoute.goldClock(ran, now - goldRiseAt, goldSpent, limit)) {
+				case EXTENDED -> {
+					if (!goldOnSaid) {
+						goldOnSaid = true;
+						goldSay("route: piece " + piece + " runs on past its " + limit / 60_000 + " minutes, the gold rose "
+							+ (now - goldRiseAt) / 60_000 + " minutes ago (" + gold + " in the bag) (gold_runs_on)", "gold runs on", gold, ran);
+					}
+					return null;
+				}
+				case NO_RISE -> {
+					goldSay("route: piece " + piece + " ends after " + ran / 60_000 + " minutes, no rise in the gold in "
+						+ ObtainRoute.GOLD_NO_RISE / 60_000 + " minutes (" + gold + " in the bag) (gold_runs_on)", "gold no rise", gold, ran);
+					return "no rise in the gold for " + ObtainRoute.GOLD_NO_RISE / 60_000 + " minutes after " + ran / 60_000 + " minutes";
+				}
+				case ALL_TIME -> {
+					ObtainRoute.lastTry(piece);
+					goldSay("route: piece " + piece + " ends, " + ObtainRoute.GOLD_ALL / 3_600_000 + " game hours over all its tries ("
+						+ gold + " in the bag) (gold_runs_on)", "gold all time", gold, ran);
+					return "the gold's " + ObtainRoute.GOLD_ALL / 3_600_000 + " game hours over all its tries";
+				}
+				default -> {
+					return null;
+				}
+			}
 		}
 
 		private ObtainSteps.Result run(net.minecraft.client.Minecraft mc, net.minecraft.client.player.LocalPlayer p, long now) {
@@ -1522,7 +1588,11 @@ final class Alto {
 				return ObtainSteps.Result.RUN;
 			}
 			if (delegating()) {
-				if (now - startedAt > limit) { cancel(); return fail("AltoClef did not " + what + " in " + limit / 60_000 + " minutes"); }
+				if (gold()) {
+					// (gold_runs_on) on past the limit while the gold rises
+					String end = goldEnd(p, now);
+					if (end != null) { cancel(); return fail(end); }
+				} else if (now - startedAt > limit) { cancel(); return fail("AltoClef did not " + what + " in " + limit / 60_000 + " minutes"); }
 				// (mine_water_roof) the branch mine under a piece of the kit gave up its depth where it stood: the piece fails
 				// and the next one goes on, rather than its whole time in the same place
 				if (kit() && adris.altoclef.tasks.movement.BranchMineTask.gaveUps != gaveUpsAtStart) {
@@ -1537,7 +1607,10 @@ final class Alto {
 		}
 
 		@Override
-		void stop() { cancel(); }
+		void stop() {
+			bankGold(System.currentTimeMillis());
+			cancel();
+		}
 
 		@Override
 		String detail() { return "AltoClef: " + what; }

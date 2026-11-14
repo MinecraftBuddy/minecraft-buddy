@@ -509,4 +509,29 @@ class ObtainRouteTest {
 		g.take("gold_ingot").give("gold_ingot", 101);
 		assertEquals("spare golden helmet", next(g));
 	}
+
+	/** (gold_runs_on) the gold piece runs on past its 40 minutes while the gold rises; 20 minutes with no rise end it, six hours all its tries. */
+	@Test
+	void theGoldRunsOnWhileItRises() {
+		long min = 60_000L, limit = 40 * min;
+		assertEquals(ObtainRoute.GoldClock.ON, ObtainRoute.goldClock(39 * min, 39 * min, 0, limit));
+		assertEquals(ObtainRoute.GoldClock.EXTENDED, ObtainRoute.goldClock(41 * min, 5 * min, 0, limit));
+		assertEquals(ObtainRoute.GoldClock.EXTENDED, ObtainRoute.goldClock(150 * min, 19 * min, 0, limit));
+		assertEquals(ObtainRoute.GoldClock.NO_RISE, ObtainRoute.goldClock(150 * min, 20 * min, 0, limit));
+		assertEquals(ObtainRoute.GoldClock.NO_RISE, ObtainRoute.goldClock(41 * min, 41 * min, 0, limit));
+		// all tries together: six game hours
+		assertEquals(ObtainRoute.GoldClock.ALL_TIME, ObtainRoute.goldClock(60 * min, 1 * min, 300 * min, limit));
+		assertEquals(ObtainRoute.GoldClock.ALL_TIME, ObtainRoute.goldClock(10 * min, 1 * min, 360 * min, limit));
+		assertEquals(ObtainRoute.GoldClock.ON, ObtainRoute.goldClock(10 * min, 1 * min, 349 * min, limit));
+		// the gold counted: ingots, raw gold and ore, a block as nine, five a helmet worn or carried
+		Kit k = new Kit().give("gold_ingot", 10).give("raw_gold", 4).give("deepslate_gold_ore", 2).give("gold_block").give("golden_helmet")
+			.wear("helmet", "golden_helmet");
+		assertEquals(10 + 4 + 2 + 9 + 5 + 5, ObtainRoute.goldCount(k));
+		assertEquals("m3.3/gold", ObtainRoute.GOLD_KEY);
+		// the six hours make the try under way the piece's last
+		ObtainRoute.reset(true);
+		ObtainRoute.lastTry(ObtainRoute.GOLD_KEY);
+		ObtainRoute.tried(ObtainRoute.GOLD_KEY);
+		assertEquals(ObtainRoute.TRIES, ObtainRoute.tries(ObtainRoute.GOLD_KEY));
+	}
 }
