@@ -1072,7 +1072,14 @@ final class Alto {
 			public boolean slimeNear() { return ObtainSafe.slimeNear(p, ObtainSafe.SLIME_SIGHT); }
 
 			public boolean restMissing() { return !routeRest(p, new java.util.ArrayList<>()).isEmpty(); }
+
+			public boolean kitAgain() { return kitAgainOn(); }
 		};
+	}
+
+	/** The autopilot's m34_kit_again switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
+	static boolean kitAgainOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("m34_kit_again", 0) > 0;
 	}
 
 	/**
@@ -1195,6 +1202,10 @@ final class Alto {
 			}
 			case "water bottles":
 				return new Run("kit water bottles", 10 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("water_bottle", 3)));
+			case "crafting table":
+				// (m34_kit_again) the bottles' table and the nether's crafts: a table and four planks more
+				return new Run("kit a crafting table", 8 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					new adris.altoclef.util.ItemTarget("crafting_table", 1), new adris.altoclef.util.ItemTarget("planks", 4))));
 			default:
 				throw new IllegalStateException("no task for the route's piece " + name);
 		}

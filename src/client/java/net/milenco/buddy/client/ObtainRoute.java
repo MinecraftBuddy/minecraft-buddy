@@ -71,6 +71,9 @@ final class ObtainRoute {
 
 		/** The nether kit's rest has something to fetch (a good sword, torches, blocks). */
 		default boolean restMissing() { return false; }
+
+		/** The autopilot's m34_kit_again switch: before the portal a crafting table, and the M3 kit asked again. */
+		default boolean kitAgain() { return false; }
 	}
 
 	/** A piece of a phase: its name (the kit's step), how often it is asked, and whether the bag still lacks it. */
@@ -149,8 +152,28 @@ final class ObtainRoute {
 		// a slime ball for the brew's cream: slimes deep under the ground in some chunks, the dig at the gold mine's height
 		List.of(piece(M3_3B, "slime ball", b -> b.inv("slime_ball") < 1)),
 		// up again: flint and steel, the rest of the nether's kit, the bottles filled; then the whole order builds the portal
+		// (m34_kit_again, a fix of 14 Nov 2026: M4 begins with the whole kit, his word. A run lost its table, its wood, the
+		// bucket, the bed and every pickaxe above wood on the way through M3, and the bottles, which need a table, stalled the
+		// portal's phase; nothing after M1.1 asked for a table or wood again. So a crafting table while none is in the bag and
+		// less than four planks of wood, then each piece of the M3 kit the bag lacks, asked again with its three tries, then
+		// the bottles)
 		List.of(piece(M3_4, "flint and steel", b -> b.inv("flint_and_steel") < 1),
 			piece(M3_4, "rest", Bag::restMissing),
+			piece(M3_4, "crafting table", b -> b.kitAgain() && b.inv("crafting_table") < 1 && wood(b) < 4),
+			piece(M3_4, "food", b -> b.kitAgain() && food(b) < 8),
+			piece(M3_4, "bed", b -> b.kitAgain() && b.invEnding("_bed") < 1 && !b.bedNear() && !b.deepUnder()),
+			piece(M3_4, "water bucket", b -> b.kitAgain() && b.inv("water_bucket") < 1),
+			// (the iron pickaxes before the diamonds: diamond ore wants one)
+			piece(M3_4, "iron pickaxes", b -> b.kitAgain() && picksUp(b) < 2),
+			piece(M3_4, "diamonds", b -> b.kitAgain()
+				&& (!anyOf(b, "diamond_pickaxe", "netherite_pickaxe") || !anyOf(b, "diamond_sword", "netherite_sword"))),
+			piece(M3_4, "redstone", b -> b.kitAgain() && b.inv("redstone") < 1),
+			piece(M3_4, "obsidian", b -> b.kitAgain() && b.inv("obsidian") < 10),
+			// (the helmet worn from the bag's gold first, as M3.3's "golden helmet again"; then the gold, then the spare)
+			piece(M3_4, "golden helmet", b -> b.kitAgain() && !"golden_helmet".equals(b.wornIn("helmet"))
+				&& (b.inv("golden_helmet") > 0 || b.inv("gold_ingot") >= 5)),
+			piece(M3_4, "gold", b -> b.kitAgain() && b.inv("gold_ingot") < goldNeed(b)),
+			piece(M3_4, "spare golden helmet", b -> b.kitAgain() && b.inv("golden_helmet") < 1),
 			piece(M3_4, "water bottles", b -> b.inv("potion") < 3)));
 
 	private static Piece piece(int phase, String name, Predicate<Bag> wanted) { return new Piece(phase, name, TRIES, wanted); }

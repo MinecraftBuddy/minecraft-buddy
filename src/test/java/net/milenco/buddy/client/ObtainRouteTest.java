@@ -24,7 +24,7 @@ class ObtainRouteTest {
 	static final class Kit implements ObtainRoute.Bag {
 		final Map<String, Integer> items = new HashMap<>();
 		final Map<String, String> worn = new HashMap<>();
-		boolean bedNear, rest, slimeNear;
+		boolean bedNear, rest, slimeNear, kitAgain;
 
 		Kit give(String item, int n) { items.merge(item, n, Integer::sum); return this; }
 
@@ -49,6 +49,8 @@ class ObtainRouteTest {
 		public boolean slimeNear() { return slimeNear; }
 
 		public boolean restMissing() { return rest; }
+
+		public boolean kitAgain() { return kitAgain; }
 	}
 
 	private final List<String> said = new ArrayList<>();
@@ -444,7 +446,67 @@ class ObtainRouteTest {
 			"m2.1/shield", "m2.1/copper_chestplate", "m2.1/copper_leggings", "m2.1/copper_boots", "m2.1/iron_chestplate",
 			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m3.1/diamonds",
 			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/slime ball", "m3.3/golden helmet", "m3.3/golden helmet again", "m3.3/gold", "m3.3/spare golden helmet", "m3.3b/slime ball",
-			"m3.4/flint and steel", "m3.4/rest", "m3.4/water bottles"), names);
+			"m3.4/flint and steel", "m3.4/rest", "m3.4/crafting table", "m3.4/food", "m3.4/bed", "m3.4/water bucket",
+			"m3.4/iron pickaxes", "m3.4/diamonds", "m3.4/redstone", "m3.4/obsidian", "m3.4/golden helmet", "m3.4/gold",
+			"m3.4/spare golden helmet", "m3.4/water bottles"), names);
 		assertEquals(ObtainRoute.PHASES.size(), ObtainRoute.PIECES.size());
+	}
+
+	/**
+	 * (m34_kit_again) Before the portal a crafting table while none is in the bag and less than four planks of wood, then the M3
+	 * kit's lost pieces asked again, each with its three tries, then the bottles: a run reached M3.4 with no table, no wood, no
+	 * bucket, no bed and only a wooden pickaxe, and the bottles stalled it.
+	 */
+	@Test
+	void thePortalsPhaseAsksTheLostKitAgain() {
+		Kit k = from("m3.4").give("flint_and_steel");
+		walk(k);
+		// the M3 kit lost on the way: the table and the wood, the bucket, the bed, every pickaxe above wood
+		k.take("crafting_table").take("oak_log").take("water_bucket").take("red_bed").take("iron_pickaxe").take("diamond_pickaxe");
+		// with the key off: the bottles alone, as before
+		assertEquals("water bottles", next(k));
+		k.kitAgain = true;
+		assertEquals("crafting table", next(k));
+		// four planks of wood are a table: no piece for it
+		k.give("oak_planks", 4);
+		assertEquals("bed", next(k));
+		k.give("red_bed");
+		assertEquals("water bucket", next(k));
+		k.give("water_bucket");
+		// the iron pickaxes before the diamonds (diamond ore wants one)
+		assertEquals("iron pickaxes", next(k));
+		k.give("iron_pickaxe", 2);
+		assertEquals("diamonds", next(k));
+		k.give("diamond_pickaxe");
+		assertEquals("water bottles", next(k));
+		k.give("potion", 3);
+		assertNull(next(k));
+		assertEquals(ObtainRoute.M3_4, ObtainRoute.phase());
+		assertEquals(List.of(), said);
+	}
+
+	@Test
+	void aLostPieceOfThePortalsPhaseHasItsThreeTries() {
+		Kit k = from("m3.4").give("flint_and_steel").give("potion", 3);
+		k.kitAgain = true;
+		walk(k);
+		k.take("water_bucket");
+		for (int i = 0; i < ObtainRoute.TRIES; i++) {
+			assertEquals("water bucket", next(k));
+			ObtainRoute.tried("m3.4/water bucket");
+		}
+		// given up after three: the portal (the whole order) then
+		assertNull(next(k));
+		// the gold short: the golden helmet worn from the bag's gold first, then the gold, then the spare
+		Kit g = from("m3.4").give("flint_and_steel").give("potion", 3);
+		g.kitAgain = true;
+		walk(g);
+		g.worn.remove("helmet");
+		g.take("golden_helmet");
+		assertEquals("golden helmet", next(g));
+		g.wear("helmet", "golden_helmet").take("gold_ingot").give("gold_ingot", 40);
+		assertEquals("gold", next(g));
+		g.take("gold_ingot").give("gold_ingot", 101);
+		assertEquals("spare golden helmet", next(g));
 	}
 }
