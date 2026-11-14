@@ -192,6 +192,11 @@ public class BranchMineTask extends Task {
     private int _wetX, _wetZ;
     // the cell the walk along (the sculk's, or the 32 blocks of a stuck staircase) came from: never stepped back onto
     private BlockPos _awayPrev;
+    // (Tuning tunnel_flip_guard, a fix of 14 Nov 2026, on) the step refused against water and the tunnel's steps back (TunnelFlip);
+    // a second step back in a row for the place watch's block on the next tick, and where
+    private final TunnelFlip _flip = new TunnelFlip();
+    private boolean _flipStall;
+    private int _flipX, _flipZ;
     // the rock goes to a cheap pick and the iron one is kept for the ore. an iron pickaxe is through in 250 blocks and a staircase
     // to the diamonds takes three a step: the iron one wore out on the way down while a stone one lay in the bag, and it climbed
     // to its furnace at y 16 for the iron of a new one four times for two diamonds (the runner, 2 Nov 2026, attempt 80). with only
@@ -296,11 +301,16 @@ public class BranchMineTask extends Task {
         // (mine_water_streak) a third walk-out of water under a roof at one place counts as a fire too
         boolean wetLoop = _wetStall;
         _wetStall = false;
-        if (watch || stall || wetLoop) {
-            int fx = watch ? place().x() : stall ? _downFails.x() : _wetX, fz = watch ? place().z() : stall ? _downFails.z() : _wetZ;
+        // (tunnel_flip_guard) the tunnel's step back into the cell just left twice in a row counts as a fire too
+        boolean flipLoop = _flipStall;
+        _flipStall = false;
+        if (watch || stall || wetLoop || flipLoop) {
+            int fx = watch ? place().x() : stall ? _downFails.x() : wetLoop ? _wetX : _flipX;
+            int fz = watch ? place().z() : stall ? _downFails.z() : wetLoop ? _wetZ : _flipZ;
             stopMine(mod);
             // (gold_poke_shafts) the run is not resumed here after the tunnel of its own
-            if (pokeOn()) PokeMineTask.dropRun(watch ? "the place watch fired" : stall ? "the way down got nowhere" : "the walk out of the water came back");
+            if (pokeOn()) PokeMineTask.dropRun(watch ? "the place watch fired" : stall ? "the way down got nowhere"
+                    : wetLoop ? "the walk out of the water came back" : "the tunnel's step went to and fro");
             if (adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0) {
                 fires().add(fx, fz, now);
                 // (mine_water_streak) the walk-outs' own fires are kept over a task made anew: a take-along or a station between
@@ -308,8 +318,15 @@ public class BranchMineTask extends Task {
                 boolean wetGiveUp = wetLoop && MineLeave.WALK_OUTS.fires() >= firesToGiveUp();
                 if (fires().last() >= firesToGiveUp() || wetGiveUp) {
                     return giveUpHere(mod, now, y, fx, fz, Math.max(fires().last(), wetGiveUp ? MineLeave.WALK_OUTS.fires() : 0),
-                            watch ? "" : stall ? ", the last fire the way down's, mine_leave_given_up" : ", the last fire the walk-outs', mine_water_streak");
+                            watch ? "" : stall ? ", the last fire the way down's, mine_leave_given_up"
+                                    : wetLoop ? ", the last fire the walk-outs', mine_water_streak" : ", the last fire the tunnel's step to and fro, tunnel_flip_guard");
                 }
+            }
+            // (tunnel_flip_guard) the place watch fired in the tunnel of its own (mine_own_pit): its remedy, a tunnel of its own,
+            // is what went nowhere here, so the depth is given up. its fire at 02:29 in the test heel's tunnel flip gave the same
+            // tunnel two more game minutes of the loop
+            if (flipGuardOn() && watch && _ownTunnelAt != null) {
+                return giveUpHere(mod, now, y, fx, fz, Math.max(1, fires().last()), ", in the tunnel of its own, tunnel_flip_guard");
             }
             // (mine_leave_given_up) a walk along under way goes on, way and all: zeroing it here stopped one at 25 blocks to
             // go, and the mine started again in the place the walk was leaving
@@ -331,11 +348,11 @@ public class BranchMineTask extends Task {
             _tunnelUntil = now + 2400;
             _tunnel = null;
             adris.altoclef.Debug.logInternal("branch mine: " + (watch ? "three game minutes" : stall ? "the way down got nowhere three times"
-                    : "three walk-outs of water under a roof") + " within ten blocks of " + fx + ", " + fz + " at y " + y
-                    + ", a tunnel of its own at y " + _mineY + " for two game minutes"
-                    + (watch ? "" : stall ? " (mine_leave_given_up)" : " (mine_water_streak)"));
+                    : wetLoop ? "three walk-outs of water under a roof" : "the tunnel's step to and fro") + " within ten blocks of " + fx + ", " + fz
+                    + " at y " + y + ", a tunnel of its own at y " + _mineY + " for two game minutes"
+                    + (watch ? "" : stall ? " (mine_leave_given_up)" : wetLoop ? " (mine_water_streak)" : " (tunnel_flip_guard)"));
             setDebugState((watch ? "Three game minutes in one place" : stall ? "The way down got nowhere three times here"
-                    : "Three walk-outs of the water here") + ", a tunnel of its own");
+                    : wetLoop ? "Three walk-outs of the water here" : "The tunnel's step went to and fro here") + ", a tunnel of its own");
             return null;
         }
         // (Tuning ice_start_tunnel_hold, a fix of 13 Nov 2026, on) the tunnel of its own keeps the tick for its whole time on ice or
@@ -506,9 +523,20 @@ public class BranchMineTask extends Task {
                 _tunnel = null;
             }
             if (_tunnel == null || feet.equals(_tunnel)) {
+                boolean reached = _tunnel != null;
                 closedWay(mod, feet, 0);
                 _tunnel = new BlockPos(feet.getX() + _dx, _mineY, feet.getZ() + _dz);
                 _tunnelSince = now;
+                // (tunnel_flip_guard) back into the cell just left, the step before back too (A to B to A): a fire of the place
+                // watch here on the next tick, so the second such fire gives the depth up
+                if (flipGuardOn() && _flip.step(feet, _tunnel, reached)) {
+                    _flipStall = true;
+                    _flipX = feet.getX();
+                    _flipZ = feet.getZ();
+                    adris.altoclef.Debug.logInternal("branch mine: the tunnel's step from " + feet.toShortString() + " back into "
+                            + _tunnel.toShortString() + ", the cell just left, the second step back in a row: a fire of the place"
+                            + " watch here (tunnel_flip_guard)");
+                }
             }
             setDebugState(_ownTunnelAt != null ? "A tunnel of its own at y " + _mineY + ", the mine left its band twice here"
                     : "A tunnel of its own at y " + _mineY);
@@ -740,6 +768,10 @@ public class BranchMineTask extends Task {
 
     static boolean waterStreakOn() {
         return adris.altoclef.util.helpers.Tuning.get("mine_water_streak", 0) > 0;
+    }
+
+    static boolean flipGuardOn() {
+        return adris.altoclef.util.helpers.Tuning.get("tunnel_flip_guard", 0) > 0;
     }
 
     // (mine_water_streak) a tick in water under a roof: the cell is kept as the one walked out of, and the first such tick
@@ -1390,12 +1422,20 @@ public class BranchMineTask extends Task {
     // step opens into nothing, else the first that opens only into the open (a cave, a hole), else the first; a way whose step
     // comes within a block of the water cell last walked out of is taken only when all four do. in a cave every way opens into
     // the open, so the way kept was the one into the pool beside the dry cell, and baritone breaks nothing beside water
+    // (tunnel_flip_guard) and a way whose step comes within a block of the step refused against water in the last game minute
+    // likewise; a half turn round from a way into water refuses that step. every turn is said, against the way it went: the
+    // line was said only against the old rule's pick, and the half turn back that the old rule also took said nothing
     private void driestWay(AltoClef mod, BlockPos feet, int down) {
         var level = mod.getWorld();
-        int[] wetCell = MineLeave.WALK_OUTS.cell(dimension(), level.getGameTime());
+        long now = level.getGameTime();
+        int[] wetCell = MineLeave.WALK_OUTS.cell(dimension(), now);
         int[] rank = wayRanks(level::getBlockState, feet, _dx, _dz, down);
         boolean[] never = wayNever(feet, _dx, _dz, down, wetCell);
-        int pick = pickWay(rank, never);
+        boolean flips = flipGuardOn();
+        boolean[] nearRefused = wayNever(feet, _dx, _dz, down, flips ? _flip.refused(now) : null);
+        int pick = pickWay(rank, flips ? TunnelFlip.either(never, nearRefused) : never);
+        boolean refuses = flips && TunnelFlip.refusesWater(rank, pick);
+        if (refuses) _flip.refuse(feet.offset(_dx, down, _dz), now);
         int old = 0;
         for (int i = 0; i < 4; i++) {
             if (rank[i] == WAY_CLOSED) {
@@ -1403,10 +1443,14 @@ public class BranchMineTask extends Task {
                 break;
             }
         }
-        if (pick != old) {
+        int against = flips ? 0 : old;
+        if (pick != against) {
             adris.altoclef.Debug.logInternal("branch mine: the step " + (down < 0 ? "down" : down > 0 ? "up" : "on") + " from "
                     + feet.toShortString() + " " + TURN_NAMES[pick] + ", " + WAY_NAMES[rank[pick]] + " there, against "
-                    + WAY_NAMES[rank[old]] + (never[old] ? " beside the water walked out of" : "") + " (mine_water_streak)");
+                    + WAY_NAMES[rank[against]] + (never[against] ? " beside the water walked out of"
+                    : nearRefused[against] ? " beside the step refused against water" : "")
+                    + (refuses ? ", that step refused for a game minute" : "")
+                    + " (mine_water_streak" + (flips ? ", tunnel_flip_guard" : "") + ")");
         }
         for (int i = 0; i < pick; i++) {
             int t = _dx;

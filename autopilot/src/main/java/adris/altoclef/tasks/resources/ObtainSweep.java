@@ -13,6 +13,7 @@ import adris.altoclef.tasks.speedrun.gamer.tasks.NetherSweepPlanner;
 import adris.altoclef.tasks.speedrun.gamer.tasks.NetherSweepPlanner.Goal;
 import adris.altoclef.tasks.speedrun.gamer.tasks.NetherSweepPlanner.Sight;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.util.helpers.Recent;
 import adris.altoclef.util.helpers.WorldHelper;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -153,7 +154,9 @@ public final class ObtainSweep {
     // what the tracker knows of fortresses and bastions, one kind a scan, into the planner (and the memory)
     void scan(AltoClef mod) {
         long now = mod.getWorld().getGameTime();
-        if (now - lastScan < SCAN_TICKS && now >= lastScan) return;
+        // (a bug fix of 14 Nov 2026: lastScan starts at Long.MIN_VALUE, and now - Long.MIN_VALUE overflowed to "a moment
+        // ago", so the scan never ran; Recent)
+        if (!Recent.due(now, lastScan, SCAN_TICKS)) return;
         lastScan = now;
         Sight sight = rotation++ % 2 == 0 ? Sight.FORTRESS : Sight.BASTION;
         if (planner.scan(s -> NetherPhase.seen(mod, s, planner), sight)) save(mod, true);
@@ -162,7 +165,8 @@ public final class ObtainSweep {
 
     private void save(AltoClef mod, boolean now) {
         long t = mod.getWorld().getGameTime();
-        if (!now && t - lastSave < 1200 && t >= lastSave) return;
+        // (the same overflow as lastScan: a save that was not forced never ran)
+        if (!now && !Recent.due(t, lastSave, 1200)) return;
         lastSave = t;
         RunStateStore.save(file, state);
     }

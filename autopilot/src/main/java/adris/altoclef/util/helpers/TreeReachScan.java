@@ -37,11 +37,18 @@ public final class TreeReachScan {
     private boolean dirtNear;
 
     public Look look(AltoClef mod, BlockPos log, int now) {
-        if (now - looksAt >= CACHE_TICKS || now < looksAt) {
+        if (looksStale(now, looksAt)) {
             looks.clear();
             looksAt = now;
         }
         return looks.computeIfAbsent(log.immutable(), at -> read(mod, at));
+    }
+
+    // the look cache is cleared when it is CACHE_TICKS old, was never filled, or is from the future. (a bug fix of 14 Nov
+    // 2026: looksAt starts at Integer.MIN_VALUE, and now - looksAt overflowed to a negative number, so the cache was never
+    // cleared and each log's look stayed as first read for the task's life: a trunk cut from below kept "intact"; Recent)
+    static boolean looksStale(int now, int looksAt) {
+        return Recent.due(now, looksAt, CACHE_TICKS);
     }
 
     // TreeReach.buried on the real column. the nether has a roof over everything, it would call every stem buried. a chunk we can't
@@ -131,12 +138,20 @@ public final class TreeReachScan {
 
     // is there dirt close enough to be worth digging before a tower. grass blocks drop dirt too
     public boolean dirtAround(AltoClef mod, int now) {
-        if (now - dirtAt < DIRT_LOOK_TICKS && now >= dirtAt) {
+        if (!dirtLookDue(now, dirtAt)) {
             return dirtNear;
         }
         dirtAt = now;
         dirtNear = scanDirt(mod);
         return dirtNear;
+    }
+
+    // the dirt look runs again when it is DIRT_LOOK_TICKS old, never ran, or is from the future. (a bug fix of 14 Nov 2026:
+    // dirtAt starts at Integer.MIN_VALUE, and now - dirtAt overflowed to a negative number, so the look never ran and "no
+    // dirt about" was the answer for ever: a high log was passed over with an empty bag and dirt beside it, and no dirt dig
+    // was planned before a tower; Recent)
+    static boolean dirtLookDue(int now, int dirtAt) {
+        return Recent.due(now, dirtAt, DIRT_LOOK_TICKS);
     }
 
     private static boolean scanDirt(AltoClef mod) {

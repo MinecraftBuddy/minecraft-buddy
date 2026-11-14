@@ -361,6 +361,15 @@ public final class Tuning {
             java.util.Map.entry("hotbar_swap_guard", 1.0),
             // a run of the inventory pauser's pauses holds the pathing about 2 s at most, then 3 s with no pause, PauseCap
             java.util.Map.entry("inv_pause_cap", 1.0),
+            // (a fix of 14 Nov 2026, a live look at the test heel's tunnel flip: a tunnel of its own at y 16 met water two cells ahead,
+            // turned half round into the tunnel just dug, and from there the only closed way was back: 1042 half turns between two
+            // cells in 322 s, each step reached at once, so no watch fired but the place watch, whose remedy was the same tunnel)
+            // a step that turns half round against water keeps the step it refused for a game minute, and a way whose step comes
+            // within a block of it is taken only when every way is like that; the tunnel's step back into the cell just left, the
+            // step before back too (A to B to A), is a fire of the place watch, so the second gives the depth up; the place watch
+            // fired in the tunnel of its own (mine_own_pit) gives the depth up; every turn of the step is logged, BranchMineTask,
+            // TunnelFlip
+            java.util.Map.entry("tunnel_flip_guard", 1.0),
             // (a fix of 13 Nov 2026, test heel's first stone under the rigs' anti-xray, where every buried block below y 64 reaches
             // the client as an ore: with legitMine on in the overworld and the best stone more than 8 blocks below the feet, or
             // none known, a pit four deep at the feet first, so the real stone shows and the look round the feet takes it,
