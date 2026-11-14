@@ -89,4 +89,35 @@ public class StonePitTest {
         // falling to the floor is not there yet
         assertNull(StoneDigRank.pitEnd(60, 60, false, false, 100));
     }
+
+    // (Tuning stone_pit_direct) the column is refused where water lies beside the ground the buddy stands on: it comes into the
+    // pit with its first block, and Baritone refuses that block
+    @Test
+    public void waterBesideTheGroundTakesNoDirectPit() {
+        // feet at 64, a pond beside the feet's cell
+        assertFalse(StoneDigRank.pitColumn(64, 4, y -> true, y -> y == 64, y -> y == 59, true));
+        // the old rule looked at the cells under the feet only
+        assertTrue(StoneDigRank.pitColumn(64, 4, y -> true, y -> y == 64, y -> y == 59, false));
+        assertTrue(StoneDigRank.pitColumn(64, 4, y -> true, y -> false, y -> y == 59, true));
+        // a cell Baritone's avoid refuses is no cell to break (the breakable test carries it)
+        assertFalse(StoneDigRank.pitColumn(64, 4, y -> y != 63, y -> false, y -> y == 59, true));
+    }
+
+    // (Tuning stone_pit_direct) test heel: two pits ended "no stone in 30 s" with no block dug and used both of the task's
+    // pits; such a pit counts no more, but no more than PIT_TRIES begin
+    @Test
+    public void aPitThatDugNothingDoesNotCount() {
+        // began at 64, the feet still there and the block under them whole
+        assertFalse(StoneDigRank.pitCounts(64, 64, false));
+        // the feet dropped, or the first cell went
+        assertTrue(StoneDigRank.pitCounts(64, 63, false));
+        assertTrue(StoneDigRank.pitCounts(64, 64, true));
+        // two empty pits: none counted, a third may start
+        assertTrue(StoneDigRank.pitAllowed(0, 2, StoneDigRank.PIT_GAP_TICKS, false));
+        // the tries are capped all the same, and PIT_MAX holds for pits that dug
+        assertFalse(StoneDigRank.pitAllowed(0, StoneDigRank.PIT_TRIES, Long.MAX_VALUE / 2, false));
+        assertFalse(StoneDigRank.pitAllowed(StoneDigRank.PIT_MAX, 2, Long.MAX_VALUE / 2, false));
+        // the old form counts no tries
+        assertTrue(StoneDigRank.pitAllowed(1, Long.MAX_VALUE / 2, false));
+    }
 }

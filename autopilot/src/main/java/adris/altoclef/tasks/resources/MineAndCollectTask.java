@@ -856,6 +856,15 @@ public class MineAndCollectTask extends ResourceTask {
         private long _pitSince;
         private int _pits;
         private int _pitLookAt;
+        // (Tuning stone_pit_direct) the pit dug by breaking the block under the feet, one at a time: _pitDirect for the pit
+        // under way, _pitTop its column at the feet's height when it began, _pitDig the break under way and _pitDigAt its
+        // block, _pitTries the pits begun by this task (empty ones too), _pitWait while the buddy drops into the cell broken
+        private boolean _pitDirect;
+        private BlockPos _pitTop;
+        private Task _pitDig;
+        private BlockPos _pitDigAt;
+        private int _pitTries;
+        private final Task _pitWait = new adris.altoclef.tasks.movement.IdleTask();
         // the pits dug lately by any task ({x, z, game time}) and when the last ended, kept per world as the band memory is: the
         // parent builds this task again after every craft
         private static final List<long[]> PITS = new ArrayList<>();
@@ -895,13 +904,24 @@ public class MineAndCollectTask extends ResourceTask {
                         && (wetAround(mod, x, next, z) || !mod.getWorld().getBlockState(new BlockPos(x, next, z)).isAir() && !floorHolds(mod, x, next - 1, z))) {
                     end = "water, lava or a drop under the next cell";
                 }
+                if (end == null && _pitDirect) {
+                    end = directPitEnd(mod, player, feet);
+                }
                 if (end == null) {
                     setDebugState("Digging a pit at " + _pitAt.getX() + " " + _pitAt.getZ() + " so the stone under the ground shows");
-                    return _pit;
+                    return _pitDirect ? directPitStep(mod, player, feet) : _pit;
+                }
+                // (Tuning stone_pit_direct) a pit that dug nothing is no pit: it does not count against PIT_MAX
+                boolean counts = !_pitDirect || StoneDigRank.pitCounts(_pitTop.getY(), feet.getY(),
+                        mod.getWorld().getBlockState(_pitTop.below()).getCollisionShape(mod.getWorld(), _pitTop.below()).isEmpty());
+                if (!counts) {
+                    _pits--;
                 }
                 Debug.logInternal("stone pit at " + _pitAt.getX() + " " + _pitAt.getZ() + " ends at y " + feet.getY() + ": " + end
-                        + " after " + (now - _pitSince) / 20 + " s (stone_pit_first)");
+                        + " after " + (now - _pitSince) / 20 + " s" + (_pitDirect ? (counts ? ", dug directly" : ", nothing dug, not counted") + " (stone_pit_direct)" : " (stone_pit_first)"));
                 _pit = null;
+                _pitDig = null;
+                _pitDigAt = null;
                 pitEndAt = now;
                 resetSearch();
                 _miningPos = null;
@@ -924,29 +944,37 @@ public class MineAndCollectTask extends ResourceTask {
             if (!StoneDigRank.pitWanted(_tunnel.latched(), feet.getY(), bestY, _miningPos == null && wasWandering())) {
                 return null;
             }
-            if (!StoneDigRank.pitAllowed(_pits, now - pitEndAt, StoneDigRank.nearPit(PITS, feet.getX(), feet.getZ(), now))) {
+            boolean direct = adris.altoclef.util.helpers.Tuning.get("stone_pit_direct", 0) > 0;
+            if (!StoneDigRank.pitAllowed(_pits, direct ? _pitTries : 0, now - pitEndAt, StoneDigRank.nearPit(PITS, feet.getX(), feet.getZ(), now))) {
                 return null;
             }
             // a stone in reach already (a wall beside us): the pick takes that one
             if (stoneInReach(mod, player)) {
                 return null;
             }
-            BlockPos column = pitColumn(mod, feet);
+            BlockPos column = pitColumn(mod, feet, direct);
             if (column == null) {
                 return null;
             }
             int floorY = column.getY() - StoneDigRank.PIT_DEPTH;
-            _pit = new adris.altoclef.tasks.movement.GetDownColumnTask(column.getX(), column.getZ(), floorY, false);
+            // (Tuning stone_pit_direct) no search through the fake ores: the block under the feet is broken where the buddy
+            // stands, the step into a column beside the feet first
+            _pitDirect = direct;
+            _pit = direct ? _pitWait : new adris.altoclef.tasks.movement.GetDownColumnTask(column.getX(), column.getZ(), floorY, false);
+            _pitTop = column;
+            _pitDig = null;
+            _pitDigAt = null;
             _pitAt = new BlockPos(column.getX(), floorY, column.getZ());
             _pitSince = now;
             _pits++;
+            _pitTries++;
             PITS.add(new long[]{column.getX(), column.getZ(), now});
             if (PITS.size() > 32) {
                 PITS.remove(0);
             }
             Debug.logInternal("no stone within reach, " + (bestY == null ? "none known" : "the best " + (feet.getY() - bestY) + " below the feet")
                     + ": a pit " + StoneDigRank.PIT_DEPTH + " deep at " + column.getX() + " " + column.getY() + " " + column.getZ()
-                    + " first, so the stone under the ground shows (stone_pit_first)");
+                    + " first, so the stone under the ground shows" + (direct ? ", dug directly (stone_pit_direct)" : " (stone_pit_first)"));
             setDebugState("Digging a pit at " + column.getX() + " " + column.getZ() + " so the stone under the ground shows");
             return _pit;
         }
@@ -968,9 +996,56 @@ public class MineAndCollectTask extends ResourceTask {
             return false;
         }
 
-        // the feet's column for the pit, else one beside the feet with room to step into it; null when none will do
-        private static BlockPos pitColumn(AltoClef mod, BlockPos feet) {
-            if (pitColumnOk(mod, feet)) {
+        // (Tuning stone_pit_direct) why the pit dug directly ends, null while it goes on: out of its column below its top, or the
+        // block under the feet one the buddy does not break (no block to break, Baritone's avoid: water above or beside, a
+        // loose block beside over air; or banned, a break too slow). the world is read again every tick, so a fake block
+        // shows what it is once the one above it is broken
+        private String directPitEnd(AltoClef mod, net.minecraft.client.player.LocalPlayer player, BlockPos feet) {
+            if (feet.getX() != _pitTop.getX() || feet.getZ() != _pitTop.getZ()) {
+                return feet.getY() == _pitTop.getY() ? null : "out of its column";
+            }
+            if (!player.onGround()) {
+                return null;
+            }
+            BlockPos next = feet.below();
+            BlockState state = mod.getWorld().getBlockState(next);
+            if (state.isAir()) {
+                return null;
+            }
+            if (!pitCell(mod, next.getX(), next.getY(), next.getZ())) {
+                return "the next cell is no block to break";
+            }
+            if (baritone.pathing.movement.MovementHelper.avoidBreaking(mod.getClientBaritone().bsi, next.getX(), next.getY(), next.getZ(), state)) {
+                return "the next cell is one Baritone avoids (water or a loose block beside)";
+            }
+            if (mod.getBlockTracker().unreachable(next)) {
+                return "the next cell is refused";
+            }
+            return null;
+        }
+
+        // (Tuning stone_pit_direct) the pit's next step: into its column when it is beside the feet, else the block under the
+        // feet broken where the buddy stands (DestroyBlockTask: the look, the swing and the reach as every break), and a wait
+        // while the buddy drops into the cell
+        private Task directPitStep(AltoClef mod, net.minecraft.client.player.LocalPlayer player, BlockPos feet) {
+            if (feet.getX() != _pitTop.getX() || feet.getZ() != _pitTop.getZ()) {
+                return new adris.altoclef.tasks.movement.GetToBlockTask(_pitTop);
+            }
+            BlockPos next = feet.below();
+            if (!player.onGround() || mod.getWorld().getBlockState(next).isAir()) {
+                return _pitWait;
+            }
+            if (_pitDig == null || !next.equals(_pitDigAt)) {
+                _pitDig = new DestroyBlockTask(next);
+                _pitDigAt = next;
+            }
+            return _pitDig;
+        }
+
+        // the feet's column for the pit, else one beside the feet with room to step into it; null when none will do. direct
+        // (Tuning stone_pit_direct): the ground under the feet dry too, and no cell Baritone's avoid refuses
+        private static BlockPos pitColumn(AltoClef mod, BlockPos feet, boolean direct) {
+            if (pitColumnOk(mod, feet, direct)) {
                 return feet;
             }
             var world = mod.getWorld();
@@ -982,18 +1057,20 @@ public class MineAndCollectTask extends ResourceTask {
                         || !at.getFluidState().isEmpty() || !head.getFluidState().isEmpty()) {
                     continue;
                 }
-                if (pitColumnOk(mod, c)) {
+                if (pitColumnOk(mod, c, direct)) {
                     return c;
                 }
             }
             return null;
         }
 
-        private static boolean pitColumnOk(AltoClef mod, BlockPos top) {
+        private static boolean pitColumnOk(AltoClef mod, BlockPos top, boolean direct) {
             int x = top.getX();
             int z = top.getZ();
-            return StoneDigRank.pitColumn(top.getY(), StoneDigRank.PIT_DEPTH, y -> pitCell(mod, x, y, z), y -> wetAround(mod, x, y, z),
-                    y -> floorHolds(mod, x, y, z));
+            return StoneDigRank.pitColumn(top.getY(), StoneDigRank.PIT_DEPTH,
+                    y -> pitCell(mod, x, y, z) && !(direct && baritone.pathing.movement.MovementHelper.avoidBreaking(mod.getClientBaritone().bsi,
+                            x, y, z, mod.getWorld().getBlockState(new BlockPos(x, y, z)))),
+                    y -> wetAround(mod, x, y, z), y -> floorHolds(mod, x, y, z), direct);
         }
 
         // a cell of the pit: a block to break (no air, no bedrock, nothing with contents, nothing protected)

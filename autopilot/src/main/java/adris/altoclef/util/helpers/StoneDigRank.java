@@ -236,7 +236,21 @@ public final class StoneDigRank {
 
     // another pit may start: under PIT_MAX for this task, PIT_GAP_TICKS since the last one ended, none dug near lately
     public static boolean pitAllowed(int pits, long sinceLastEnd, boolean nearRecent) {
-        return pits < PIT_MAX && sinceLastEnd >= PIT_GAP_TICKS && !nearRecent;
+        return pitAllowed(pits, 0, sinceLastEnd, nearRecent);
+    }
+
+    // (Tuning stone_pit_direct) a pit that dug nothing does not count against PIT_MAX, but no more than PIT_TRIES are begun
+    // for one task, empty or not
+    public static final int PIT_TRIES = 4;
+
+    public static boolean pitAllowed(int pits, int tries, long sinceLastEnd, boolean nearRecent) {
+        return pits < PIT_MAX && tries < PIT_TRIES && sinceLastEnd >= PIT_GAP_TICKS && !nearRecent;
+    }
+
+    // (Tuning stone_pit_direct) a pit counts against PIT_MAX once it dug something: the feet below where it began, or its
+    // first cell (the block under the feet when it began) gone
+    public static boolean pitCounts(int topY, int feetY, boolean firstCellGone) {
+        return feetY < topY || firstCellGone;
     }
 
     // a pit dug within PIT_SAME_RANGE of x, z in the last PIT_SAME_TICKS. recent holds {x, z, game time}
@@ -252,7 +266,16 @@ public final class StoneDigRank {
     // the column under the feet at feetY is one for the pit: its depth cells each a block to break (breakable) and dry (wet:
     // water or lava in or beside it), and under the last a floor that holds (no air, no fluid): never straight down into a cave,
     // a drop or water. the server hides no air and no fluid, so what the client sees of those is so
+    // (Tuning stone_pit_direct) wet is asked of the feet's cell too: water beside the ground the buddy stands on comes into
+    // the pit with its first block, and Baritone refuses to break a block with water above it or beside it
     public static boolean pitColumn(int feetY, int depth, IntPredicate breakable, IntPredicate wet, IntPredicate floor) {
+        return pitColumn(feetY, depth, breakable, wet, floor, false);
+    }
+
+    public static boolean pitColumn(int feetY, int depth, IntPredicate breakable, IntPredicate wet, IntPredicate floor, boolean groundToo) {
+        if (groundToo && wet.test(feetY)) {
+            return false;
+        }
         for (int y = feetY - 1; y >= feetY - depth; y--) {
             if (!breakable.test(y) || wet.test(y)) {
                 return false;
