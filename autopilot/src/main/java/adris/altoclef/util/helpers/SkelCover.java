@@ -45,6 +45,11 @@ public final class SkelCover {
         return Tuning.get("skel_cover_hold", 0) > 0;
     }
 
+    // (cover_night_hold) at night the far exit waits for full hp (Hold.nightFacts)
+    public static boolean nightHoldOn() {
+        return Tuning.get("cover_night_hold", 0) > 0;
+    }
+
     // wet_fail: off the ground OFF_GROUND_TICKS in the cover task (in water) is a cover that failed, and none is offered in water
     public static boolean wetFailOn() {
         return Tuning.get("skel_cover_wet_fail", 0) > 0;
@@ -284,9 +289,18 @@ public final class SkelCover {
         private double mountNearest = Double.POSITIVE_INFINITY;
         private long mountAt = Long.MIN_VALUE / 2;
         private boolean mount;
+        // (Tuning cover_night_hold, a fix of 14 Nov 2026, on) at night the far exit waits for full hp, handed in before each step;
+        // and whether that was said this stretch
+        private boolean nightHold;
+        private boolean nightSaid;
 
         public boolean on() {
             return on;
+        }
+
+        // (cover_night_hold) the key and the night (the game's isBrightOutside false), before each step
+        public void nightFacts(boolean on, boolean night) {
+            nightHold = on && night;
         }
 
         // (skel_cover_hold) the key, handed in before each step; off in a bare hold
@@ -360,6 +374,7 @@ public final class SkelCover {
                 gainAt = now;
                 lastHp = hp;
                 farSince = -1;
+                nightSaid = false;
                 lineAt = now;
                 stallSaid = false;
                 witch = witchWanted;
@@ -410,7 +425,16 @@ public final class SkelCover {
             }
             // (witch_cover: no witch within LEAVE_RANGE either, and the poison over) (mounted_no_run: nor a mounted mob)
             double near = Math.min(nearest, Math.min(witchNearest, mountNearest));
-            if (near > LEAVE_RANGE && !meleeNear && !poisoned) {
+            // (cover_night_hold) at night the far exit stays shut until the hp is full: the cover gave way after a give-up or a
+            // far exit and the buddy ran at 6 to 7 hp in the dark and died (test heel, early deaths since heel-17)
+            if (near > LEAVE_RANGE && !meleeNear && !poisoned && nightHold && hp < FULL_HP) {
+                farSince = -1;
+                if (!nightSaid) {
+                    nightSaid = true;
+                    note = String.format(Locale.ROOT, "%s: no skeleton within %d, but night at %.1f hp: the far exit stays shut until the hp is full (cover_night_hold)",
+                            name(), Math.round(LEAVE_RANGE), hp);
+                }
+            } else if (near > LEAVE_RANGE && !meleeNear && !poisoned) {
                 if (farSince < 0 || now < farSince) farSince = now;
                 if (now - farSince >= LEAVE_TICKS) {
                     leave(now, "no skeleton " + (witchOn ? "or witch " : "") + (mountOn ? "or mounted mob " : "") + "within " + Math.round(LEAVE_RANGE) + " for " + LEAVE_TICKS / 20 + " s", 0);

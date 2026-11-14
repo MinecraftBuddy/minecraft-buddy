@@ -114,4 +114,32 @@ public class StickReserveTest {
         assertEquals(StickReserve.Next.IRON, StickReserve.nextPick(0, 3, 0, 2, 0, 0, true, false, 7, true));
         assertEquals(StickReserve.Next.STONE, StickReserve.nextPick(0, 0, 3, 2, 0, 0, true, false, 7, true));
     }
+
+    // (Tuning mine_kit_surface) before a gold mine or slime dig goes down: two pickaxes above wood besides the kit's diamond one,
+    // then the wood for one more (test heel: three stalls in a cave with the logs on the surface out of reach)
+    @Test
+    public void theMineGoesDownWithTwoPickaxesAndTheWoodForAThird() {
+        assertEquals(StickReserve.Ready.PICKS, StickReserve.surfaceReady(1, 8, 16, 4, true));
+        assertEquals(StickReserve.Ready.PICKS, StickReserve.surfaceReady(0, 0, 0, 0, false));
+        // two sticks and a table: the reserve's three planks
+        assertEquals(StickReserve.Ready.READY, StickReserve.surfaceReady(2, 2, 3, 0, true));
+        assertEquals(StickReserve.Ready.WOOD, StickReserve.surfaceReady(2, 2, 2, 0, true));
+        // no sticks, no table: 2 + 4 + 3 planks, a log counted as four
+        assertEquals(StickReserve.Ready.WOOD, StickReserve.surfaceReady(2, 0, 8, 0, false));
+        assertEquals(StickReserve.Ready.READY, StickReserve.surfaceReady(2, 0, 1, 2, false));
+        // the trip's logs: what covers the lack and one more; none when nothing lacks
+        assertEquals(4, StickReserve.surfaceLogs(0, 0, 0, false));
+        assertEquals(2, StickReserve.surfaceLogs(2, 2, 0, true));
+        assertEquals(2, StickReserve.surfaceLogs(2, 3, 2, true));
+    }
+
+    // (Tuning pickless_way_out) a table standing within the bench's reach counts as one in the bag for the next pickaxe
+    @Test
+    public void aTableNearDoesForTheTableInTheBag() {
+        // sticks and stone, no table and no planks: up for logs, or the craft at the table near
+        assertEquals(StickReserve.Next.LOGS, StickReserve.nextPick(0, 0, 3, 2, 0, 0, false, false, 0, true));
+        assertEquals(StickReserve.Next.STONE, StickReserve.nextPick(0, 0, 3, 2, 0, 0, false, false, 0, true, true));
+        // no sticks and no planks: the table near does not make sticks
+        assertEquals(StickReserve.Next.LOGS, StickReserve.nextPick(0, 0, 3, 0, 0, 0, false, false, 0, true, true));
+    }
 }

@@ -1009,6 +1009,8 @@ final class CombatBrain {
                 _cover.witchFacts(witchCover, witchWanted, poisoned, _seen.witchLines().size(), _seen.witchLineDist(), _seen.witchNearest());
                 // (mounted_no_run: a mounted mob within 16 keeps the cover, and 5 s after)
                 _cover.mountFacts(coverOn && mountOn, mountWanted, nearestMountedDistance(foes, mountedIds));
+                // (cover_night_hold: at night the far exit waits for full hp)
+                _cover.nightFacts(SkelCover.nightHoldOn(), !mod.getWorld().isBrightOutside());
                 _cover.step(now, coverWanted, coverOffered, player.getHealth(), SkelCover.hpLine(), lines, _seen.lineDist(), _seen.nearest(),
                         mod.getFoodChain().isTryingToEat(), _coverTask == null ? null : _coverTask.failed(), mod.getFoodChain().hasFood(),
                         overRuns && meleeWithin(foes, _seen, CombatCommit.LOW_HP_RANGE));

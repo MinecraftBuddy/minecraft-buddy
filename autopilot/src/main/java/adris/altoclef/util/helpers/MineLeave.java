@@ -38,7 +38,28 @@ public final class MineLeave {
 
         public synchronized void record(String dim, int x, int z, long now) {
             spots.addLast(new Spot(dim, x, z, now));
-            while (spots.size() > kept) spots.removeFirst();
+            while (spots.size() > kept) left.remove(spots.removeFirst());
+        }
+
+        // (Tuning mine_leave_once, a fix of 14 Nov 2026, on) the spots a branch mine has left, or gave up leaving, kept across
+        // the tasks of the order: the route's switch between the helmet's gold and the trade's made a new task, which had
+        // forgotten the last one's leave and set out from the same spot again in the second it gave up ("could not get 48
+        // blocks ... the mine goes on here", then "0 blocks from ... 48 blocks away from there first", test heel)
+        private final java.util.Set<Spot> left = new java.util.HashSet<>();
+
+        public synchronized void left(Spot spot) {
+            if (spot != null && spots.contains(spot)) left.add(spot);
+        }
+
+        public synchronized boolean wasLeft(Spot spot) {
+            return left.contains(spot);
+        }
+
+        // the spots left so far, and those in `also`
+        public synchronized java.util.Set<Spot> leftAnd(java.util.Set<Spot> also) {
+            java.util.Set<Spot> out = new java.util.HashSet<>(left);
+            if (also != null) out.addAll(also);
+            return out;
         }
 
         // the nearest spot in dim within near blocks (level distance) of (x, z), given up within fresh ticks of now and
@@ -69,7 +90,12 @@ public final class MineLeave {
 
         public synchronized void clear() {
             spots.clear();
+            left.clear();
         }
+    }
+
+    public static boolean onceOn() {
+        return Tuning.get("mine_leave_once", 0) > 0;
     }
 
     // the eight ways to leave by, east first and round

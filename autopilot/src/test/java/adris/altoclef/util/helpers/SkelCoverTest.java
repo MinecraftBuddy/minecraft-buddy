@@ -96,6 +96,32 @@ public class SkelCoverTest {
         assertEquals("skeleton cover: out of cover: hp 18.0", h.takeNote());
     }
 
+    // (Tuning cover_night_hold) at night the far exit waits for full hp: early deaths since heel-17 ran at 6 to 7 hp in the dark
+    @Test
+    public void atNightTheFarExitWaitsForFullHp() {
+        SkelCover.Hold h = new SkelCover.Hold();
+        h.nightFacts(true, true);
+        h.step(100, true, true, 7, LINE, 1, 12, 12, false, null);
+        h.takeNote();
+        h.step(110, false, true, 7, LINE, 0, Double.POSITIVE_INFINITY, 21, false, null);
+        assertTrue(h.takeNote().endsWith("the far exit stays shut until the hp is full (cover_night_hold)"));
+        h.step(110 + 3 * SkelCover.LEAVE_TICKS, false, true, 8, LINE, 0, Double.POSITIVE_INFINITY, 21, false, null);
+        assertTrue(h.on());
+        assertEquals(null, h.takeNote());
+        // day again: the far exit's 5 s
+        h.nightFacts(true, false);
+        h.step(120 + 3 * SkelCover.LEAVE_TICKS, false, true, 9, LINE, 0, Double.POSITIVE_INFINITY, 21, false, null);
+        h.step(120 + 4 * SkelCover.LEAVE_TICKS, false, true, 9, LINE, 0, Double.POSITIVE_INFINITY, 21, false, null);
+        assertFalse(h.on());
+        // the key off: the far exit as before, at night too
+        SkelCover.Hold off = new SkelCover.Hold();
+        off.nightFacts(false, true);
+        off.step(100, true, true, 7, LINE, 1, 12, 12, false, null);
+        off.step(110, false, true, 7, LINE, 0, Double.POSITIVE_INFINITY, 21, false, null);
+        off.step(110 + SkelCover.LEAVE_TICKS, false, true, 7, LINE, 0, Double.POSITIVE_INFINITY, 21, false, null);
+        assertFalse(off.on());
+    }
+
     @Test
     public void theCoverIsLeftWithNoSkeletonWithinTwentyForFiveSeconds() {
         SkelCover.Hold h = new SkelCover.Hold();

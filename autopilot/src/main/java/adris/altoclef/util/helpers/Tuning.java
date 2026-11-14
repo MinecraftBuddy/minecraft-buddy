@@ -462,6 +462,32 @@ public final class Tuning {
             // against the two a task, and the pit's column is refused where Baritone would refuse a block of it (water beside,
             // MineAndCollectTask, StoneDigRank)
             java.util.Map.entry("stone_pit_direct", 1.0),
+            // (fixes of 14 Nov 2026, a read of 22 test heel runs that reached the gold and lost it) the gold mine and the slime dig go
+            // down from the surface with two pickaxes above wood besides the kit's diamond one and the wood for one more, fetched up
+            // there (BranchMineTask, StickReserve.surfaceReady): three runs stalled 35 to 45 minutes in a cave, the logs on the
+            // surface out of reach
+            java.util.Map.entry("mine_kit_surface", 1.0),
+            // with no pickaxe above wood, the log climb walks back up the way the buddy came down (DownTrail, TrailBackTask) before
+            // the climb by hand, and the next pickaxe is made at a crafting table standing within the bench's reach when the table
+            // is what the wood lacks (MineAndCollectTask, BranchMineTask): no pickaxe at y 10 to 26 in a dripstone cave, every
+            // climb by hand "no way up"
+            java.util.Map.entry("pickless_way_out", 1.0),
+            // a mob that strikes out again on "couldn't reach": 60 s, 120 s, 240 s, then for the run or until it hits us (Bans,
+            // BanPolicy): one zombie banned 25 times in 40 minutes, 60 s each time
+            java.util.Map.entry("entity_ban_grow", 1.0),
+            // a spot a branch mine left, or gave up leaving, is not left again by a later mine of the order (MineLeave, BranchMineTask):
+            // the route's switch between the helmet and the gold made a new task that set out from the same spot again
+            java.util.Map.entry("mine_leave_once", 1.0),
+            // the poke holes take the wanted ores they showed, in reach, with no hostile mob near (ShownOres, PokeMineTask): before
+            // the golden helmet 3 of 18 shown ores were mined
+            java.util.Map.entry("poke_take_shown", 1.0),
+            // (the buddy's route, Alto.Run, ObtainRoute.goldClock) the gold piece of M3.3 runs on past its 40 minutes while the gold
+            // in the bag rose within the last 20, all its tries together six game hours at most: 5 of the 22 runs gave the gold up
+            // while it still rose, one at 90 of 101
+            java.util.Map.entry("gold_runs_on", 1.0),
+            // at night the skeleton cover's far exit (no skeleton within 20 for 5 s) waits for full hp (SkelCover.Hold, CombatBrain):
+            // early deaths since heel-17 ran at 6 to 7 hp in the dark after the cover was left
+            java.util.Map.entry("cover_night_hold", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

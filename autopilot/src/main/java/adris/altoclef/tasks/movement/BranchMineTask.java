@@ -247,6 +247,21 @@ public class BranchMineTask extends Task {
     // gives none, and the line said once
     private Task _firstPick;
     private boolean _firstSaid;
+    // (Tuning mine_kit_surface, a fix of 14 Nov 2026, on) the gold mine and the slime dig go down from the surface with two
+    // pickaxes above wood besides the kit's diamond one and the wood for one more (StickReserve.surfaceReady): the fetch under
+    // way and what it is for, since when the buddy works at it on the surface, and done for this task. a fetch that does not
+    // make it in SURFACE_CAP leaves the mine to go down anyway, and no mine of the order tries again for SURFACE_OFF
+    private Task _surfaceTask;
+    private adris.altoclef.util.helpers.StickReserve.Ready _surfaceWhat;
+    private long _surfaceSince = Long.MIN_VALUE;
+    private boolean _surfaceDone;
+    private static long surfaceOffUntil = Long.MIN_VALUE;
+    static final long SURFACE_CAP = 12000;
+    static final long SURFACE_OFF = 36000;
+    // (Tuning pickless_way_out) a crafting table standing within the bench's reach, looked for at most every TABLE_LOOK ticks
+    private long _tableLookAt = Long.MIN_VALUE;
+    private boolean _tableNear;
+    static final long TABLE_LOOK = 200;
 
     public BranchMineTask(Block[] blocks, int y) {
         this(blocks, y, false);
@@ -567,6 +582,12 @@ public class BranchMineTask extends Task {
                 setDebugState(_awayWhy + ", " + _awaySteps + " blocks to go");
                 return new GetToBlockTask(_awayStep);
             }
+        }
+        // (mine_kit_surface) going down from the surface: the pickaxes and the wood for one more first, up here where the wood is
+        Task kit = surfaceKit(mod, feet, y, now);
+        if (kit != null) {
+            stopMine(mod);
+            return kit;
         }
         Task pick = cheapPick(mod, now);
         if (pick != null) {
@@ -959,9 +980,21 @@ public class BranchMineTask extends Task {
     // (mine_leave_given_up) away from a spot a mine gave its depth up at, or null when there is none near or it is left
     private Task leaveGivenUp(AltoClef mod, BlockPos feet, long now) {
         if (_leaveFrom == null) {
+            // (mine_leave_once) a spot an earlier mine of the order left, or gave up leaving, is not left again
+            boolean once = MineLeave.onceOn();
             MineLeave.Spot spot = MineLeave.GIVEN_UP.near(dimension(), feet.getX(), feet.getZ(), now,
-                    MineLeave.NEAR, MineLeave.FRESH, _leaveDone);
-            if (spot == null) return null;
+                    MineLeave.NEAR, MineLeave.FRESH, once ? MineLeave.GIVEN_UP.leftAnd(_leaveDone) : _leaveDone);
+            if (spot == null) {
+                MineLeave.Spot was = once ? MineLeave.GIVEN_UP.near(dimension(), feet.getX(), feet.getZ(), now,
+                        MineLeave.NEAR, MineLeave.FRESH, _leaveDone) : null;
+                if (was != null) {
+                    _leaveDone.add(was);
+                    adris.altoclef.Debug.logInternal("branch mine: " + Math.round(Math.hypot(feet.getX() - was.x(), feet.getZ() - was.z()))
+                            + " blocks from " + was.x() + ", " + was.z() + ", where a mine gave its depth up " + (now - was.at()) / 20
+                            + " s ago, left once already this order: the mine goes on here (mine_leave_once)");
+                }
+                return null;
+            }
             _leaveFrom = spot;
             _leaveTried = 0;
             _leaveWays = 0;
@@ -1053,6 +1086,7 @@ public class BranchMineTask extends Task {
 
     private void endLeave() {
         _leaveDone.add(_leaveFrom);
+        if (MineLeave.onceOn()) MineLeave.GIVEN_UP.left(_leaveFrom);
         _leaveFrom = null;
         _leaveTask = null;
         _leaveWay = -1;
@@ -1400,6 +1434,20 @@ public class BranchMineTask extends Task {
         adris.altoclef.util.helpers.StickReserve.Next next = adris.altoclef.util.helpers.StickReserve.nextPick(good,
                 bag.getItemCount(Items.IRON_INGOT), stone, sticks, planks, logs, table, !needsBetterThanStone(_blocks),
                 bag.getItemCount(Items.DIAMOND), adris.altoclef.util.helpers.StickReserve.moreOn());
+        // (pickless_way_out) the trip up for logs with no pickaxe above wood, where the table was what the wood lacked: a table
+        // standing within the bench's reach does for it, the craft walks there
+        boolean tableNear = false;
+        if (next == adris.altoclef.util.helpers.StickReserve.Next.LOGS && !table && wayOutOn() && !anyAboveWood(mod) && tableNear(mod, now)) {
+            adris.altoclef.util.helpers.StickReserve.Next atTable = adris.altoclef.util.helpers.StickReserve.nextPick(good,
+                    bag.getItemCount(Items.IRON_INGOT), stone, sticks, planks, logs, false, !needsBetterThanStone(_blocks),
+                    bag.getItemCount(Items.DIAMOND), true, true);
+            if (atTable != adris.altoclef.util.helpers.StickReserve.Next.LOGS && atTable != adris.altoclef.util.helpers.StickReserve.Next.NONE) {
+                next = atTable;
+                tableNear = true;
+                adris.altoclef.Debug.logInternal("branch mine: no pickaxe above wood and no wood for a table, a crafting table stands within "
+                        + Math.round(adris.altoclef.util.helpers.WalkCost.STATION_NEAR) + " blocks: the next pickaxe made there (pickless_way_out)");
+            }
+        }
         if (next == adris.altoclef.util.helpers.StickReserve.Next.NONE) {
             return null;
         }
@@ -1419,8 +1467,8 @@ public class BranchMineTask extends Task {
             return _woodTrip;
         }
         // only with the table in the bag, as the stone pickaxes: without one it walks to any it has seen, down here a walk through
-        // the caves
-        if (!table) {
+        // the caves (pickless_way_out: one within the bench's reach, with no pickaxe to dig at all)
+        if (!table && !tableNear) {
             setDebugState("A crafting table out of four planks, for the next pickaxe");
             return adris.altoclef.TaskCatalogue.getItemTask("crafting_table", 1);
         }
@@ -1437,6 +1485,104 @@ public class BranchMineTask extends Task {
                 + bag.getItemCount(Items.DIAMOND) + " diamonds, " + sticks + " sticks) (stick_reserve" + (diamond ? ", next_pick_more" : "") + ")");
         setDebugState("The next pickaxe, before the last one is gone");
         return _aheadCraft;
+    }
+
+    // (mine_kit_surface) the pickaxes and the wood before the mine goes down from the surface, or null: not the gold mine or the
+    // slime dig, done for this task, not on the surface (more than LogReach.ROOF under the sky's height) or within 8 of the
+    // mine's height, or a fetch of the order ran out of its time less than SURFACE_OFF ago
+    private Task surfaceKit(AltoClef mod, BlockPos feet, int y, long now) {
+        if (_surfaceDone || !gold(_blocks) || !wideBand(_y) || !adris.altoclef.util.helpers.StickReserve.surfaceOn()) {
+            return null;
+        }
+        int depth = mod.getWorld().getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, feet.getX(), feet.getZ()) - y;
+        boolean off = surfaceOffUntil != Long.MIN_VALUE && now < surfaceOffUntil && surfaceOffUntil - now <= SURFACE_OFF;
+        if (y - _mineY <= 8 || depth > adris.altoclef.util.helpers.LogReach.ROOF || off) {
+            return null;
+        }
+        var bag = mod.getItemStorage();
+        int picks = picksBesidesKit(mod);
+        int sticks = bag.getItemCount(Items.STICK);
+        int planks = bag.getItemCount(ItemHelper.PLANKS);
+        int logs = bag.getItemCount(ItemHelper.LOG);
+        boolean table = bag.getItemCount(Items.CRAFTING_TABLE) > 0;
+        adris.altoclef.util.helpers.StickReserve.Ready ready = adris.altoclef.util.helpers.StickReserve.surfaceReady(picks, sticks, planks, logs, table);
+        String bagLine = picks + " pickaxes above wood besides the kit's diamond one, " + sticks + " sticks, " + planks + " planks, "
+                + logs + " logs, " + (table ? "a table" : "no table");
+        if (ready == adris.altoclef.util.helpers.StickReserve.Ready.READY) {
+            _surfaceDone = true;
+            if (_surfaceSince != Long.MIN_VALUE) {
+                adris.altoclef.Debug.logInternal("branch mine: ready to go down for the gold: " + bagLine + " (mine_kit_surface)");
+            }
+            _surfaceTask = null;
+            return null;
+        }
+        if (_surfaceSince == Long.MIN_VALUE || now < _surfaceSince) _surfaceSince = now;
+        if (now - _surfaceSince > SURFACE_CAP) {
+            _surfaceDone = true;
+            _surfaceTask = null;
+            surfaceOffUntil = now + SURFACE_OFF;
+            adris.altoclef.Debug.logInternal("branch mine: the pickaxes and the wood not ready in " + SURFACE_CAP / 1200 + " game minutes on the surface ("
+                    + bagLine + "), down anyway (mine_kit_surface)");
+            return null;
+        }
+        if (_surfaceTask != null && ready == _surfaceWhat && !_surfaceTask.isFinished(mod)) {
+            return _surfaceTask;
+        }
+        _surfaceWhat = ready;
+        if (ready == adris.altoclef.util.helpers.StickReserve.Ready.PICKS) {
+            int want = bag.getItemCount(Items.STONE_PICKAXE) + adris.altoclef.util.helpers.StickReserve.SURFACE_PICKS - picks;
+            _surfaceTask = adris.altoclef.TaskCatalogue.getItemTask("stone_pickaxe", want);
+            adris.altoclef.Debug.logInternal("branch mine: before going down for the gold, " + bagLine + ": "
+                    + (adris.altoclef.util.helpers.StickReserve.SURFACE_PICKS - picks) + " stone pickaxes made here on the surface (mine_kit_surface)");
+            setDebugState("Pickaxes before going down, made on the surface");
+        } else {
+            int want = adris.altoclef.util.helpers.StickReserve.surfaceLogs(sticks, planks, logs, table);
+            _surfaceTask = adris.altoclef.TaskCatalogue.getItemTask("log", want);
+            adris.altoclef.Debug.logInternal("branch mine: before going down for the gold, " + bagLine + ": " + (want - logs)
+                    + " logs here on the surface, the wood for one more pickaxe (mine_kit_surface)");
+            setDebugState("Wood for one more pickaxe before going down, from the surface");
+        }
+        return _surfaceTask;
+    }
+
+    // (mine_kit_surface) the unworn pickaxes above wood in the bag that are not the kit's (diamond or netherite) and that itemSaver
+    // does not keep back
+    private static int picksBesidesKit(AltoClef mod) {
+        var inv = mod.getPlayer().getInventory();
+        int n = 0;
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack st = inv.getItem(i);
+            if (st.isEmpty() || st.is(Items.WOODEN_PICKAXE) || st.is(Items.GOLDEN_PICKAXE) || ToolPick.kitPick(st)
+                    || !"pickaxe".equals(ItemHelper.toolKind(st.getItem()))) {
+                continue;
+            }
+            if (!saved(st) && !ToolWear.wornOut(st.getDamageValue(), st.getMaxDamage())) n++;
+        }
+        return n;
+    }
+
+    // (Tuning pickless_way_out, a fix of 14 Nov 2026, on) see MineAndCollectTask.startClimb and the table near here
+    static boolean wayOutOn() {
+        return adris.altoclef.util.helpers.Tuning.get("pickless_way_out", 0) > 0;
+    }
+
+    // (pickless_way_out) a crafting table stands within the bench's reach (WalkCost.STATION_NEAR across, 6 up and down), looked at
+    // most every TABLE_LOOK ticks
+    private boolean tableNear(AltoClef mod, long now) {
+        if (now >= _tableLookAt && now - _tableLookAt < TABLE_LOOK) return _tableNear;
+        _tableLookAt = now;
+        _tableNear = false;
+        BlockPos feet = mod.getPlayer().blockPosition();
+        int r = (int) adris.altoclef.util.helpers.WalkCost.STATION_NEAR;
+        for (BlockPos pos : BlockPos.betweenClosed(feet.offset(-r, -6, -r), feet.offset(r, 6, r))) {
+            if (mod.getWorld().getBlockState(pos).is(Blocks.CRAFTING_TABLE)
+                    && adris.altoclef.util.helpers.WalkCost.stationDistance(pos.getX(), pos.getY(), pos.getZ(), feet.getX(), feet.getY(), feet.getZ())
+                    <= adris.altoclef.util.helpers.WalkCost.STATION_NEAR) {
+                _tableNear = true;
+                break;
+            }
+        }
+        return _tableNear;
     }
 
     // the pickaxes above wood in the bag (not wooden, not golden) that are not worn past ToolWear's line

@@ -95,12 +95,19 @@ public final class StickReserve {
     // three of the bag's diamonds (the kit's diamond pickaxe gone or worn: goodAboveWood counts it while it is good)
     public static Next nextPick(int goodAboveWood, int ironIngots, int stoneBlocks, int sticks, int planks, int logs, boolean tableInBag,
                                 boolean stoneWill, int diamonds, boolean more) {
+        return nextPick(goodAboveWood, ironIngots, stoneBlocks, sticks, planks, logs, tableInBag, stoneWill, diamonds, more, false);
+    }
+
+    // (Tuning pickless_way_out, `tableNear`) a crafting table standing within the bench's reach counts as one in the bag: the craft
+    // walks to it, where the table's four planks were what the bag lacked and the answer was the trip up for logs
+    public static Next nextPick(int goodAboveWood, int ironIngots, int stoneBlocks, int sticks, int planks, int logs, boolean tableInBag,
+                                boolean stoneWill, int diamonds, boolean more, boolean tableNear) {
         if (goodAboveWood > 0) {
             return Next.NONE;
         }
         int wood = wood(planks, logs);
         int stickPlanks = sticks >= STICKS ? 0 : STICK_CRAFT_PLANKS;
-        if (wood < stickPlanks + (tableInBag ? 0 : TABLE_PLANKS)) {
+        if (wood < stickPlanks + (tableInBag || tableNear ? 0 : TABLE_PLANKS)) {
             return more ? Next.LOGS : Next.NONE;
         }
         boolean stone = stoneBlocks >= STONE_BLOCKS;
@@ -114,5 +121,36 @@ public final class StickReserve {
             return Next.STONE;
         }
         return more && diamonds >= DIAMONDS ? Next.DIAMOND : Next.NONE;
+    }
+
+    // (Tuning mine_kit_surface, a fix of 14 Nov 2026, on) what a gold mine or a slime dig still lacks before it goes down from the
+    // surface, where the wood is: two unworn pickaxes above wood besides the kit's diamond one (PICKS), then the wood for one more
+    // (WOOD): its two sticks or their planks, the table or its four planks, and the reserve's three planks. three runs of the test
+    // heel stalled 35 to 45 minutes in a cave at y 13 to 47, "No path found" every 2 s to the logs on the surface, under the
+    // catalogue's iron pickaxe
+    public static final int SURFACE_PICKS = 2;
+
+    public enum Ready {READY, PICKS, WOOD}
+
+    public static boolean surfaceOn() {
+        return Tuning.get("mine_kit_surface", 0) > 0;
+    }
+
+    public static Ready surfaceReady(int picksBesidesKit, int sticks, int planks, int logs, boolean tableInBag) {
+        if (picksBesidesKit < SURFACE_PICKS) {
+            return Ready.PICKS;
+        }
+        return wood(planks, logs) >= surfaceWood(sticks, tableInBag) ? Ready.READY : Ready.WOOD;
+    }
+
+    // the wood, in planks, one more pickaxe and the reserve take
+    static int surfaceWood(int sticks, boolean tableInBag) {
+        return (sticks >= STICKS ? 0 : STICK_CRAFT_PLANKS) + (tableInBag ? 0 : TABLE_PLANKS) + PLANKS;
+    }
+
+    // the logs the bag should hold after the trip for that wood: what it holds, what covers the shortfall, and one more
+    public static int surfaceLogs(int sticks, int planks, int logs, boolean tableInBag) {
+        int lack = surfaceWood(sticks, tableInBag) - wood(planks, logs);
+        return lack <= 0 ? logs : logs + (lack + LOG_PLANKS - 1) / LOG_PLANKS + 1;
     }
 }

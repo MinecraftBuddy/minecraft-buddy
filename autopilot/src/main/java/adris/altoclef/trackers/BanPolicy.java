@@ -72,9 +72,15 @@ public final class BanPolicy {
 
     // requestEntityUnreachable's rule. the better pick part is the old blacklist's, it never made much sense for a cow but
     // it costs nothing either
+    // (Tuning entity_ban_grow, a fix of 14 Nov 2026, on) the same mob struck out again: 60 s, 120 s, 240 s, then for the run or
+    // until it hits us (Bans.strikeGrowing); off, 60 s every time
     public static boolean entityStrike(Bans bans, int id, int allowed, double distSq, String reason) {
-        return bans.strike(Key.entity(id), reason, allowed, distSq, ENTITY_STRIKES, Until.BETTER_TOOL, Until.HIT_US);
+        int grow = adris.altoclef.util.helpers.Tuning.get("entity_ban_grow", 0) > 0 ? ENTITY_GROWS : 0;
+        return bans.strikeGrowing(Key.entity(id), reason, allowed, distSq, ENTITY_STRIKES, grow, Until.BETTER_TOOL, Until.HIT_US);
     }
+
+    // (entity_ban_grow) the growing bans of one mob before the one that lasts the run
+    public static final int ENTITY_GROWS = 3;
 
     // a mob by the lava we will not walk at: banned outright, not a strike (a stall never adds one while we wait)
     public static boolean lavaShore(Bans bans, int id, String what) {

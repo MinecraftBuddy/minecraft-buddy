@@ -74,6 +74,9 @@ public final class Bans {
     private final Consumer<String> log;
     private final Map<Key, List<Ban>> bans = new HashMap<>();
     private final Map<Key, Strikes> strikes = new HashMap<>();
+    // (Tuning entity_ban_grow) the strike bans each key has earned this run, for strikeGrowing. kept past the ban and its count,
+    // which both end with the ban's clock
+    private final Map<Key, Integer> rounds = new HashMap<>();
     // chunks that unloaded since, per dimension (packed x/z). a load only counts as a REload for these: the client also sends
     // a load for a chunk that is still there whenever a tracked block in it changes, a furnace going lit is enough
     private final Map<Dimension, Set<Long>> unloaded = new HashMap<>();
@@ -172,6 +175,7 @@ public final class Bans {
         }
         bans.clear();
         strikes.clear();
+        rounds.clear();
         unloaded.clear();
         nextExpiry = Long.MAX_VALUE;
     }
@@ -231,6 +235,14 @@ public final class Bans {
     // is banned, but a failure from closer than ever (by a block, squared) or with a better pick starts the count over,
     // because that try was a different try. true when this strike was the one that banned it
     public synchronized boolean strike(Key key, String reason, int allowed, double distSq, long ticks, Until... until) {
+        return strikeGrowing(key, reason, allowed, distSq, ticks, 0, until);
+    }
+
+    // (Tuning entity_ban_grow, a fix of 14 Nov 2026, on) strike, with a ban that grows each time the same key strikes out again:
+    // the first lasts `ticks`, each next one twice the last, and past `doublings` of them the ban lasts the run (its events still
+    // end it: a mob that hits us can be reached, so can one a better pick was banned below). 0 doublings: every ban `ticks`, as strike. the defence picked one zombie it could
+    // not reach 25 times in 40 minutes, a 60 s ban each time, the count starting over when the ban ran out (test heel)
+    public synchronized boolean strikeGrowing(Key key, String reason, int allowed, double distSq, long ticks, int doublings, Until... until) {
         // already out on strikes: one more is no news, and no second ban with a bigger number in its reason
         if (struckOut(key)) {
             return false;
@@ -251,7 +263,29 @@ public final class Bans {
         if (s.failures <= allowed) {
             return false;
         }
-        return add(key, reason + " (" + s.failures + (s.failures == 1 ? " try)" : " tries)"), ticks, true, null, false, until);
+        int round = doublings > 0 ? rounds.getOrDefault(key, 0) : 0;
+        long t = growTicks(ticks, round, doublings);
+        boolean added = add(key, reason + " (" + s.failures + (s.failures == 1 ? " try)" : " tries)"), t, true, null, false, until);
+        if (added && doublings > 0) {
+            rounds.put(key, round + 1);
+            if (round > 0) {
+                EnumSet<Until> events = until.length == 0 ? EnumSet.noneOf(Until.class) : EnumSet.of(until[0], until);
+                log.accept("ban: " + key + " struck out again, ban " + (round + 1) + " of it: " + describe(t, events) + " (entity_ban_grow)");
+            }
+        }
+        return added;
+    }
+
+    // (entity_ban_grow) the clock of a key's ban number round + 1 (round 0 the first): ticks doubled round times for the first
+    // `doublings` bans (60, 120, 240 s for three), the run from the next one on; ticks itself with no doublings
+    static long growTicks(long ticks, int round, int doublings) {
+        if (doublings <= 0 || round <= 0 || ticks == RUN) {
+            return ticks;
+        }
+        if (round >= doublings) {
+            return RUN;
+        }
+        return ticks << round;
     }
 
     private boolean struckOut(Key key) {

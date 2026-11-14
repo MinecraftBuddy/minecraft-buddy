@@ -309,4 +309,57 @@ public class BansTest {
         assertFalse(bans.blockBanned(Dimension.OVERWORLD, 1, 71, 0));
         assertEquals(List.of("ban: - block 9 9 9 (overworld), test (expired)", "ban: - 3 logs of the tree near 0 70 0, tree stalled twice (expired)"), lines);
     }
+
+    // (Tuning entity_ban_grow) one mob that strikes out again: 60 s, 120 s, 240 s, then for the run, until it hits us. the defence
+    // picked one zombie it could not reach 25 times in 40 minutes, 60 s each time (test heel)
+    @Test
+    public void anEntityBanGrowsEachTimeItStrikesOutAgain() {
+        Key zombie = Key.entity(7);
+        long t = 0;
+        bans.tick(t);
+        long[] lengths = new long[3];
+        for (int round = 0; round < 3; round++) {
+            for (int i = 0; i < 3; i++) assertFalse(bans.strikeGrowing(zombie, "couldn't reach zombie", 3, 100, 1200, 3, Until.HIT_US));
+            assertTrue(bans.strikeGrowing(zombie, "couldn't reach zombie", 3, 100, 1200, 3, Until.HIT_US));
+            long start = t;
+            while (bans.entityBanned(7)) {
+                t += 20;
+                bans.tick(t);
+            }
+            lengths[round] = t - start;
+        }
+        assertEquals(1200, lengths[0]);
+        assertEquals(2400, lengths[1]);
+        assertEquals(4800, lengths[2]);
+        assertTrue(lines.toString(), lines.contains("ban: entity #7 struck out again, ban 2 of it: 2 min or until it hits us (entity_ban_grow)"));
+        for (int i = 0; i < 3; i++) bans.strikeGrowing(zombie, "couldn't reach zombie", 3, 100, 1200, 3, Until.HIT_US);
+        assertTrue(bans.strikeGrowing(zombie, "couldn't reach zombie", 3, 100, 1200, 3, Until.HIT_US));
+        assertTrue(lines.get(lines.size() - 1), lines.get(lines.size() - 1).endsWith("ban 4 of it: for the run or until it hits us (entity_ban_grow)"));
+        bans.tick(t + 1_000_000);
+        assertTrue("the fourth lasts while it cannot be reached", bans.entityBanned(7));
+        bans.hitBy(7);
+        assertFalse(bans.entityBanned(7));
+        // another mob starts at 60 s
+        for (int i = 0; i < 4; i++) bans.strikeGrowing(Key.entity(8), "couldn't reach zombie", 3, 100, 1200, 3, Until.HIT_US);
+        bans.tick(t + 1_000_000 + 1200);
+        assertFalse(bans.entityBanned(8));
+    }
+
+    // (entity_ban_grow) off, or for any other strike: every ban its own clock, the run over clears the rounds
+    @Test
+    public void noDoublingsIsTheOldStrike() {
+        assertEquals(1200, Bans.growTicks(1200, 5, 0));
+        assertEquals(1200, Bans.growTicks(1200, 0, 3));
+        assertEquals(2400, Bans.growTicks(1200, 1, 3));
+        assertEquals(4800, Bans.growTicks(1200, 2, 3));
+        assertEquals(Bans.RUN, Bans.growTicks(1200, 3, 3));
+        Key zombie = Key.entity(9);
+        bans.tick(0);
+        for (int i = 0; i < 4; i++) bans.strikeGrowing(zombie, "r", 3, 100, 1200, 3);
+        bans.tick(1200);
+        bans.clearRun("test");
+        for (int i = 0; i < 4; i++) bans.strikeGrowing(zombie, "r", 3, 100, 1200, 3);
+        bans.tick(2400);
+        assertFalse("a new run starts the rounds over", bans.entityBanned(9));
+    }
 }

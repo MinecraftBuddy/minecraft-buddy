@@ -178,4 +178,28 @@ public class MineLeaveTest {
         assertEquals("near", MineLeave.landPick(null, "near"));
         assertNull(MineLeave.landPick(null, null));
     }
+
+    // (Tuning mine_leave_once) a spot one mine left, or gave up leaving, is left by no later mine of the order: the route's switch
+    // between the helmet and the gold made a new task, which set out from the same spot again in the second the last gave up
+    @Test
+    public void aSpotLeftOnceIsNotLeftByTheNextMine() {
+        MineLeave.Spots spots = new MineLeave.Spots(3);
+        spots.record("OVERWORLD", 100, 200, 10000);
+        MineLeave.Spot s = spots.near("OVERWORLD", 100, 200, 12000, MineLeave.NEAR, MineLeave.FRESH, null);
+        assertFalse(spots.wasLeft(s));
+        spots.left(s);
+        assertTrue(spots.wasLeft(s));
+        // the next task's own set is empty: the order's set still skips it
+        assertNull(spots.near("OVERWORLD", 100, 200, 12100, MineLeave.NEAR, MineLeave.FRESH, spots.leftAnd(Set.of())));
+        // a new give-up at the same place is a new spot, left anew
+        spots.record("OVERWORLD", 100, 200, 13000);
+        MineLeave.Spot again = spots.near("OVERWORLD", 100, 200, 13100, MineLeave.NEAR, MineLeave.FRESH, spots.leftAnd(null));
+        assertEquals(13000, again.at());
+        // a spot dropped from the handful is dropped from the left ones too; one never recorded is not taken
+        spots.record("OVERWORLD", 0, 0, 14000);
+        spots.record("OVERWORLD", 0, 0, 15000);
+        assertFalse(spots.wasLeft(s));
+        spots.left(new MineLeave.Spot("OVERWORLD", 5, 5, 1));
+        assertEquals(0, spots.leftAnd(null).size());
+    }
 }

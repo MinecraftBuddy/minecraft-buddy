@@ -7,6 +7,7 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.BreakRules;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.PokePattern;
+import adris.altoclef.util.helpers.ShownOres;
 import adris.altoclef.util.helpers.ToolPick;
 import adris.altoclef.util.helpers.WorldHelper;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -74,6 +75,11 @@ public class PokeMineTask extends Task {
     private Task _walk;
     private BlockPos _backTo;
     private long _backSince;
+    // (poke_take_shown) the shown ore under way, since when, its task; and whether the hold for a hostile mob was said
+    private BlockPos _takeAt;
+    private long _takeSince;
+    private Task _take;
+    private boolean _takeHeldSaid;
 
     // what a run learned, kept across tasks in one level: the collect task takes an ore with a task of its own, and the branch
     // mine and this task are made anew after it
@@ -91,7 +97,8 @@ public class PokeMineTask extends Task {
         }
     }
 
-    private static final int TUNNEL = 0, HOLE = 1, CONNECTOR = 2;
+    // ORE: a shown ore the holes took themselves (poke_take_shown), counted with none of the three
+    private static final int TUNNEL = 0, HOLE = 1, CONNECTOR = 2, ORE = 3;
 
     private static final class Memory {
         final Object level;
@@ -102,6 +109,8 @@ public class PokeMineTask extends Task {
         final LongOpenHashSet shown = new LongOpenHashSet();
         // ores whose face the pattern showed, for the collect task's reach rule
         final LongOpenHashSet ores = new LongOpenHashSet();
+        // (poke_take_shown) shown ores a take gave up on
+        final LongOpenHashSet takeSkip = new LongOpenHashSet();
         // dug cells and the game time they went, {pos, time, counted}: their neighbours looked at REVEAL ticks on
         final ArrayDeque<long[]> reveal = new ArrayDeque<>();
         // cells of the move under way, watched until they go: their block while it stands, and what they count as
@@ -192,6 +201,11 @@ public class PokeMineTask extends Task {
             newRun(mod, m, feet, _dx, _dz, why);
         }
         m.last = now;
+        // (poke_take_shown) a wanted ore the holes showed, in reach: taken before the pattern goes on
+        if (ShownOres.on()) {
+            Task take = takeShown(mod, m, now);
+            if (take != null) return take;
+        }
         for (int i = 0; i < 24; i++) {
             PokePattern.Run run = m.run;
             PokePattern.Move mv = run.next();
@@ -286,6 +300,98 @@ public class PokeMineTask extends Task {
             return _walk;
         }
         return null;
+    }
+
+    // (poke_take_shown) the nearest wanted ore the holes showed that is in reach, broken from where the buddy stands, or null: none,
+    // or a hostile mob near (the pattern goes on, the defence has the tick). the take under way goes on until the ore is gone, or
+    // ShownOres.STUCK, after which that ore is left for good
+    private Task takeShown(AltoClef mod, Memory m, long now) {
+        var level = mod.getWorld();
+        if (_takeAt != null) {
+            BlockState st = level.getBlockState(_takeAt);
+            if (!wantedBlock(st)) {
+                endTake();
+            } else if (ShownOres.stuck(_takeSince, now)) {
+                m.takeSkip.add(_takeAt.asLong());
+                Debug.logInternal("branch mine: poke holes left the " + name(st) + " at " + _takeAt.toShortString()
+                        + ", not broken in " + ShownOres.STUCK / 20 + " s (poke_take_shown)");
+                endTake();
+            } else {
+                setDebugState("Poke holes: the " + name(st) + " they showed at " + _takeAt.toShortString());
+                return _take;
+            }
+        }
+        if (m.ores.isEmpty()) return null;
+        net.minecraft.world.phys.Vec3 eye = mod.getPlayer().getEyePosition();
+        BlockPos best = null;
+        double bestD = Double.POSITIVE_INFINITY;
+        var it = m.ores.iterator();
+        while (it.hasNext()) {
+            long k = it.nextLong();
+            BlockPos pos = BlockPos.of(k);
+            double d = pos.distToCenterSqr(eye);
+            if (d >= bestD || d > ShownOres.TAKE_REACH * ShownOres.TAKE_REACH) continue;
+            BlockState st = level.getBlockState(pos);
+            boolean wanted = wantedBlock(st);
+            if (!ShownOres.takeable(d, wanted, wanted && LookHelper.getReach(pos).isPresent(), wanted && pickFor(mod, st),
+                    m.takeSkip.contains(k))) continue;
+            best = pos;
+            bestD = d;
+        }
+        if (best == null) {
+            _takeHeldSaid = false;
+            return null;
+        }
+        double hostile = nearestHostile(mod);
+        if (ShownOres.held(hostile)) {
+            if (!_takeHeldSaid) {
+                _takeHeldSaid = true;
+                Debug.logInternal("branch mine: poke holes leave the " + name(level.getBlockState(best)) + " at " + best.toShortString()
+                        + " for now, a hostile mob " + Math.round(hostile) + " blocks off (poke_take_shown)");
+            }
+            return null;
+        }
+        _takeHeldSaid = false;
+        BlockState st = level.getBlockState(best);
+        endDig();
+        _takeAt = best;
+        _takeSince = now;
+        _take = new DestroyBlockTask(best);
+        watch(m, best, st, ORE, now);
+        Debug.logInternal("branch mine: poke holes take the " + name(st) + " they showed at " + best.toShortString() + ", "
+                + Math.round(Math.sqrt(bestD)) + " blocks off (poke_take_shown)");
+        setDebugState("Poke holes: the " + name(st) + " they showed at " + best.toShortString());
+        return _take;
+    }
+
+    private void endTake() {
+        _takeAt = null;
+        _take = null;
+    }
+
+    private boolean wantedBlock(BlockState st) {
+        return Arrays.asList(_blocks).contains(st.getBlock());
+    }
+
+    // a pick in the bag that drops the block (gold wants iron or better: a stone one breaks it for nothing)
+    private static boolean pickFor(AltoClef mod, BlockState st) {
+        if (!st.requiresCorrectToolForDrops()) return true;
+        var inv = mod.getPlayer().getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            var item = inv.getItem(i);
+            if (!item.isEmpty() && item.isCorrectToolForDrops(st)) return true;
+        }
+        return false;
+    }
+
+    // the nearest hostile mob the tracker knows, in blocks, or -1
+    private static double nearestHostile(AltoClef mod) {
+        double best = -1;
+        for (net.minecraft.world.entity.Entity e : mod.getEntityTracker().getHostiles()) {
+            double d = e.distanceTo(mod.getPlayer());
+            if (best < 0 || d < best) best = d;
+        }
+        return best;
     }
 
     private void endDig() {
@@ -466,7 +572,7 @@ public class PokeMineTask extends Task {
             m.lastDig = now;
             if (w.what == HOLE) m.holes++;
             else if (w.what == CONNECTOR) m.connector++;
-            else m.tunnel++;
+            else if (w.what != ORE) m.tunnel++;
             m.picks.merge(w.name + " " + pick, 1, Integer::sum);
         }
     }

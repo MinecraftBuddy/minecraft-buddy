@@ -200,6 +200,8 @@ public class AltoClef {
         adris.altoclef.util.helpers.PortalExit.letGoOutside(this);
         // the last firm ground in the nether, for a wander stuck on a rim (RimRetreat)
         adris.altoclef.util.helpers.RimRetreat.note(this);
+        // (pickless_way_out) the way the buddy came down from the open, for the walk back up with no pickaxe (DownTrail)
+        adris.altoclef.util.helpers.DownTrail.tick(this);
 
         if (_taskRunner.isActive()) {
             // a #set of the throwaway items has to reach what we handed baritone too

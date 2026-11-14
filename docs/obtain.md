@@ -129,7 +129,10 @@ gate lacks is fetched by safer steps first, all of it planned together.
 - **Pickaxes in a mine**: the diamond pickaxe is kept for the ores that need it. Rock is dug with a stone or iron one;
   with none left, the buddy makes a stone one on the spot from the mine's stone. Two sticks and three planks stay in the
   bag for the next pickaxe. With no wood left the buddy goes up to the surface for logs, and a mine for gold or slimes
-  never starts without a pickaxe better than wood.
+  never starts without a pickaxe better than wood. Before such a mine goes down, the buddy makes two pickaxes better than
+  wood besides the diamond one and fetches the wood for one more, on the surface. With no pickaxe better than wood left
+  down there, the buddy walks back up the way down before climbing by hand, or makes the next one at a crafting table
+  within 21 blocks.
 - **The nether**: full armour with a golden helmet worn (the piglins leave the wearer be) and a spare one in the bag, a
   diamond sword when the diamonds are in the bag, 48 blocks, flint and steel, and food to 160 points. Torches and the
   water bucket are the overworld's. A potion of fire resistance in the bag is drunk when fire is about, and it stops all
@@ -179,7 +182,8 @@ gate lacks is fetched by safer steps first, all of it planned together.
 
 A piece of the kit may take ten game minutes and three more for each ingot; a piece that did not come is not asked again
 for ten game minutes, while the others go on. The golden helmet for the nether is never given up: the order waits for
-its gold. A stock of eight or more (food, torches, blocks) counts as enough at three quarters. A tool or piece of armour
+its gold. The trade's gold goes on past its time while the gold in the bag rises, until 20 minutes pass with no rise;
+all its tries together take six game hours at most. A stock of eight or more (food, torches, blocks) counts as enough at three quarters. A tool or piece of armour
 at its last tenth counts as gone, so a new one comes while the old still works; a shield at its last uses gets a spare
 in the bag, before the food run when the iron and the wood for it are in the bag already. With the autopilot the portal into
 the nether is built from the bag's obsidian when it holds ten and flint and steel, where the buddy stands; otherwise it
@@ -262,7 +266,8 @@ hunted; their meat is picked up.
 - **Skeletons above ground and in caves**: under 18 health with a skeleton, stray or bogged in sight within 16 blocks, the
   buddy never stands in the open, healing or not: a block from the bag goes on the line between them at head height (the
   feet's under it where needed), else the buddy digs two down and shuts the top. No run through their arrows. The meal and
-  the healing happen in cover; out at 18 health, or once none is within 20 blocks for 5 seconds. The buddy walks up to
+  the healing happen in cover; out at 18 health, or once none is within 20 blocks for 5 seconds (at night only at full
+  health). The buddy walks up to
   one only with 16 health or more, a sword, some armour on and no second one in sight. The nether keeps its own rules.
 - **Witches**: a witch's throw, or poison with a witch within 16 blocks, sends the buddy into the same cover: two down with
   the top shut, or blocks round the head where the ground will not dig. No run from a witch, except in water or with lava
