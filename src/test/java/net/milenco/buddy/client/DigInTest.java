@@ -263,4 +263,81 @@ class DigInTest {
 		assertFalse(DigIn.shutOnSpotPointless(true, 0, true));
 		assertFalse(DigIn.shutOnSpotPointless(false, 0, false));
 	}
+
+	// (shelter_logs_first) a live look at the test heel: a night start with an empty bag on bare stone, logs 10 to 13 below
+	@Test
+	void logsWhenTheGroundGaveTooFew() {
+		assertTrue(DigIn.logsAfterGather(true, 0, false, 0));
+		assertTrue(DigIn.logsAfterGather(true, 4, false, 1));
+		// blocks enough, a monster cut it, no step left, or switched off
+		assertFalse(DigIn.logsAfterGather(true, 5, false, 0));
+		assertFalse(DigIn.logsAfterGather(true, 0, true, 0));
+		assertFalse(DigIn.logsAfterGather(true, 0, false, DigIn.LOG_RUNS));
+		assertFalse(DigIn.logsAfterGather(false, 0, false, 0));
+	}
+
+	@Test
+	void logsInPlaceOfTheWaitInTheOpen() {
+		assertTrue(DigIn.logsInsteadOfWait(true, 0, false, true, true, false, 0));
+		// the tries not spent, a walk by hand still to be had, a monster about, ducking, blocks enough: not yet or not at all
+		assertFalse(DigIn.logsInsteadOfWait(true, 0, false, false, true, false, 0));
+		assertFalse(DigIn.logsInsteadOfWait(true, 0, false, true, false, false, 0));
+		assertFalse(DigIn.logsInsteadOfWait(true, 0, false, true, true, true, 0));
+		assertFalse(DigIn.logsInsteadOfWait(true, 0, true, true, true, false, 0));
+		assertFalse(DigIn.logsInsteadOfWait(true, 9, false, true, true, false, 0));
+		assertFalse(DigIn.logsInsteadOfWait(true, 0, false, true, true, false, DigIn.LOG_RUNS));
+		assertFalse(DigIn.logsInsteadOfWait(false, 0, false, true, true, false, 0));
+	}
+
+	@Test
+	void threeLogsAreTwelvePlanks() {
+		assertFalse(DigIn.logsDone(2, 0, 0, 1000));
+		assertTrue(DigIn.logsDone(3, 0, 0, 1000));
+		assertTrue(DigIn.logsDone(0, DigIn.GATHER_ENOUGH, 0, 1000));
+		assertTrue(DigIn.logsDone(0, 0, 0, DigIn.LOG_MS + 1));
+		assertEquals(3, DigIn.plankCrafts(7));
+		assertEquals(2, DigIn.plankCrafts(2));
+		assertEquals(0, DigIn.plankCrafts(0));
+		assertEquals("oak_planks", DigIn.planksOf("oak_log"));
+		assertEquals("dark_oak_planks", DigIn.planksOf("stripped_dark_oak_wood"));
+		assertEquals("pale_oak_planks", DigIn.planksOf("pale_oak_log"));
+		assertEquals("crimson_planks", DigIn.planksOf("crimson_stem"));
+		assertEquals("warped_planks", DigIn.planksOf("stripped_warped_hyphae"));
+		assertNull(DigIn.planksOf("dirt"));
+		assertNull(DigIn.planksOf(null));
+	}
+
+	@Test
+	void theNearLogLowInItsTrunkFirst() {
+		// the foot of a trunk 5 off before its third log, and before a log 5 off and 12 below
+		assertTrue(DigIn.logScore(5, 0, 0, 0) < DigIn.logScore(5, 2, 0, 2));
+		assertTrue(DigIn.logScore(5, 0, 0, 0) < DigIn.logScore(5, -12, 0, 0));
+		// with nothing on the level, the logs below are taken
+		assertTrue(DigIn.logScore(20, -12, 0, 0) < Double.MAX_VALUE);
+	}
+
+	// (shelter_skip_tries) the tries elsewhere at the same feet, three times 20 s, with no site and no blocks
+	@Test
+	void noTriesElsewhereWithNothingToWalkTo() {
+		assertTrue(DigIn.skipTries(true, 0, true));
+		assertTrue(DigIn.skipTries(true, 4, true));
+		assertFalse(DigIn.skipTries(true, 0, false));
+		assertFalse(DigIn.skipTries(true, 13, true));
+		assertFalse(DigIn.skipTries(false, 0, true));
+	}
+
+	// (shelter_flat_walk) the second night on a snowy slope: a wall cell over a drop would not shut, 13 blocks in the bag
+	@Test
+	void flatGroundOnceTheTriesAreSpent() {
+		assertTrue(DigIn.flatWalk(true, 13, true));
+		assertFalse(DigIn.flatWalk(true, 13, false));
+		assertFalse(DigIn.flatWalk(true, DigIn.FLAT_BLOCKS - 1, true));
+		assertFalse(DigIn.flatWalk(false, 13, true));
+		// a wall over the ground, a wall already there, and the slope's wall cell over a drop
+		assertTrue(DigIn.wallStands(false, true, true, false, true));
+		assertTrue(DigIn.wallStands(true, false, false, true, false));
+		assertFalse(DigIn.wallStands(false, true, false, false, true));
+		// at the head something that is no block and takes none
+		assertFalse(DigIn.wallStands(true, false, false, false, false));
+	}
 }

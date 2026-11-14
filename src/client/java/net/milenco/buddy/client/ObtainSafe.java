@@ -699,6 +699,21 @@ final class ObtainSafe {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_down_from_tree", 0) > 0;
 	}
 
+	/** The autopilot's shelter_logs_first switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
+	static boolean logsFirstOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_logs_first", 0) > 0;
+	}
+
+	/** The autopilot's shelter_skip_tries switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
+	static boolean skipTriesOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_skip_tries", 0) > 0;
+	}
+
+	/** The autopilot's shelter_flat_walk switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
+	static boolean flatWalkOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_flat_walk", 0) > 0;
+	}
+
 	/** The block the night shelter puts in first: the first in the bag that passes shelterBlock; null with none. */
 	static String firstShelterBlock(LocalPlayer p) {
 		var in = p.getInventory();
@@ -1237,6 +1252,21 @@ final class ObtainSafe {
 		long treeSince;
 		boolean treeGiven;
 		int treeWalks;
+		/**
+		 * (the autopilot's shelter_logs_first, a fix of 14 Nov 2026, on) logs for blocks: logsRun while the step goes on, since
+		 * logsSince; logTarget the log being broken, logTried those given up, logBrokeAt the last one broken (its drop a moment
+		 * from showing), logRuns the steps begun; planks the craft of the planks once the logs are in, since planksSince.
+		 */
+		boolean logsRun;
+		long logsSince, logBrokeAt, planksSince;
+		BlockPos logTarget;
+		final java.util.Set<BlockPos> logTried = new java.util.HashSet<>();
+		final ObtainSteps.Breaker logBreaker = new ObtainSteps.Breaker();
+		final ObtainSteps.Pickup logPickup = new ObtainSteps.Pickup();
+		int logRuns;
+		ObtainSteps.Craft planks;
+		/** (shelter_flat_walk) the last look for a walk by hand found neither a cell to dig in nor flat ground. */
+		boolean handNone;
 		/** Cells where it could not shut itself in: no site within two blocks of them. */
 		final java.util.Set<BlockPos> bad = new java.util.HashSet<>();
 		boolean sealed, open;
@@ -1357,6 +1387,12 @@ final class ObtainSafe {
 			// heel: a bare start at night on oak leaves in a forest's canopy, the floor 5 to 9 below, "no hole here, shut in on the
 			// spot" with no block in the bag and nothing under the feet to dig, then "shut but for 8 cells" until a phantom and
 			// spiders drove the buddy down
+			// (the autopilot's shelter_logs_first, a fix of 14 Nov 2026, on) logs for blocks, then the shelter again where the buddy
+			// stands
+			if (logsRun) {
+				ObtainSteps.Result l = logsTick(mc, p, level, f, now);
+				if (l == ObtainSteps.Result.RUN) return l;
+			}
 			if (downFromTreeOn() && !treeGiven) {
 				ObtainSteps.Result t = downFromTree(mc, p, level, f, now);
 				if (t == ObtainSteps.Result.RUN) return t;
@@ -1621,13 +1657,35 @@ final class ObtainSafe {
 					// dig-in by hand is the way out with blocks in the bag too: a live look at the test heel, 12 logs and an axe, a
 					// wait half shut for good till a stray shot in through the open side
 					boolean stuckWayOut = stuckWayOutOn();
+					boolean late = !duck && now - stuckSince > 20_000;
+					// (the autopilot's shelter_skip_tries, a fix of 14 Nov 2026, on) too few blocks and no site to dig within 16: no
+					// tries elsewhere, which kept the same feet three times 20 s. A live look at the test heel: a night start with an
+					// empty bag on bare stone, a stony shore rim
+					int blocksNow = shelterBlocks(p);
+					if (late && elsewhere < DigIn.ELSEWHERE_TRIES && skipTriesOn() && DigIn.fewBlocks(blocksNow)
+							&& DigIn.skipTries(true, blocksNow, noSite(level, p, f, bad))) {
+						elsewhere = DigIn.ELSEWHERE_TRIES;
+						Exchange.emit("obtain", "action", "shelter", "what", "no tries elsewhere", "why", "no site to dig and too few blocks",
+							"x", f.getX(), "y", f.getY(), "z", f.getZ(), "blocks", blocksNow);
+					}
+					boolean spent = elsewhere >= DigIn.ELSEWHERE_TRIES;
+					boolean handAsk = DigIn.handDig(handDigOn(), digHereOn(), duck, blocksNow, handDigs, DigIn.triesSpent(stuckWayOut, elsewhere));
 					BlockPos hand = null;
-					if (!duck && now - stuckSince > 20_000 && now - handLookAt > 10_000
-							&& DigIn.handDig(handDigOn(), digHereOn(), duck, shelterBlocks(p), handDigs, DigIn.triesSpent(stuckWayOut, elsewhere))) {
+					boolean flat = false;
+					if (late && now - handLookAt > 10_000 && handAsk) {
 						handLookAt = now;
 						hand = handSite(level, p, f, bad);
+						// (the autopilot's shelter_flat_walk, a fix of 14 Nov 2026, on) no cell to dig in by hand: flat ground within 24
+						// where the four walls stand, with blocks enough for them and the top. The test heel's second night on a snowy
+						// slope: a wall cell over a drop would not shut with 13 blocks in the bag, and the wait went on 2 min 20 s
+						// after the third try, till a creeper drove the buddy off to flat ground where the shut-in took 5 s
+						if (hand == null && DigIn.flatWalk(flatWalkOn(), blocksNow, DigIn.triesSpent(stuckWayOut, elsewhere))) {
+							hand = flatSite(level, p, f, bad);
+							flat = hand != null;
+						}
+						handNone = hand == null;
 					}
-					if (!duck && now - stuckSince > 20_000 && (hand != null || elsewhere < DigIn.ELSEWHERE_TRIES)) {
+					if (late && (hand != null || elsewhere < DigIn.ELSEWHERE_TRIES)) {
 						if (hand != null) handDigs++;
 						else elsewhere++;
 						bad.add(f.immutable());
@@ -1641,9 +1699,17 @@ final class ObtainSafe {
 						noDig = keep; digAt = null; dugAt = 0; stoppedShort = keep && stoppedShort;
 						if (hand != null) {
 							site = hand; siteSince = now; nearSite = true; handWalk = true;
-							Exchange.emit("obtain", "action", "shelter", "what", "digs in by hand elsewhere", "x", hand.getX(), "y", hand.getY(), "z", hand.getZ(),
-								"from", f.toShortString(), "try", handDigs);
+							Exchange.emit("obtain", "action", "shelter", "what", flat ? "walks to flat ground" : "digs in by hand elsewhere",
+								"x", hand.getX(), "y", hand.getY(), "z", hand.getZ(), "from", f.toShortString(), "try", handDigs, "blocks", blocksNow);
 						} else Exchange.emit("obtain", "action", "shelter", "what", "tries elsewhere", "x", f.getX(), "y", f.getY(), "z", f.getZ(), "try", elsewhere);
+						return ObtainSteps.Result.RUN;
+					}
+					// (the autopilot's shelter_logs_first, a fix of 14 Nov 2026, on) too few blocks, the tries spent and no walk by hand
+					// left: logs within 24 for blocks, in place of the wait in the open. A live look at the test heel: a night start
+					// with an empty bag on bare stone waited in the open till morning, the logs 10 to 13 below
+					if (late && DigIn.logsInsteadOfWait(logsFirstOn(), blocksNow, duck, spent, !handAsk || handNone,
+							!foes(p).isEmpty() || shooterWithin(p, 12), logRuns)) {
+						logsStart(mc, p, f, now, "no way to shut here");
 						return ObtainSteps.Result.RUN;
 					}
 					// (shelter_refused_walls) shut in on the spot: the other walls and the top still go up round a cell that will not
@@ -1972,7 +2038,189 @@ final class ObtainSafe {
 			gatherCell = null;
 			Exchange.emit("obtain", "action", "shelter", "what", "blocks first over", "why", why, "cells", gathered.size(), "blocks", shelterBlocks(p),
 				"s", (now - gatherSince) / 1000);
+			// (the autopilot's shelter_logs_first, a fix of 14 Nov 2026, on) still too few blocks: logs within 24, not only ground
+			// the hand digs
+			if (DigIn.logsAfterGather(logsFirstOn(), shelterBlocks(p), why.equals("a monster about"), logRuns)) {
+				logsStart(AfkHelperClient.mc(), p, p.blockPosition(), now, "blocks first gave too few");
+				return ObtainSteps.Result.RUN;
+			}
 			return ObtainSteps.Result.DONE;
+		}
+
+		/** (shelter_logs_first) the logs step begins: up to DigIn.LOG_WANT logs within DigIn.LOG_RANGE, then planks. */
+		void logsStart(Minecraft mc, LocalPlayer p, BlockPos f, long now, String why) {
+			logsRun = true;
+			logsSince = now;
+			logTarget = null;
+			planks = null;
+			logRuns++;
+			if (stepping) { HeldKeys.set(mc.options.keyUp, false); stepping = false; }
+			Follow.stand();
+			Exchange.emit("obtain", "action", "shelter", "what", "logs first", "why", why, "x", f.getX(), "y", f.getY(), "z", f.getZ(),
+				"blocks", shelterBlocks(p), "logs", logsIn(p), "try", logRuns);
+		}
+
+		/**
+		 * (shelter_logs_first) the logs step: each log's drop picked up before the next, the nearest log low in its trunk first
+		 * (nextLog), broken by the Breaker (the hand or an axe, the walk to a cell beside it); once DigIn.logsDone or no log is
+		 * left, planks from up to DigIn.LOG_WANT logs of one kind in the 2x2 grid, never with a monster about (then the logs are
+		 * the blocks). RUN while it goes on, DONE once over, the shelter again where the buddy stands.
+		 */
+		ObtainSteps.Result logsTick(Minecraft mc, LocalPlayer p, Level level, BlockPos f, long now) {
+			boolean foes = !foes(p).isEmpty() || shooterWithin(p, 12);
+			if (planks != null) {
+				if (foes) return logsEnd(p, now, "a monster about, the logs are the blocks");
+				ObtainSteps.Result r = planks.tick(mc, p, now);
+				if (r == ObtainSteps.Result.RUN && now - planksSince < 10_000) { phase = "makes planks"; Follow.stand(); return r; }
+				return logsEnd(p, now, r == ObtainSteps.Result.DONE ? "planks made" : "no planks");
+			}
+			if (foes) return logsEnd(p, now, "a monster about");
+			if (logPickup.tick(mc, p, now, s -> s.is(net.minecraft.tags.ItemTags.LOGS))) { phase = "picks up a log"; return ObtainSteps.Result.RUN; }
+			String why = DigIn.logsDone(logsIn(p), shelterBlocks(p), logsSince, now) ? "done" : null;
+			if (why == null && logTarget == null) {
+				logTarget = nextLog(level, p, f);
+				if (logTarget == null) why = "no log in reach";
+			}
+			if (why != null) {
+				// the last drop shows a moment after its log went
+				if (now - logBrokeAt < 1500) { Follow.stand(); return ObtainSteps.Result.RUN; }
+				String log = mostLogs(p);
+				Recipes.Recipe r = log == null ? null : planksRecipe(log);
+				if (r == null) return logsEnd(p, now, log == null ? why : "no planks for " + log);
+				int times = DigIn.plankCrafts(ObtainSteps.count(p, log));
+				planks = new ObtainSteps.Craft(new ObtainPlan.Step(ObtainPlan.Act.CRAFT, r.result(), times * r.count(), r, times, List.of(), null), p);
+				planksSince = now;
+				phase = "makes planks";
+				Follow.stand();
+				return ObtainSteps.Result.RUN;
+			}
+			phase = "breaks a log " + logTarget.toShortString() + " for blocks";
+			ObtainSteps.Result r = logBreaker.tick(mc, p, logTarget, now);
+			if (r == ObtainSteps.Result.RUN) return r;
+			if (r == ObtainSteps.Result.DONE) { logPickup.at(Vec3.atCenterOf(logTarget)); logBrokeAt = now; }
+			logTried.add(logTarget);
+			logTarget = null;
+			return ObtainSteps.Result.RUN;
+		}
+
+		/** (shelter_logs_first) the logs step over: the shelter again where the buddy stands, its spot, clock and tries new. */
+		ObtainSteps.Result logsEnd(LocalPlayer p, long now, String why) {
+			logsRun = false;
+			logTarget = null;
+			planks = null;
+			gatherDone = true;
+			Exchange.emit("obtain", "action", "shelter", "what", "logs first over", "why", why, "logs", logsIn(p), "blocks", shelterBlocks(p),
+				"s", (now - logsSince) / 1000);
+			bottom = null; site = null; siteSince = 0; here = null; prop = null; propDone = false; nearSite = false; handWalk = false;
+			dug = 0; extra = 0; stuckSince = 0; since = now; noDig = false; stoppedShort = false; noDigKeptAt = null; digAt = null; dugAt = 0;
+			refusedAt = null; nearLook = null; elsewhere = 0; handNone = false;
+			return ObtainSteps.Result.DONE;
+		}
+
+		/**
+		 * (shelter_logs_first) the next log: within DigIn.LOG_RANGE sideways, from DigIn.LOG_DOWN below to DigIn.LOG_UP above the
+		 * ground the sites are measured from, one the buddy may break (no water by it) with a side in the open, not tried yet;
+		 * DigIn.logScore's order.
+		 */
+		BlockPos nextLog(Level level, LocalPlayer p, BlockPos f) {
+			int base = siteBase(level, f);
+			BlockPos best = null;
+			double bd = Double.MAX_VALUE;
+			BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
+			for (int dx = -DigIn.LOG_RANGE; dx <= DigIn.LOG_RANGE; dx++) for (int dz = -DigIn.LOG_RANGE; dz <= DigIn.LOG_RANGE; dz++)
+				for (int y = base - DigIn.LOG_DOWN; y <= base + DigIn.LOG_UP; y++) {
+					m.set(f.getX() + dx, y, f.getZ() + dz);
+					if (!level.getBlockState(m).is(net.minecraft.tags.BlockTags.LOGS)) continue;
+					int under = 0;
+					while (under < 8 && level.getBlockState(m.below(under + 1)).is(net.minecraft.tags.BlockTags.LOGS)) under++;
+					double d = DigIn.logScore(dx, y - base, dz, under);
+					if (d >= bd || logTried.contains(m) || !ObtainSteps.Breaker.breakable(level, m) || !exposed(level, m)) continue;
+					bd = d;
+					best = m.immutable();
+				}
+			return best;
+		}
+
+		/** (shelter_logs_first) a side of the block open to air, leaves or a plant: a tree's log, not one buried in the ground. */
+		static boolean exposed(Level level, BlockPos c) {
+			for (Direction d : Direction.values()) {
+				BlockState n = level.getBlockState(c.relative(d));
+				if (n.getFluidState().isEmpty() && (n.isAir() || n.canBeReplaced() || n.is(net.minecraft.tags.BlockTags.LEAVES))) return true;
+			}
+			return false;
+		}
+
+		/** (shelter_logs_first) the logs in the bag, of any kind. */
+		static int logsIn(LocalPlayer p) {
+			int n = 0;
+			var in = p.getInventory();
+			for (int i = 0; i < 36; i++) if (in.getItem(i).is(net.minecraft.tags.ItemTags.LOGS)) n += in.getItem(i).getCount();
+			return n;
+		}
+
+		/** (shelter_logs_first) the kind of log the bag holds most of; null with none. */
+		static String mostLogs(LocalPlayer p) {
+			java.util.Map<String, Integer> n = new java.util.HashMap<>();
+			var in = p.getInventory();
+			for (int i = 0; i < 36; i++) if (in.getItem(i).is(net.minecraft.tags.ItemTags.LOGS)) n.merge(AfkHelperClient.itemId(in.getItem(i)), in.getItem(i).getCount(), Integer::sum);
+			return n.entrySet().stream().max(java.util.Map.Entry.comparingByValue()).map(java.util.Map.Entry::getKey).orElse(null);
+		}
+
+		/** (shelter_logs_first) the 2x2 recipe of planks from this log; null when there is none. */
+		static Recipes.Recipe planksRecipe(String log) {
+			String pl = DigIn.planksOf(log);
+			if (pl == null) return null;
+			for (Recipes.Recipe r : Recipes.making(pl))
+				if (r.kind() == Recipes.Kind.CRAFT && r.small() && r.parts().size() == 1 && r.parts().get(0).test(log)) return r;
+			return null;
+		}
+
+		/** (shelter_skip_tries) no site to dig within 16 of the feet, the feet's own spot given up too. */
+		static boolean noSite(Level level, LocalPlayer p, BlockPos f, java.util.Set<BlockPos> bad) {
+			java.util.Set<BlockPos> b = new java.util.HashSet<>(bad);
+			b.add(f.immutable());
+			return site(level, p, b) == null;
+		}
+
+		/**
+		 * (shelter_flat_walk) the nearest standing cell within 24 sideways and six up or down of the ground the sites are measured
+		 * from, not within two of the feet or of a cell given up, where a shut-in on the spot goes up (flatCell); null when none.
+		 */
+		static BlockPos flatSite(Level level, LocalPlayer p, BlockPos f, java.util.Set<BlockPos> bad) {
+			BlockPos best = null;
+			double bd = Double.MAX_VALUE;
+			int base = siteBase(level, f);
+			for (int dx = -24; dx <= 24; dx++) for (int dz = -24; dz <= 24; dz++) {
+				if (Math.abs(dx) <= 2 && Math.abs(dz) <= 2) continue;
+				BlockPos c = ObtainSteps.surface(level, f.getX() + dx, f.getZ() + dz);
+				if (c == null || Math.abs(c.getY() - base) > 6) continue;
+				double d = dx * dx + dz * dz + 2.0 * Math.abs(c.getY() - base);
+				if (d >= bd || bad.stream().anyMatch(b -> Math.abs(b.getX() - c.getX()) <= 2 && Math.abs(b.getZ() - c.getZ()) <= 2)) continue;
+				if (!flatCell(level, c)) continue;
+				bd = d;
+				best = c;
+			}
+			return best;
+		}
+
+		/**
+		 * (shelter_flat_walk) a cell where a shut-in on the spot goes up: room to stand, ground under it, room or a block for the
+		 * top, each of the four walls standing (DigIn.wallStands: at the feet solid or over ground, at the head solid or free),
+		 * and no water or lava by it.
+		 */
+		static boolean flatCell(Level level, BlockPos c) {
+			if (!Bed.free(level, c) || !Bed.free(level, c.above()) || !solid(level, c.below())) return false;
+			BlockPos top = c.above(2);
+			BlockState ts = level.getBlockState(top);
+			if (!solid(level, top) && !(ts.canBeReplaced() && ts.getFluidState().isEmpty())) return false;
+			for (Direction d : Direction.values()) if (!level.getFluidState(c.relative(d)).isEmpty()) return false;
+			for (Direction d : Direction.Plane.HORIZONTAL) {
+				BlockPos w = c.relative(d), h = w.above();
+				BlockState ws = level.getBlockState(w), hs = level.getBlockState(h);
+				boolean wFree = ws.canBeReplaced() && ws.getFluidState().isEmpty(), hFree = hs.canBeReplaced() && hs.getFluidState().isEmpty();
+				if (!DigIn.wallStands(solid(level, w), wFree, solid(level, w.below()), solid(level, h), hFree)) return false;
+			}
+			return true;
 		}
 
 		/**

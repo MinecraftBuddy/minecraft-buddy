@@ -226,4 +226,93 @@ final class DigIn {
 	static boolean shutOnSpotPointless(boolean on, int blocks, boolean underDigs) {
 		return on && blocks == 0 && !underDigs;
 	}
+
+	/**
+	 * (the autopilot's shelter_logs_first, a fix of 14 Nov 2026, on) logs for blocks: within {@link #LOG_RANGE} sideways, from
+	 * {@link #LOG_DOWN} below to {@link #LOG_UP} above the ground the sites are measured from; up to {@link #LOG_WANT} logs in
+	 * {@link #LOG_MS} at most, {@link #LOG_RUNS} such steps a shelter. Three logs make twelve planks: the eight walls of open
+	 * ground, the top and a block on a wall for it. A live look at the test heel: a night start with an empty bag on bare
+	 * stone, a stony shore rim, no ground the hand digs within 16, the logs 10 to 13 below; three tries elsewhere at the same
+	 * feet, then a wait in the open till morning.
+	 */
+	static final int LOG_RANGE = 24, LOG_DOWN = 16, LOG_UP = 6, LOG_WANT = 3, LOG_RUNS = 2;
+	static final long LOG_MS = 90_000;
+
+	/** (shelter_logs_first) too few blocks to shut a cell on open ground: fewer than blocks first's {@link #BLOCKS_FIRST_UNDER}. */
+	static boolean fewBlocks(int blocks) { return blocks < BLOCKS_FIRST_UNDER; }
+
+	/**
+	 * (shelter_logs_first) logs after blocks first: the switch on, still too few blocks once the ground the hand breaks is
+	 * done ({@code monster}: blocks first ended for a monster about, the shelter goes on with what it has), and a step left.
+	 */
+	static boolean logsAfterGather(boolean on, int blocks, boolean monster, int runs) {
+		return on && fewBlocks(blocks) && !monster && runs < LOG_RUNS;
+	}
+
+	/**
+	 * (shelter_logs_first) logs in place of the open wait: the switch on, too few blocks, the tries elsewhere spent ({@code
+	 * spent}), no walk to a dig-in by hand or to flat ground left ({@code noWalk}: the last look found none, or none is
+	 * allowed), not ducking from shooters, no monster about, and a step left.
+	 */
+	static boolean logsInsteadOfWait(boolean on, int blocks, boolean duck, boolean spent, boolean noWalk, boolean foes, int runs) {
+		return on && fewBlocks(blocks) && !duck && spent && noWalk && !foes && runs < LOG_RUNS;
+	}
+
+	/** (shelter_logs_first) the logs are in: {@link #LOG_WANT} of them, blocks enough already, or the time up. */
+	static boolean logsDone(int logs, int blocks, long since, long now) {
+		return logs >= LOG_WANT || blocks >= GATHER_ENOUGH || now - since > LOG_MS;
+	}
+
+	/** (shelter_logs_first) the crafts of planks: one a log of the kind, {@link #LOG_WANT} at most (the rest stay logs). */
+	static int plankCrafts(int logs) { return Math.max(0, Math.min(logs, LOG_WANT)); }
+
+	/**
+	 * (shelter_logs_first) the planks a log, a wood or a stem makes: oak_log and stripped_oak_wood oak_planks, crimson_stem
+	 * crimson_planks; null for anything else.
+	 */
+	static String planksOf(String log) {
+		if (log == null) return null;
+		String b = log.startsWith("stripped_") ? log.substring("stripped_".length()) : log;
+		for (String end : new String[] {"_log", "_wood", "_stem", "_hyphae"})
+			if (b.endsWith(end) && b.length() > end.length()) return b.substring(0, b.length() - end.length()) + "_planks";
+		return null;
+	}
+
+	/**
+	 * (shelter_logs_first) the order logs are picked in: the nearer first, a height off counting double, and low in its trunk
+	 * first ({@code logsUnder}: logs straight under it), as a player punches a tree from the ground.
+	 */
+	static double logScore(int dx, int dy, int dz, int logsUnder) {
+		return dx * dx + dz * dz + 2.0 * dy * dy + 4.0 * logsUnder * logsUnder;
+	}
+
+	/**
+	 * (the autopilot's shelter_skip_tries, a fix of 14 Nov 2026, on) no tries elsewhere with too few blocks and no site to dig
+	 * within 16 ({@code noSite}): with nothing to walk to they kept the same feet, three times 20 s.
+	 */
+	static boolean skipTries(boolean on, int blocks, boolean noSite) {
+		return on && fewBlocks(blocks) && noSite;
+	}
+
+	/** (shelter_flat_walk) the blocks a shut-in on the spot on open ground takes: the eight walls and the top. */
+	static final int FLAT_BLOCKS = 9;
+
+	/**
+	 * (the autopilot's shelter_flat_walk, a fix of 14 Nov 2026, on) the walk by hand may go to flat ground: the switch on, the
+	 * tries elsewhere spent, and blocks enough for the walls and the top. A live look at the test heel's second night on a
+	 * snowy slope: a wall cell over a drop would not shut with 13 blocks in the bag, no cell to dig in by hand within 16, and
+	 * the wait went on till a creeper drove the buddy off 28 blocks, where the shut-in on the spot took 5 s.
+	 */
+	static boolean flatWalk(boolean on, int blocks, boolean spent) {
+		return on && spent && blocks >= FLAT_BLOCKS;
+	}
+
+	/**
+	 * (shelter_flat_walk) a wall of a cell on flat ground: at the feet ({@code feetSolid}, else {@code feetFree} and {@code
+	 * floor}: a block goes against the ground under it) and at the head ({@code headSolid}, else {@code headFree}: a block goes
+	 * on top of the one at the feet).
+	 */
+	static boolean wallStands(boolean feetSolid, boolean feetFree, boolean floor, boolean headSolid, boolean headFree) {
+		return (feetSolid || feetFree && floor) && (headSolid || headFree);
+	}
 }
