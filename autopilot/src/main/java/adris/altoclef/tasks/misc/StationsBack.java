@@ -26,6 +26,15 @@ import net.minecraft.world.item.Items;
 // that craft is stopped the table goes back in the bag like a done one, from CUT_NEAR blocks and for CUT_KEEP_TICKS, and only
 // while the bag holds no table. M3.3's last planks became a table for the spare golden helmet, a fight cut the craft, and the
 // table stayed in the world: no table, no planks, no logs from then on (test heel, look 89)
+// (Tuning cut_parent_hold, a fix of 14 Nov 2026, on) and not while the task that ticked the cut craft (its parent) still runs and
+// the craft's item is not in the bag, for PARENT_HOLD_TICKS from the cut at most: that parent left the craft for something the
+// craft's own work needs and comes back to it. a chain's top (the run's wrapper) is no such parent
+// (Tuning stations_back_cap, a fix of 14 Nov 2026, on) and at most CAP_TAKES take-backs of a cut craft's table begun at one spot
+// (within CAP_SPOT) in CAP_WINDOW_TICKS; past that the table is left standing, with a line (a done craft's station is not
+// counted: a kit's crafts in a row put the table down and take it back once each). the furnace for the chestplate's iron put the table
+// down, the table out of the bag held a log more back from the fuel (WoodFuel, fuel_table_standing), the smelt left the furnace
+// craft for a fuel trip, and the cut table went back in the bag before the trip reached its log: fuel enough again, the furnace
+// craft again, the table down again, 25 minutes of that in the open (test heel, look 96)
 public final class StationsBack {
 
     // a game half minute, as the gold batch's furnace (CollectGoldIngotTask)
@@ -34,6 +43,12 @@ public final class StationsBack {
     // (table_back_on_cut) a fight may take the buddy off and keep it a while: five game minutes, and a walk of 32 blocks back
     public static final long CUT_KEEP_TICKS = 6000;
     public static final double CUT_NEAR = 32;
+    // (cut_parent_hold) three game minutes: a fuel or a stone trip near, and still two of the cut's five to take the table back
+    public static final long PARENT_HOLD_TICKS = 3600;
+    // (stations_back_cap) two take-backs at one spot in a game minute, a spot being 4 blocks across
+    public static final int CAP_TAKES = 2;
+    public static final long CAP_WINDOW_TICKS = 1200;
+    public static final double CAP_SPOT = 4;
 
     // owner: the craft that was cut (null for a done one), cut: reported by a cut craft
     private record Left(BlockPos pos, Item item, String dimension, long tick, Task owner, boolean cut) {
@@ -44,6 +59,14 @@ public final class StationsBack {
     private static Left current;
     private static int had;
     private static long since;
+    // (stations_back_cap) the take-backs of a cut craft's table begun, and the last spot the cap's line was said for
+    record Take(int x, int y, int z, String dimension, long tick) {
+    }
+
+    private static final List<Take> TAKES = new ArrayList<>();
+    private static Take capSaid;
+    // (cut_parent_hold) the cut entries whose hold was said, by position and cut tick
+    private static final java.util.Map<BlockPos, Long> HOLD_SAID = new java.util.HashMap<>();
 
     private StationsBack() {
     }
@@ -66,6 +89,41 @@ public final class StationsBack {
 
     public static boolean cutOn() {
         return adris.altoclef.util.helpers.Tuning.get("table_back_on_cut", 0) > 0;
+    }
+
+    // (cut_parent_hold) the cut craft's parent still runs and the craft's item is not in the bag: the table waits, from the cut
+    // for PARENT_HOLD_TICKS at most
+    static boolean parentHolds(long cutTick, long now, boolean parentRuns, boolean craftDone) {
+        return parentRuns && !craftDone && now >= cutTick && now - cutTick < PARENT_HOLD_TICKS;
+    }
+
+    public static boolean parentHoldOn() {
+        return adris.altoclef.util.helpers.Tuning.get("cut_parent_hold", 0) > 0;
+    }
+
+    // (stations_back_cap) the take-backs begun at the spot (within CAP_SPOT, the same dimension) in the last CAP_WINDOW_TICKS
+    static int takesAt(List<Take> takes, int x, int y, int z, String dimension, long now) {
+        int n = 0;
+        for (Take t : takes) {
+            if (sameSpot(t, x, y, z, dimension) && now >= t.tick() && now - t.tick() <= CAP_WINDOW_TICKS) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    // (stations_back_cap) CAP_TAKES already begun at the spot in the window: this one is left standing
+    static boolean capped(List<Take> takes, int x, int y, int z, String dimension, long now) {
+        return takesAt(takes, x, y, z, dimension, now) >= CAP_TAKES;
+    }
+
+    static boolean sameSpot(Take t, int x, int y, int z, String dimension) {
+        double dx = t.x() - x, dy = t.y() - y, dz = t.z() - z;
+        return t.dimension().equals(dimension) && dx * dx + dy * dy + dz * dz <= CAP_SPOT * CAP_SPOT;
+    }
+
+    public static boolean capOn() {
+        return adris.altoclef.util.helpers.Tuning.get("stations_back_cap", 0) > 0;
     }
 
     // a smelt or a craft stopped done and its own station stands at pos (null: none of its own, nothing to do)
@@ -112,6 +170,7 @@ public final class StationsBack {
         }
         if (!GarbageRules.keepStationsOn() || mod.getPlayer() == null || mod.getWorld() == null) {
             LEFT.clear();
+            HOLD_SAID.clear();
             current = null;
             return null;
         }
@@ -149,15 +208,46 @@ public final class StationsBack {
             boolean ready = l.cut()
                     ? cutDue(l.tick(), now, d, l.owner() != null && l.owner().isActive(), mod.getItemStorage().getItemCount(Items.CRAFTING_TABLE) > 0)
                     : d <= NEAR;
+            if (ready && l.cut() && parentHoldOn() && l.owner() != null) {
+                Task parent = l.owner().parentTask();
+                // a chain's top (the run's wrapper, which asks for this) runs for the whole run: no parent to wait for
+                boolean runs = parent != null && parent.parentTask() != null && parent.isActive();
+                if (parentHolds(l.tick(), now, runs, done(mod, l.owner()))) {
+                    ready = false;
+                    Long said = HOLD_SAID.get(l.pos());
+                    if (said == null || said != l.tick()) {
+                        HOLD_SAID.put(l.pos(), l.tick());
+                        Debug.logInternal("stations back: the crafting table at " + l.pos().toShortString() + " waits, the cut craft's parent ("
+                                + parent.getClass().getSimpleName() + ") still runs and its item is not in the bag, "
+                                + (PARENT_HOLD_TICKS / 20) + " s at most (cut_parent_hold)");
+                    }
+                }
+            }
             if (ready && d < bestDistance) {
                 best = l;
                 bestDistance = d;
             }
         }
+        HOLD_SAID.keySet().removeIf(p -> LEFT.stream().noneMatch(l -> l.pos().equals(p)));
         if (best == null) {
             return null;
         }
         LEFT.remove(best);
+        HOLD_SAID.remove(best.pos());
+        TAKES.removeIf(t -> now < t.tick() || now - t.tick() > CAP_WINDOW_TICKS);
+        BlockPos at = best.pos();
+        if (best.cut() && capOn() && capped(TAKES, at.getX(), at.getY(), at.getZ(), dimension, now)) {
+            if (capSaid == null || !sameSpot(capSaid, at.getX(), at.getY(), at.getZ(), dimension) || now < capSaid.tick()
+                    || now - capSaid.tick() > CAP_WINDOW_TICKS) {
+                capSaid = new Take(at.getX(), at.getY(), at.getZ(), dimension, now);
+                Debug.logInternal("stations back: the " + name(best.item()) + " at " + at.toShortString() + " left standing, "
+                        + CAP_TAKES + " take-backs at this spot within " + (CAP_WINDOW_TICKS / 20) + " s already (stations_back_cap)");
+            }
+            return null;
+        }
+        if (best.cut()) {
+            TAKES.add(new Take(at.getX(), at.getY(), at.getZ(), dimension, now));
+        }
         current = best;
         since = now;
         had = mod.getItemStorage().getItemCount(best.item());
@@ -165,6 +255,15 @@ public final class StationsBack {
                 + (best.cut() ? " (its craft was cut, " + Math.round(bestDistance) + " blocks off) goes back in the bag (table_back_on_cut)"
                 : " goes back in the bag (bag_keep_stations)"));
         return new DestroyBlockTask(best.pos());
+    }
+
+    // (cut_parent_hold) the cut craft's item is in the bag (its own test, a count of the bag)
+    private static boolean done(AltoClef mod, Task owner) {
+        try {
+            return owner.isFinished(mod);
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     private static boolean stands(AltoClef mod, Left l) {

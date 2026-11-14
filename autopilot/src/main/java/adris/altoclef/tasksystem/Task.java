@@ -27,7 +27,7 @@ public abstract class Task {
     private static final CutRing CUTS = new CutRing();
     private static final StormGate STORM_GATE = new StormGate();
 
-    // whoever ticked this task last, only read when a storm is flagged
+    // whoever ticked this task last, read when a storm is flagged and by StationsBack (parentTask)
     private Task _parent;
     // the chain that ticked us last. a paused task's hand over is filed under it (BotBehaviour.holdWhilePaused)
     private TaskChain _chain;
@@ -272,6 +272,11 @@ public abstract class Task {
     // the child we handed out last tick (stopped ones included, ask isActive). read only, swapping it is tick's job
     protected final Task subTask() {
         return _sub;
+    }
+
+    // the task that ticked this one last, kept after a stop (ask its isActive), null for a chain's top. read only
+    public final Task parentTask() {
+        return _parent;
     }
 
     public void stop(AltoClef mod) {

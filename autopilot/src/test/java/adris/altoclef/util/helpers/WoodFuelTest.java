@@ -64,4 +64,28 @@ public class WoodFuelTest {
         assertEquals(0, r[1]);
         assertEquals(0, FuelPolicy.planReserve(20, 0)[1]);
     }
+
+    // (fuel_table_standing) look 96: the chestplate's 8 ingots, the furnace crafted at a table put down from a bag of 7 spruce
+    // logs, 1 plank and 13 sticks
+    @Test
+    public void aTableStandingWithinReachCountsAsOneInTheBag() {
+        // a table craft under way: the table's planks only while none is in the bag and none stands within reach
+        assertTrue(WoodFuel.tableWanted(true, false, false));
+        assertFalse(WoodFuel.tableWanted(true, false, true));
+        assertFalse(WoodFuel.tableWanted(true, true, false));
+        assertFalse(WoodFuel.tableWanted(true, true, true));
+        assertFalse(WoodFuel.tableWanted(false, false, false));
+        int keep = StickReserve.fuelKeepPlanks(13);
+        int inBag = WoodFuel.planPlanks(List.of(), WoodFuel.tableWanted(true, true, false), 13) + keep;
+        int putDown = WoodFuel.planPlanks(List.of(), WoodFuel.tableWanted(true, false, true), 13) + keep;
+        // putting the table down changes nothing: one log kept, six burn, 9.0 smelts against 8
+        assertEquals(inBag, putDown);
+        int keptLogs = FuelPolicy.planReserve(1, putDown)[0];
+        assertEquals(1, keptLogs);
+        assertEquals(9.0, (7 - keptLogs) * WoodFuel.LOG_SMELTS, 1e-9);
+        // the old count with the table down: two logs kept, 7.5 smelts, 0.5 short
+        int oldKept = FuelPolicy.planReserve(1, WoodFuel.planPlanks(List.of(), true, 13) + keep)[0];
+        assertEquals(2, oldKept);
+        assertEquals(7.5, (7 - oldKept) * WoodFuel.LOG_SMELTS, 1e-9);
+    }
 }

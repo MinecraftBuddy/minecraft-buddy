@@ -88,6 +88,15 @@ public abstract class DoStuffInContainerTask extends Task {
         return at != null && isContainerBlockInWorld(mod, at) ? at.immutable() : null;
     }
 
+    // (the buddy's fork, Tuning fuel_table_standing) our own placer's station stands, or its click is out and the block not shown
+    // yet (VERIFY): the bag is one short of it, the world has it
+    public boolean ownStationStanding(AltoClef mod) {
+        if (ownStation(mod) != null) {
+            return true;
+        }
+        return _stationKind != null && _placeTask instanceof PlaceStationTask station && station.isVerifying() && station.getPlaced() != null;
+    }
+
     public DoStuffInContainerTask(Block containerBlock, ItemTarget containerTarget) {
         this(new Block[]{containerBlock}, containerTarget);
     }

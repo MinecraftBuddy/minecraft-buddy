@@ -9,6 +9,8 @@ import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.RecipeTarget;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +39,16 @@ public final class WoodFuel {
         return Tuning.get("wood_fuel", 0) > 0;
     }
 
+    // (Tuning fuel_table_standing, a fix of 14 Nov 2026, on) a crafting table standing within the bench's reach counts as one in
+    // the bag: the craft's own, put down or being put down, or any table within WalkCost.STATION_NEAR. the table's four planks
+    // were kept only while the bag held no table, so putting it down for a furnace craft held one more log back: 7 spruce logs
+    // and 1 plank went from 9.0 smelts to 7.5 against the chestplate's 8, the smelt left the furnace craft for a fuel trip, the
+    // cut table went back in the bag before the trip reached its log, 9.0 again, the table down again: 25 minutes of that in the
+    // open (test heel, look 96)
+    public static boolean tableStandingOn() {
+        return Tuning.get("fuel_table_standing", 0) > 0;
+    }
+
     // a log or a plank the game burns (crimson and warped wood do not)
     public static boolean wood(Item item) {
         return (in(item, ItemHelper.LOG) || in(item, ItemHelper.PLANKS)) && ItemHelper.isFuel(item);
@@ -60,6 +72,12 @@ public final class WoodFuel {
 
     // one recipe of the task chain as the plan sees it: its planks, log and stick slots per craft, and the crafts still to do
     record Recipe(int planks, int logs, int sticks, int crafts) {
+    }
+
+    // a table craft under way wants the table's four planks while the bag holds no table and none stands within reach
+    // (fuel_table_standing; the caller passes false for standing with the key off)
+    static boolean tableWanted(boolean tableCraft, boolean tableInBag, boolean tableStanding) {
+        return tableCraft && !tableInBag && !tableStanding;
     }
 
     // the planks the recipes still take, with a table's four when a table craft is under way and none is in the bag, and the
@@ -100,16 +118,62 @@ public final class WoodFuel {
         }
         List<Recipe> recipes = new ArrayList<>();
         boolean table = false;
+        List<CraftInTableTask> tableCrafts = new ArrayList<>();
         for (Task task : path) {
             if (task instanceof CraftInTableTask craft) {
                 table = true;
+                tableCrafts.add(craft);
                 for (RecipeTarget target : craft.getRecipeTargets()) add(mod, recipes, target);
             } else if (task instanceof CraftInInventoryTask craft) {
                 add(mod, recipes, craft.getRecipeTarget());
             }
         }
-        boolean tableWanted = table && mod.getItemStorage().getItemCount(Items.CRAFTING_TABLE) == 0;
-        return planPlanks(recipes, tableWanted, mod.getItemStorage().getItemCount(Items.STICK));
+        boolean inBag = mod.getItemStorage().getItemCount(Items.CRAFTING_TABLE) > 0;
+        // (fuel_table_standing) asked only when it matters: a table craft under way and none in the bag
+        boolean standing = table && !inBag && tableStandingOn() && tableStanding(mod, tableCrafts);
+        return planPlanks(recipes, tableWanted(table, inBag, standing), mod.getItemStorage().getItemCount(Items.STICK));
+    }
+
+    // (fuel_table_standing) the last answer of tableNear, once per game tick: the fuel is counted many times a tick
+    private static long nearTick = Long.MIN_VALUE;
+    private static boolean nearAnswer;
+
+    // a craft's own table stands (or is going down), or a tracked crafting table stands within the bench's reach
+    private static boolean tableStanding(AltoClef mod, List<CraftInTableTask> crafts) {
+        for (CraftInTableTask craft : crafts) {
+            try {
+                if (craft.ownTableStanding(mod)) {
+                    return true;
+                }
+            } catch (RuntimeException e) {
+                // a craft half set up reads as no table of its own
+            }
+        }
+        return tableNear(mod);
+    }
+
+    // the same question the bench's choice asks (DoStuffInContainerTask: WalkCost.STATION_NEAR, a straight line with the height
+    // counted, not blacklisted, not being picked up), and BedCraft.tableReady's: only while tables are tracked, which a table
+    // craft under way does
+    private static boolean tableNear(AltoClef mod) {
+        if (mod.getWorld() == null || mod.getPlayer() == null) {
+            return false;
+        }
+        long now = mod.getWorld().getGameTime();
+        if (now == nearTick) {
+            return nearAnswer;
+        }
+        boolean near = false;
+        var tracker = mod.getBlockTracker();
+        if (tracker != null && tracker.isTracking(Blocks.CRAFTING_TABLE)) {
+            Vec3 me = mod.getPlayer().position();
+            near = tracker.getNearestTracking(me, p -> !tracker.unreachable(p) && !StationHook.pickingUp(p)
+                    && WalkCost.stationDistance(p.getX(), p.getY(), p.getZ(), me.x, me.y, me.z) <= WalkCost.STATION_NEAR,
+                    Blocks.CRAFTING_TABLE).isPresent();
+        }
+        nearTick = now;
+        nearAnswer = near;
+        return near;
     }
 
     private static void add(AltoClef mod, List<Recipe> out, RecipeTarget target) {

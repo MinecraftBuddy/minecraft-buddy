@@ -391,6 +391,20 @@ public final class Tuning {
             // poisoned, a witch 5 or more off or with no line keeps no bite shut, and a golden apple goes down under 10 hp
             // (CombatBrain, FoodChain)
             java.util.Map.entry("poison_eat", 1.0),
+            // (fixes of 14 Nov 2026, a look at the test heel's table and fuel loop: the furnace for the chestplate's 8 ingots put the
+            // crafting table down, the table out of the bag held one more log back from the fuel, 9.0 smelts became 7.5, the smelt
+            // left the furnace craft for a fuel trip, the cut table went back in the bag before the trip reached its log 9 blocks
+            // off, 9.0 again, the furnace craft again, the table down again: 25 minutes in the open, three hits, the night's shelter
+            // held back) a crafting table standing within the bench's reach (the craft's own, put down or going down, or any within
+            // WalkCost.STATION_NEAR) counts as one in the bag for the wood the furnace keeps, so putting it down never changes the
+            // fuel count, WoodFuel, CraftInTableTask
+            java.util.Map.entry("fuel_table_standing", 1.0),
+            // a cut craft's table is not taken back while the task that ticked the craft still runs (not the run's wrapper) and
+            // the craft's item is not in the bag, three game minutes from the cut at most, StationsBack
+            java.util.Map.entry("cut_parent_hold", 1.0),
+            // at most two take-backs of a cut craft's table at one spot (4 blocks across) in a game minute; past that the table
+            // is left standing, with a line, StationsBack
+            java.util.Map.entry("stations_back_cap", 1.0),
             // (a fix of 13 Nov 2026, test heel's first stone under the rigs' anti-xray, where every buried block below y 64 reaches
             // the client as an ore: with legitMine on in the overworld and the best stone more than 8 blocks below the feet, or
             // none known, a pit four deep at the feet first, so the real stone shows and the look round the feet takes it,

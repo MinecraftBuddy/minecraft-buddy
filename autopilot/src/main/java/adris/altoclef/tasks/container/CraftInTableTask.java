@@ -216,6 +216,12 @@ public class CraftInTableTask extends ResourceTask {
     public RecipeTarget[] getRecipeTargets() {
         return Arrays.copyOf(_targets, _targets.length);
     }
+
+    // (the buddy's fork, Tuning fuel_table_standing) the crafting table this craft's own placer put down stands, or is being put
+    // down (WoodFuel counts it as one in the bag)
+    public boolean ownTableStanding(AltoClef mod) {
+        return _craftTask.ownStationStanding(mod);
+    }
 }
 
 
