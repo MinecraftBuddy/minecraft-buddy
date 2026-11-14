@@ -218,6 +218,13 @@ public final class LandFinder {
     // (the buddy's fork, Tuning mine_leave_dry) the nearest land that `prefer` likes, else the nearest of any (MineLeave.landPick);
     // prefer null: the nearest
     public static BlockPos nearestLand(AltoClef mod, BlockPos feet, int reach, boolean noIce, java.util.function.Predicate<BlockPos> prefer) {
+        return nearestLand(mod, feet, reach, noIce, null, prefer);
+    }
+
+    // (the buddy's fork, Tuning open_water_land_hold) only land that `require` likes counts at all (null: any); of that, the
+    // nearest `prefer` likes, else the nearest
+    public static BlockPos nearestLand(AltoClef mod, BlockPos feet, int reach, boolean noIce, java.util.function.Predicate<BlockPos> require,
+                                       java.util.function.Predicate<BlockPos> prefer) {
         BlockPos any = null;
         Level level = mod.getWorld();
         for (int r = 2; r <= reach; r += r < 64 ? 2 : 4) {
@@ -231,6 +238,7 @@ public final class LandFinder {
                     BlockState ground = level.getBlockState(new BlockPos(x, top - 1, z));
                     if (ground.getFluidState().isEmpty() && ground.isSolid() && !(noIce && (ice(ground) || iceUnder(level, new BlockPos(x, top, z), ICE_DEPTH)))) {
                         BlockPos land = new BlockPos(x, top, z);
+                        if (require != null && !require.test(land)) continue;
                         if (prefer == null || prefer.test(land)) return land;
                         if (any == null) any = land;
                     }

@@ -377,6 +377,16 @@ public final class Tuning {
             // fired in the tunnel of its own (mine_own_pit) gives the depth up; every turn of the step is logged, BranchMineTask,
             // TunnelFlip
             java.util.Map.entry("tunnel_flip_guard", 1.0),
+            // (a fix of 14 Nov 2026, a live look at the test heel's flooded start, look 97: the leave from the flooded cave walked 120
+            // blocks with no dry ground and ended on a ledge at the sea's height, dry for one tick of onGround; then at sea by a
+            // one-block islet, the land picked, the walk to it and the staircase's step back into the sea took turns every tick for
+            // 11 minutes, and the walk-outs counted only under a roof) the walk to land from open water is held until the buddy
+            // stands on dry ground: a cell to stand in with no fluid in its four neighbours or in those of the block under it; no
+            // staircase starts until 10 s after the last tick in open water, and the tunnel's hold on water (ice_start_tunnel_hold)
+            // counts those 10 s as water; only such dry ground is land for that walk (looked for out to 96 blocks, as off the ice)
+            // and ends the leave from a spot given up; a walk-out of open water counts with those under a roof (mine_water_streak),
+            // BranchMineTask, LandFinder
+            java.util.Map.entry("open_water_land_hold", 1.0),
             // (fixes of 14 Nov 2026, a read of 8 of test heel's 14 witch deaths since 13 Nov, 11 at the gold mine: the poison first,
             // then harming every 3 s within 10 with a line, 15 to 30 s to death; the run from the witch measured from the buddy's
             // own spot ended clear at 12 with the witch following, no bite while it had a line, no swing at 1 m with the run stuck)

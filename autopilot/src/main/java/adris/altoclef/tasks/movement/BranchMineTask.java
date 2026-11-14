@@ -63,6 +63,11 @@ public class BranchMineTask extends Task {
     private BlockPos _awayStep;
     private BlockPos _land;
     private long _landSince;
+    // (Tuning open_water_land_hold, a fix of 14 Nov 2026, on) the walk to land from open water under way, held until the buddy
+    // stands on dry ground (dryGround), the last tick in open water, and how long after it no staircase starts
+    private boolean _landWalk;
+    private long _openWetAt = Long.MIN_VALUE;
+    static final long LAND_HOLD = 200;
     // land with no ice on top, for a branch mine begun on ice, and how far it is looked for
     private BlockPos _iceLand;
     private long _iceLandSince;
@@ -189,6 +194,8 @@ public class BranchMineTask extends Task {
     // (mine_water_streak) in water under a roof since the last dry tick, so the next such tick is no new walk-out; a third
     // walk-out at one place for the place watch's block on the next tick, and where its row began
     private boolean _wetNow, _wetStall;
+    // (open_water_land_hold) the third walk-out was one of open water
+    private boolean _wetOpen;
     private int _wetX, _wetZ;
     // the cell the walk along (the sculk's, or the 32 blocks of a stuck staircase) came from: never stepped back onto
     private BlockPos _awayPrev;
@@ -348,9 +355,10 @@ public class BranchMineTask extends Task {
             _tunnelUntil = now + 2400;
             _tunnel = null;
             adris.altoclef.Debug.logInternal("branch mine: " + (watch ? "three game minutes" : stall ? "the way down got nowhere three times"
-                    : wetLoop ? "three walk-outs of water under a roof" : "the tunnel's step to and fro") + " within ten blocks of " + fx + ", " + fz
-                    + " at y " + y + ", a tunnel of its own at y " + _mineY + " for two game minutes"
-                    + (watch ? "" : stall ? " (mine_leave_given_up)" : wetLoop ? " (mine_water_streak)" : " (tunnel_flip_guard)"));
+                    : wetLoop ? (_wetOpen ? "three walk-outs of open water" : "three walk-outs of water under a roof") : "the tunnel's step to and fro")
+                    + " within ten blocks of " + fx + ", " + fz + " at y " + y + ", a tunnel of its own at y " + _mineY + " for two game minutes"
+                    + (watch ? "" : stall ? " (mine_leave_given_up)" : wetLoop ? (_wetOpen ? " (mine_water_streak, open_water_land_hold)" : " (mine_water_streak)")
+                    : " (tunnel_flip_guard)"));
             setDebugState((watch ? "Three game minutes in one place" : stall ? "The way down got nowhere three times here"
                     : wetLoop ? "Three walk-outs of the water here" : "The tunnel's step went to and fro here") + ", a tunnel of its own");
             return null;
@@ -367,6 +375,11 @@ public class BranchMineTask extends Task {
         // at y 48 and the staircase took turns for 45 minutes
         boolean water = mod.getPlayer().isInWater();
         boolean roofed = water && adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0 && !mod.getWorld().canSeeSky(feet.above());
+        // (open_water_land_hold) in water with the sky over the feet, and out of it less than LAND_HOLD ago
+        boolean open = water && mod.getWorld().canSeeSky(feet.above());
+        boolean landHold = landHoldOn();
+        if (open && landHold) _openWetAt = now;
+        boolean openLately = landHold && adris.altoclef.util.helpers.Recent.within(now, _openWetAt, LAND_HOLD);
         if (!water && mod.getPlayer().onGround()) {
             _lastDry = feet;
             _dry = null;
@@ -374,20 +387,74 @@ public class BranchMineTask extends Task {
             if (waterStreakOn()) _dryTried.values().removeIf(at -> now < at || now - at > DRY_TRIED_KEEP);
             else _dryTried.clear();
         }
+        // (open_water_land_hold) a walk-out of open water counts with those under a roof: by a one-block islet the walk to it
+        // and the staircase's step back into the sea took turns every tick for 11 minutes, and only the place watch's three
+        // minutes counted it
+        if (open && landHold && waterStreakOn()) walkOut(feet, now, false);
         if (roofed) {
-            if (waterStreakOn()) walkOut(feet, now);
+            if (waterStreakOn()) walkOut(feet, now, true);
             Task out = outOfRoofedWater(mod, feet, now);
             if (out != null) return out;
         }
         if (now < _tunnelUntil && adris.altoclef.util.helpers.Tuning.get("ice_start_tunnel_hold", 0) > 0) {
-            boolean wet = roofed || mod.getPlayer().isInWater() && mod.getWorld().canSeeSky(feet.above());
+            // (open_water_land_hold) out of open water less than LAND_HOLD ago counts as in it: a tick on a ledge gave the tick to
+            // the staircase, whose step went back into the sea
+            boolean wet = roofed || open || openLately;
             if (wet || adris.altoclef.util.helpers.LandFinder.ice(mod.getWorld().getBlockState(feet.below())) || iceColumn(mod, feet)) {
                 return holdTunnel(mod, feet, now, wet);
             }
         }
         // in open water no staircase or tunnel starts: dry land first. it swam about the sea in steps of five blocks for
         // fifteen game minutes and never got its shield's iron (the runner, 2 Nov 2026)
-        if (mod.getPlayer().isInWater() && mod.getWorld().canSeeSky(feet.above())) {
+        // (Tuning open_water_land_hold, a fix of 14 Nov 2026, on) the walk to land is held until the buddy stands on dry ground
+        // (dryGround, the land picked the same way), and no staircase starts until LAND_HOLD after the last tick in open water.
+        // at sea by a one-block islet, the land picked, every tick out of the water was dry land for a tick and the staircase's
+        // step went back into the sea: the two took turns every tick for 11 minutes, "No path" 15 to 37 a minute (test heel's
+        // flooded start, look 97)
+        if (landHold) {
+            boolean dryHere = !water && mod.getPlayer().onGround() && dryGround(mod.getWorld()::getBlockState, feet);
+            boolean landed = dryHere || !water && mod.getPlayer().onGround() && _land != null && feet.closerThan(_land, 1.5);
+            int step = landStep(open, openLately, _landWalk, landed);
+            if (step == LAND_OFF && _landWalk) {
+                _landWalk = false;
+                adris.altoclef.Debug.logInternal("branch mine: on dry ground at " + feet.toShortString() + ", out of the open water "
+                        + LAND_HOLD / 20 + " s, the mine goes on from here (open_water_land_hold)");
+            }
+            if (step == LAND_STAND) {
+                stopMine(mod);
+                setDebugState("On dry ground, out of the water: the staircase in " + (LAND_HOLD - (now - _openWetAt) + 19) / 20 + " s");
+                return null;
+            }
+            if (step == LAND_WALK) {
+                boolean look = _land == null ? adris.altoclef.util.helpers.Recent.due(now, _landSince, 20)
+                        : now < _landSince || now - _landSince > 600 || feet.closerThan(_land, 1.5) && now - _landSince > 20;
+                if (look) {
+                    BlockPos was = _land;
+                    _land = nearestLand(mod, feet, now);
+                    _landSince = now;
+                    if (_land != null && !_land.equals(was)) {
+                        adris.altoclef.Debug.logInternal("branch mine: " + (open ? "in open water" : "out of the open water, not on dry ground,")
+                                + " at " + feet.toShortString() + ", to dry land at " + _land.toShortString()
+                                + ", held until it stands on dry ground (open_water_land_hold)");
+                    }
+                }
+                if (_land != null) {
+                    _landWalk = true;
+                    stopMine(mod);
+                    setDebugState("Out of the water first, to dry land at " + _land.toShortString());
+                    return new GetToBlockTask(_land);
+                }
+                _landWalk = false;
+                // no dry ground within reach: out of the water no staircase until LAND_HOLD after the last tick in it; in the
+                // water on as before (the tunnel's hold, the walk-outs' fire, the place watch)
+                if (open) stopMine(mod);
+                if (!water && openLately) {
+                    stopMine(mod);
+                    setDebugState("Out of the open water, no dry ground in reach: the staircase in " + (LAND_HOLD - (now - _openWetAt) + 19) / 20 + " s");
+                    return null;
+                }
+            }
+        } else if (open) {
             stopMine(mod);
             if (_land == null || now - _landSince > 600 || feet.closerThan(_land, 1.5)) {
                 _land = nearestLand(mod, feet, now);
@@ -740,6 +807,11 @@ public class BranchMineTask extends Task {
         _tunnelUntil = now;
         _tunnel = null;
         _step = null;
+        // (open_water_land_hold) the land picked before may lie back by the spot: picked anew after the leave
+        if (landHoldOn()) {
+            _land = null;
+            _landWalk = false;
+        }
         _starts.clear();
         _minePos = null;
         int t = _dx;
@@ -774,12 +846,41 @@ public class BranchMineTask extends Task {
         return adris.altoclef.util.helpers.Tuning.get("tunnel_flip_guard", 0) > 0;
     }
 
+    static boolean landHoldOn() {
+        return adris.altoclef.util.helpers.Tuning.get("open_water_land_hold", 0) > 0;
+    }
+
+    // (open_water_land_hold) what the walk from open water does this tick: LAND_OFF nothing (or the walk is over), LAND_STAND
+    // stand (on dry ground, out of the water less than LAND_HOLD ago), LAND_WALK on to the land. open: in open water now;
+    // lately: in it less than LAND_HOLD ago; walking: the walk is under way; landed: standing on dry ground or on the land
+    static final int LAND_OFF = 0, LAND_STAND = 1, LAND_WALK = 2;
+
+    static int landStep(boolean open, boolean lately, boolean walking, boolean landed) {
+        if (!open && !lately && !walking) return LAND_OFF;
+        if (landed && !open) return lately ? LAND_STAND : LAND_OFF;
+        return LAND_WALK;
+    }
+
+    // (open_water_land_hold) dry ground to stand on: a cell to stand in (standable), no fluid in its four neighbours or in the
+    // four of the block under it. a ledge at the sea's height had the sea in the cells beside it and was dry for one tick of
+    // onGround, and the leave from a flooded cave ended there; a one-block islet at the water's top has the sea beside its
+    // floor, where the staircase's first step down goes
+    static boolean dryGround(java.util.function.Function<BlockPos, net.minecraft.world.level.block.state.BlockState> at, BlockPos feet) {
+        if (!standable(at.apply(feet.below()), at.apply(feet), at.apply(feet.above()))) return false;
+        for (var dir : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+            if (!at.apply(feet.relative(dir)).getFluidState().isEmpty()) return false;
+            if (!at.apply(feet.below().relative(dir)).getFluidState().isEmpty()) return false;
+        }
+        return true;
+    }
+
     // (mine_water_streak) a tick in water under a roof: the cell is kept as the one walked out of, and the first such tick
     // since the last dry one starts a walk-out, counted by place (MineLeave.WALK_OUTS). a new walk-out picks the staircase's and
     // the tunnel's next step anew, so closedWay's water rule keeps them out of the water: the old step stood until reached, and
     // the way to it led back into the pool about once a second
-    private void walkOut(BlockPos feet, long now) {
+    private void walkOut(BlockPos feet, long now, boolean roofed) {
         String dim = dimension();
+        String where = roofed ? "in water under a roof" : "in open water", keys = roofed ? "mine_water_streak" : "mine_water_streak, open_water_land_hold";
         if (_wetNow) {
             MineLeave.WALK_OUTS.wet(dim, feet.getX(), feet.getY(), feet.getZ(), now);
             return;
@@ -791,14 +892,15 @@ public class BranchMineTask extends Task {
         int[] dry = _lastDry == null ? null : new int[]{_lastDry.getX(), _lastDry.getY(), _lastDry.getZ()};
         if (MineLeave.WALK_OUTS.start(dim, feet.getX(), feet.getY(), feet.getZ(), dry, now)) {
             _wetStall = true;
+            _wetOpen = !roofed;
             _wetX = MineLeave.WALK_OUTS.x();
             _wetZ = MineLeave.WALK_OUTS.z();
-            adris.altoclef.Debug.logInternal("branch mine: in water under a roof again at " + feet.toShortString() + ", the third walk-out"
+            adris.altoclef.Debug.logInternal("branch mine: " + where + " again at " + feet.toShortString() + ", the third walk-out"
                     + " in a row within ten blocks of " + _wetX + ", " + _wetZ + ", a fire of the place watch there ("
-                    + MineLeave.WALK_OUTS.fires() + " of the walk-outs' within ten game minutes) (mine_water_streak)");
+                    + MineLeave.WALK_OUTS.fires() + " of the walk-outs' within ten game minutes) (" + keys + ")");
         } else if (MineLeave.WALK_OUTS.count() != had && MineLeave.WALK_OUTS.count() > 1) {
-            adris.altoclef.Debug.logInternal("branch mine: in water under a roof again at " + feet.toShortString() + ", "
-                    + MineLeave.WALK_OUTS.count() + " walk-outs in a row here (mine_water_streak)");
+            adris.altoclef.Debug.logInternal("branch mine: " + where + " again at " + feet.toShortString() + ", "
+                    + MineLeave.WALK_OUTS.count() + " walk-outs in a row here (" + keys + ")");
         }
     }
 
@@ -846,7 +948,10 @@ public class BranchMineTask extends Task {
         boolean far = MineLeave.left(feet.getX(), feet.getZ(), _leaveFrom);
         boolean dryOn = leaveDryOn();
         // (mine_leave_dry) only on dry ground, and FAR from every fresh spot given up, not this one alone
-        boolean dry = mod.getPlayer().onGround() && !mod.getPlayer().isInWater();
+        // (open_water_land_hold) dry ground, not a one-tick onGround: a leave walked 120 blocks with no dry ground and ended on a
+        // ledge at the sea's height, the staircase from it in the same flooded cave
+        boolean dry = mod.getPlayer().onGround() && !mod.getPlayer().isInWater()
+                && (!landHoldOn() || dryGround(mod.getWorld()::getBlockState, feet));
         boolean clear = MineLeave.GIVEN_UP.clearOf(dimension(), feet.getX(), feet.getZ(), now, MineLeave.FAR, MineLeave.FRESH);
         if (dryOn ? MineLeave.leaveEnds(far, dry, clear) : far) {
             adris.altoclef.Debug.logInternal("branch mine: " + Math.round(d) + " blocks from " + _leaveFrom.x() + ", " + _leaveFrom.z()
@@ -1374,15 +1479,21 @@ public class BranchMineTask extends Task {
 
     // (mine_leave_dry) the nearest land FAR from every spot given up within FRESH, else the nearest: the nearest lay back toward
     // the spot the leave had just walked 48 blocks from, and the staircase from it met the same flooded layer again
+    // (open_water_land_hold) only dry ground (dryGround) is land, looked for out to ICE_LAND_REACH as off the ice: the nearest
+    // land by the height map was a one-block islet, and the land the buddy reached at last lay 76 blocks off
     private static BlockPos nearestLand(AltoClef mod, BlockPos feet, long now) {
+        var level = mod.getWorld();
+        boolean strict = landHoldOn();
+        java.util.function.Predicate<BlockPos> dry = strict ? p -> dryGround(level::getBlockState, p) : null;
+        int reach = strict ? ICE_LAND_REACH : 64;
         if (!leaveDryOn() || MineLeave.GIVEN_UP.size() == 0) {
-            return adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, 64);
+            return adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, reach, false, dry, null);
         }
         String dim = dimension();
-        BlockPos land = adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, 64, false,
+        BlockPos land = adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, reach, false, dry,
                 p -> MineLeave.GIVEN_UP.clearOf(dim, p.getX(), p.getZ(), now, MineLeave.FAR, MineLeave.FRESH));
         if (land != null && !MineLeave.GIVEN_UP.clearOf(dim, land.getX(), land.getZ(), now, MineLeave.FAR, MineLeave.FRESH)) {
-            adris.altoclef.Debug.logInternal("branch mine: in open water at " + feet.toShortString() + ", no land within 64 clear of a spot"
+            adris.altoclef.Debug.logInternal("branch mine: in open water at " + feet.toShortString() + ", no land within " + reach + " clear of a spot"
                     + " a mine gave up, to the nearest at " + land.toShortString() + " (mine_leave_dry)");
         }
         return land;
