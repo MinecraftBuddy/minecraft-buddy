@@ -230,6 +230,23 @@ public class BranchMineTask extends Task {
     private static final CraftingRecipe IRON_PICK = CraftingRecipe.newShapedRecipe("iron_pickaxe", new ItemTarget[]{
             new ItemTarget("iron_ingot", 1), new ItemTarget("iron_ingot", 1), new ItemTarget("iron_ingot", 1), null,
             new ItemTarget("stick", 1), null, null, new ItemTarget("stick", 1), null}, 1);
+    // (Tuning next_pick_more, a fix of 14 Nov 2026, on) the next pickaxe from three diamonds when no iron or stone one can be
+    // made, and the trip up for logs when the wood is what the bag lacks (StickReserve.nextPick): look 98's bag at the gold mine
+    // held 7 diamonds, 1 stick and no wood, nextPick said NONE, and the mine went on with no pickaxe for half an hour
+    private static final CraftingRecipe DIAMOND_PICK = CraftingRecipe.newShapedRecipe("diamond_pickaxe", new ItemTarget[]{
+            new ItemTarget("diamond", 1), new ItemTarget("diamond", 1), new ItemTarget("diamond", 1), null,
+            new ItemTarget("stick", 1), null, null, new ItemTarget("stick", 1), null}, 1);
+    static final int WOOD_TRIP_LOGS = 3;
+    private Task _woodTrip;
+    private int _woodWant;
+    private long _woodUntil, _woodAfter = Long.MIN_VALUE;
+    // (Tuning kit_diamond_off_rock, a fix of 14 Nov 2026, on) the kit's diamond pickaxe off the rock (ToolPick.kitOffRock); the
+    // line for a rock with no stone pickaxe to be made, said once until one is there again
+    private boolean _kitSaid;
+    // (Tuning slime_dig_needs_pick, a fix of 14 Nov 2026, on) no pickaxe above wood: the catalogue's stone pickaxe when the bag
+    // gives none, and the line said once
+    private Task _firstPick;
+    private boolean _firstSaid;
 
     public BranchMineTask(Block[] blocks, int y) {
         this(blocks, y, false);
@@ -294,9 +311,21 @@ public class BranchMineTask extends Task {
         BlockPos feet = mod.getPlayer().blockPosition();
         // (gold_rock_iron) which pick digs the rock, before the hotbar is filled for it
         rockPick(mod, now);
+        // (kit_diamond_off_rock) the kit's diamond pickaxe off the rock while another pickaxe digs it, for the next 30 s
+        if (kitOffOn()) ToolPick.kitOffRock(System.currentTimeMillis() + 30_000);
         // the cheap pick for the rock into the hotbar, where baritone's tools can see it (it looks at the hotbar only). first of
         // all: the walk away from sculk digs too, and the iron one went on it with a stone one in the bag (attempt 84)
         HotbarTools.forBlocks(mod, Blocks.STONE, Blocks.DEEPSLATE);
+        // (slime_dig_needs_pick) no pickaxe above wood in the bag: no mine and no staircase, the pickaxe first. look 98: the slime
+        // dig began the gold mine with none, "0 dug ... picks none (the way closed)" three times over, punching rock by hand
+        if (needsPickOn()) {
+            if (!anyAboveWood(mod)) {
+                stopMine(mod);
+                return pickFirst(mod, now);
+            }
+            _firstPick = null;
+            _firstSaid = false;
+        }
         if (leaveOn()) {
             Task leave = leaveGivenUp(mod, feet, now);
             if (leave != null) return leave;
@@ -1261,18 +1290,37 @@ public class BranchMineTask extends Task {
             _tableUntil = now + 600;
             return null;
         }
+        // (kit_diamond_off_rock) the kit's diamond pickaxe and wood at most for the rock: a stone one is made first
+        boolean kitOnly = kitOffOn() && kitOnlyForRock(mod);
+        if (!kitOnly) _kitSaid = false;
         // (gold_rock_iron) no stone pickaxes made while an iron one is free for the rock
-        if (now < _cheapAfter || !needsBetterThanStone(_blocks) || cheapPicks(mod) > 0 || _rockIron) {
+        if (now < _cheapAfter || !(needsBetterThanStone(_blocks) || kitOnly) || cheapPicks(mod) > 0 || _rockIron) {
+            if (kitOnly && now < _cheapAfter) kitRockSay(mod, "the last craft of one failed, not again for five game minutes");
             return null;
         }
         int stone = mod.getItemStorage().getItemCount(Items.COBBLESTONE, Items.COBBLED_DEEPSLATE, Items.BLACKSTONE);
         int planks = mod.getItemStorage().getItemCount(ItemHelper.PLANKS);
         boolean table = mod.getItemStorage().getItemCount(Items.CRAFTING_TABLE) > 0;
+        int held = mod.getItemStorage().getItemCount(Items.STICK);
         // a table of four planks first when there is none in the bag: the kit's was put down for the armour on the surface and
         // left there, and without one this never started (the runner, 2 Nov 2026, attempt 82)
-        int sticks = mod.getItemStorage().getItemCount(Items.STICK) + 4 * (Math.max(0, planks - (table ? 0 : 4)) / 2);
-        int n = Math.min(2, Math.min(stone / 3, sticks / 2));
-        if (n < 1 || !table && planks < 4) {
+        int sticks = held + 4 * (Math.max(0, planks - (table ? 0 : 4)) / 2);
+        // (cheap_pick_keep) only the sticks and planks past StickReserve's keep: look 98's batch at 05:17 made two stone pickaxes
+        // from the last two planks and left one stick and no wood, so no next pickaxe could be made
+        int n = adris.altoclef.util.helpers.StickReserve.keepOn() ? adris.altoclef.util.helpers.StickReserve.cheapBatch(held, planks, table, stone)
+                : Math.min(2, Math.min(stone / 3, sticks / 2));
+        boolean fromKeep = false;
+        if (n < 1 && kitOnly) {
+            // (kit_diamond_off_rock) one stone pickaxe from all the bag's wood, the keep's too: it is the next pickaxe the keep is for
+            int logs = mod.getItemStorage().getItemCount(ItemHelper.LOG);
+            n = adris.altoclef.util.helpers.StickReserve.kitRockPick(held, planks, logs, table, stone);
+            if (n < 1) {
+                kitRockSay(mod, stone + " stone, " + held + " sticks, " + planks + " planks, " + logs + " logs, " + (table ? "a table" : "no table"));
+                return null;
+            }
+            fromKeep = true;
+        }
+        if (n < 1 || !table && planks < 4 && !fromKeep) {
             return null;
         }
         // only with the table on it: without one it walks to any it has seen, and down here that is a walk through the caves
@@ -1285,6 +1333,10 @@ public class BranchMineTask extends Task {
         _cheapWant = mod.getItemStorage().getItemCount(Items.STONE_PICKAXE) + n;
         _cheapUntil = now + 1200;
         _cheapCraft = new CraftInTableTask(new RecipeTarget(Items.STONE_PICKAXE, _cheapWant, STONE_PICK));
+        if (fromKeep) {
+            adris.altoclef.Debug.logInternal("branch mine: only the kit's diamond pickaxe for the rock, a stone one made first ("
+                    + stone + " stone, " + held + " sticks, " + planks + " planks) (kit_diamond_off_rock)");
+        }
         setDebugState("A stone pickaxe for the rock, the iron one is for the ore");
         return _cheapCraft;
     }
@@ -1313,6 +1365,19 @@ public class BranchMineTask extends Task {
             _aheadAfter = made ? now : now + 6000;
             return null;
         }
+        // (next_pick_more) the trip up for logs, until it brought them or ran out of time
+        if (_woodTrip != null) {
+            int logsNow = bag.getItemCount(ItemHelper.LOG);
+            if (logsNow < _woodWant && now < _woodUntil && !_woodTrip.isFinished(mod)) {
+                setDebugState("Up for logs, the next pickaxe has no wood");
+                return _woodTrip;
+            }
+            boolean got = logsNow >= _woodWant;
+            adris.altoclef.Debug.logInternal("branch mine: the trip for logs " + (got ? "brought them" : "is over with " + logsNow
+                    + " logs, not again for five game minutes") + " (next_pick_more)");
+            _woodAfter = got ? now : now + 6000;
+            _woodTrip = null;
+        }
         if (now < _aheadAfter) {
             return null;
         }
@@ -1333,9 +1398,25 @@ public class BranchMineTask extends Task {
         int stone = bag.getItemCount(Items.COBBLESTONE, Items.COBBLED_DEEPSLATE, Items.BLACKSTONE);
         int good = goodAboveWood(mod);
         adris.altoclef.util.helpers.StickReserve.Next next = adris.altoclef.util.helpers.StickReserve.nextPick(good,
-                bag.getItemCount(Items.IRON_INGOT), stone, sticks, planks, logs, table, !needsBetterThanStone(_blocks));
+                bag.getItemCount(Items.IRON_INGOT), stone, sticks, planks, logs, table, !needsBetterThanStone(_blocks),
+                bag.getItemCount(Items.DIAMOND), adris.altoclef.util.helpers.StickReserve.moreOn());
         if (next == adris.altoclef.util.helpers.StickReserve.Next.NONE) {
             return null;
+        }
+        if (next == adris.altoclef.util.helpers.StickReserve.Next.LOGS) {
+            // (next_pick_more) up to the surface for logs (the log climb of log_far_surface), three of them, ten game minutes at most
+            if (now < _woodAfter) {
+                return null;
+            }
+            _woodWant = logs + WOOD_TRIP_LOGS;
+            _woodUntil = now + 12000;
+            boolean up = adris.altoclef.tasks.resources.MineAndCollectTask.climbForLogs(mod, "no wood for the next pickaxe");
+            adris.altoclef.Debug.logInternal("branch mine: no pickaxe above wood left good and no wood for the next one (" + sticks
+                    + " sticks, " + planks + " planks, " + logs + " logs, " + (table ? "a table" : "no table") + "): " + WOOD_TRIP_LOGS
+                    + " logs " + (up ? "from the surface" : "from here") + " (next_pick_more)");
+            _woodTrip = adris.altoclef.TaskCatalogue.getItemTask("log", _woodWant);
+            setDebugState("Up for logs, the next pickaxe has no wood");
+            return _woodTrip;
         }
         // only with the table in the bag, as the stone pickaxes: without one it walks to any it has seen, down here a walk through
         // the caves
@@ -1344,15 +1425,16 @@ public class BranchMineTask extends Task {
             return adris.altoclef.TaskCatalogue.getItemTask("crafting_table", 1);
         }
         boolean iron = next == adris.altoclef.util.helpers.StickReserve.Next.IRON;
-        _aheadItem = iron ? Items.IRON_PICKAXE : Items.STONE_PICKAXE;
+        boolean diamond = next == adris.altoclef.util.helpers.StickReserve.Next.DIAMOND;
+        _aheadItem = iron ? Items.IRON_PICKAXE : diamond ? Items.DIAMOND_PICKAXE : Items.STONE_PICKAXE;
         _aheadWant = bag.getItemCount(_aheadItem) + 1;
         _aheadUntil = now + 1200;
         _tablesBefore = tablesNear(mod, 8);
         _tablesHad = bag.getItemCount(Items.CRAFTING_TABLE) - 1;
-        _aheadCraft = new CraftInTableTask(new RecipeTarget(_aheadItem, _aheadWant, iron ? IRON_PICK : STONE_PICK));
-        adris.altoclef.Debug.logInternal("branch mine: no unworn pickaxe above wood left in the bag, an " + (iron ? "iron" : "stone")
-                + " one made now from the bag (" + bag.getItemCount(Items.IRON_INGOT) + " iron ingots, " + stone + " stone, " + sticks
-                + " sticks) (stick_reserve)");
+        _aheadCraft = new CraftInTableTask(new RecipeTarget(_aheadItem, _aheadWant, iron ? IRON_PICK : diamond ? DIAMOND_PICK : STONE_PICK));
+        adris.altoclef.Debug.logInternal("branch mine: no unworn pickaxe above wood left in the bag, " + (iron ? "an iron" : diamond ? "a diamond" : "a stone")
+                + " one made now from the bag (" + bag.getItemCount(Items.IRON_INGOT) + " iron ingots, " + stone + " stone, "
+                + bag.getItemCount(Items.DIAMOND) + " diamonds, " + sticks + " sticks) (stick_reserve" + (diamond ? ", next_pick_more" : "") + ")");
         setDebugState("The next pickaxe, before the last one is gone");
         return _aheadCraft;
     }
@@ -1382,6 +1464,80 @@ public class BranchMineTask extends Task {
             }
         }
         return false;
+    }
+
+    // (kit_diamond_off_rock) in the wide band's scope (gold and the slime dig), as gold_rock_iron
+    private boolean kitOffOn() {
+        return wideBand(_y) && adris.altoclef.util.helpers.Tuning.get("kit_diamond_off_rock", 0) > 0;
+    }
+
+    // (slime_dig_needs_pick) a mine for an ore stone cannot take, or the slime dig
+    private boolean needsPickOn() {
+        return (_slimeDig || needsBetterThanStone(_blocks)) && adris.altoclef.util.helpers.Tuning.get("slime_dig_needs_pick", 0) > 0;
+    }
+
+    private static boolean saved(ItemStack st) {
+        return Baritone.settings().itemSaver.value && st.getMaxDamage() > 1
+                && st.getDamageValue() + Baritone.settings().itemSaverThreshold.value >= st.getMaxDamage();
+    }
+
+    // (kit_diamond_off_rock) the bag's pickaxes for the rock are the kit's diamond one and wood or gold at most: no stone, copper
+    // or iron one that itemSaver does not keep back
+    private static boolean kitOnlyForRock(AltoClef mod) {
+        var inv = mod.getPlayer().getInventory();
+        boolean kit = false;
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack st = inv.getItem(i);
+            if (st.isEmpty() || !"pickaxe".equals(ItemHelper.toolKind(st.getItem()))) continue;
+            if (ToolPick.kitPick(st)) {
+                kit = true;
+                continue;
+            }
+            if (st.is(Items.WOODEN_PICKAXE) || st.is(Items.GOLDEN_PICKAXE) || saved(st)) continue;
+            return false;
+        }
+        return kit;
+    }
+
+    // (kit_diamond_off_rock) the line for a rock no stone pickaxe can be made for, once until one is there again
+    private void kitRockSay(AltoClef mod, String why) {
+        if (_kitSaid) return;
+        _kitSaid = true;
+        boolean wood = mod.getItemStorage().getItemCount(Items.WOODEN_PICKAXE) > 0;
+        adris.altoclef.Debug.logInternal("branch mine: no stone pickaxe can be made for the rock (" + why + "): the rock with the "
+                + (wood ? "wooden pickaxe, then the kit's diamond one" : "kit's diamond pickaxe, nothing else digs it") + " (kit_diamond_off_rock)");
+    }
+
+    // (slime_dig_needs_pick) a pickaxe above wood (not wooden or golden) in the bag that itemSaver does not keep back, worn or not
+    private static boolean anyAboveWood(AltoClef mod) {
+        var inv = mod.getPlayer().getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack st = inv.getItem(i);
+            if (st.isEmpty() || st.is(Items.WOODEN_PICKAXE) || st.is(Items.GOLDEN_PICKAXE) || !"pickaxe".equals(ItemHelper.toolKind(st.getItem()))) {
+                continue;
+            }
+            if (!saved(st)) return true;
+        }
+        return false;
+    }
+
+    // (slime_dig_needs_pick) the pickaxe before the mine: stone ones from the bag's spare wood, the next pickaxe from the bag
+    // (iron, stone, diamond) or the trip up for logs, else the catalogue's stone pickaxe (cobble with a wooden one)
+    private Task pickFirst(AltoClef mod, long now) {
+        if (!_firstSaid) {
+            _firstSaid = true;
+            adris.altoclef.Debug.logInternal("branch mine: no pickaxe above wood in the bag, no mine until one is made (slime_dig_needs_pick)");
+        }
+        Task t = cheapPick(mod, now);
+        if (t != null) return t;
+        t = pickAhead(mod, now);
+        if (t != null) return t;
+        if (_firstPick == null) {
+            adris.altoclef.Debug.logInternal("branch mine: no pickaxe from the bag, a stone pickaxe the catalogue's way (slime_dig_needs_pick)");
+            _firstPick = adris.altoclef.TaskCatalogue.getItemTask("stone_pickaxe", 1);
+        }
+        setDebugState("A stone pickaxe before the mine");
+        return _firstPick;
     }
 
     // the stone and copper pickaxes in the bag that are not worn past ToolWear's line
@@ -1724,8 +1880,12 @@ public class BranchMineTask extends Task {
     @Override
     protected void onStop(AltoClef mod, Task interruptTask) {
         stopMine(mod);
-        // (gold_rock_iron) the mine is over; stopped for an ore it takes (another task) the iron pick holds for 30 s
-        if (interruptTask == null) ToolPick.rockIronOff();
+        // (gold_rock_iron) the mine is over; stopped for an ore it takes (another task) the iron pick holds for 30 s, and the
+        // kit's diamond one stays off the rock as long (kit_diamond_off_rock)
+        if (interruptTask == null) {
+            ToolPick.rockIronOff();
+            ToolPick.kitOffRockOff();
+        }
     }
 
     @Override

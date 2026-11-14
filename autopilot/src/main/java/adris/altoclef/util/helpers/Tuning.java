@@ -434,6 +434,23 @@ public final class Tuning {
             // at most two take-backs of a cut craft's table at one spot (4 blocks across) in a game minute; past that the table
             // is left standing, with a line, StationsBack
             java.util.Map.entry("stations_back_cap", 1.0),
+            // (fixes of 14 Nov 2026, look 98, test heel's worn pickaxes: the gold mine ran two and a half hours and ended short at
+            // 75 of 96 ingots; the kit's diamond pickaxe dug the rock in every gap with no stone one in the bag, 1561 uses to 0,
+            // the batch of stone pickaxes spent the last planks, and from then on there was no pickaxe at all for half an hour)
+            // the kit's diamond pickaxe stays off a block a stone pickaxe takes while another pickaxe digs it, and with none the
+            // mine makes a stone one first, the keep's sticks too; with nothing to make one from, a line, and the diamond one
+            // digs (ToolPick, HotbarTools, BranchMineTask)
+            java.util.Map.entry("kit_diamond_off_rock", 1.0),
+            // the mine's batch of stone pickaxes for the rock counts only the sticks and planks past StickReserve's keep
+            // (BranchMineTask.cheapPick)
+            java.util.Map.entry("cheap_pick_keep", 1.0),
+            // the next pickaxe: a diamond one from three diamonds when no iron or stone one can be made, and up to the surface for
+            // three logs when the wood is what the bag lacks, the log climb of log_far_surface (StickReserve, BranchMineTask)
+            java.util.Map.entry("next_pick_more", 1.0),
+            // a branch mine for an ore stone cannot take (gold, the slime dig's, diamonds) neither starts nor goes on with no
+            // pickaxe above wood in the bag: the next pickaxe first, from the bag, by the trip up for logs, else the catalogue's
+            // stone pickaxe (BranchMineTask)
+            java.util.Map.entry("slime_dig_needs_pick", 1.0),
             // (a fix of 13 Nov 2026, test heel's first stone under the rigs' anti-xray, where every buried block below y 64 reaches
             // the client as an ore: with legitMine on in the overworld and the best stone more than 8 blocks below the feet, or
             // none known, a pit four deep at the feet first, so the real stone shows and the look round the feet takes it,

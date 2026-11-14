@@ -144,7 +144,74 @@ public final class ToolPick {
     public static int best(List<ItemStack> stacks, BlockState state) {
         int rock = rockIndex(stacks, state);
         if (rock >= 0) return rock;
-        return best(optionsOf(stacks, state), ToolSet.calculateSpeedVsBlock(ItemStack.EMPTY, state));
+        return best(kitOff(stacks, state, optionsOf(stacks, state)), ToolSet.calculateSpeedVsBlock(ItemStack.EMPTY, state));
+    }
+
+    // (Tuning kit_diamond_off_rock, a fix of 14 Nov 2026, on) the kit's diamond pickaxe (it goes into the nether) stays off a
+    // block a stone pickaxe takes as well (the rock, cobble, coal, iron) while any other pickaxe in the list is right for it, the
+    // wooden one too: the wear chain put it after the diamond one (wood is kept for last). look 98: the gold mine's rock took
+    // about 1350 of its 1561 uses in every gap with no stone pickaxe in the bag, and it was gone before the gold was in.
+    // BranchMineTask turns it on, in the wide band's scope, until a wall clock time, and makes a stone pickaxe from the mine's
+    // stone when nothing else is there; an ore that needs more than stone still gets it, and so does the rock when nothing
+    // else in the list could dig it
+    private static volatile long kitOffUntil;
+    private static ItemStack stonePick;
+
+    public static void kitOffRock(long untilMillis) {
+        kitOffUntil = untilMillis;
+    }
+
+    public static void kitOffRockOff() {
+        kitOffUntil = 0;
+    }
+
+    // the kit's pickaxe: diamond or netherite
+    public static boolean kitPick(ItemStack stack) {
+        return stack.is(Items.DIAMOND_PICKAXE) || stack.is(Items.NETHERITE_PICKAXE);
+    }
+
+    // the kit's pickaxe is kept off this block now (the rule on, and a stone pickaxe takes the block)
+    public static boolean kitOffFor(BlockState state) {
+        if (System.currentTimeMillis() > kitOffUntil) return false;
+        if (stonePick == null) stonePick = new ItemStack(Items.STONE_PICKAXE);
+        return state.is(BlockTags.MINEABLE_WITH_PICKAXE) && stonePick.isCorrectToolForDrops(state);
+    }
+
+    // this stack is the kit's pickaxe and kept off this block
+    public static boolean keptOff(ItemStack stack, BlockState state) {
+        return kitPick(stack) && kitOffFor(state);
+    }
+
+    private static final Option NOT_A_TOOL = new Option(false, false, false, 0);
+
+    // the options with the kit's pickaxes made no tool, when another one (not a sword) is right for the block; else as they are
+    public static List<Option> withoutKit(List<Option> options, List<Boolean> kit) {
+        boolean other = false;
+        for (int i = 0; i < options.size(); i++) {
+            Option o = options.get(i);
+            if (!kit.get(i) && o.tool() && !o.sword() && o.correct()) {
+                other = true;
+                break;
+            }
+        }
+        if (!other) return options;
+        List<Option> out = new ArrayList<>(options);
+        for (int i = 0; i < out.size(); i++) {
+            if (kit.get(i)) out.set(i, NOT_A_TOOL);
+        }
+        return out;
+    }
+
+    private static List<Option> kitOff(List<ItemStack> stacks, BlockState state, List<Option> options) {
+        if (!kitOffFor(state)) return options;
+        List<Boolean> kit = new ArrayList<>(stacks.size());
+        boolean any = false;
+        for (ItemStack stack : stacks) {
+            boolean k = kitPick(stack);
+            any |= k;
+            kit.add(k);
+        }
+        return any ? withoutKit(options, kit) : options;
     }
 
     // (Tuning gold_rock_iron, 14 Nov 2026) the gold mine digs its rock with an iron pickaxe the kit can spare. the wear chain
@@ -208,7 +275,8 @@ public final class ToolPick {
         // (gold_rock_iron) the gold mine's rock to a spare iron pickaxe, ahead of the chain's stone one
         int rock = rockIndex(stacks, state);
         if (rock >= 0) return rock;
-        List<Option> options = optionsOf(stacks, state);
+        // (kit_diamond_off_rock) the kit's diamond pickaxe off the rock while another pickaxe digs it
+        List<Option> options = kitOff(stacks, state, optionsOf(stacks, state));
         // shears jump the queue in best(), the chain stays out of their way
         for (Option o : options) {
             if (o.shears()) return -1;

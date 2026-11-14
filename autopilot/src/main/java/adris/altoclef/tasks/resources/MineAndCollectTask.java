@@ -455,6 +455,13 @@ public class MineAndCollectTask extends ResourceTask {
         }
     }
 
+    // (Tuning next_pick_more, a fix of 14 Nov 2026, on) the log climb of log_far_surface begun from outside: a deep mine whose next
+    // pickaxe lacks the wood, so the next log search goes up to the surface first. true while a climb is under way; false with
+    // log_far_surface off, no roof over the feet, or the last climb given up less than five minutes ago
+    public static boolean climbForLogs(AltoClef mod, String why) {
+        return adris.altoclef.util.helpers.LogReach.on() && MineOrCollectTask.startClimb(mod, why);
+    }
+
     private static class MineOrCollectTask extends AbstractDoToClosestObjectTask<Object> {
 
         private final Block[] _blocks;

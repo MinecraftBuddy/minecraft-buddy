@@ -66,7 +66,10 @@ public final class HotbarTools {
         // nothing that can break it, or it's on the bar already
         if (want < 9) return false;
         int have = ToolPick.chainIndex(all.subList(0, 9), state);
-        if (have >= 0 && ToolPick.chainOrder(ToolPick.optionOf(all.get(have), state), ToolPick.optionOf(all.get(want), state)) <= 0) {
+        // (kit_diamond_off_rock) the kit's diamond pickaxe on the bar is no answer for a block it is kept off: the chain's order
+        // puts it before the wooden one in the bag, which the rule wants
+        if (have >= 0 && !ToolPick.keptOff(all.get(have), state)
+                && ToolPick.chainOrder(ToolPick.optionOf(all.get(have), state), ToolPick.optionOf(all.get(want), state)) <= 0) {
             return false;
         }
         int to = slotFor(inv, "pickaxe");

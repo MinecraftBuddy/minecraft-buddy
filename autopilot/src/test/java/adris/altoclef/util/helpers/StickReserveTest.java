@@ -58,4 +58,60 @@ public class StickReserveTest {
         assertEquals(StickReserve.Next.IRON, StickReserve.nextPick(0, 3, 0, 0, 2, 1, false, false));
         assertEquals(StickReserve.Next.IRON, StickReserve.nextPick(0, 3, 0, 2, 4, 0, false, false));
     }
+    // (cheap_pick_keep) look 98 at 05:17: the batch of stone pickaxes for the rock took the last two planks and left one stick
+    @Test
+    public void theBatchForTheRockNeverSpendsTheKeep() {
+        assertEquals(0, StickReserve.cheapBatch(1, 2, true, 64));
+        // two sticks and three planks are the keep itself
+        assertEquals(0, StickReserve.cheapBatch(2, 3, true, 64));
+        // two sticks past the keep make one; two planks past it four sticks, two
+        assertEquals(1, StickReserve.cheapBatch(4, 3, true, 64));
+        assertEquals(2, StickReserve.cheapBatch(2, 5, true, 64));
+        // no table in the bag: its four planks first
+        assertEquals(0, StickReserve.cheapBatch(2, 5, false, 64));
+        assertEquals(2, StickReserve.cheapBatch(2, 9, false, 64));
+        // three stone a pickaxe, two at most
+        assertEquals(1, StickReserve.cheapBatch(10, 20, true, 5));
+        assertEquals(2, StickReserve.cheapBatch(10, 20, true, 64));
+    }
+
+    // (kit_diamond_off_rock) only the kit's diamond pickaxe for the rock: one stone pickaxe, the keep's wood too
+    @Test
+    public void theKitsDiamondPickaxeAloneForTheRockGetsAStoneOneFromTheKeep() {
+        assertEquals(1, StickReserve.kitRockPick(2, 0, 0, true, 3));
+        assertEquals(1, StickReserve.kitRockPick(0, 2, 0, true, 3));
+        assertEquals(1, StickReserve.kitRockPick(0, 0, 1, true, 3));
+        // look 98's bag: one stick and no wood, nothing to make it from (the line, and the diamond one digs)
+        assertEquals(0, StickReserve.kitRockPick(1, 0, 0, true, 64));
+        // no table in the bag: its four planks first
+        assertEquals(0, StickReserve.kitRockPick(0, 4, 0, false, 3));
+        assertEquals(1, StickReserve.kitRockPick(0, 2, 1, false, 3));
+        // too little stone
+        assertEquals(0, StickReserve.kitRockPick(4, 9, 0, true, 2));
+    }
+
+    // (next_pick_more) look 98's bag at the end of the gold mine: 7 diamonds, 1 iron ingot, 1 stick, no planks, no logs, no
+    // pickaxe above wood: NONE before, up for logs now
+    @Test
+    public void lookNinetyEightsBagGoesUpForLogs() {
+        assertEquals(StickReserve.Next.NONE, StickReserve.nextPick(0, 1, 64, 1, 0, 0, true, false, 7, false));
+        assertEquals(StickReserve.Next.LOGS, StickReserve.nextPick(0, 1, 64, 1, 0, 0, true, false, 7, true));
+        assertEquals(StickReserve.Next.LOGS, StickReserve.nextPick(0, 1, 64, 1, 0, 0, false, false, 7, true));
+        // the sticks there but no table and no wood for one: logs too
+        assertEquals(StickReserve.Next.LOGS, StickReserve.nextPick(0, 3, 64, 2, 0, 0, false, false, 7, true));
+        // a good pickaxe above wood (the kit's diamond one unworn): nothing
+        assertEquals(StickReserve.Next.NONE, StickReserve.nextPick(1, 1, 64, 1, 0, 0, true, false, 7, true));
+        // the logs brought: a stone one
+        assertEquals(StickReserve.Next.STONE, StickReserve.nextPick(0, 1, 64, 1, 0, 3, true, false, 7, true));
+    }
+
+    @Test
+    public void aDiamondPickaxeOnlyWithNoIronOrStoneOne() {
+        assertEquals(StickReserve.Next.DIAMOND, StickReserve.nextPick(0, 0, 0, 2, 0, 0, true, false, 3, true));
+        assertEquals(StickReserve.Next.NONE, StickReserve.nextPick(0, 0, 0, 2, 0, 0, true, false, 2, true));
+        assertEquals(StickReserve.Next.NONE, StickReserve.nextPick(0, 0, 0, 2, 0, 0, true, false, 7, false));
+        // iron or stone first
+        assertEquals(StickReserve.Next.IRON, StickReserve.nextPick(0, 3, 0, 2, 0, 0, true, false, 7, true));
+        assertEquals(StickReserve.Next.STONE, StickReserve.nextPick(0, 0, 3, 2, 0, 0, true, false, 7, true));
+    }
 }

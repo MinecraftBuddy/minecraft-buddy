@@ -52,4 +52,29 @@ public class ToolPickRockTest {
         assertEquals(-1, ToolPick.rockPick(List.of(STONE, new RockOption(true, false, true, 5)), 1));
         assertEquals(-1, ToolPick.rockPick(List.of(STONE), 3));
     }
+    // (kit_diamond_off_rock) look 98: the kit's diamond pickaxe and a wooden one in the bag, no stone or iron one; the chain kept
+    // wood for last and dug the rock with the diamond one, 1561 uses to 0
+    private static final ToolPick.Option DIAMOND = new ToolPick.Option(true, true, false, 8.0, false, false, 1561, 1000);
+    private static final ToolPick.Option WOODEN = new ToolPick.Option(true, true, false, 2.0, false, true, 59, 50);
+    private static final ToolPick.Option STONE_PICK = new ToolPick.Option(true, true, false, 4.0, false, false, 131, 100);
+    private static final ToolPick.Option SWORD = new ToolPick.Option(true, true, false, 1.5, true, false, 1561, 1000);
+
+    @Test
+    public void theKitsDiamondPickaxeStaysOffTheRockWhileAnotherDigsIt() {
+        List<ToolPick.Option> bag = List.of(DIAMOND, WOODEN);
+        assertEquals(0, ToolPick.best(bag, 1.0, true, false));
+        assertEquals(1, ToolPick.best(ToolPick.withoutKit(bag, List.of(true, false)), 1.0, true, false));
+        // a stone one is first either way
+        List<ToolPick.Option> stone = List.of(DIAMOND, STONE_PICK, WOODEN);
+        assertEquals(1, ToolPick.best(ToolPick.withoutKit(stone, List.of(true, false, false)), 1.0, true, false));
+    }
+
+    @Test
+    public void theKitsDiamondPickaxeDigsWhenNothingElseCan() {
+        // alone, or with only a sword beside it
+        List<ToolPick.Option> alone = List.of(DIAMOND);
+        assertEquals(0, ToolPick.best(ToolPick.withoutKit(alone, List.of(true)), 1.0, true, false));
+        List<ToolPick.Option> sword = List.of(SWORD, DIAMOND);
+        assertEquals(1, ToolPick.best(ToolPick.withoutKit(sword, List.of(false, true)), 1.0, true, false));
+    }
 }

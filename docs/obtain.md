@@ -126,6 +126,10 @@ gate lacks is fetched by safer steps first, all of it planned together.
   water bucket, torches, blocks, food, three stone pickaxes with a table and sticks so that the rock wears out the cheap
   tools, and a bed when there is a sheep near or wool in the bag. The pieces of wood (the stone pickaxes, a table and
   planks) only near the surface of the overworld, where the trees are; in the nether the iron pickaxe does.
+- **Pickaxes in a mine**: the diamond pickaxe is kept for the ores that need it. Rock is dug with a stone or iron one;
+  with none left, the buddy makes a stone one on the spot from the mine's stone. Two sticks and three planks stay in the
+  bag for the next pickaxe. With no wood left the buddy goes up to the surface for logs, and a mine for gold or slimes
+  never starts without a pickaxe better than wood.
 - **The nether**: full armour with a golden helmet worn (the piglins leave the wearer be) and a spare one in the bag, a
   diamond sword when the diamonds are in the bag, 48 blocks, flint and steel, and food to 160 points. Torches and the
   water bucket are the overworld's. A potion of fire resistance in the bag is drunk when fire is about, and it stops all

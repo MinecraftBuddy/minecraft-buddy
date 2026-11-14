@@ -41,7 +41,44 @@ public final class StickReserve {
         return sticks < STICKS && wood(planks, logs) >= STICK_CRAFT_PLANKS + PLANKS;
     }
 
-    public enum Next {NONE, IRON, STONE}
+    // DIAMOND and LOGS only with next_pick_more: a diamond pickaxe from three diamonds, or up for logs, the wood being what the bag
+    // lacks
+    public enum Next {NONE, IRON, STONE, DIAMOND, LOGS}
+
+    public static final int DIAMONDS = 3;
+
+    // (Tuning next_pick_more, a fix of 14 Nov 2026, on) look 98: the gold mine's last pickaxe gone and a bag of 7 diamonds, 1
+    // stick and no wood, so nextPick said NONE and the mine dug on with no pickaxe for half an hour
+    public static boolean moreOn() {
+        return Tuning.get("next_pick_more", 0) > 0;
+    }
+
+    // (Tuning cheap_pick_keep, a fix of 14 Nov 2026, on) look 98: the mine's batch of stone pickaxes for the rock turned the last
+    // two planks into sticks and left one stick and no wood, so no next pickaxe could be made
+    public static boolean keepOn() {
+        return Tuning.get("cheap_pick_keep", 0) > 0;
+    }
+
+    // (cheap_pick_keep) the stone pickaxes the mine's batch for the rock may make, two at most: from the sticks past the keep's
+    // two and the planks past its three (the table's four first when none is in the bag), never the keep. logs are left out,
+    // as the batch always had them
+    public static int cheapBatch(int sticks, int planks, boolean tableInBag, int stoneBlocks) {
+        int spareWood = Math.max(0, planks - PLANKS - (tableInBag ? 0 : TABLE_PLANKS));
+        int spareSticks = Math.max(0, sticks - STICKS) + 4 * (spareWood / STICK_CRAFT_PLANKS);
+        return Math.max(0, Math.min(2, Math.min(stoneBlocks / STONE_BLOCKS, spareSticks / 2)));
+    }
+
+    // (Tuning kit_diamond_off_rock) one stone pickaxe for the rock when the kit's diamond pickaxe is all that would dig it: the
+    // keep's sticks and wood may go into it (it is the next pickaxe the keep is for), logs counted as their planks, the table's
+    // four first when none is in the bag. 1 or 0
+    public static int kitRockPick(int sticks, int planks, int logs, boolean tableInBag, int stoneBlocks) {
+        int wood = wood(planks, logs) - (tableInBag ? 0 : TABLE_PLANKS);
+        if (wood < 0 || stoneBlocks < STONE_BLOCKS) {
+            return 0;
+        }
+        int all = Math.max(0, sticks) + 4 * (wood / STICK_CRAFT_PLANKS);
+        return all >= STICKS ? 1 : 0;
+    }
 
     // the next pickaxe, from what the bag holds, or NONE. `goodAboveWood` is how many pickaxes above wood in the bag are not worn
     // (ToolWear): none, and the last one is near its end or already gone. the sticks are held or made from the bag's planks, the
@@ -50,13 +87,21 @@ public final class StickReserve {
     // ingots of the armour are not spent on a pickaxe stone does as well
     public static Next nextPick(int goodAboveWood, int ironIngots, int stoneBlocks, int sticks, int planks, int logs, boolean tableInBag,
                                 boolean stoneWill) {
+        return nextPick(goodAboveWood, ironIngots, stoneBlocks, sticks, planks, logs, tableInBag, stoneWill, 0, false);
+    }
+
+    // (next_pick_more, `more`) two more answers where the one above says NONE: the wood for the sticks or the table is what the
+    // bag lacks, LOGS (up to the surface for them, the caller's climb); and with no iron or stone choice, a diamond pickaxe from
+    // three of the bag's diamonds (the kit's diamond pickaxe gone or worn: goodAboveWood counts it while it is good)
+    public static Next nextPick(int goodAboveWood, int ironIngots, int stoneBlocks, int sticks, int planks, int logs, boolean tableInBag,
+                                boolean stoneWill, int diamonds, boolean more) {
         if (goodAboveWood > 0) {
             return Next.NONE;
         }
         int wood = wood(planks, logs);
         int stickPlanks = sticks >= STICKS ? 0 : STICK_CRAFT_PLANKS;
         if (wood < stickPlanks + (tableInBag ? 0 : TABLE_PLANKS)) {
-            return Next.NONE;
+            return more ? Next.LOGS : Next.NONE;
         }
         boolean stone = stoneBlocks >= STONE_BLOCKS;
         if (stoneWill && stone) {
@@ -65,6 +110,9 @@ public final class StickReserve {
         if (ironIngots >= IRON_INGOTS) {
             return Next.IRON;
         }
-        return stone ? Next.STONE : Next.NONE;
+        if (stone) {
+            return Next.STONE;
+        }
+        return more && diamonds >= DIAMONDS ? Next.DIAMOND : Next.NONE;
     }
 }
