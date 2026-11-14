@@ -107,11 +107,11 @@ public class StonePitTest {
     // pits; such a pit counts no more, but no more than PIT_TRIES begin
     @Test
     public void aPitThatDugNothingDoesNotCount() {
-        // began at 64, the feet still there and the block under them whole
-        assertFalse(StoneDigRank.pitCounts(64, 64, false));
-        // the feet dropped, or the first cell went
-        assertTrue(StoneDigRank.pitCounts(64, 63, false));
-        assertTrue(StoneDigRank.pitCounts(64, 64, true));
+        // began at 64, the feet still there (the block under them whole, or broken with the buddy on its edge)
+        assertFalse(StoneDigRank.pitCounts(64, 64));
+        // the feet dropped
+        assertTrue(StoneDigRank.pitCounts(64, 63));
+        assertTrue(StoneDigRank.pitCounts(64, 60));
         // two empty pits: none counted, a third may start
         assertTrue(StoneDigRank.pitAllowed(0, 2, StoneDigRank.PIT_GAP_TICKS, false));
         // the tries are capped all the same, and PIT_MAX holds for pits that dug

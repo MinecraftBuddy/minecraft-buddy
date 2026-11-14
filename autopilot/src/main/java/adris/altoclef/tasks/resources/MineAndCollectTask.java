@@ -912,8 +912,7 @@ public class MineAndCollectTask extends ResourceTask {
                     return _pitDirect ? directPitStep(mod, player, feet) : _pit;
                 }
                 // (Tuning stone_pit_direct) a pit that dug nothing is no pit: it does not count against PIT_MAX
-                boolean counts = !_pitDirect || StoneDigRank.pitCounts(_pitTop.getY(), feet.getY(),
-                        mod.getWorld().getBlockState(_pitTop.below()).getCollisionShape(mod.getWorld(), _pitTop.below()).isEmpty());
+                boolean counts = !_pitDirect || StoneDigRank.pitCounts(_pitTop.getY(), feet.getY());
                 if (!counts) {
                     _pits--;
                 }
@@ -1032,14 +1031,45 @@ public class MineAndCollectTask extends ResourceTask {
                 return new adris.altoclef.tasks.movement.GetToBlockTask(_pitTop);
             }
             BlockPos next = feet.below();
-            if (!player.onGround() || mod.getWorld().getBlockState(next).isAir()) {
+            if (!player.onGround()) {
                 return _pitWait;
             }
+            // the cell broken and the buddy still on its edge (the body on the block beside it): a step into it. test heel: the
+            // grass went in a second and the buddy stood on the edge over the hole for the rest of the 30 s
+            if (mod.getWorld().getBlockState(next).getCollisionShape(mod.getWorld(), next).isEmpty()) {
+                return new adris.altoclef.tasks.movement.GetToBlockTask(next);
+            }
             if (_pitDig == null || !next.equals(_pitDigAt)) {
+                pitHand(mod, mod.getWorld().getBlockState(next));
                 _pitDig = new DestroyBlockTask(next);
                 _pitDigAt = next;
             }
             return _pitDig;
+        }
+
+        // (Tuning stone_pit_direct) never a block in the hand for the pit: with no tool in the bag better for the cell (the
+        // break swaps to one that is), the hotbar slot that is empty, else one with no block and no tool. test heel: the
+        // grass went with the crafting table just placed in the hand
+        private static void pitHand(AltoClef mod, BlockState state) {
+            var inv = mod.getPlayer().getInventory();
+            ItemStack held = inv.getNonEquipmentItems().get(inv.getSelectedSlot());
+            if (!(held.getItem() instanceof net.minecraft.world.item.BlockItem) || StorageHelper.getBestToolSlot(mod, state).isPresent()) {
+                return;
+            }
+            int other = -1;
+            for (int i = 0; i < 9; i++) {
+                ItemStack at = inv.getNonEquipmentItems().get(i);
+                if (at.isEmpty()) {
+                    mod.getClientBaritone().getInventoryBehavior().selectHotbar(i, "pit");
+                    return;
+                }
+                if (other < 0 && !(at.getItem() instanceof net.minecraft.world.item.BlockItem) && !at.isDamageableItem()) {
+                    other = i;
+                }
+            }
+            if (other >= 0) {
+                mod.getClientBaritone().getInventoryBehavior().selectHotbar(other, "pit");
+            }
         }
 
         // the feet's column for the pit, else one beside the feet with room to step into it; null when none will do. direct

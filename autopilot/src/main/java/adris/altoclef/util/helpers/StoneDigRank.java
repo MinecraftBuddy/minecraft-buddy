@@ -247,10 +247,10 @@ public final class StoneDigRank {
         return pits < PIT_MAX && tries < PIT_TRIES && sinceLastEnd >= PIT_GAP_TICKS && !nearRecent;
     }
 
-    // (Tuning stone_pit_direct) a pit counts against PIT_MAX once it dug something: the feet below where it began, or its
-    // first cell (the block under the feet when it began) gone
-    public static boolean pitCounts(int topY, int feetY, boolean firstCellGone) {
-        return feetY < topY || firstCellGone;
+    // (Tuning stone_pit_direct) a pit counts against PIT_MAX once the feet went below where it began: one that left the
+    // buddy where it stood is empty, a broken first cell with the buddy on its edge too
+    public static boolean pitCounts(int topY, int feetY) {
+        return feetY < topY;
     }
 
     // a pit dug within PIT_SAME_RANGE of x, z in the last PIT_SAME_TICKS. recent holds {x, z, game time}
