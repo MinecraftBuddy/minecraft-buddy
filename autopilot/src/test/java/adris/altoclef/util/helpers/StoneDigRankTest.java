@@ -264,4 +264,55 @@ public class StoneDigRankTest {
         assertFalse(StoneDigRank.stoneOnly(Blocks.OAK_LOG));
         assertFalse(StoneDigRank.stoneOnly());
     }
+
+    // (Tuning tunnel_no_fakes) test heel: feet at 66 on grass, dirt to 62, the anti-xray's fake ores 61 to 51, the real stone at
+    // 50 a cave's ceiling (the cave under it). the scan went down past the fakes and latched a band at 49 to 50
+    private static final IntPredicate HEEL_STONE = y -> y == 50;
+    private static final IntPredicate HEEL_CAVE = y -> y <= 49 && y >= 45;
+    private static final IntPredicate HEEL_FAKES = y -> y >= 51 && y <= 61;
+
+    @Test
+    public void theScanEndsAtABuriedCellThatMayBeAFake() {
+        // today's scan: the cave's ceiling for a stone line
+        assertEquals(49, StoneDigRank.tunnelFloor(66, false, HEEL_STONE, HEEL_CAVE).getAsInt());
+        // the fakes end it: no stone line known under them
+        assertTrue(StoneDigRank.tunnelFloor(66, false, HEEL_STONE, HEEL_CAVE, HEEL_FAKES).isEmpty());
+        // stone shown above the first untrusted cell is still the stone line, and standing in it keeps the level
+        assertEquals(60, StoneDigRank.tunnelFloor(66, false, y -> y <= 61, NO_HOLES, HEEL_FAKES).getAsInt());
+        assertEquals(66, StoneDigRank.tunnelFloor(66, true, HEEL_STONE, HEEL_CAVE, HEEL_FAKES).getAsInt());
+    }
+
+    @Test
+    public void aBuriedCellIsTrustedOnlyAsStoneOrPlainGround() {
+        assertTrue(StoneDigRank.untrusted(true, Blocks.COAL_ORE));
+        assertTrue(StoneDigRank.untrusted(true, Blocks.DEEPSLATE_DIAMOND_ORE));
+        assertTrue(StoneDigRank.untrusted(true, Blocks.CLAY));
+        assertFalse(StoneDigRank.untrusted(true, Blocks.STONE));
+        assertFalse(StoneDigRank.untrusted(true, Blocks.DIRT));
+        assertFalse(StoneDigRank.untrusted(true, Blocks.GRAVEL));
+        assertFalse(StoneDigRank.untrusted(true, Blocks.SAND));
+        // an exposed cell is what it shows, an ore too
+        assertFalse(StoneDigRank.untrusted(false, Blocks.COAL_ORE));
+    }
+
+    @Test
+    public void aBandUnderTheStoneThePickHadIsNoTunnel() {
+        // the pick's stone at 65, the band at 49 to 50
+        assertTrue(StoneDigRank.bandUnder(49, 65));
+        assertTrue(StoneDigRank.bandUnder(49, 50 + StoneDigRank.BAND_UNDER + 1));
+        // the band at the stone's level or over it: the tunnel's case
+        assertFalse(StoneDigRank.bandUnder(49, 50));
+        assertFalse(StoneDigRank.bandUnder(49, 49));
+        assertFalse(StoneDigRank.bandUnder(58, 44));
+        // a stone a few over the band's top, in the next column: the stone line's ups and downs
+        assertFalse(StoneDigRank.bandUnder(58, 60));
+        assertFalse(StoneDigRank.bandUnder(49, 50 + StoneDigRank.BAND_UNDER));
+    }
+
+    @Test
+    public void threeNoPathsInARowLetTheBandGo() {
+        assertFalse(StoneDigRank.bandStuck(0));
+        assertFalse(StoneDigRank.bandStuck(StoneDigRank.BAND_NO_PATH - 1));
+        assertTrue(StoneDigRank.bandStuck(StoneDigRank.BAND_NO_PATH));
+    }
 }

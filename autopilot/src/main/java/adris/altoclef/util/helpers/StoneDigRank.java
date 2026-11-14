@@ -121,6 +121,12 @@ public final class StoneDigRank {
     // is StoneTunnel.reuse's job). empty when there is no stone in reach of the scan, or there is a hole on the way down:
     // stone under a cave, a pond or our own old shaft is that thing's floor, not a stone line to walk
     public static OptionalInt tunnelFloor(int feetY, boolean underLine, IntPredicate stoneAt, IntPredicate openAt) {
+        return tunnelFloor(feetY, underLine, stoneAt, openAt, y -> false);
+    }
+
+    // (Tuning tunnel_no_fakes) the same, and a cell the client may be shown wrong (untrusted) ends the scan with no floor as a
+    // hole does: what is under it is not known
+    public static OptionalInt tunnelFloor(int feetY, boolean underLine, IntPredicate stoneAt, IntPredicate openAt, IntPredicate untrusted) {
         if (underLine) {
             return OptionalInt.of(feetY);
         }
@@ -128,7 +134,7 @@ public final class StoneDigRank {
             if (stoneAt.test(y)) {
                 return OptionalInt.of(y - 1);
             }
-            if (openAt.test(y)) {
+            if (openAt.test(y) || untrusted.test(y)) {
                 return OptionalInt.empty();
             }
         }
@@ -297,5 +303,42 @@ public final class StoneDigRank {
             return "no stone in " + PIT_TICKS / 20 + " s";
         }
         return null;
+    }
+
+    // ---- (the buddy's fork, Tuning tunnel_no_fakes, a fix of 14 Nov 2026, on) the tunnel's stone line under the anti-xray. the
+    // column scan (tunnelFloor) walked down past the fake ores of buried cells and took the first real stone, a cave's ceiling
+    // 16 under the feet, for the stone line: on a test heel run the band at y 49 to 50 was latched, its stones priced as free,
+    // the first pick (a path 16 long) dropped for one of them, and every pick in the band ended "no path" (777 bans on 133
+    // blocks in 45 minutes, no cobblestone) while the latch kept the pit away
+
+    // what a buried cell may show and be: the stone line and the plain ground over it. the anti-xray shows a buried block of
+    // its list as a block of its own list (ores and the like), never as one of these; any other buried cell may be made up
+    private static final Set<Block> PLAIN_GROUND = Set.of(Blocks.DIRT, Blocks.COARSE_DIRT, Blocks.ROOTED_DIRT, Blocks.GRASS_BLOCK,
+            Blocks.PODZOL, Blocks.MYCELIUM, Blocks.MUD, Blocks.SAND, Blocks.RED_SAND, Blocks.GRAVEL, Blocks.SANDSTONE,
+            Blocks.RED_SANDSTONE, Blocks.SNOW_BLOCK);
+
+    public static boolean shownTrue(Block block) {
+        return STONE_LINE.contains(block) || PLAIN_GROUND.contains(block);
+    }
+
+    // a cell of the column the scan cannot trust: buried (no air or fluid beside it, so the server may hide it) and not a block
+    // that is what it shows
+    public static boolean untrusted(boolean buried, Block shown) {
+        return buried && !shownTrue(shown);
+    }
+
+    // the band at floorY lies more than BAND_UNDER under the stone the pick had: the tunnel would go deeper than the stone it is
+    // for, and its free band would win over that stone. within BAND_UNDER it is the stone line's own ups and downs
+    public static final int BAND_UNDER = 4;
+
+    public static boolean bandUnder(int floorY, int bestY) {
+        return floorY + 1 < bestY - BAND_UNDER;
+    }
+
+    // band picks in a row that ended "no path" before the band is let go (and the pit may start, pitWanted)
+    public static final int BAND_NO_PATH = 3;
+
+    public static boolean bandStuck(int noPathInARow) {
+        return noPathInARow >= BAND_NO_PATH;
     }
 }

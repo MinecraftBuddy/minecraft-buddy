@@ -52,7 +52,9 @@ events of type `alto` and go to the panel's Activity tab.
   for a while. The mode sends no server commands of its own; anything a server does by command is its profile's.
 - **No x-ray**: an ore counts only where the buddy can see it (it touches air or a fluid). On a server with an anti-xray
   plugin every hidden block can be a fake ore, and chasing those is how a bot that reads every block gets stuck. On a
-  server without one, reading hidden blocks would be x-ray, against the rules of many servers.
+  server without one, reading hidden blocks would be x-ray, against the rules of many servers. So the first stone never
+  comes from a cave seen far below through such blocks: with no stone in reach, the buddy digs a pit at the feet until
+  the stone shows.
 
 ## How it works
 

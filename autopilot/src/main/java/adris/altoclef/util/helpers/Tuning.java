@@ -472,6 +472,12 @@ public final class Tuning {
             // is what the wood lacks (MineAndCollectTask, BranchMineTask): no pickaxe at y 10 to 26 in a dripstone cave, every
             // climb by hand "no way up"
             java.util.Map.entry("pickless_way_out", 1.0),
+            // (fixes of 14 Nov 2026, two test heel runs) under the overworld's anti-xray the tunnel's column scan ends at a buried
+            // cell that is no stone and no plain ground (it may be a fake), a band under the stone the pick had is not latched, and
+            // a band whose picks end no path three in a row is let go, so the pit may start (MineAndCollectTask, StoneDigRank): a
+            // band latched on a cave's ceiling 16 under the feet, past the fake ores, took 45 minutes and 777 no-path bans with no
+            // cobblestone and no pit
+            java.util.Map.entry("tunnel_no_fakes", 1.0),
             // a mob that strikes out again on "couldn't reach": 60 s, 120 s, 240 s, then for the run or until it hits us (Bans,
             // BanPolicy): one zombie banned 25 times in 40 minutes, 60 s each time
             java.util.Map.entry("entity_ban_grow", 1.0),

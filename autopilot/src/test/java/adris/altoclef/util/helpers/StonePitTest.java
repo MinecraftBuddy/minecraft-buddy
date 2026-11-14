@@ -120,4 +120,16 @@ public class StonePitTest {
         // the old form counts no tries
         assertTrue(StoneDigRank.pitAllowed(1, Long.MAX_VALUE / 2, false));
     }
+
+    // (Tuning tunnel_no_fakes) test heel: 45 minutes with the tunnel latched on a cave's ceiling 16 under the feet past the fake
+    // ores, and no pit. the scan that stops at the fakes latches nothing, and the best stone 16 below wants the pit
+    @Test
+    public void noBandOverTheFakesSoTheStoneFarBelowGetsThePit() {
+        java.util.OptionalInt floor = StoneDigRank.tunnelFloor(66, false, y -> y == 50, y -> y <= 49 && y >= 45, y -> y >= 51 && y <= 61);
+        assertTrue(floor.isEmpty());
+        assertTrue(StoneDigRank.pitWanted(floor.isPresent(), 66, 50, false));
+        // a band let go after its no paths is no latch either
+        boolean latched = !StoneDigRank.bandStuck(StoneDigRank.BAND_NO_PATH);
+        assertTrue(StoneDigRank.pitWanted(latched, 66, 50, false));
+    }
 }

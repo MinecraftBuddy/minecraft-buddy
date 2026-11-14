@@ -1147,6 +1147,11 @@ public class MineAndCollectTask extends ResourceTask {
         private boolean _localStale = true;
         // where latchTunnel last came up empty, see there
         private BlockPos _noTunnelAt;
+        // (Tuning tunnel_no_fakes) the band's picks in a row that ended no path, the band let go for that (its floor and where,
+        // refused again for the rest of the task near there), and when the last line about a band refused went out
+        private int _bandNoPath;
+        private final StoneTunnel _deadBand = new StoneTunnel();
+        private int _bandLogAt = Integer.MIN_VALUE / 2;
         // how far around the feet the live look goes, and how long it is good for when nothing else changed. the walls of
         // the hole we just dug are the cheapest stone there is, and the tracker's snapshot (every 7 s, 25 a type, nearest
         // in plain 3d) is the last to hear about them
@@ -1156,7 +1161,9 @@ public class MineAndCollectTask extends ResourceTask {
 
         private Optional<BlockPos> pickStone(AltoClef mod, Vec3 pos, Predicate<BlockPos> usable, Predicate<BlockPos> notOurs) {
             Predicate<BlockPos> ok = check -> mod.getBlockTracker().blockIsValid(check, _blocks) && notOurs.test(check);
-            if (tunnelOver(mod, pos, ok)) {
+            String over = tunnelOver(mod, pos, ok);
+            if (over != null) {
+                Debug.logInternal("stone tunnel at floor y " + _tunnel.floor() + " let go: " + over);
                 _tunnel.unlatch();
             }
             Optional<BlockPos> best = bestStone(mod, pos, usable, notOurs, ok);
@@ -1249,15 +1256,16 @@ public class MineAndCollectTask extends ResourceTask {
 
         // the tunnel stops being a tunnel: we walked off, changed dimension, or the band ran out around us (a cave, water,
         // lava, a ravine took it). the next pick is a surface pick again and may latch a new one
-        private boolean tunnelOver(AltoClef mod, Vec3 pos, Predicate<BlockPos> ok) {
+        // the reason, null while it goes on
+        private String tunnelOver(AltoClef mod, Vec3 pos, Predicate<BlockPos> ok) {
             if (!_tunnel.latched()) {
-                return false;
+                return null;
             }
             BlockPos feet = mod.getPlayer().blockPosition();
             if (_tunnel.left(feet.getX(), feet.getZ(), WorldHelper.getCurrentDimension())) {
-                return true;
+                return "walked off it or left the dimension";
             }
-            return !bandLeft(mod, pos, _tunnel.floor(), ok);
+            return bandLeft(mod, pos, _tunnel.floor(), ok) ? null : "no stone of its band left near";
         }
 
         // some stone left in the band near us. the live look first, then what the tracker knows: a room we cleared out past
@@ -1308,10 +1316,20 @@ public class MineAndCollectTask extends ResourceTask {
                 return false;
             }
             var dim = WorldHelper.getCurrentDimension();
-            OptionalInt world = floorUnder(mod, feet);
+            boolean noFakes = tunnelNoFakes();
+            // (Tuning tunnel_no_fakes) where the server hides what is buried (legitMine, the overworld), a buried cell that may be
+            // one of its fakes ends the scan
+            Block[] fake = Baritone.settings().legitMine.value && dim == Dimension.OVERWORLD && noFakes ? new Block[1] : null;
+            int[] fakeY = new int[1];
+            OptionalInt world = floorUnder(mod, feet, fake, fakeY);
+            if (fake != null && fake[0] != null) {
+                bandLog("stone tunnel: the column under the feet at y " + feet.getY() + " meets a buried "
+                        + net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(fake[0]).getPath() + " at y " + fakeY[0]
+                        + ", maybe one of the anti-xray's fakes: no stone line latched under it (tunnel_no_fakes)");
+            }
             OptionalInt floor = StoneDigRank.pickFloor(world, bandMemory(mod).reuse(feet.getX(), feet.getZ(), feet.getY(), dim));
             // the remembered one can be empty where the world's one isn't, so that gets its own go
-            if (tryBand(mod, pos, feet, floor, ok) || (!floor.equals(world) && tryBand(mod, pos, feet, world, ok))) {
+            if (tryBand(mod, pos, feet, floor, ok, best, noFakes) || (!floor.equals(world) && tryBand(mod, pos, feet, world, ok, best, noFakes))) {
                 return true;
             }
             _noTunnelAt = feet;
@@ -1319,28 +1337,84 @@ public class MineAndCollectTask extends ResourceTask {
         }
 
         // latch on floor if its band has stone near us. a band with nothing in it is a cave floor, not a tunnel
-        private boolean tryBand(AltoClef mod, Vec3 pos, BlockPos feet, OptionalInt floor, Predicate<BlockPos> ok) {
+        private boolean tryBand(AltoClef mod, Vec3 pos, BlockPos feet, OptionalInt floor, Predicate<BlockPos> ok, BlockPos best, boolean noFakes) {
             if (floor.isEmpty()) {
                 return false;
             }
             var dim = WorldHelper.getCurrentDimension();
+            int f = floor.getAsInt();
+            // (Tuning tunnel_no_fakes) not the band let go for its no paths, and not a band under the stone the pick had: that one
+            // is taken where it is
+            if (noFakes) {
+                String no = _deadBand.latched() && _deadBand.floor() == f && !_deadBand.left(feet.getX(), feet.getZ(), dim)
+                        ? StoneDigRank.BAND_NO_PATH + " of its picks in a row ended no path"
+                        : StoneDigRank.bandUnder(f, best.getY()) ? "it lies under the stone the pick had, at y " + best.getY() : null;
+                if (no != null) {
+                    bandLog("stone tunnel at floor y " + f + " refused at feet y " + feet.getY() + ": " + no + " (tunnel_no_fakes)");
+                    return false;
+                }
+            }
             // latched first so the live look reaches the band (and its scores are band scores, it keys on the floor)
-            _tunnel.latch(floor.getAsInt(), feet.getX(), feet.getZ(), dim);
-            if (!bandLeft(mod, pos, floor.getAsInt(), ok)) {
+            _tunnel.latch(f, feet.getX(), feet.getZ(), dim);
+            if (!bandLeft(mod, pos, f, ok)) {
                 _tunnel.clear();
                 return false;
             }
-            bandMemory(mod).latch(floor.getAsInt(), feet.getX(), feet.getZ(), dim);
+            bandMemory(mod).latch(f, feet.getX(), feet.getZ(), dim);
+            _bandNoPath = 0;
+            Debug.logInternal("stone tunnel latched at floor y " + f + ", feet at y " + feet.getY() + ": the best stone at y " + best.getY()
+                    + " and none near cheaper, so the band is walked");
             return true;
         }
 
-        // StoneDigRank.tunnelFloor, asked about the world under our feet
-        private static OptionalInt floorUnder(AltoClef mod, BlockPos feet) {
+        // (Tuning tunnel_no_fakes) the key
+        private static boolean tunnelNoFakes() {
+            return adris.altoclef.util.helpers.Tuning.get("tunnel_no_fakes", 0) > 0;
+        }
+
+        // a line about a band refused, once in BAND_LOG_TICKS at most: the latch is looked at again at every step
+        private static final int BAND_LOG_TICKS = 600;
+
+        private void bandLog(String line) {
+            int t = WorldHelper.getTicks();
+            if (t >= _bandLogAt && t - _bandLogAt < BAND_LOG_TICKS) {
+                return;
+            }
+            _bandLogAt = t;
+            Debug.logInternal(line);
+        }
+
+        // StoneDigRank.tunnelFloor, asked about the world under our feet. with fake set (Tuning tunnel_no_fakes) a buried cell
+        // the server may show wrong ends the scan, fake[0] and fakeY[0] then say which and where
+        private static OptionalInt floorUnder(AltoClef mod, BlockPos feet, Block[] fake, int[] fakeY) {
             long gameTime = mod.getWorld().getGameTime();
             BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
             return StoneDigRank.tunnelFloor(feet.getY(), underStoneLine(mod, feet, gameTime),
                     y -> naturalStone(mod, at.set(feet.getX(), y, feet.getZ()), gameTime),
-                    y -> openCell(mod, at.set(feet.getX(), y, feet.getZ())));
+                    y -> openCell(mod, at.set(feet.getX(), y, feet.getZ())),
+                    y -> {
+                        if (fake == null) {
+                            return false;
+                        }
+                        BlockPos cell = new BlockPos(feet.getX(), y, feet.getZ());
+                        Block shown = mod.getWorld().getBlockState(cell).getBlock();
+                        if (!StoneDigRank.untrusted(buried(mod, cell), shown)) {
+                            return false;
+                        }
+                        fake[0] = shown;
+                        fakeY[0] = y;
+                        return true;
+                    });
+        }
+
+        // no air or fluid on any side: a cell the server may hide
+        private static boolean buried(AltoClef mod, BlockPos cell) {
+            for (Direction d : Direction.values()) {
+                if (openCell(mod, cell.relative(d))) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         // air or fluid: a hole in the column, see tunnelFloor
@@ -1448,6 +1522,10 @@ public class MineAndCollectTask extends ResourceTask {
             // the hole it left gave its neighbours an air face though, so the live look goes again
             if (_stoneOnly) {
                 _localStale = true;
+                // (Tuning tunnel_no_fakes) a stone gone and not banned was broken: the band's no paths are no longer in a row
+                if (!mod.getBlockTracker().unreachable(pos)) {
+                    _bandNoPath = 0;
+                }
                 return;
             }
             if (mod.getBlockTracker().unreachable(pos) || mod.getBlockTracker().blockIsValid(pos, _blocks)) {
@@ -1751,6 +1829,9 @@ public class MineAndCollectTask extends ResourceTask {
             _patience.clear();
             _dirtAsk = null;
             _sweepTree = null;
+            if (_tunnel.latched()) {
+                Debug.logInternal("stone tunnel at floor y " + _tunnel.floor() + " let go: the search starts afresh");
+            }
             _tunnel.clear();
             _localStale = true;
             _noTunnelAt = null;
@@ -1950,6 +2031,20 @@ public class MineAndCollectTask extends ResourceTask {
             Debug.logMessage("No way to the block at " + stuck.getX() + " " + stuck.getY() + " " + stuck.getZ()
                     + (verdict == NoPathScope.Verdict.EXHAUSTED ? " (searched it all)" : " (search timed out)")
                     + (vein.isEmpty() ? "" : ", skipping its vein too") + ".");
+            // (Tuning tunnel_no_fakes) a band whose picks end no path, BAND_NO_PATH in a row, is let go: a latch keeps the pit away
+            // (StoneDigRank.pitWanted), and its band's stones won every pick over any other
+            if (_stoneOnly && _tunnel.latched() && StoneDigRank.inBand(stuck.getY(), _tunnel.floor())) {
+                _bandNoPath++;
+                if (tunnelNoFakes() && StoneDigRank.bandStuck(_bandNoPath)) {
+                    BlockPos feet = mod.getPlayer().blockPosition();
+                    Debug.logInternal("stone tunnel at floor y " + _tunnel.floor() + " let go: " + _bandNoPath
+                            + " picks in its band in a row ended no path, so the pick is priced from the feet again and the pit may start (tunnel_no_fakes)");
+                    _deadBand.latch(_tunnel.floor(), feet.getX(), feet.getZ(), dim);
+                    _tunnel.unlatch();
+                    _bandNoPath = 0;
+                    _localStale = true;
+                }
+            }
             _miningPos = null;
             _progressChecker.newTarget();
             _noPath.disarm();
