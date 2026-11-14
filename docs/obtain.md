@@ -234,7 +234,9 @@ hunted; their meat is picked up.
 - **The night in the ground**, without iron armour: from 11500, before the dusk, to 1000 (a thunderstorm counts as
   night). Three blocks down under the open sky and shut, or underground the open sides shut right there; out in the
   morning once nothing waits at the hole's mouth. Deep under the ground the night changes nothing and the work goes on.
-  A bed in the bag skips the night where the server lets one sleeper do that.
+  A bed in the bag skips the night where the server lets one sleeper do that. With no way to shelter left (too few blocks,
+  nothing to dig by hand, no log within reach) the buddy does not wait in the open: the order goes on, its wood brings
+  blocks, and the shelter looks again once the bag holds 5 blocks or logs, or 16 blocks from where it last looked.
 - **Digging in on the spot**: with no three blocks of ground underfoot, two down right there and a block over the
   head, never a walk to another spot first. Not over water or lava, a cave or a drop, and not into stone without a
   pickaxe: then the next spot within two steps, else the walk to ground that will do. Any full block in the bag counts for

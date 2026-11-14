@@ -340,4 +340,35 @@ class DigInTest {
 		// at the head something that is no block and takes none
 		assertFalse(DigIn.wallStands(true, false, false, false, false));
 	}
+
+	/** (shelter_none_go_on) no way to shelter left: the give-up, only once every way is spent. The test heel's night on ice. */
+	@Test
+	void noWayLeftOnlyOnceEveryWayIsSpent() {
+		assertTrue(DigIn.noWayLeft(true, true, false, 0, true, true, true));
+		assertTrue(DigIn.noWayLeft(true, true, false, DigIn.BLOCKS_FIRST_UNDER - 1, true, true, true));
+		// the switch off, not yet 20 s, ducking from shooters, blocks enough, tries left, a walk by hand left, logs first left
+		assertFalse(DigIn.noWayLeft(false, true, false, 0, true, true, true));
+		assertFalse(DigIn.noWayLeft(true, false, false, 0, true, true, true));
+		assertFalse(DigIn.noWayLeft(true, true, true, 0, true, true, true));
+		assertFalse(DigIn.noWayLeft(true, true, false, DigIn.BLOCKS_FIRST_UNDER, true, true, true));
+		assertFalse(DigIn.noWayLeft(true, true, false, 0, false, true, true));
+		assertFalse(DigIn.noWayLeft(true, true, false, 0, true, false, true));
+		assertFalse(DigIn.noWayLeft(true, true, false, 0, true, true, false));
+	}
+
+	/** (shelter_none_go_on) the given-up shelter looks again with blocks or logs enough, or 16 off, 30 s after at the soonest. */
+	@Test
+	void theShelterLooksAgainWithBlocksOrOnNewGround() {
+		long at = 100_000;
+		// nothing new: not yet, and not ever by the clock alone
+		assertFalse(DigIn.lookAgain(at + 10_000, at, 0, 0));
+		assertFalse(DigIn.lookAgain(at + 600_000, at, 15.9, DigIn.BLOCKS_FIRST_UNDER - 1));
+		// blocks or logs enough, or 16 off: after 30 s
+		assertFalse(DigIn.lookAgain(at + DigIn.LOOK_AGAIN_MS - 1, at, 0, DigIn.BLOCKS_FIRST_UNDER));
+		assertTrue(DigIn.lookAgain(at + DigIn.LOOK_AGAIN_MS, at, 0, DigIn.BLOCKS_FIRST_UNDER));
+		assertFalse(DigIn.lookAgain(at + 20_000, at, 24, 0));
+		assertTrue(DigIn.lookAgain(at + DigIn.LOOK_AGAIN_MS, at, DigIn.LOOK_AGAIN_MOVE, 0));
+		// a clock that went back: look again
+		assertTrue(DigIn.lookAgain(at - 1, at, 0, 0));
+	}
 }

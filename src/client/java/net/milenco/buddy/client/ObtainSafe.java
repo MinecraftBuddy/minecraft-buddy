@@ -714,6 +714,19 @@ final class ObtainSafe {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_flat_walk", 0) > 0;
 	}
 
+	/** The autopilot's shelter_none_go_on switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
+	static boolean noneGoOnOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_none_go_on", 0) > 0;
+	}
+
+	/**
+	 * (shelter_none_go_on) the blocks and logs the bag holds for a shelter: the shelter's blocks, and the logs where they are not
+	 * among them (shelter_dig_here off).
+	 */
+	static int blocksOrLogs(LocalPlayer p) {
+		return shelterBlocks(p) + (digHereOn() ? 0 : Shelter.logsIn(p));
+	}
+
 	/** The block the night shelter puts in first: the first in the bag that passes shelterBlock; null with none. */
 	static String firstShelterBlock(LocalPlayer p) {
 		var in = p.getInventory();
@@ -1267,6 +1280,14 @@ final class ObtainSafe {
 		ObtainSteps.Craft planks;
 		/** (shelter_flat_walk) the last look for a walk by hand found neither a cell to dig in nor flat ground. */
 		boolean handNone;
+		/**
+		 * (the autopilot's shelter_none_go_on, a fix of 14 Nov 2026, on) mayGiveUp: the caller takes a give-up (the night's hole of
+		 * the whole order by Soprano), off for every other shelter; noWay once given up: no way to shelter here.
+		 */
+		boolean mayGiveUp, noWay;
+		/** The last wait said ("waiting open", "waiting shut") and when: the live watch tells a wait in the open from one shut in. */
+		String waitSaid;
+		long waitSaidAt;
 		/** Cells where it could not shut itself in: no site within two blocks of them. */
 		final java.util.Set<BlockPos> bad = new java.util.HashSet<>();
 		boolean sealed, open;
@@ -1712,16 +1733,29 @@ final class ObtainSafe {
 						logsStart(mc, p, f, now, "no way to shut here");
 						return ObtainSteps.Result.RUN;
 					}
+					// (the autopilot's shelter_none_go_on, a fix of 14 Nov 2026, on) no way to shelter left: too few blocks, the tries
+					// spent, no walk by hand or to flat ground, logs first used up or nothing in reach. No wait in the open: given up
+					// for now, the order's own step runs (the kit's wood walks to a log, which brings blocks too), and the caller lets
+					// a new shelter look again once the bag holds blocks or logs enough or the buddy is well off from here. A live
+					// look at the test heel: a night start with an empty bag on frozen-ocean ice, "cannot shut, blocks 0" every 30 s
+					// for 6 minutes in the open, a creeper came and the shelter never looked again
+					if (mayGiveUp && DigIn.noWayLeft(noneGoOnOn(), late, duck, blocksNow, spent, !handAsk || handNone,
+							!logsFirstOn() || logRuns >= DigIn.LOG_RUNS)) {
+						noWay = true;
+						Exchange.emit("obtain", "action", "shelter", "what", "no way to shelter here: on with the order", "x", f.getX(), "y", f.getY(),
+							"z", f.getZ(), "blocks", blocksNow, "logs", logsIn(p), "tries", elsewhere, "logruns", logRuns, "handdigs", handDigs);
+						return ObtainSteps.Result.FAIL;
+					}
 					// (shelter_refused_walls) shut in on the spot: the other walls and the top still go up round a cell that will not
 					// shut, rather than a wait with all of them open
 					if (noDig && refusedWalls) { left++; continue; }
-					return ObtainSteps.Result.WAIT;
+					return waits("waiting open", p, f, now);
 				}
 			}
 			if (left > 0) {
 				phase = "shut but for " + left + (left == 1 ? " cell" : " cells");
 				Follow.stand();
-				return ObtainSteps.Result.WAIT;
+				return waits("waiting open", p, f, now);
 			}
 			stuckSince = 0;
 			if (!sealed) {
@@ -1736,6 +1770,21 @@ final class ObtainSafe {
 			// who comes by in the dark does not see where it hides. (only once shut in: crouched it stays on the edge of the hole)
 			HeldKeys.set(mc.options.keyShift, true);
 			crouched = true;
+			return waits("waiting shut", p, f, now);
+		}
+
+		/**
+		 * A wait, said apart: "waiting open" (a cell will not shut, or shut but for some) when it starts and every 30 s while it
+		 * lasts, "waiting shut" once when it starts. The live watch read a wait in the open on ice for 6 minutes as a shelter.
+		 */
+		ObtainSteps.Result waits(String how, LocalPlayer p, BlockPos f, long now) {
+			boolean again = how.equals("waiting open") && now - waitSaidAt > 30_000;
+			if (!how.equals(waitSaid) || again) {
+				waitSaid = how;
+				waitSaidAt = now;
+				Exchange.emit("obtain", "action", "shelter", "what", how, "phase", phase, "x", f.getX(), "y", f.getY(), "z", f.getZ(),
+					"blocks", shelterBlocks(p), "hp", p.getHealth());
+			}
 			return ObtainSteps.Result.WAIT;
 		}
 

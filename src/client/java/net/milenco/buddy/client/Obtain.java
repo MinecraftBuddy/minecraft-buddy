@@ -283,6 +283,7 @@ final class Obtain {
 		goldTriedAt = -60_000;
 		boatTriedAt = -600_000;
 		boatLook = holeOffUntil = holeStarted = upFailedAt = dryFailedAt = armourLook = 0;
+		shelterGaveUpAt = null;
 		wasMidFrame = false;
 		armourFor = null;
 		badStations.clear();
@@ -764,6 +765,11 @@ final class Obtain {
 		if (exec instanceof ObtainSafe.Shelter sh) {
 			ObtainSteps.Result sr = sh.tick(mc, p, System.currentTimeMillis());
 			if (sr == ObtainSteps.Result.RUN || sr == ObtainSteps.Result.WAIT) return sr == ObtainSteps.Result.RUN;
+			// (the autopilot's shelter_none_go_on) no way to shelter here: the order goes on, and no new hole till it may look again
+			if (sh.noWay) {
+				shelterGaveUpAt = p.blockPosition().immutable();
+				shelterGaveUpTime = now;
+			}
 			// a hole that ends the moment it starts is not tried again for a game minute: it started and ended forty times a
 			// second, a hole for the night that said "morning" at once; what differed is told
 			if (now - holeStarted < 2000) {
@@ -776,12 +782,17 @@ final class Obtain {
 			step = null;
 			return true;
 		}
-		if (now >= holeOffUntil && holeNight(p) && !inMenuNow(p)) {
+		// (shelter_none_go_on) the day, or a world without the night's need: the give-up is over
+		if (shelterGaveUpAt != null && !ObtainSafe.needsShelter(p)) shelterGaveUpAt = null;
+		if (now >= holeOffUntil && holeNight(p) && !inMenuNow(p) && shelterLooksAgain(p, now)) {
 			holeStarted = now;
 			if (exec != null) exec.stop();
 			step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@shelter", 1, null, 0, List.of(), "shelter");
 			stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
-			exec = new ObtainSafe.Shelter();
+			ObtainSafe.Shelter night = new ObtainSafe.Shelter();
+			// (shelter_none_go_on: this hole may give up where no way to shelter is left, the order's step then)
+			night.mayGiveUp = true;
+			exec = night;
 			Exchange.emit("obtain", "action", "step", "step", "shelter for the night, Soprano has no bed", "way", "shelter", "armour", p.getArmorValue(), "hp", p.getHealth());
 			return true;
 		}
@@ -985,6 +996,30 @@ final class Obtain {
 	 * The night on the surface without a bed and without iron armour, from before sunset; a thunderstorm is night as well.
 	 */
 	private static long holeStarted, holeOffUntil;
+
+	/**
+	 * (the autopilot's shelter_none_go_on, a fix of 14 Nov 2026, on) where and when the night's hole last gave up for want of a
+	 * way (ObtainSafe.Shelter.noWay), on the whole order's clock; null while none is given up. A live look at the test heel: a
+	 * night start with an empty bag on frozen-ocean ice waited in the open 6 minutes, and after a creeper's run of 24 blocks the
+	 * shelter never searched again on the new ground.
+	 */
+	private static BlockPos shelterGaveUpAt;
+	private static long shelterGaveUpTime;
+
+	/**
+	 * (shelter_none_go_on) the night's hole may start: none given up, or the given-up one may look again (DigIn.lookAgain: the
+	 * bag holds blocks or logs enough, or the buddy is 16 or more off where it last searched, 30 s after at the soonest).
+	 */
+	private static boolean shelterLooksAgain(LocalPlayer p, long now) {
+		if (shelterGaveUpAt == null) return true;
+		double moved = Math.sqrt(p.blockPosition().distSqr(shelterGaveUpAt));
+		int have = ObtainSafe.blocksOrLogs(p);
+		if (!DigIn.lookAgain(now, shelterGaveUpTime, moved, have)) return false;
+		Exchange.emit("obtain", "action", "shelter", "what", "looks again", "why", have >= DigIn.BLOCKS_FIRST_UNDER ? "blocks or logs in the bag" : "away from where it gave up",
+			"blocks", have, "moved", Math.round(moved), "s", (now - shelterGaveUpTime) / 1000);
+		shelterGaveUpAt = null;
+		return true;
+	}
 
 	/** Night or a thunderstorm in the overworld: the hours the surface belongs to the monsters. */
 	static boolean dark(LocalPlayer p) {

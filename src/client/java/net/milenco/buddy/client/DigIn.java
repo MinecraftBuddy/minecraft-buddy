@@ -298,6 +298,33 @@ final class DigIn {
 	static final int FLAT_BLOCKS = 9;
 
 	/**
+	 * (the autopilot's shelter_none_go_on, a fix of 14 Nov 2026, on) no way to shelter is left here: the switch on, twenty
+	 * seconds that the cell would not shut ({@code late}), not ducking from shooters, too few blocks, the tries elsewhere spent,
+	 * no walk to a dig-in by hand or to flat ground left ({@code noWalk}), and logs first used up or off ({@code logsDone}: its
+	 * steps spent, each "no log in reach" or over). Then no wait in the open: the shelter is given up for now and the order's
+	 * own step runs. A live look at the test heel: a night start with an empty bag on frozen-ocean ice, the nearest log about
+	 * 70 blocks off, "cannot shut, blocks 0" every 30 s for 6 minutes in the open, and a creeper came.
+	 */
+	static boolean noWayLeft(boolean on, boolean late, boolean duck, int blocks, boolean spent, boolean noWalk, boolean logsDone) {
+		return on && late && !duck && fewBlocks(blocks) && spent && noWalk && logsDone;
+	}
+
+	/** (shelter_none_go_on) the shelter given up looks again at most this often, and from this far off where it last searched. */
+	static final long LOOK_AGAIN_MS = 30_000;
+	static final double LOOK_AGAIN_MOVE = 16;
+
+	/**
+	 * (shelter_none_go_on) the shelter given up looks again (a new one, blocks first and logs first counted anew): at least
+	 * {@link #LOOK_AGAIN_MS} after it gave up ({@code gaveUpAt}), and with {@link #BLOCKS_FIRST_UNDER} or more blocks or logs in
+	 * the bag ({@code have}) or {@link #LOOK_AGAIN_MOVE} or more blocks from where it last searched ({@code moved}). A clock
+	 * that went back looks again.
+	 */
+	static boolean lookAgain(long now, long gaveUpAt, double moved, int have) {
+		if (now < gaveUpAt) return true;
+		return now - gaveUpAt >= LOOK_AGAIN_MS && (have >= BLOCKS_FIRST_UNDER || moved >= LOOK_AGAIN_MOVE);
+	}
+
+	/**
 	 * (the autopilot's shelter_flat_walk, a fix of 14 Nov 2026, on) the walk by hand may go to flat ground: the switch on, the
 	 * tries elsewhere spent, and blocks enough for the walls and the top. A live look at the test heel's second night on a
 	 * snowy slope: a wall cell over a drop would not shut with 13 blocks in the bag, no cell to dig in by hand within 16, and
