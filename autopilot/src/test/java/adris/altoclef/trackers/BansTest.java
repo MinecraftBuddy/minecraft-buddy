@@ -296,4 +296,17 @@ public class BansTest {
         assertEquals("ban: - 3 logs near x (lifted)", lines.get(1));
         assertEquals(2, lines.size());
     }
+
+    // (Tuning log_far_surface) a batch's bans that run out together end in one line, as they began: a tree given up was twenty
+    // lines at its end (look 88)
+    @Test
+    public void aBatchEndsInOneLine() {
+        bans.tick(0);
+        bans.banAll(List.of(block(0, 70, 0), block(1, 71, 0), block(0, 72, 1)), "tree stalled twice", 6000, "logs of the tree near 0 70 0");
+        bans.ban(block(9, 9, 9), "test", 6000);
+        lines.clear();
+        bans.tick(6000);
+        assertFalse(bans.blockBanned(Dimension.OVERWORLD, 1, 71, 0));
+        assertEquals(List.of("ban: - block 9 9 9 (overworld), test (expired)", "ban: - 3 logs of the tree near 0 70 0, tree stalled twice (expired)"), lines);
+    }
 }

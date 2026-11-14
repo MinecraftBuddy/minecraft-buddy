@@ -9,6 +9,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 // who gets thrown when the bag is full, as plain numbers so it can be tested without a game
 public final class GarbageRules {
@@ -165,19 +166,42 @@ public final class GarbageRules {
     // while thirty raw copper and a stack of cinnabar stayed: M3.3's smoke 5, run 3
     public static int nextPick(List<Entry> bag, int reserve, boolean throwUnused, int foodUnits, int foodFloor,
                                java.util.function.ToIntFunction<Item> junkFirst) {
+        return nextPick(bag, reserve, throwUnused, foodUnits, foodFloor, junkFirst, null);
+    }
+
+    // (Tuning bag_kit_last, a fix of 14 Nov 2026, on) the same with the kit kept last: `kit` names what the buddy's kit is made
+    // of (kitItem), null for the old order. no kit stack goes while anything else may: the throwaway blocks past the reserve
+    // without it, then the rest that is no kit, then the worse of two tools (never a pickaxe above wood, the kit's), and only
+    // then anything by pick's order. a full bag in the deep mine threw the glass, then the empty bucket, with moss, basalt and
+    // calcite in it, and the bottles of M3.4 could not be made (test heel, look 89)
+    public static int nextPick(List<Entry> bag, int reserve, boolean throwUnused, int foodUnits, int foodFloor,
+                               java.util.function.ToIntFunction<Item> junkFirst, java.util.function.Predicate<Item> kit) {
         int first = junkFirstPick(bag, junkFirst);
         if (first >= 0) {
             return first;
         }
-        int junk = junkPick(bag, reserve);
+        int junk = junkPick(bag, reserve, kit);
         if (junk >= 0) {
             return junk;
+        }
+        if (kit != null) {
+            if (throwUnused) {
+                int rest = restPick(bag, foodUnits, foodFloor, kit.negate());
+                if (rest >= 0) {
+                    return rest;
+                }
+            }
+            int tool = worseToolKept(bag);
+            if (tool >= 0 || !throwUnused) {
+                return tool;
+            }
+            return restPick(bag, foodUnits, foodFloor, null);
         }
         int tool = toolPick(bag);
         if (tool >= 0 || !throwUnused) {
             return tool;
         }
-        return restPick(bag, foodUnits, foodFloor);
+        return restPick(bag, foodUnits, foodFloor, null);
     }
 
     // the junk-first tier: the stack of the lowest rank that may go, bag order breaking a tie; -1 for none
@@ -209,9 +233,110 @@ public final class GarbageRules {
         return -1;
     }
 
-    // the junk-first tier the game side goes by: junkFirstRank with the key on, nothing with it off
+    // the junk-first tier the game side goes by: junkFirstRank with bag_junk_first on, junkWideRank after it with bag_kit_last on,
+    // nothing with both off
     public static java.util.function.ToIntFunction<Item> junkFirstNow() {
-        return Tuning.get("bag_junk_first", 0) > 0 ? GarbageRules::junkFirstRank : item -> -1;
+        boolean first = Tuning.get("bag_junk_first", 0) > 0;
+        boolean wide = kitLastOn();
+        if (first && wide) return GarbageRules::junkAllRank;
+        if (first) return GarbageRules::junkFirstRank;
+        if (wide) return GarbageRules::junkWideRank;
+        return item -> -1;
+    }
+
+    // (Tuning bag_kit_last, a fix of 14 Nov 2026, on) the natural junk a mine or a walk fills the bag with and no piece of the
+    // route asks for, ranked after junkFirstRank's: plants and carpets, seeds and bits, moss, then the stones that are no core
+    // building block (cobblestone, cobbled deepslate, dirt and netherrack keep the building reserve's rules, junkPick). -1 for
+    // anything else
+    public static int junkWideRank(Item item) {
+        Integer rank = WIDE_JUNK.get(item);
+        return rank == null ? -1 : rank;
+    }
+
+    // junkFirstRank, then junkWideRank
+    public static int junkAllRank(Item item) {
+        int first = junkFirstRank(item);
+        return first >= 0 ? first : junkWideRank(item);
+    }
+
+    private static final java.util.Map<Item, Integer> WIDE_JUNK = wideJunk();
+
+    private static java.util.Map<Item, Integer> wideJunk() {
+        java.util.Map<Item, Integer> out = new java.util.HashMap<>();
+        Item[][] tiers = {
+                // plants, carpets and what grows on stone
+                {Items.MOSS_CARPET, Items.PALE_MOSS_CARPET, Items.DANDELION, Items.POPPY, Items.BLUE_ORCHID, Items.ALLIUM,
+                        Items.AZURE_BLUET, Items.RED_TULIP, Items.ORANGE_TULIP, Items.WHITE_TULIP, Items.PINK_TULIP, Items.OXEYE_DAISY,
+                        Items.CORNFLOWER, Items.LILY_OF_THE_VALLEY, Items.TORCHFLOWER, Items.OPEN_EYEBLOSSOM, Items.CLOSED_EYEBLOSSOM,
+                        Items.WILDFLOWERS, Items.LEAF_LITTER, Items.SHORT_GRASS, Items.FERN, Items.DEAD_BUSH, Items.BUSH, Items.FIREFLY_BUSH,
+                        Items.AZALEA, Items.FLOWERING_AZALEA, Items.SMALL_DRIPLEAF, Items.BIG_DRIPLEAF, Items.HANGING_ROOTS,
+                        Items.SPORE_BLOSSOM, Items.GLOW_LICHEN, Items.SCULK_VEIN, Items.VINE, Items.LILY_PAD, Items.SEAGRASS,
+                        Items.PALE_HANGING_MOSS, Items.COBWEB},
+                // seeds and small bits
+                {Items.WHEAT_SEEDS, Items.BEETROOT_SEEDS, Items.PUMPKIN_SEEDS, Items.MELON_SEEDS, Items.TORCHFLOWER_SEEDS,
+                        Items.PITCHER_POD, Items.POINTED_DRIPSTONE, Items.AMETHYST_SHARD},
+                {Items.MOSS_BLOCK, Items.PALE_MOSS_BLOCK},
+                {Items.CALCITE},
+                {Items.BASALT, Items.SMOOTH_BASALT},
+                {Items.TUFF},
+                {Items.DIORITE, Items.ANDESITE, Items.GRANITE},
+                {Items.DRIPSTONE_BLOCK, Items.SCULK},
+                {Items.ROOTED_DIRT, Items.COARSE_DIRT, Items.MUD, Items.CLAY},
+                {Items.GRAVEL}};
+        // after junkFirstRank's five (0 to 4)
+        for (int t = 0; t < tiers.length; t++) {
+            for (Item item : tiers[t]) {
+                out.putIfAbsent(item, 5 + t);
+            }
+        }
+        return out;
+    }
+
+    public static boolean kitLastOn() {
+        return Tuning.get("bag_kit_last", 0) > 0;
+    }
+
+    // the kit predicate the game side goes by: kitItem with bag_kit_last on, null (the old order) with it off
+    public static java.util.function.Predicate<Item> kitNow() {
+        return kitLastOn() ? GarbageRules::kitItem : null;
+    }
+
+    // (bag_kit_last) what the buddy's kit is made of: tools and armour, the bucket, glass and bottles, the bed and the stations,
+    // wood (logs, planks, sticks), food it would eat, fuel and torches, iron, gold, obsidian, diamonds, flint, sand for the glass,
+    // the brew's makings (redstone, a slime ball, wart, cream, sugar, rods, powder) and the end's pearls and eyes
+    public static boolean kitItem(Item item) {
+        if (item == null || item == Items.AIR) {
+            return false;
+        }
+        if (KIT.contains(item) || DropRoom.isBed(item) || in(item, ItemHelper.LOG) || in(item, ItemHelper.PLANKS)) {
+            return true;
+        }
+        if (ItemHelper.isTool(item) || ItemHelper.isArmor(item)) {
+            return true;
+        }
+        FoodHelper.Kind food = FoodHelper.kindOf(item);
+        return food == FoodHelper.Kind.NORMAL || food == FoodHelper.Kind.RESERVED;
+    }
+
+    private static final java.util.Set<Item> KIT = java.util.Set.of(Items.BUCKET, Items.WATER_BUCKET, Items.LAVA_BUCKET, Items.GLASS,
+            Items.GLASS_BOTTLE, Items.POTION, Items.SPLASH_POTION, Items.CRAFTING_TABLE, Items.FURNACE, Items.SMOKER, Items.STICK,
+            Items.FLINT, Items.FLINT_AND_STEEL, Items.SHIELD, Items.BOW, Items.CROSSBOW, Items.ARROW, Items.SHEARS, Items.TORCH,
+            Items.COAL, Items.CHARCOAL, Items.IRON_INGOT, Items.RAW_IRON, Items.IRON_NUGGET, Items.GOLD_INGOT, Items.RAW_GOLD,
+            Items.GOLD_NUGGET, Items.GOLD_BLOCK, Items.RAW_GOLD_BLOCK, Items.GOLDEN_APPLE, Items.ENCHANTED_GOLDEN_APPLE, Items.OBSIDIAN,
+            Items.DIAMOND, Items.REDSTONE, Items.SLIME_BALL, Items.BLAZE_ROD, Items.BLAZE_POWDER, Items.NETHER_WART, Items.MAGMA_CREAM,
+            Items.SUGAR, Items.BREWING_STAND, Items.CAULDRON, Items.ENDER_PEARL, Items.ENDER_EYE, Items.SAND, Items.OAK_BOAT);
+
+    private static boolean in(Item item, Item[] group) {
+        for (Item i : group) {
+            if (i == item) return true;
+        }
+        return false;
+    }
+
+    // a pickaxe better than a wooden one: the kit's (two of iron or better and the diamond one) or the stone ones the deep
+    // mine makes for its rock. never the worse of two tools with bag_kit_last on (worseToolKept)
+    static boolean aboveWoodPick(Item item) {
+        return "pickaxe".equals(ItemHelper.toolKind(item)) && item != Items.WOODEN_PICKAXE;
     }
 
     // (Tuning bag_keep_stations, a fix of 13 Nov 2026, on) what a full bag never throws: a bed (the night's sleep) and the stations
@@ -229,12 +354,17 @@ public final class GarbageRules {
     // by throwaway list order, bag order only breaks a tie. the old getJunkSlot walked the list item by item, and going by bag
     // order instead threw the cobble in the hotbar while the gravel sat in the main bag
     public static int junkPick(List<Entry> bag, int reserve) {
+        return junkPick(bag, reserve, null);
+    }
+
+    // (bag_kit_last) a kit item on the throwaway list (sand, the bottles' glass) is no junk here: kit null for the old pick
+    public static int junkPick(List<Entry> bag, int reserve, java.util.function.Predicate<Item> kit) {
         int item = -1;
         int block = -1;
         int blocks = 0;
         for (int i = 0; i < bag.size(); i++) {
             Entry e = bag.get(i);
-            if (!e.throwaway() || !e.mayGo()) {
+            if (!e.throwaway() || !e.mayGo() || (kit != null && kit.test(e.stack().getItem()))) {
                 continue;
             }
             if (e.stack().getItem() instanceof BlockItem) {
@@ -275,12 +405,38 @@ public final class GarbageRules {
         return worse < 0 ? -1 : at.get(worse);
     }
 
-    private static int restPick(List<Entry> bag, int foodUnits, int foodFloor) {
+    // (bag_kit_last) the worse of two tools of a family, every tool that may go weighed for the family's best, but never a pickaxe
+    // above wood as the one that goes; the worst first, bag order breaking a tie. -1 for none
+    static int worseToolKept(List<Entry> bag) {
+        java.util.Map<String, Integer> best = new java.util.HashMap<>();
+        for (Entry e : bag) {
+            Item item = e.stack().getItem();
+            String kind = e.mayGo() && !e.stack().isEmpty() ? ItemHelper.toolKind(item) : null;
+            if (kind != null) best.merge(kind, ItemHelper.getToolDurability(item), Math::max);
+        }
+        int pick = -1;
+        int pickLevel = Integer.MAX_VALUE;
+        for (int i = 0; i < bag.size(); i++) {
+            Entry e = bag.get(i);
+            Item item = e.stack().getItem();
+            String kind = e.mayGo() && !e.stack().isEmpty() ? ItemHelper.toolKind(item) : null;
+            if (kind == null || aboveWoodPick(item)) continue;
+            int level = ItemHelper.getToolDurability(item);
+            if (level < best.get(kind) && level < pickLevel) {
+                pick = i;
+                pickLevel = level;
+            }
+        }
+        return pick;
+    }
+
+    private static int restPick(List<Entry> bag, int foodUnits, int foodFloor, java.util.function.Predicate<Item> may) {
         List<Integer> at = new ArrayList<>();
         List<Cand> cands = new ArrayList<>();
         for (int i = 0; i < bag.size(); i++) {
             Entry e = bag.get(i);
-            if (e.mayGo()) {
+            // (may null: every stack that may go, the old pick; with a filter an empty slot is none)
+            if (e.mayGo() && (may == null || !e.stack().isEmpty() && may.test(e.stack().getItem()))) {
                 at.add(i);
                 cands.add(cand(e.stack()));
             }
@@ -300,12 +456,18 @@ public final class GarbageRules {
     // the same with the junk-first tier (bag_junk_first)
     public static boolean dropIsNextPick(List<Entry> bag, int pick, Entry drop, int reserve, boolean throwUnused, int foodUnits, int foodFloor,
                                          java.util.function.ToIntFunction<Item> junkFirst) {
+        return dropIsNextPick(bag, pick, drop, reserve, throwUnused, foodUnits, foodFloor, junkFirst, null);
+    }
+
+    // the same with the kit kept last (bag_kit_last)
+    public static boolean dropIsNextPick(List<Entry> bag, int pick, Entry drop, int reserve, boolean throwUnused, int foodUnits, int foodFloor,
+                                         java.util.function.ToIntFunction<Item> junkFirst, java.util.function.Predicate<Item> kit) {
         if (pick < 0) {
             return false;
         }
         List<Entry> after = new ArrayList<>(bag);
         after.set(pick, drop);
-        int next = nextPick(after, reserve, throwUnused, foodUnits, foodFloor, junkFirst);
+        int next = nextPick(after, reserve, throwUnused, foodUnits, foodFloor, junkFirst, kit);
         return next == pick || (next >= 0 && after.get(next).stack().getItem() == drop.stack().getItem());
     }
 

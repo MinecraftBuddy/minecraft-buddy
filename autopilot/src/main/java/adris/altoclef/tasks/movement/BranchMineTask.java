@@ -87,6 +87,36 @@ public class BranchMineTask extends Task {
     // (Tuning mine_own_pit, a fix of 13 Nov 2026, on: the second fire gives the depth up, not the third, so a kit piece over a
     // mine that goes nowhere fails over after about six game minutes and not nine to thirteen)
     private final adris.altoclef.util.helpers.PlaceWatch.Fires _fires = new adris.altoclef.util.helpers.PlaceWatch.Fires(3, 12000, 10);
+    // (Tuning mine_leave_dry, a fix of 14 Nov 2026, on) the place watch and its fires kept over a task made anew, per dimension, as
+    // MineLeave.WALK_OUTS is: a flooded start made the mine anew eight times (the night's tries, take-alongs) and each began with
+    // a fresh watch and no fires. the watch's own gap (30 s away) still starts it again
+    private static final adris.altoclef.util.helpers.PlaceWatch SHARED_PLACE = new adris.altoclef.util.helpers.PlaceWatch(10, 3600, 600);
+    private static final adris.altoclef.util.helpers.PlaceWatch.Fires SHARED_FIRES = new adris.altoclef.util.helpers.PlaceWatch.Fires(3, 12000, 10);
+    private static String sharedDim;
+
+    private adris.altoclef.util.helpers.PlaceWatch place() {
+        if (!leaveDryOn()) return _place;
+        shareDim();
+        return SHARED_PLACE;
+    }
+
+    private adris.altoclef.util.helpers.PlaceWatch.Fires fires() {
+        if (!leaveDryOn()) return _fires;
+        shareDim();
+        return SHARED_FIRES;
+    }
+
+    private static void shareDim() {
+        String dim = dimension();
+        if (!dim.equals(sharedDim)) {
+            sharedDim = dim;
+            SHARED_FIRES.clear();
+        }
+    }
+
+    static boolean leaveDryOn() {
+        return adris.altoclef.util.helpers.Tuning.get("mine_leave_dry", 0) > 0;
+    }
     // (Tuning mine_own_pit, a fix of 13 Nov 2026, on) baritone's mine leaving its band, counted by place: the second time within
     // ten blocks in ten game minutes, the tunnel of its own keeps the tick for the rest of the task within OWN_TUNNEL_REACH of
     // there. baritone's mine walked up the buddy's own staircase, out of the band, the mine stopped and the staircase ran down
@@ -130,6 +160,10 @@ public class BranchMineTask extends Task {
     private MineLeave.Spot _leaveFrom;
     private Task _leaveTask;
     private int _leaveTried, _leaveWays, _leaveWay = -1;
+    // (mine_leave_dry) the way's goal and how far from the spot it lies, and whether "far but not over" was said
+    private int[] _leaveTarget;
+    private int _leaveReach;
+    private boolean _leaveFarSaid;
     private double _leaveBest;
     private long _leaveBestAt;
     // the spots this task has left, or gave up leaving: once each
@@ -172,6 +206,18 @@ public class BranchMineTask extends Task {
     private long _tableUntil;
     private static final CraftingRecipe STONE_PICK = CraftingRecipe.newShapedRecipe("stone_pickaxe", new ItemTarget[]{
             stoneTarget(), stoneTarget(), stoneTarget(), null, new ItemTarget("stick", 1), null, null, new ItemTarget("stick", 1), null}, 1);
+    // (Tuning stick_reserve, a fix of 14 Nov 2026, on) the deep mine's own reserve for its next pickaxe (StickReserve): sticks made
+    // from the bag's spare wood while it holds fewer than two, and the next pickaxe (iron from three ingots, else stone) made from
+    // the bag once no pickaxe above wood in it is unworn, at the bag's table, which goes back in the bag after as the stone
+    // pickaxes' does. look 88: the diamond pickaxe wore out on the gold mine's rock, a new iron one wanted sticks, the bag had one
+    // plank, and the log for them was 50 blocks over the cave
+    private Task _aheadCraft;
+    private net.minecraft.world.item.Item _aheadItem;
+    private int _aheadWant;
+    private long _aheadUntil, _aheadAfter = Long.MIN_VALUE;
+    private static final CraftingRecipe IRON_PICK = CraftingRecipe.newShapedRecipe("iron_pickaxe", new ItemTarget[]{
+            new ItemTarget("iron_ingot", 1), new ItemTarget("iron_ingot", 1), new ItemTarget("iron_ingot", 1), null,
+            new ItemTarget("stick", 1), null, null, new ItemTarget("stick", 1), null}, 1);
 
     public BranchMineTask(Block[] blocks, int y) {
         this(blocks, y, false);
@@ -244,24 +290,24 @@ public class BranchMineTask extends Task {
             if (leave != null) return leave;
         }
         if (Math.abs(y - _mineY) <= 3) _downFails.reset();
-        boolean watch = _place.tick(feet.getX(), feet.getZ(), now);
+        boolean watch = place().tick(feet.getX(), feet.getZ(), now);
         boolean stall = _downStall;
         _downStall = false;
         // (mine_water_streak) a third walk-out of water under a roof at one place counts as a fire too
         boolean wetLoop = _wetStall;
         _wetStall = false;
         if (watch || stall || wetLoop) {
-            int fx = watch ? _place.x() : stall ? _downFails.x() : _wetX, fz = watch ? _place.z() : stall ? _downFails.z() : _wetZ;
+            int fx = watch ? place().x() : stall ? _downFails.x() : _wetX, fz = watch ? place().z() : stall ? _downFails.z() : _wetZ;
             stopMine(mod);
             // (gold_poke_shafts) the run is not resumed here after the tunnel of its own
             if (pokeOn()) PokeMineTask.dropRun(watch ? "the place watch fired" : stall ? "the way down got nowhere" : "the walk out of the water came back");
             if (adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0) {
-                _fires.add(fx, fz, now);
+                fires().add(fx, fz, now);
                 // (mine_water_streak) the walk-outs' own fires are kept over a task made anew: a take-along or a station between
                 // two of them made a new task with no fires
                 boolean wetGiveUp = wetLoop && MineLeave.WALK_OUTS.fires() >= firesToGiveUp();
-                if (_fires.last() >= firesToGiveUp() || wetGiveUp) {
-                    return giveUpHere(mod, now, y, fx, fz, Math.max(_fires.last(), wetGiveUp ? MineLeave.WALK_OUTS.fires() : 0),
+                if (fires().last() >= firesToGiveUp() || wetGiveUp) {
+                    return giveUpHere(mod, now, y, fx, fz, Math.max(fires().last(), wetGiveUp ? MineLeave.WALK_OUTS.fires() : 0),
                             watch ? "" : stall ? ", the last fire the way down's, mine_leave_given_up" : ", the last fire the walk-outs', mine_water_streak");
                 }
             }
@@ -327,7 +373,7 @@ public class BranchMineTask extends Task {
         if (mod.getPlayer().isInWater() && mod.getWorld().canSeeSky(feet.above())) {
             stopMine(mod);
             if (_land == null || now - _landSince > 600 || feet.closerThan(_land, 1.5)) {
-                _land = nearestLand(mod, feet);
+                _land = nearestLand(mod, feet, now);
                 _landSince = now;
             }
             if (_land != null) {
@@ -413,6 +459,12 @@ public class BranchMineTask extends Task {
         if (pick != null) {
             stopMine(mod);
             return pick;
+        }
+        // (stick_reserve) sticks from spare wood, and the next pickaxe before the last one above wood is gone
+        Task ahead = pickAhead(mod, now);
+        if (ahead != null) {
+            stopMine(mod);
+            return ahead;
         }
         if (_dx == 0 && _dz == 0) {
             // the way it looks, to the nearest of the four
@@ -653,7 +705,7 @@ public class BranchMineTask extends Task {
         if (leaveOn()) MineLeave.GIVEN_UP.record(dimension(), fx, fz, now);
         gaveUpLine = line;
         gaveUps++;
-        _fires.clear();
+        fires().clear();
         MineLeave.WALK_OUTS.clearFires();
         _bandExits.clear();
         _ownTunnelAt = null;
@@ -752,19 +804,51 @@ public class BranchMineTask extends Task {
             _leaveWays = 0;
             _leaveWay = -1;
             _leaveTask = null;
+            _leaveTarget = null;
+            _leaveFarSaid = false;
             adris.altoclef.Debug.logInternal("branch mine: " + Math.round(Math.hypot(feet.getX() - spot.x(), feet.getZ() - spot.z())) + " blocks from "
                     + spot.x() + ", " + spot.z() + ", where a mine gave its depth up " + (now - spot.at()) / 20 + " s ago: "
                     + (int) MineLeave.FAR + " blocks away from there first (mine_leave_given_up)");
         }
         double d = Math.hypot(feet.getX() - _leaveFrom.x(), feet.getZ() - _leaveFrom.z());
-        if (MineLeave.left(feet.getX(), feet.getZ(), _leaveFrom)) {
+        boolean far = MineLeave.left(feet.getX(), feet.getZ(), _leaveFrom);
+        boolean dryOn = leaveDryOn();
+        // (mine_leave_dry) only on dry ground, and FAR from every fresh spot given up, not this one alone
+        boolean dry = mod.getPlayer().onGround() && !mod.getPlayer().isInWater();
+        boolean clear = MineLeave.GIVEN_UP.clearOf(dimension(), feet.getX(), feet.getZ(), now, MineLeave.FAR, MineLeave.FRESH);
+        if (dryOn ? MineLeave.leaveEnds(far, dry, clear) : far) {
             adris.altoclef.Debug.logInternal("branch mine: " + Math.round(d) + " blocks from " + _leaveFrom.x() + ", " + _leaveFrom.z()
-                    + " at " + feet.toShortString() + ", the mine goes on from here (mine_leave_given_up)");
+                    + " at " + feet.toShortString() + ", the mine goes on from here (mine_leave_given_up" + (dryOn ? ", mine_leave_dry" : "") + ")");
             endLeave();
             return null;
         }
-        if (_leaveWay < 0 || now < _leaveBestAt || now - _leaveBestAt > LEAVE_STALL) {
-            if (_leaveWay >= 0) {
+        if (far && dryOn && !_leaveFarSaid) {
+            _leaveFarSaid = true;
+            adris.altoclef.Debug.logInternal("branch mine: " + Math.round(d) + " blocks from " + _leaveFrom.x() + ", " + _leaveFrom.z()
+                    + " at " + feet.toShortString() + " but " + (!dry ? "not on dry ground" : "within " + (int) MineLeave.FAR
+                    + " of another spot a mine gave up") + ", on along the way (mine_leave_dry)");
+        }
+        // (mine_leave_dry) the way's goal reached and the leave not over: the goal EXTEND further along the same way, past
+        // REACH_MAX the next way
+        boolean nextWay = false;
+        if (dryOn && _leaveWay >= 0 && _leaveTarget != null
+                && Math.hypot(feet.getX() - _leaveTarget[0], feet.getZ() - _leaveTarget[1]) <= MineLeave.TARGET_RADIUS + 1) {
+            int reach = MineLeave.nextReach(_leaveReach);
+            if (reach < 0) {
+                nextWay = true;
+                adris.altoclef.Debug.logInternal("branch mine: no dry ground clear of the spots given up within " + MineLeave.REACH_MAX
+                        + " of " + _leaveFrom.x() + ", " + _leaveFrom.z() + " that way, the next way (mine_leave_dry)");
+            } else {
+                _leaveReach = reach;
+                _leaveTarget = MineLeave.target(_leaveFrom.x(), _leaveFrom.z(), _leaveWay, reach);
+                _leaveTask = new GetToXZTask(_leaveTarget[0], _leaveTarget[1], MineLeave.TARGET_RADIUS);
+                _leaveBestAt = now;
+                adris.altoclef.Debug.logInternal("branch mine: on along way " + _leaveWays + " to " + _leaveTarget[0] + ", " + _leaveTarget[1]
+                        + ", " + reach + " blocks from " + _leaveFrom.x() + ", " + _leaveFrom.z() + " (mine_leave_dry)");
+            }
+        }
+        if (nextWay || _leaveWay < 0 || now < _leaveBestAt || now - _leaveBestAt > LEAVE_STALL) {
+            if (_leaveWay >= 0 && !nextWay) {
                 adris.altoclef.Debug.logInternal("branch mine: no headway away from " + _leaveFrom.x() + ", " + _leaveFrom.z() + " in "
                         + LEAVE_STALL / 1200 + " game minutes at " + feet.toShortString() + ", " + Math.round(d) + " blocks off (mine_leave_given_up)");
             }
@@ -783,6 +867,8 @@ public class BranchMineTask extends Task {
             _leaveTried |= 1 << way;
             _leaveWay = way;
             int[] t = MineLeave.target(_leaveFrom.x(), _leaveFrom.z(), way);
+            _leaveReach = MineLeave.TARGET;
+            _leaveTarget = t;
             _leaveTask = new GetToXZTask(t[0], t[1], MineLeave.TARGET_RADIUS);
             _leaveBest = d;
             _leaveBestAt = now;
@@ -1064,6 +1150,90 @@ public class BranchMineTask extends Task {
         return _cheapCraft;
     }
 
+    // (stick_reserve) sticks made now, the next pickaxe made now, or the table for it out of four planks, or null
+    private Task pickAhead(AltoClef mod, long now) {
+        if (!adris.altoclef.util.helpers.StickReserve.on()) {
+            return null;
+        }
+        var bag = mod.getItemStorage();
+        if (_aheadCraft != null) {
+            boolean made = bag.getItemCount(_aheadItem) >= _aheadWant;
+            if (!made && now < _aheadUntil && !_aheadCraft.isFinished(mod)) {
+                setDebugState(_aheadItem == Items.STICK ? "Sticks from the bag's wood, for the next pickaxe" : "The next pickaxe, before the last one is gone");
+                return _aheadCraft;
+            }
+            String what = _aheadItem == Items.STICK ? "sticks" : BuiltInRegistries.ITEM.getKey(_aheadItem).getPath().replace('_', ' ');
+            adris.altoclef.Debug.logInternal("branch mine: " + what + (made ? " made" : " not made in time, not again for five game minutes")
+                    + " (stick_reserve)");
+            if (_aheadItem != Items.STICK) {
+                _ourTable = newTable(mod, _tablesBefore);
+                _tableUntil = now + 600;
+            }
+            _aheadCraft = null;
+            // not made in time: not again for five game minutes
+            _aheadAfter = made ? now : now + 6000;
+            return null;
+        }
+        if (now < _aheadAfter) {
+            return null;
+        }
+        int sticks = bag.getItemCount(Items.STICK);
+        int planks = bag.getItemCount(ItemHelper.PLANKS);
+        int logs = bag.getItemCount(ItemHelper.LOG);
+        if (adris.altoclef.util.helpers.StickReserve.makeSticks(sticks, planks, logs)) {
+            _aheadItem = Items.STICK;
+            _aheadWant = sticks + 4;
+            _aheadUntil = now + 600;
+            _aheadCraft = adris.altoclef.TaskCatalogue.getItemTask("stick", _aheadWant);
+            adris.altoclef.Debug.logInternal("branch mine: " + sticks + " sticks in the bag, 4 made from its wood (" + planks + " planks, "
+                    + logs + " logs) for the next pickaxe (stick_reserve)");
+            setDebugState("Sticks from the bag's wood, for the next pickaxe");
+            return _aheadCraft;
+        }
+        boolean table = bag.getItemCount(Items.CRAFTING_TABLE) > 0;
+        int stone = bag.getItemCount(Items.COBBLESTONE, Items.COBBLED_DEEPSLATE, Items.BLACKSTONE);
+        int good = goodAboveWood(mod);
+        adris.altoclef.util.helpers.StickReserve.Next next = adris.altoclef.util.helpers.StickReserve.nextPick(good,
+                bag.getItemCount(Items.IRON_INGOT), stone, sticks, planks, logs, table, !needsBetterThanStone(_blocks));
+        if (next == adris.altoclef.util.helpers.StickReserve.Next.NONE) {
+            return null;
+        }
+        // only with the table in the bag, as the stone pickaxes: without one it walks to any it has seen, down here a walk through
+        // the caves
+        if (!table) {
+            setDebugState("A crafting table out of four planks, for the next pickaxe");
+            return adris.altoclef.TaskCatalogue.getItemTask("crafting_table", 1);
+        }
+        boolean iron = next == adris.altoclef.util.helpers.StickReserve.Next.IRON;
+        _aheadItem = iron ? Items.IRON_PICKAXE : Items.STONE_PICKAXE;
+        _aheadWant = bag.getItemCount(_aheadItem) + 1;
+        _aheadUntil = now + 1200;
+        _tablesBefore = tablesNear(mod, 8);
+        _tablesHad = bag.getItemCount(Items.CRAFTING_TABLE) - 1;
+        _aheadCraft = new CraftInTableTask(new RecipeTarget(_aheadItem, _aheadWant, iron ? IRON_PICK : STONE_PICK));
+        adris.altoclef.Debug.logInternal("branch mine: no unworn pickaxe above wood left in the bag, an " + (iron ? "iron" : "stone")
+                + " one made now from the bag (" + bag.getItemCount(Items.IRON_INGOT) + " iron ingots, " + stone + " stone, " + sticks
+                + " sticks) (stick_reserve)");
+        setDebugState("The next pickaxe, before the last one is gone");
+        return _aheadCraft;
+    }
+
+    // the pickaxes above wood in the bag (not wooden, not golden) that are not worn past ToolWear's line
+    private static int goodAboveWood(AltoClef mod) {
+        var inv = mod.getPlayer().getInventory();
+        int n = 0;
+        for (int i = 0; i < 36; i++) {
+            ItemStack st = inv.getItem(i);
+            if (st.isEmpty() || st.is(Items.WOODEN_PICKAXE) || st.is(Items.GOLDEN_PICKAXE) || !"pickaxe".equals(ItemHelper.toolKind(st.getItem()))) {
+                continue;
+            }
+            if (!ToolWear.wornOut(st.getDamageValue(), st.getMaxDamage())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     // one of the blocks wants more than a stone pickaxe (diamond, redstone, gold, emerald)
     static boolean needsBetterThanStone(Block[] blocks) {
         ItemStack stone = new ItemStack(Items.STONE_PICKAXE);
@@ -1168,8 +1338,20 @@ public class BranchMineTask extends Task {
         return false;
     }
 
-    private static BlockPos nearestLand(AltoClef mod, BlockPos feet) {
-        return adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, 64);
+    // (mine_leave_dry) the nearest land FAR from every spot given up within FRESH, else the nearest: the nearest lay back toward
+    // the spot the leave had just walked 48 blocks from, and the staircase from it met the same flooded layer again
+    private static BlockPos nearestLand(AltoClef mod, BlockPos feet, long now) {
+        if (!leaveDryOn() || MineLeave.GIVEN_UP.size() == 0) {
+            return adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, 64);
+        }
+        String dim = dimension();
+        BlockPos land = adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, 64, false,
+                p -> MineLeave.GIVEN_UP.clearOf(dim, p.getX(), p.getZ(), now, MineLeave.FAR, MineLeave.FRESH));
+        if (land != null && !MineLeave.GIVEN_UP.clearOf(dim, land.getX(), land.getZ(), now, MineLeave.FAR, MineLeave.FRESH)) {
+            adris.altoclef.Debug.logInternal("branch mine: in open water at " + feet.toShortString() + ", no land within 64 clear of a spot"
+                    + " a mine gave up, to the nearest at " + land.toShortString() + " (mine_leave_dry)");
+        }
+        return land;
     }
 
     // the next step of a staircase (down one) or of a tunnel (level) in the way it goes, or the first of the other three

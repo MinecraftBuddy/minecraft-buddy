@@ -58,6 +58,11 @@ public final class MineLeave {
             return best;
         }
 
+        // (mine_leave_dry) no spot in dim within r blocks (level distance) of (x, z) given up within fresh ticks of now
+        public synchronized boolean clearOf(String dim, int x, int z, long now, double r, long fresh) {
+            return near(dim, x, z, now, r, fresh, null) == null;
+        }
+
         public synchronized int size() {
             return spots.size();
         }
@@ -107,6 +112,39 @@ public final class MineLeave {
     // far enough from the spot to end the leave
     public static boolean left(int x, int z, Spot spot) {
         return Math.hypot(x - spot.x(), z - spot.z()) >= FAR;
+    }
+
+    // ---- (Tuning mine_leave_dry, a fix of 14 Nov 2026, on) the leave ended at 48 blocks on open sea, the open-water rule then
+    // walked to the nearest land, which lay back toward the spot given up (30 to 36 blocks from it, outside NEAR), and the
+    // staircase reached the same flooded layer again (test heel, a flooded start, look 92). so the leave ends only on dry ground
+    // FAR from every fresh spot, walking on along its way past the goal while it is not, and the land walked to from open water
+    // is one FAR from every fresh spot when there is one within the land finder's reach
+
+    // the leave ends: far from the spot it leaves, standing on dry ground (on the ground, not in water) and clear of every
+    // spot given up within FRESH by FAR
+    public static boolean leaveEnds(boolean far, boolean dry, boolean clearOfSpots) {
+        return far && dry && clearOfSpots;
+    }
+
+    // how far past the spot the goal of a way is put once the last goal was reached and the leave did not end: EXTEND more,
+    // or -1 past REACH_MAX (the next way then)
+    public static final int EXTEND = 16;
+    public static final int REACH_MAX = 120;
+
+    public static int nextReach(int reach) {
+        int next = reach + EXTEND;
+        return next > REACH_MAX ? -1 : next;
+    }
+
+    // the goal of a leave by that way, reach blocks from the spot
+    public static int[] target(int spotX, int spotZ, int way, int reach) {
+        double len = Math.hypot(WAYS[way][0], WAYS[way][1]);
+        return new int[]{spotX + (int) Math.round(WAYS[way][0] * reach / len), spotZ + (int) Math.round(WAYS[way][1] * reach / len)};
+    }
+
+    // the land to walk to from open water: the nearest clear of the spots given up (clear), else the nearest of any (any)
+    public static <T> T landPick(T clear, T any) {
+        return clear != null ? clear : any;
     }
 
     // a way down that keeps failing at one place: true at the count-th failure in a row within radius blocks (level

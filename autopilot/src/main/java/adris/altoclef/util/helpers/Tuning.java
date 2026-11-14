@@ -299,6 +299,39 @@ public final class Tuning {
             // the nearest ground first; its sites are measured from the ground under the feet, and with no block in the bag and
             // nothing under the feet to dig there is no shut-in on the spot, the buddy's ObtainSafe and DigIn)
             java.util.Map.entry("shelter_down_from_tree", 1.0),
+            // (fixes of 14 Nov 2026, two live looks at whole runs from a bare start, the test heel: M3's kit lost on the way and no
+            // sticks deep down)
+            // standing in water with no empty bottle (or bucket) in the bag, the fill's own branch is skipped, so the bottles'
+            // table walk and craft run to their end: it flipped every 3 s between "in it" and "getting bottle", 102 table walks
+            // begun in 6 minutes, CollectBucketLiquidTask
+            java.util.Map.entry("bottle_in_water_fix", 1.0),
+            // a crafting table a craft put down goes back in the bag when the craft is cut (a fight, the chain took over, the
+            // parent moved on), not only when it is done; while a fight holds the craft the table waits, and one that cannot be
+            // broken at once is fetched within 32 blocks for five game minutes when the bag has none, CraftInTableTask, StationsBack
+            java.util.Map.entry("table_back_on_cut", 1.0),
+            // a full bag throws natural junk first (moss, calcite, basalt, tuff, diorite, flowers, seeds...) and no kit item
+            // (tools, the bucket, glass, bottles, wood, sticks, food, gold, obsidian, the brew's makings) while anything else
+            // may go; an iron or better pickaxe is never the worse of two tools. it threw the glass and the bucket with moss and
+            // basalt in the bag, GarbageRules, StorageHelper (bag_junk_first, of 13 Nov, keeps its own tier ahead of these)
+            java.util.Map.entry("bag_kit_last", 1.0),
+            // the furnace burns no wood under a reserve of 3 planks (a log) and 2 sticks' worth; a branch mine makes sticks while
+            // the bag has the wood for them past that reserve, and the next pickaxe (iron from 3 ingots, else stone) while the
+            // last one above wood is still good for the last of its uses, WoodFuel, StickReserve, BranchMineTask
+            java.util.Map.entry("stick_reserve", 1.0),
+            // under a roof with the log more than 16 above the feet, a timed-out search to it strikes no tree: up to the surface
+            // first (baritone's goal of the sky's height over the column, which takes the way it came, digs or pillars), and
+            // three trees given up in a row with no log mined is "logs out of reach from here" and the same climb; a tree's ban
+            // that ends is one line, MineAndCollectTask, LogReach, Bans
+            java.util.Map.entry("log_far_surface", 1.0),
+            // the buddy's route (ObtainRoute): before the portal a crafting table while none is in the bag and less than 4 planks
+            // of wood, and the M3 kit's missing pieces asked again, each with its three tries (his word: M4 begins with the
+            // whole kit)
+            java.util.Map.entry("m34_kit_again", 1.0),
+            // (a fix of 14 Nov 2026, a live look at the test heel's flooded start, look 92) the leave from a spot a mine gave up ends
+            // only on dry ground 48 from every fresh spot given up, its goal moved on along the way while it does not, the next way
+            // past 120; the land walked to from open water is one 48 from every such spot when one lies within 64; the place watch
+            // and its fires are kept over a task made anew, BranchMineTask, MineLeave, LandFinder
+            java.util.Map.entry("mine_leave_dry", 1.0),
             // (a fix of 13 Nov 2026, test heel's first stone under the rigs' anti-xray, where every buried block below y 64 reaches
             // the client as an ore: with legitMine on in the overworld and the best stone more than 8 blocks below the feet, or
             // none known, a pit four deep at the feet first, so the real stone shows and the look round the feet takes it,

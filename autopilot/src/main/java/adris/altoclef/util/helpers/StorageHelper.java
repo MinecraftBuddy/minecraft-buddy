@@ -213,7 +213,7 @@ public class StorageHelper {
         Bag bag = bag(mod);
         int units = bagFoodUnits(mod);
         return at(bag, GarbageRules.nextPick(entries(mod, bag, units), reserve(), Baritone.settings().altoThrowAwayUnusedItems.value,
-                units, Baritone.settings().altoFoodKeepUnits.value, GarbageRules.junkFirstNow()));
+                units, Baritone.settings().altoFoodKeepUnits.value, GarbageRules.junkFirstNow(), GarbageRules.kitNow()));
     }
 
     // one look at the bag: its slots, what is in them (read off the menu slot itself: under a menu Slot has no type for, window 45
@@ -300,7 +300,8 @@ public class StorageHelper {
         List<GarbageRules.Entry> entries = entries(mod, bag, bagFoodUnits(mod));
         // (bag_junk_first: the deep mine's leftovers are junk too, ahead of the rest)
         int first = GarbageRules.junkFirstPick(entries, GarbageRules.junkFirstNow());
-        return at(bag, first >= 0 ? first : GarbageRules.junkPick(entries, reserve()));
+        // (bag_kit_last: no kit item on the throwaway list, sand, is junk)
+        return at(bag, first >= 0 ? first : GarbageRules.junkPick(entries, reserve(), GarbageRules.kitNow()));
     }
 
     // the End's beds and wool in this slot (DropRoom.reserved). the victim throw's last look, the bag may have changed since the room decision
@@ -342,6 +343,8 @@ public class StorageHelper {
         private final int _reserve;
         private final int _pick;
         private final java.util.function.ToIntFunction<Item> _junkFirst;
+        // (bag_kit_last) the kit kept last, null for the old order
+        private final java.util.function.Predicate<Item> _kit;
 
         private GarbageView(AltoClef mod) {
             _mod = mod;
@@ -353,7 +356,8 @@ public class StorageHelper {
             _throwUnused = Baritone.settings().altoThrowAwayUnusedItems.value;
             _reserve = reserve();
             _junkFirst = GarbageRules.junkFirstNow();
-            _pick = GarbageRules.nextPick(_entries, _reserve, _throwUnused, _foodUnits, _floor, _junkFirst);
+            _kit = GarbageRules.kitNow();
+            _pick = GarbageRules.nextPick(_entries, _reserve, _throwUnused, _foodUnits, _floor, _junkFirst, _kit);
         }
 
         public boolean isThrowaway(Item item) {
@@ -381,7 +385,7 @@ public class StorageHelper {
             int after = GarbageRules.unitsAfterSwap(_foodUnits, _bag.stacks.get(_pick), drop);
             GarbageRules.Entry in = new GarbageRules.Entry(drop, ItemHelper.canDropStack(_mod, drop, after) && !wouldWear(_mod, drop),
                     _ranks.getOrDefault(drop.getItem(), -1));
-            return GarbageRules.dropIsNextPick(entriesAt(after), _pick, in, _reserve, _throwUnused, after, _floor, _junkFirst);
+            return GarbageRules.dropIsNextPick(entriesAt(after), _pick, in, _reserve, _throwUnused, after, _floor, _junkFirst, _kit);
         }
 
         // room for a drop with the bag as it is: FIT, EVICT a slot, or NONE (see DropRoom). the death pile's filter, the

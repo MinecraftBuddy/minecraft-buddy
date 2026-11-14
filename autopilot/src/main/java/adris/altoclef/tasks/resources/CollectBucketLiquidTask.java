@@ -145,6 +145,11 @@ public class CollectBucketLiquidTask extends ResourceTask {
         _toCollect = toCollect;
     }
 
+    // (bottle_in_water_fix) the fill where the buddy stands waits for an empty one in the bag
+    static boolean bottleInWaterFix() {
+        return adris.altoclef.util.helpers.Tuning.get("bottle_in_water_fix", 0) > 0;
+    }
+
     // how many full ones the bag holds. a bucket is its item; a water bottle is a potion, and so is every other drink
     protected int filledCount(AltoClef mod) {
         return mod.getItemStorage().getItemCount(_target);
@@ -213,7 +218,11 @@ public class CollectBucketLiquidTask extends ResourceTask {
             }
         }
         // If we're standing inside a liquid, go pick it up.
-        if (_tryImmediatePickupTimer.elapsed() && (_empty != Items.BUCKET || !mod.getItemStorage().hasItem(Items.WATER_BUCKET))) {
+        // (the buddy's fork, Tuning bottle_in_water_fix, a fix of 14 Nov 2026, on) only with an empty one in the bag to fill. with
+        // none, the click did nothing and the branch's null every 3 s cut the fetch of the empties below: in a pond the bottles'
+        // table walk began anew 102 times in 6 minutes and never got to a table or to its own fallback
+        if (_tryImmediatePickupTimer.elapsed() && (_empty != Items.BUCKET || !mod.getItemStorage().hasItem(Items.WATER_BUCKET))
+                && (!bottleInWaterFix() || mod.getItemStorage().hasItem(_empty))) {
             Block standingInside = mod.getWorld().getBlockState(mod.getPlayer().blockPosition()).getBlock();
             if (standingInside == _toCollect) {
                 setDebugState("Trying to collect (we are in it)");

@@ -212,6 +212,13 @@ public final class LandFinder {
     // to dig in: the top of an iceberg counted as land, and the staircase from it stepped down onto the ice again, the walk to
     // land and the next step taking turns twice a second for an hour, 10 Nov 2026)
     public static BlockPos nearestLand(AltoClef mod, BlockPos feet, int reach, boolean noIce) {
+        return nearestLand(mod, feet, reach, noIce, null);
+    }
+
+    // (the buddy's fork, Tuning mine_leave_dry) the nearest land that `prefer` likes, else the nearest of any (MineLeave.landPick);
+    // prefer null: the nearest
+    public static BlockPos nearestLand(AltoClef mod, BlockPos feet, int reach, boolean noIce, java.util.function.Predicate<BlockPos> prefer) {
+        BlockPos any = null;
         Level level = mod.getWorld();
         for (int r = 2; r <= reach; r += r < 64 ? 2 : 4) {
             int s = r < 64 ? 2 : 4;
@@ -222,12 +229,15 @@ public final class LandFinder {
                     if (!level.hasChunk(x >> 4, z >> 4)) continue;
                     int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
                     BlockState ground = level.getBlockState(new BlockPos(x, top - 1, z));
-                    if (ground.getFluidState().isEmpty() && ground.isSolid() && !(noIce && (ice(ground) || iceUnder(level, new BlockPos(x, top, z), ICE_DEPTH))))
-                        return new BlockPos(x, top, z);
+                    if (ground.getFluidState().isEmpty() && ground.isSolid() && !(noIce && (ice(ground) || iceUnder(level, new BlockPos(x, top, z), ICE_DEPTH)))) {
+                        BlockPos land = new BlockPos(x, top, z);
+                        if (prefer == null || prefer.test(land)) return land;
+                        if (any == null) any = land;
+                    }
                 }
             }
         }
-        return null;
+        return MineLeave.landPick(null, any);
     }
 
     // no land loaded: the way the sea floor rises, a point SHORE_STEP blocks that way at the surface, or null with nothing

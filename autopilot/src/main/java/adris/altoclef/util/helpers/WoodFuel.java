@@ -52,7 +52,10 @@ public final class WoodFuel {
     // the plan for FuelPolicy from the task under way, 0 with the key off. called where the bag's fuel is counted, so the slot's
     // fill later in the same tick reads the same plan
     public static void refresh(AltoClef mod) {
-        FuelPolicy.plan(on() ? planPlanks(mod) : 0);
+        // (Tuning stick_reserve, a fix of 14 Nov 2026, on) and the next pickaxe's wood on top: 3 planks (or a log) and the planks
+        // of 2 sticks while the bag holds fewer, StickReserve
+        int keep = StickReserve.on() ? StickReserve.fuelKeepPlanks(mod.getItemStorage().getItemCount(Items.STICK)) : 0;
+        FuelPolicy.plan(on() ? planPlanks(mod) + keep : 0);
     }
 
     // one recipe of the task chain as the plan sees it: its planks, log and stick slots per craft, and the crafts still to do

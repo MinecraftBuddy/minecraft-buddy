@@ -1722,6 +1722,11 @@ public class MineAndCollectTask extends ResourceTask {
             if (pit != null) {
                 return pit;
             }
+            // (Tuning log_far_surface) up to the surface first, the logs are out of reach from down here
+            Task up = logClimb(mod);
+            if (up != null) {
+                return up;
+            }
             if (mod.getClientBaritone().getPathingBehavior().isPathing()) {
                 _progressChecker.reset();
             }
@@ -1731,6 +1736,12 @@ public class MineAndCollectTask extends ResourceTask {
             }
             if (_miningPos != null && !_progressChecker.check(mod, _miningPos)) {
                 mod.getClientBaritone().getPathingBehavior().forceCancel();
+                if (_logsOnly && farLog(mod, _miningPos) && startClimb(mod, "got nowhere on the log at " + _miningPos.toShortString())) {
+                    // (log_far_surface) no ban, no strike and no dirt trip: the log is no worse than any other from up there
+                    _miningPos = null;
+                    _progressChecker.newTarget();
+                    return logClimb(mod);
+                }
                 if (_logsOnly && askForDirt(mod, _miningPos)) {
                     // same deal as giveUpNoPath: a path that goes nowhere with an empty bag gets a tower before a ban
                     Debug.logMessage("Got nowhere on the log at " + _miningPos.toShortString() + ", getting dirt to tower up to it.");
@@ -1784,6 +1795,14 @@ public class MineAndCollectTask extends ResourceTask {
             BlockPos stuck = _miningPos;
             var dim = WorldHelper.getCurrentDimension();
             mod.getClientBaritone().getPathingBehavior().forceCancel();
+            if (_logsOnly && farLog(mod, stuck) && startClimb(mod, "no way to the log at " + stuck.toShortString()
+                    + (verdict == NoPathScope.Verdict.EXHAUSTED ? " (searched it all)" : " (search timed out)"))) {
+                // (log_far_surface) no ban and no strike, no dirt trip either: from up there the log is no worse than any other
+                _miningPos = null;
+                _progressChecker.newTarget();
+                _noPath.disarm();
+                return;
+            }
             if (_logsOnly && askForDirt(mod, stuck)) {
                 // no ban, no strike: with dirt in the bag baritone towers up beside the trunk. a second no path after the trip
                 // (tripsOn) is the real one and lands below
@@ -1848,6 +1867,99 @@ public class MineAndCollectTask extends ResourceTask {
             _anchor = null;
             _anchorAnnounced = false;
             Debug.logMessage("Giving up on the tree at " + stalled.getX() + " " + stalled.getY() + " " + stalled.getZ() + ", on to another one.");
+            // (log_far_surface) three trees in a row with no log mined: out of reach from here, up to the surface
+            int logsNow = mod.getItemStorage().getItemCount(ItemHelper.LOG);
+            treesRow = adris.altoclef.util.helpers.LogReach.row(treesRow, rowLogs, logsNow);
+            rowLogs = logsNow;
+            if (adris.altoclef.util.helpers.LogReach.on() && adris.altoclef.util.helpers.LogReach.outOfReach(treesRow)
+                    && startClimb(mod, "logs out of reach from here, " + treesRow + " trees given up in a row with no log mined")) {
+                treesRow = 0;
+            }
+        }
+
+        // ---- (Tuning log_far_surface, a fix of 14 Nov 2026, on) logs seen from deep under the ground (LogReach). static for the
+        // same reason as the strikes: the parent rebuilds this task whenever it likes, and the climb has to outlive that
+        private static long climbSince = Long.MIN_VALUE;
+        private static int climbY;
+        private static Task climbTask;
+        private static long climbOffUntil = Long.MIN_VALUE;
+        // trees given up in a row, and the bag's logs at the last one
+        private static int treesRow;
+        private static int rowLogs;
+
+        // how far under the sky's height over the column the feet are
+        private static int depthBelowSky(AltoClef mod, BlockPos feet) {
+            return mod.getWorld().getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, feet.getX(), feet.getZ())
+                    - feet.getY();
+        }
+
+        // a log far over the feet of a buddy under a roof, in the overworld, with the key on
+        private boolean farLog(AltoClef mod, BlockPos log) {
+            if (log == null || !adris.altoclef.util.helpers.LogReach.on() || WorldHelper.getCurrentDimension() != Dimension.OVERWORLD
+                    || mod.getPlayer() == null) {
+                return false;
+            }
+            BlockPos feet = mod.getPlayer().blockPosition();
+            return adris.altoclef.util.helpers.LogReach.farFromHere(depthBelowSky(mod, feet), log.getY() - feet.getY());
+        }
+
+        // the climb begins (true), or not: one is under way, the last gave up less than five minutes ago, or there is no roof
+        private static boolean startClimb(AltoClef mod, String why) {
+            long now = mod.getWorld().getGameTime();
+            if (climbSince != Long.MIN_VALUE || now < climbOffUntil || mod.getPlayer() == null
+                    || WorldHelper.getCurrentDimension() != Dimension.OVERWORLD) {
+                return climbSince != Long.MIN_VALUE;
+            }
+            BlockPos feet = mod.getPlayer().blockPosition();
+            int depth = depthBelowSky(mod, feet);
+            if (depth <= adris.altoclef.util.helpers.LogReach.ROOF) {
+                return false;
+            }
+            climbSince = now;
+            climbY = feet.getY() + depth;
+            climbTask = new adris.altoclef.tasks.movement.GetToYTask(climbY);
+            Debug.logMessage("Logs: " + why + ", " + depth + " blocks under the surface at y " + feet.getY() + ", going up to y " + climbY
+                    + " first (log_far_surface).");
+            return true;
+        }
+
+        // the climb under way, or null: over in the open, given up after its cap, a new height when the old one is met under a roof
+        private Task logClimb(AltoClef mod) {
+            if (!_logsOnly || climbSince == Long.MIN_VALUE || mod.getPlayer() == null) {
+                return null;
+            }
+            long now = mod.getWorld().getGameTime();
+            if (!adris.altoclef.util.helpers.LogReach.on() || WorldHelper.getCurrentDimension() != Dimension.OVERWORLD) {
+                climbSince = Long.MIN_VALUE;
+                climbTask = null;
+                return null;
+            }
+            BlockPos feet = mod.getPlayer().blockPosition();
+            int depth = depthBelowSky(mod, feet);
+            switch (adris.altoclef.util.helpers.LogReach.step(feet.getY(), climbY, depth, climbSince, now)) {
+                case ARRIVED -> {
+                    Debug.logMessage("Logs: up at y " + feet.getY() + ", the trees from here (log_far_surface).");
+                    climbSince = Long.MIN_VALUE;
+                    climbTask = null;
+                    treesRow = 0;
+                    return null;
+                }
+                case GAVE_UP -> {
+                    Debug.logMessage("Logs: no way up in three game minutes, the trees from down here (log_far_surface).");
+                    climbSince = Long.MIN_VALUE;
+                    climbTask = null;
+                    climbOffUntil = now + adris.altoclef.util.helpers.LogReach.OFF_AFTER;
+                    return null;
+                }
+                case RETARGET -> {
+                    climbY = feet.getY() + depth;
+                    climbTask = new adris.altoclef.tasks.movement.GetToYTask(climbY);
+                }
+                default -> {
+                }
+            }
+            setDebugState("Up to the surface first, the logs are out of reach from down here", "Going up for logs");
+            return climbTask;
         }
 
         @Override

@@ -135,6 +135,10 @@ public class CraftInTableTask extends ResourceTask {
         // (StationsBack)
         if (isFinished(mod)) {
             adris.altoclef.tasks.misc.StationsBack.left(mod, _craftTask.ownStation(mod));
+        } else {
+            // (Tuning table_back_on_cut, a fix of 14 Nov 2026, on) cut before it was done, by a fight (a pause) or a parent that
+            // moved on: the table waits while this craft can still come back to it, then goes back in the bag (StationsBack.cut)
+            adris.altoclef.tasks.misc.StationsBack.cut(mod, _craftTask.ownStation(mod), this);
         }
         // Get the item stack in the cursor slot.
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();

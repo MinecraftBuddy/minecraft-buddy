@@ -579,4 +579,92 @@ public class GarbageRulesTest {
         assertEquals(-1, GarbageRules.junkFirstRank(Items.RAW_IRON));
         assertEquals(-1, GarbageRules.junkFirstRank(Items.RAW_GOLD));
     }
+
+    // ---- bag_kit_last (14 Nov 2026, look 89: a full bag threw the glass and the bucket with moss, basalt and calcite in it)
+
+    private static int nextKit(List<GarbageRules.Entry> bag) {
+        return GarbageRules.nextPick(bag, 64, true, 0, 0, GarbageRules::junkAllRank, GarbageRules::kitItem);
+    }
+
+    @Test
+    public void theNaturalJunkGoesBeforeTheGlassAndTheBucket() {
+        List<GarbageRules.Entry> bag = List.of(e(Items.GLASS, 3), e(Items.BUCKET, 1), e(Items.MOSS_BLOCK, 30), e(Items.BASALT, 12),
+                e(Items.CALCITE, 9), e(Items.STRING, 2));
+        // the old order: the smallest stack of the "anything" tier, the bucket
+        assertEquals(1, next(bag));
+        // moss first, then calcite, then basalt, whatever the counts
+        assertEquals(2, nextKit(bag));
+        assertEquals(3, nextKit(List.of(e(Items.GLASS, 3), e(Items.BUCKET, 1), e(Items.BASALT, 12), e(Items.CALCITE, 9))));
+        assertEquals(2, nextKit(List.of(e(Items.GLASS, 3), e(Items.BUCKET, 1), e(Items.BASALT, 12))));
+        // the plants before the stones, the deep mine's leftovers (bag_junk_first) before both
+        assertEquals(1, nextKit(List.of(e(Items.TUFF, 5), e(Items.POPPY, 1), e(Items.DIORITE, 64))));
+        assertEquals(2, nextKit(List.of(e(Items.TUFF, 5), e(Items.POPPY, 1), e(Items.CINNABAR, 64))));
+        assertTrue(GarbageRules.junkWideRank(Items.MOSS_CARPET) > GarbageRules.junkFirstRank(Items.RAW_COPPER));
+    }
+
+    @Test
+    public void noKitItemGoesWhileAnythingElseMay() {
+        // string is no kit: it goes before the bucket, the glass and the bottles
+        assertEquals(3, nextKit(List.of(e(Items.GLASS, 3), e(Items.BUCKET, 1), e(Items.GLASS_BOTTLE, 2), e(Items.STRING, 9))));
+        // nothing but kit: the old order among them
+        List<GarbageRules.Entry> kitOnly = List.of(e(Items.GLASS, 3), e(Items.BUCKET, 1), e(Items.OAK_PLANKS, 20), e(Items.STICK, 6));
+        assertEquals(next(kitOnly), nextKit(kitOnly));
+        // a kit item on the throwaway list (sand, the glass's) is no junk: the cobble past the reserve goes, never the sand (the
+        // old order threw the sand, ahead of cobble on the list)
+        List<GarbageRules.Entry> blocks = List.of(junk(Items.SAND, 3), junk(Items.COBBLESTONE, 64), junk(Items.COBBLESTONE, 64));
+        assertEquals(0, next(blocks));
+        assertEquals(1, nextKit(blocks));
+        assertEquals(0, GarbageRules.junkPick(List.of(junk(Items.SAND, 40), junk(Items.COBBLESTONE, 40)), 64));
+        // (nor does it count toward the reserve: the cobble alone is under it)
+        assertEquals(-1, GarbageRules.junkPick(List.of(junk(Items.SAND, 40), junk(Items.COBBLESTONE, 40)), 64, GarbageRules::kitItem));
+        // with the key off (no kit) the order is the old one
+        List<GarbageRules.Entry> any = List.of(e(Items.STRING, 1), e(Items.STONE_SWORD, 1), e(Items.WOODEN_SWORD, 1), e(Items.BUCKET, 1));
+        assertEquals(next(any), GarbageRules.nextPick(any, 64, true, 0, 0, item -> -1, null));
+    }
+
+    @Test
+    public void anIronOrDiamondPickaxeIsNeverTheWorseOfTwoTools() {
+        // the old order threw the iron pickaxe, worse than the diamond one: the kit keeps two of iron or better
+        List<GarbageRules.Entry> picks = List.of(e(Items.DIAMOND_PICKAXE, 1), e(Items.IRON_PICKAXE, 1), e(Items.BUCKET, 1));
+        assertEquals(1, next(picks));
+        // with the kit kept last: no worse tool to throw, so the last tier's order (the bucket, the smallest stack, before tools)
+        assertEquals(2, nextKit(picks));
+        // a wooden pickaxe beside a stone one still goes as the worse of two, after the non-kit rest
+        assertEquals(1, nextKit(List.of(e(Items.STONE_PICKAXE, 1), e(Items.WOODEN_PICKAXE, 1), e(Items.BUCKET, 1))));
+        assertEquals(3, nextKit(List.of(e(Items.STONE_PICKAXE, 1), e(Items.WOODEN_PICKAXE, 1), e(Items.BUCKET, 1), e(Items.FEATHER, 3))));
+    }
+
+    @Test
+    public void theKitIsWhatTheRouteAsksFor() {
+        for (net.minecraft.world.item.Item kit : new net.minecraft.world.item.Item[]{Items.BUCKET, Items.WATER_BUCKET, Items.GLASS,
+                Items.GLASS_BOTTLE, Items.POTION, Items.BED.red(), Items.CRAFTING_TABLE, Items.OAK_LOG, Items.SPRUCE_PLANKS, Items.STICK,
+                Items.IRON_PICKAXE, Items.WOODEN_PICKAXE, Items.DIAMOND_SWORD, Items.GOLDEN_HELMET, Items.IRON_CHESTPLATE,
+                Items.COOKED_BEEF, Items.GOLD_INGOT, Items.RAW_GOLD, Items.OBSIDIAN, Items.FLINT_AND_STEEL, Items.REDSTONE,
+                Items.SLIME_BALL, Items.NETHER_WART, Items.SAND, Items.COAL, Items.TORCH}) {
+            assertTrue(kit.toString(), GarbageRules.kitItem(kit));
+        }
+        for (net.minecraft.world.item.Item other : new net.minecraft.world.item.Item[]{Items.MOSS_BLOCK, Items.BASALT, Items.CALCITE,
+                Items.TUFF, Items.DIORITE, Items.COBBLESTONE, Items.COBBLED_DEEPSLATE, Items.DIRT, Items.STRING, Items.ROTTEN_FLESH,
+                Items.WHEAT_SEEDS, Items.POPPY}) {
+            assertFalse(other.toString(), GarbageRules.kitItem(other));
+        }
+        // the core building blocks keep the reserve's rules: no rank of the wide junk
+        assertEquals(-1, GarbageRules.junkWideRank(Items.COBBLESTONE));
+        assertEquals(-1, GarbageRules.junkWideRank(Items.COBBLED_DEEPSLATE));
+        assertEquals(-1, GarbageRules.junkWideRank(Items.DIRT));
+        assertEquals(-1, GarbageRules.junkWideRank(Items.SAND));
+        // no kit item is junk
+        for (net.minecraft.world.item.Item kit : new net.minecraft.world.item.Item[]{Items.GLASS, Items.STICK, Items.FLINT, Items.OAK_LOG}) {
+            assertEquals(-1, GarbageRules.junkAllRank(kit));
+        }
+    }
+
+    @Test
+    public void aDropOfJunkIntoABagThrowingJunkComesStraightBack() {
+        List<GarbageRules.Entry> bag = List.of(e(Items.BUCKET, 1), e(Items.MOSS_BLOCK, 20));
+        int pick = nextKit(bag);
+        assertEquals(1, pick);
+        assertTrue(GarbageRules.dropIsNextPick(bag, pick, e(Items.CALCITE, 3), 64, true, 0, 0, GarbageRules::junkAllRank, GarbageRules::kitItem));
+        assertFalse(GarbageRules.dropIsNextPick(bag, pick, e(Items.GLASS, 3), 64, true, 0, 0, GarbageRules::junkAllRank, GarbageRules::kitItem));
+    }
 }

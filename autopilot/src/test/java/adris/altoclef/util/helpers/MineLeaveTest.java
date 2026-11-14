@@ -138,4 +138,44 @@ public class MineLeaveTest {
         assertFalse(s.fail(100, 200, 1280));
         assertEquals(1, s.count());
     }
+
+    // ---- (Tuning mine_leave_dry, look 92: the leave ended at 48 blocks on open sea, and the land walked to from there lay back
+    // toward the spot given up)
+
+    @Test
+    public void theLeaveEndsOnlyOnDryGroundClearOfEverySpot() {
+        assertTrue(MineLeave.leaveEnds(true, true, true));
+        // 48 blocks off, swimming: on along the way
+        assertFalse(MineLeave.leaveEnds(true, false, true));
+        // 48 from this spot but within 48 of another one given up
+        assertFalse(MineLeave.leaveEnds(true, true, false));
+        assertFalse(MineLeave.leaveEnds(false, true, true));
+    }
+
+    @Test
+    public void aWaysGoalMovesOnUntilItsMax() {
+        assertEquals(MineLeave.TARGET + MineLeave.EXTEND, MineLeave.nextReach(MineLeave.TARGET));
+        int reach = MineLeave.TARGET, n = 0;
+        while ((reach = MineLeave.nextReach(reach)) > 0) n++;
+        // 56, 72, 88, 104, 120: four more goals along a way, then the next way
+        assertEquals(4, n);
+        assertArrayEquals(new int[]{100 + 72, 200}, MineLeave.target(100, 200, 0, 72));
+        assertArrayEquals(MineLeave.target(100, 200, 3), MineLeave.target(100, 200, 3, MineLeave.TARGET));
+    }
+
+    @Test
+    public void theLandFromOpenWaterIsClearOfTheSpotsGivenUp() {
+        MineLeave.Spots spots = new MineLeave.Spots(8);
+        spots.record("OVERWORLD", 0, 0, 1000);
+        // the nearest land 33 blocks from the spot (outside NEAR, inside FAR): not clear
+        assertFalse(spots.clearOf("OVERWORLD", 33, 0, 2000, MineLeave.FAR, MineLeave.FRESH));
+        assertTrue(spots.clearOf("OVERWORLD", 49, 0, 2000, MineLeave.FAR, MineLeave.FRESH));
+        // an old spot, another dimension: clear
+        assertTrue(spots.clearOf("OVERWORLD", 33, 0, 1000 + MineLeave.FRESH + 1, MineLeave.FAR, MineLeave.FRESH));
+        assertTrue(spots.clearOf("NETHER", 33, 0, 2000, MineLeave.FAR, MineLeave.FRESH));
+        // the land picked: the nearest clear one, else the nearest of any, else none
+        assertEquals("far", MineLeave.landPick("far", "near"));
+        assertEquals("near", MineLeave.landPick(null, "near"));
+        assertNull(MineLeave.landPick(null, null));
+    }
 }

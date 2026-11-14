@@ -56,7 +56,8 @@ public final class Bans {
 
     // strike = this ban is the one the strike count earned (see strike), the count goes with it and nothing else.
     // scope null = everybody honours it (the trackers do), otherwise only a caller that asks for that scope sees it
-    private record Ban(Key key, String reason, long until, EnumSet<Until> events, int tool, boolean strike, String scope) {
+    // group: the batch's summary (banAll), whose end is one line for the lot (Tuning log_far_surface); null for a ban of its own
+    private record Ban(Key key, String reason, long until, EnumSet<Until> events, int tool, boolean strike, String scope, String group) {
         boolean holds(long now, String asking) {
             return until > now && (scope == null || scope.equals(asking));
         }
@@ -194,7 +195,7 @@ public final class Bans {
     public synchronized int banAll(Iterable<Key> keys, String reason, long ticks, String summary) {
         int n = 0;
         for (Key key : keys) {
-            if (add(key, reason, ticks, false, null, true)) {
+            if (add(key, reason, ticks, false, null, true, summary)) {
                 n++;
             }
         }
@@ -205,6 +206,10 @@ public final class Bans {
     }
 
     private boolean add(Key key, String reason, long ticks, boolean strike, String scope, boolean quiet, Until... until) {
+        return add(key, reason, ticks, strike, scope, quiet, null, until);
+    }
+
+    private boolean add(Key key, String reason, long ticks, boolean strike, String scope, boolean quiet, String group, Until... until) {
         List<Ban> list = bans.computeIfAbsent(key, k -> new ArrayList<>(1));
         for (Ban b : list) {
             if (b.reason.equals(reason) && Objects.equals(b.scope, scope) && b.until > now) {
@@ -213,7 +218,7 @@ public final class Bans {
         }
         long end = ticks == RUN ? RUN : now + ticks;
         EnumSet<Until> events = until.length == 0 ? EnumSet.noneOf(Until.class) : EnumSet.of(until[0], until);
-        Ban b = new Ban(key, reason, end, events, tool, strike, scope);
+        Ban b = new Ban(key, reason, end, events, tool, strike, scope, group);
         list.add(b);
         nextExpiry = Math.min(nextExpiry, end);
         if (!quiet) {
@@ -322,6 +327,10 @@ public final class Bans {
 
     private int expireIf(Predicate<Ban> gone, String why, boolean quiet) {
         int n = 0;
+        // (Tuning log_far_surface, a fix of 14 Nov 2026, on) a batch's bans that end together are one line, as their start was: a
+        // tree given up is a ban per log, and its end was twenty lines at once (test heel, look 88)
+        boolean grouped = !quiet && groupedEnds();
+        Map<String, Integer> groups = grouped ? new java.util.LinkedHashMap<>() : null;
         Iterator<Map.Entry<Key, List<Ban>>> it = bans.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<Key, List<Ban>> e = it.next();
@@ -331,7 +340,9 @@ public final class Bans {
                 if (gone.test(b)) {
                     inner.remove();
                     n++;
-                    if (!quiet) {
+                    if (grouped && b.group != null) {
+                        groups.merge(b.group + ", " + b.reason, 1, Integer::sum);
+                    } else if (!quiet) {
                         log.accept("ban: - " + b.key + ", " + b.reason + " (" + why + ")");
                     }
                     // the count starts over when the ban it earned is over. a short ban some task put on the same key
@@ -345,7 +356,16 @@ public final class Bans {
                 it.remove();
             }
         }
+        if (groups != null) {
+            for (Map.Entry<String, Integer> g : groups.entrySet()) {
+                log.accept("ban: - " + g.getValue() + " " + g.getKey() + " (" + why + ")");
+            }
+        }
         return n;
+    }
+
+    static boolean groupedEnds() {
+        return adris.altoclef.util.helpers.Tuning.get("log_far_surface", 0) > 0;
     }
 
     private static long chunkKey(int x, int z) {
