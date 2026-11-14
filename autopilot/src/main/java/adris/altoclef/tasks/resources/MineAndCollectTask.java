@@ -2094,7 +2094,7 @@ public class MineAndCollectTask extends ResourceTask {
         private static long climbOffUntil = Long.MIN_VALUE;
         // (Tuning pickless_way_out) the climb under way is the walk back up the trail (TrailBackTask), not baritone's by hand
         private static boolean climbTrail;
-        static final long TRAIL_CAP = 12000;
+        static final long TRAIL_CAP = adris.altoclef.tasks.movement.TrailBackTask.CAP;
         // trees given up in a row, and the bag's logs at the last one
         private static int treesRow;
         private static int rowLogs;
@@ -2131,7 +2131,7 @@ public class MineAndCollectTask extends ResourceTask {
             climbY = feet.getY() + depth;
             // (pickless_way_out) with no pickaxe above wood the rock is a wall to baritone: back up the way the buddy came down
             // first, the climb by hand only when that walk ends short
-            java.util.List<int[]> way = trailWay(mod);
+            java.util.List<int[]> way = adris.altoclef.util.helpers.DownTrail.wayOut(mod);
             if (way != null) {
                 climbTrail = true;
                 climbTask = new adris.altoclef.tasks.movement.TrailBackTask(way);
@@ -2145,27 +2145,6 @@ public class MineAndCollectTask extends ResourceTask {
             Debug.logMessage("Logs: " + why + ", " + depth + " blocks under the surface at y " + feet.getY() + ", going up to y " + climbY
                     + " first (log_far_surface).");
             return true;
-        }
-
-        // (pickless_way_out) the way back up the trail, or null: the key off, a pickaxe above wood in the bag, or no trail that
-        // starts in the open
-        private static java.util.List<int[]> trailWay(AltoClef mod) {
-            if (!adris.altoclef.util.helpers.DownTrail.on() || pickAboveWood(mod) || !adris.altoclef.util.helpers.DownTrail.GLOBAL.fromOpen()) {
-                return null;
-            }
-            java.util.List<int[]> way = adris.altoclef.util.helpers.DownTrail.GLOBAL.wayBack();
-            return way.size() >= 2 ? way : null;
-        }
-
-        // a pickaxe above wood (not wooden or golden) in the bag
-        private static boolean pickAboveWood(AltoClef mod) {
-            var inv = mod.getPlayer().getInventory();
-            for (int i = 0; i < inv.getContainerSize(); i++) {
-                net.minecraft.world.item.ItemStack st = inv.getItem(i);
-                if (st.isEmpty() || st.is(net.minecraft.world.item.Items.WOODEN_PICKAXE) || st.is(net.minecraft.world.item.Items.GOLDEN_PICKAXE)) continue;
-                if ("pickaxe".equals(ItemHelper.toolKind(st.getItem()))) return true;
-            }
-            return false;
         }
 
         // the climb under way, or null: over in the open, given up after its cap, a new height when the old one is met under a roof
@@ -2184,7 +2163,7 @@ public class MineAndCollectTask extends ResourceTask {
             // (pickless_way_out) the walk back up the trail: over in the open, else on until the trail ends or TRAIL_CAP, then the
             // climb by hand from there with a clock of its own
             if (climbTrail && depth > adris.altoclef.util.helpers.LogReach.ROOF) {
-                boolean over = climbTask == null || climbTask.isFinished(mod) || now < climbSince || now - climbSince > TRAIL_CAP;
+                boolean over = climbTask == null || adris.altoclef.tasks.movement.TrailBackTask.over(climbTask.isFinished(mod), climbSince, now);
                 if (!over) {
                     setDebugState("Back up the way down, the logs are out of reach from here with no pickaxe", "Going up for logs");
                     return climbTask;

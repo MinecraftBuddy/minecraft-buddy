@@ -1,10 +1,14 @@
 package adris.altoclef.tasks.resources;
 
 import adris.altoclef.AltoClef;
+import adris.altoclef.Debug;
 import adris.altoclef.tasks.movement.GetToYTask;
+import adris.altoclef.tasks.movement.TrailBackTask;
 import adris.altoclef.tasksystem.Task;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.levelgen.Heightmap;
+
+import java.util.List;
 
 /**
  * Food from the surface: up to the open sky first, then the food run there (CollectFoodTask). For a food run begun deep
@@ -12,6 +16,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
  * regeneration, after an animal heard through the rock, and both deaths of a gold phase's smoke followed (12 Nov 2026).
  * The way up is a staircase to the surface's height above the spot where the climb began, picked once, so the goal does
  * not move with every column passed; once the sky is in view the food run takes over, wherever that is.
+ * (Tuning food_climb_trail) With no pickaxe above wood the way up is first the way the buddy came down (DownTrail,
+ * TrailBackTask), as for the log climb of pickless_way_out; the staircase by hand only from where that walk ends short.
  */
 public class SurfaceFoodTask extends Task {
 
@@ -19,6 +25,11 @@ public class SurfaceFoodTask extends Task {
     private final CollectFoodTask _food;
     private Integer _topY;
     private boolean _up;
+    // (Tuning food_climb_trail) the walk back up the trail, when it began, and whether it is over (or was never on). kept through
+    // onStart: a walk an interruption broke goes on where it was, on the same clock
+    private TrailBackTask _trail;
+    private long _trailSince;
+    private boolean _trailDone;
 
     public SurfaceFoodTask(double unitsNeeded) {
         _units = unitsNeeded;
@@ -46,6 +57,10 @@ public class SurfaceFoodTask extends Task {
             setDebugState("Food on the surface");
             return _food;
         }
+        Task back = trailBack(mod, feet);
+        if (back != null) {
+            return back;
+        }
         if (_topY == null) {
             _topY = climbTo(mod.getWorld().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, feet.getX(), feet.getZ()),
                     mod.getWorld().getSeaLevel());
@@ -69,6 +84,41 @@ public class SurfaceFoodTask extends Task {
         }
         setDebugState("Up to the surface for food, to y " + _topY);
         return new GetToYTask(_topY);
+    }
+
+    // (Tuning food_climb_trail, a fix of 14 Nov 2026, on) the walk back up the way down, null once it is over or when there is
+    // none: the key off (or pickless_way_out, which keeps the trail), a pickaxe above wood in the bag, no trail from the open. a
+    // run with no pickaxe at all in a cave at y 13 to 46 climbed by hand to y 70 for food: rock at 153 a block to baritone,
+    // 360 "No path found" in 32 minutes, raw food and rotten flesh eaten
+    private Task trailBack(AltoClef mod, BlockPos feet) {
+        long now = mod.getWorld().getGameTime();
+        if (_trailDone) {
+            return null;
+        }
+        if (_trail == null) {
+            List<int[]> way = adris.altoclef.util.helpers.Tuning.get("food_climb_trail", 0) > 0
+                    ? adris.altoclef.util.helpers.DownTrail.wayOut(mod) : null;
+            if (way == null) {
+                _trailDone = true;
+                return null;
+            }
+            _trail = new TrailBackTask(way);
+            _trailSince = now;
+            int[] top = way.get(way.size() - 1);
+            Debug.logInternal("food: no pickaxe above wood at y " + feet.getY() + ": back up the way down first, " + way.size()
+                    + " cells to " + top[0] + " " + top[1] + " " + top[2] + " (food_climb_trail)");
+        }
+        if (!TrailBackTask.over(_trail.isFinished(mod), _trailSince, now)) {
+            setDebugState("Back up the way down for food, no pickaxe above wood");
+            return _trail;
+        }
+        Debug.logInternal("food: the way back up " + (_trail.failed() ? "got stuck" : _trail.isFinished(mod) ? "ended"
+                : "took " + TrailBackTask.CAP / 1200 + " game minutes") + " at y " + feet.getY()
+                + " with no sky in view: the climb by hand from here (food_climb_trail)");
+        _trailDone = true;
+        // the surface's height read again over the column the walk ended at
+        _topY = null;
+        return null;
     }
 
     @Override

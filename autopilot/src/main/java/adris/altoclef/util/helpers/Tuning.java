@@ -478,6 +478,10 @@ public final class Tuning {
             // band latched on a cave's ceiling 16 under the feet, past the fake ores, took 45 minutes and 777 no-path bans with no
             // cobblestone and no pit
             java.util.Map.entry("tunnel_no_fakes", 1.0),
+            // with no pickaxe above wood the food climb walks back up the way the buddy came down first (DownTrail, TrailBackTask;
+            // it needs pickless_way_out, which keeps the trail), the staircase by hand only from where that walk ends short
+            // (SurfaceFoodTask): with no pickaxe at y 13 to 46 in a cave, 360 "No path found" in 32 minutes climbing by hand
+            java.util.Map.entry("food_climb_trail", 1.0),
             // a mob that strikes out again on "couldn't reach": 60 s, 120 s, 240 s, then for the run or until it hits us (Bans,
             // BanPolicy): one zombie banned 25 times in 40 minutes, 60 s each time
             java.util.Map.entry("entity_ban_grow", 1.0),

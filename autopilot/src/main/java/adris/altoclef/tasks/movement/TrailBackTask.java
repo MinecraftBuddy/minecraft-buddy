@@ -15,6 +15,8 @@ public class TrailBackTask extends Task {
     static final long CELL_STUCK = 300;
     static final int MISSES = 3;
     static final double AT = 1.5;
+    // a walk's game ticks at most (10 game minutes), then the climb by hand from where it got to
+    public static final long CAP = 12000;
 
     private final List<int[]> _way;
     private int _next;
@@ -75,6 +77,11 @@ public class TrailBackTask extends Task {
         }
         setDebugState("Back up the way down, " + left() + " cells to go");
         return _walk;
+    }
+
+    // the walk begun at since is over at now: done or failed (finished), or past CAP (a clock gone back counts as past it)
+    public static boolean over(boolean finished, long since, long now) {
+        return finished || now < since || now - since > CAP;
     }
 
     private static boolean at(BlockPos feet, int[] c) {

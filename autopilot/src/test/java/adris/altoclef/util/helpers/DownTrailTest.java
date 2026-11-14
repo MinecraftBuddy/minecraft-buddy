@@ -7,6 +7,7 @@ import java.util.List;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 // (Tuning pickless_way_out) the way the buddy came down, for the walk back up with no pickaxe above wood (test heel: no pickaxe at
@@ -60,5 +61,23 @@ public class DownTrailTest {
         t.note(OW, 0, 64, 0, true);
         t.note("minecraft:the_nether", 0, 64, 0, false);
         assertEquals(0, t.size());
+    }
+
+    // (pickless_way_out, food_climb_trail) the way out both climbs take: none with the key off, a pickaxe above wood, no open
+    // start or a trail of one cell
+    @Test
+    public void theWayOutNeedsTheKeyNoPickaxeAndAnOpenStart() {
+        DownTrail t = new DownTrail();
+        t.note(OW, 0, 70, 0, true);
+        assertNull(DownTrail.wayOut(true, false, t));
+        for (int i = 1; i <= 12; i++) t.note(OW, i, 70 - i, 0, false);
+        List<int[]> way = DownTrail.wayOut(true, false, t);
+        assertArrayEquals(new int[]{0, 70, 0}, way.get(way.size() - 1));
+        assertNull(DownTrail.wayOut(false, false, t));
+        assertNull(DownTrail.wayOut(true, true, t));
+        DownTrail roof = new DownTrail();
+        roof.note(OW, 0, 20, 0, false);
+        roof.note(OW, 5, 20, 0, false);
+        assertNull(DownTrail.wayOut(true, false, roof));
     }
 }

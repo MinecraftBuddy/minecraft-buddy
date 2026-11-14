@@ -300,7 +300,8 @@ hunted; their meat is picked up.
 - **Food on the way**: an animal in sight is taken along by the same measure as an ore ("Taken along on the way"). A food
   run takes the animals within reach past its need too. At night or in a thunderstorm a food run starts only under 36
   points or when hungry and hurt; otherwise it waits for the morning. Before the nether the food bar counts wherever the
-  portal goes up, under the ground too.
+  portal goes up, under the ground too. A food run begun deep under the ground climbs to the surface first; with no
+  pickaxe better than wood, back up the way down before climbing by hand.
 - **In the nether**: little food to eat (under 36 points) means a trip home to the overworld for more (not with an order of
   four or more one short: the last one first, unless under 12 points), begun once nothing in sight is on
   the buddy and the fire is out (or the food is all but gone); away from the rim of a bridge or a ledge; never there

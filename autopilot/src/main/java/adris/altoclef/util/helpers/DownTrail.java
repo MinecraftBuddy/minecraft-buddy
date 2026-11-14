@@ -94,6 +94,32 @@ public final class DownTrail {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
+    // the way back up for a climb with no pickaxe above wood (the log climb, pickless_way_out; the food climb, food_climb_trail),
+    // or null: the key off, a pickaxe above wood in the bag, or no trail of two cells or more that starts in the open
+    public static List<int[]> wayOut(boolean on, boolean pickAboveWood, DownTrail trail) {
+        if (!on || pickAboveWood || !trail.fromOpen()) {
+            return null;
+        }
+        List<int[]> way = trail.wayBack();
+        return way.size() >= 2 ? way : null;
+    }
+
+    // wayOut for the buddy now, from GLOBAL
+    public static List<int[]> wayOut(adris.altoclef.AltoClef mod) {
+        return on() ? wayOut(true, pickAboveWood(mod), GLOBAL) : null;
+    }
+
+    // a pickaxe above wood (not wooden or golden) in the bag
+    public static boolean pickAboveWood(adris.altoclef.AltoClef mod) {
+        var inv = mod.getPlayer().getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack st = inv.getItem(i);
+            if (st.isEmpty() || st.is(net.minecraft.world.item.Items.WOODEN_PICKAXE) || st.is(net.minecraft.world.item.Items.GOLDEN_PICKAXE)) continue;
+            if ("pickaxe".equals(ItemHelper.toolKind(st.getItem()))) return true;
+        }
+        return false;
+    }
+
     // AltoClef's tick: the player's feet, in the open when no more than LogReach.ROOF under the sky's height over the column
     public static void tick(adris.altoclef.AltoClef mod) {
         var player = mod.getPlayer();
