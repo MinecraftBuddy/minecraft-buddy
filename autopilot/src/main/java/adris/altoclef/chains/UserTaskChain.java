@@ -127,6 +127,8 @@ public class UserTaskChain extends SingleTaskChain {
         // it has nothing left to do, it is cheap insurance for the paths that drop the root without a stop
         if (oldTask != null) {
             oldTask.letGoOfKeys(mod);
+            // (the buddy's fork, Tuning root_done_table) and the crafting table its last craft put down goes back in the bag
+            adris.altoclef.tasks.misc.StationsBack.rootDone(mod, oldTask);
         }
         _mainTask = null;
         if (_currentOnFinish != null) {

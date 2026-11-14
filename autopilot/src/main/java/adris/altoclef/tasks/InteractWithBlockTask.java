@@ -187,6 +187,14 @@ public class InteractWithBlockTask extends Task {
     // where to walk to instead of the stock goal, for whoever knows better where the block is best used from (the station walk)
     private Function<BlockPos, Goal> _goalFor;
 
+    // (the buddy's fork, Tuning station_no_step_ban) the goal of the walk to the target as of the last tick, null before one
+    private Goal _lastMoveGoal;
+
+    // the last search of the walk's goal, from the block the buddy stands on, got not one node nearer it ("0.0 blocks")
+    public boolean noStepHere(AltoClef mod) {
+        return _lastMoveGoal != null && mod.getClientBaritone().getPathingBehavior().noStepHere(_lastMoveGoal);
+    }
+
     public InteractWithBlockTask walkTo(Function<BlockPos, Goal> goalFor) {
         _goalFor = goalFor;
         return this;
@@ -403,6 +411,7 @@ public class InteractWithBlockTask extends Task {
             moveGoal = createGoalForInteract(_target, reachDistance, _direction, _interactOffset, _walkInto);
         }
         ICustomGoalProcess proc = mod.getClientBaritone().getCustomGoalProcess();
+        _lastMoveGoal = moveGoal;
 
         _cachedClickStatus = rightClick(mod);
         switch (Objects.requireNonNull(_cachedClickStatus)) {

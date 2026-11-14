@@ -507,6 +507,12 @@ public final class Tuning {
             // AltoClefSettings.capReserve): the buddy stood two minutes on a pillar in the lava sea with 37 cobblestone counted as
             // spoken for by the levels of user tasks finished long before
             java.util.Map.entry("exit_free_stone", 1.0),
+            // a user task done with the crafting table its last craft put down still standing hands it to the next task's way back
+            // (StationsBack.rootDone): a finished root is dropped without a stop, so the table stayed and was nobody's
+            java.util.Map.entry("root_done_table", 1.0),
+            // a table, furnace or smoker whose walk got "0.0 blocks" from where the buddy stands is banned at once
+            // (DoStuffInContainerTask, PathingBehavior.noStepHere): two minutes of such searches before the fifth miss banned it
+            java.util.Map.entry("station_no_step_ban", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

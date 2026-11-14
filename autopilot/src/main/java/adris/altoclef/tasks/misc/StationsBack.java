@@ -140,6 +140,42 @@ public final class StationsBack {
         LEFT.add(new Left(at, item, WorldHelper.getCurrentDimension().name(), mod.getWorld().getGameTime(), null, false));
     }
 
+    // (Tuning root_done_table, a fix of 14 Nov 2026, on) a user task is done and dropped without a stop (UserTaskChain.onTaskFinish),
+    // so its last craft never reports its table: the crafting table that craft's own placer put down, still standing, is reported
+    // here as a done one (left), and the next task's wrapper takes it back in the bag within KEEP_TICKS and NEAR. plain alto keeps a
+    // station as "ours" only in the task whose placer put it down (StationHook has no registry without the gamer, the plain book
+    // answers nothing), so the next task saw it as nobody's: the table for two iron pickaxes stayed at a cave's floor when the task
+    // ended a second after the craft, and 18 minutes later an obsidian pour with no table in the bag walked back to it 61 blocks
+    // straight up and searched "0.0 blocks" for two minutes (box 1 t8, heel-23 run 5). off: nothing reported
+    public static boolean rootDoneOn() {
+        return adris.altoclef.util.helpers.Tuning.get("root_done_table", 0) > 0;
+    }
+
+    public static synchronized void rootDone(AltoClef mod, Task root) {
+        if (root == null || mod.getWorld() == null || !rootDoneOn() || !GarbageRules.keepStationsOn()) {
+            return;
+        }
+        Task found = deepestOwnTable(root.lineDown(), t -> t instanceof adris.altoclef.tasks.container.DoStuffInContainerTask d
+                && d.stationKind() == adris.altoclef.util.helpers.StationHook.Kind.TABLE && d.ownStation(mod) != null);
+        if (!(found instanceof adris.altoclef.tasks.container.DoStuffInContainerTask craft)) {
+            return;
+        }
+        BlockPos at = craft.ownStation(mod);
+        left(mod, at);
+        Debug.logInternal("stations back: the task is done with the crafting table its craft put down at " + at.toShortString()
+                + " standing, back in the bag on the next task (root_done_table)");
+    }
+
+    // the task nearest the leaf in a root's line that `ownTable` likes, null for none
+    static <T> T deepestOwnTable(List<T> line, java.util.function.Predicate<? super T> ownTable) {
+        for (int i = line.size() - 1; i >= 0; i--) {
+            if (ownTable.test(line.get(i))) {
+                return line.get(i);
+            }
+        }
+        return null;
+    }
+
     // (table_back_on_cut) a craft was cut (paused by a chain, or stopped before it was done) and its own crafting table stands
     // at pos (null: none of its own). `owner` is the craft: while it is still active it may come back to the table
     public static synchronized void cut(AltoClef mod, BlockPos pos, Task owner) {

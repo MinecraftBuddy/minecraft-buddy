@@ -175,6 +175,16 @@ public abstract class Task {
         }
     }
 
+    // this task and the children it handed out last, down to the leaf (the buddy's fork: for a root done without a stop,
+    // StationsBack.rootDone). read only
+    public final java.util.List<Task> lineDown() {
+        java.util.List<Task> out = new java.util.ArrayList<>();
+        for (Task t = this; t != null && out.size() < 64; t = t._sub) {
+            out.add(t);
+        }
+        return out;
+    }
+
     // a flag and never an action: 21 starts of one class in a minute is a loop, say so and keep the lead up
     private void watchStart() {
         try {

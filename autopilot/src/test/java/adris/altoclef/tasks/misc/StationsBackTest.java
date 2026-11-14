@@ -6,6 +6,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 // (Tuning bag_keep_stations, table_back_on_cut, cut_parent_hold, stations_back_cap) when a station a craft or smelt put down
@@ -76,5 +77,12 @@ public class StationsBackTest {
         // the spot is 4 blocks across
         assertTrue(StationsBack.sameSpot(takes.get(0), 14, 64, 10, ow));
         assertFalse(StationsBack.sameSpot(takes.get(0), 15, 64, 10, ow));
+    }
+
+    // (root_done_table) a task done without a stop: the craft nearest the leaf with a table of its own is the one reported
+    @Test
+    public void aDoneTaskReportsTheTableOfItsDeepestCraft() {
+        assertEquals("craft2", StationsBack.deepestOwnTable(List.of("root", "craft1", "craft2", "click"), x -> x.startsWith("craft")));
+        assertNull(StationsBack.deepestOwnTable(List.of("root", "click"), x -> x.startsWith("craft")));
     }
 }

@@ -255,6 +255,20 @@ public abstract class DoStuffInContainerTask extends Task {
         // tunnel, a ceiling to dig. plain alto and anything that is not a station keep the stock walk. asked every tick because the
         // registry can learn about a station a tick after the task started walking to it
         boolean beside = _stationKind != null && StationHook.ours(target);
+        // (the buddy's fork, Tuning station_no_step_ban, a fix of 14 Nov 2026, on) the walk to a table, furnace or smoker whose last
+        // search, from the block the buddy stands on, got not one step nearer it ("couldn't get more than 0.0 blocks") bans that
+        // station at once, and the choice is made again: the walk back to a table 61 blocks straight up pillared to a cave's
+        // ceiling and searched so every 2 s for two minutes, until the move checker's fifth miss banned it (box 1 t8, heel-23 run 5)
+        if (_stationKind != null && _openTask instanceof InteractWithBlockTask walk && walk.isActive() && target.equals(_openTaskPos)
+                && mod.getPlayer().onGround() && noStepBanOn() && walk.noStepHere(mod)) {
+            mod.getBlockTracker().requestBlockUnreachable(target, 0, "no step nearer it from where the buddy stands");
+            Debug.logInternal("bench: the " + _stationKind.word() + " at " + target.toShortString() + " got no step nearer from "
+                    + mod.getPlayer().blockPosition().toShortString() + ", banned at once (station_no_step_ban)");
+            _openTask = null;
+            _cachedContainerPosition = null;
+            _pickTick = Long.MIN_VALUE;
+            return null;
+        }
         if (_openTask == null || !target.equals(_openTaskPos) || beside != _openBeside) {
             _openTaskPos = target;
             _openBeside = beside;
@@ -262,6 +276,11 @@ public abstract class DoStuffInContainerTask extends Task {
             _openTask = beside ? open.walkTo(BESIDE) : open;
         }
         return _openTask;
+    }
+
+    // (Tuning station_no_step_ban) off: the move checker's misses alone ban a station, after five
+    static boolean noStepBanOn() {
+        return adris.altoclef.util.helpers.Tuning.get("station_no_step_ban", 0) > 0;
     }
 
     static boolean keepPlacing(boolean haveItem, boolean placerActive, boolean placerFinished, boolean placerVerifying) {

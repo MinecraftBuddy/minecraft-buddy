@@ -300,6 +300,8 @@ public abstract class AbstractNodeCostSearch implements IPathFinder, Helper {
         // instead of returning bestSoFar[0], be less misleading
         // if it actually won't find any path, don't make them think it will by rendering a dark blue that will never actually happen
         if (logInfo) {
+            // (the buddy's fork, Tuning station_no_step_ban) not one node nearer the goal than the start (PathingBehavior.noStepHere)
+            noStep = bestDist == 0;
             logDebug("Even with a cost coefficient of " + COEFFICIENTS[COEFFICIENTS.length - 1] + ", I couldn't get more than " + Math.sqrt(bestDist) + " blocks");
             // once per start: what walls it in, see MovementHelper.blockedReport
             long here = BetterBlockPos.longHash(startX, startY, startZ);
@@ -325,6 +327,14 @@ public abstract class AbstractNodeCostSearch implements IPathFinder, Helper {
 
     public final boolean exhausted() {
         return exhausted;
+    }
+
+    // (the buddy's fork, Tuning station_no_step_ban) the search ended with no path and not one node nearer the goal than its start:
+    // "couldn't get more than 0.0 blocks"
+    private volatile boolean noStep;
+
+    public final boolean noStep() {
+        return noStep;
     }
 
     @Override

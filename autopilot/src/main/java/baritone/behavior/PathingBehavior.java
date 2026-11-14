@@ -172,6 +172,23 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         return feet == null ? null : trail.back(feet.x, feet.y, feet.z, min, maxAge, tickCount);
     }
 
+    // (the buddy's fork, Tuning station_no_step_ban, a fix of 14 Nov 2026, on) the last search that ended "couldn't get more than 0.0
+    // blocks": its start, its goal's text and when; noStepHere asks whether that was this goal from the block the buddy stands on
+    private volatile BetterBlockPos noStepStart;
+    private volatile String noStepGoal;
+    private volatile long noStepAt = Long.MIN_VALUE / 2;
+    static final long NO_STEP_TICKS = 100;
+
+    public boolean noStepHere(Goal goal) {
+        BetterBlockPos feet = ctx.playerFeet();
+        return goal != null && feet != null && noStepFresh(noStepStart, noStepGoal, noStepAt, feet, goalKey(goal), tickCount);
+    }
+
+    // a no-step search of this goal from these feet within NO_STEP_TICKS
+    static <P> boolean noStepFresh(P start, String goal, long at, P feet, String want, long now) {
+        return start != null && start.equals(feet) && want != null && want.equals(goal) && now >= at && now - at <= NO_STEP_TICKS;
+    }
+
     // (the repair after smoke7) this goal was given up from the block the buddy stands on: a request for it fails at once. a task
     // that walks there takes that as its stall, now rather than after its stuck checks
     public boolean givenUpHere(Goal goal) {
@@ -1139,6 +1156,12 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                             if (once && (!spotOn() || (taken.exhausted() && takenMs > TRIVIAL_MS))) {
                                 givenUp.note(new BetterBlockPos(start), goalKey(goal), tickCount);
                             }
+                        }
+                        // (Tuning station_no_step_ban) a search that got not one node nearer its goal, by its start and goal
+                        if (calcResult.getType() == PathCalculationResult.Type.FAILURE && taken.noStep()) {
+                            noStepStart = new BetterBlockPos(start);
+                            noStepGoal = goalKey(goal);
+                            noStepAt = tickCount;
                         }
                         // (the repair after smoke8, risk_goal_spot) every failed search by its spot, whatever its kind
                         if (calcResult.getType() == PathCalculationResult.Type.FAILURE && spotOn()
