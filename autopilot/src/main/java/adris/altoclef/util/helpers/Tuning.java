@@ -401,6 +401,25 @@ public final class Tuning {
             // poisoned, a witch 5 or more off or with no line keeps no bite shut, and a golden apple goes down under 10 hp
             // (CombatBrain, FoodChain)
             java.util.Map.entry("poison_eat", 1.0),
+            // (fixes of 14 Nov 2026, a read of early deaths in the test heel, whole runs from an empty bag at 1x) a melee mob on a
+            // mount (a zombie on a zombie horse with a spear, a chicken jockey) is never run from on foot: a mount outruns the
+            // buddy, and a night start's run of 93 blocks uphill took four spear hits from 3 blocks off ('speared by Zombie' 15
+            // times in the records since 13 Nov); with a sword or an axe at 14 hp or more it is fought, else the dug-in cover
+            // takes the buddy where it holds (two down with the top shut, or a shut pillbox), held while a mounted mob is within
+            // 16 and 5 s after; a run under way ends there, and a fight's bail goes into the cover; with no cover to be had the
+            // run as before (MountRules, CombatCommit, CombatBrain, SkelCover)
+            java.util.Map.entry("mounted_no_run", 1.0),
+            // the skeleton cover's pillbox on flat bare ground gets its top: the top cell over the head has no face to go against
+            // there (1 of 5 cells shut and no top, then a knock off the spot, the run and 7 arrows), so a block goes on a wall
+            // cell's top first, clicked at the top of a jump (the wall's top face is in sight only with the eye over it), and the
+            // top against its side; before a side goes in the buddy steps to the middle of the cell, so the body no longer stands
+            // in the cells toward the skeleton (SkelCover, SkelCoverTask)
+            java.util.Map.entry("pillbox_top_support", 1.0),
+            // inside a shut cover (the four cells at the eye's height and the one over the head solid) a melee mob at the walls
+            // is no reason to leave it: no fight or run is started on it while the cover holds, and the aura swings at one that
+            // hits in reach with a line, under the flee line too; a shut pillbox was left at once for a fight with a spider and
+            // skeletons and a zombie killed the buddy outside it (SkelCover, CombatCommit, CombatBrain, MobDefenseChain)
+            java.util.Map.entry("pillbox_hold_melee", 1.0),
             // (fixes of 14 Nov 2026, a look at the test heel's table and fuel loop: the furnace for the chestplate's 8 ingots put the
             // crafting table down, the table out of the bag held one more log back from the fuel, 9.0 smelts became 7.5, the smelt
             // left the furnace craft for a fuel trip, the cut table went back in the bag before the trip reached its log 9 blocks

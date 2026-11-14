@@ -503,7 +503,10 @@ public class MobDefenseChain extends SingleTaskChain {
         // (Tuning creeper_no_heading_block) a creeper step that stands with no heading keeps its hands: a run's aura is all feet,
         // and a zombie hit the buddy 9 times while the step stood on its path (test heel). under the flee line too, as a fight
         boolean standHit = creeperStandHit();
-        _killAura.setPolicy(_brain.auraKiting() && !standHit, _brain.auraShield(), _brain.auraFighting() || standHit,
+        // (Tuning pillbox_hold_melee, a fix of 14 Nov 2026, on: shut in the skeleton cover, the hands stay on what hits in reach with
+        // a line, under the flee line too: a melee mob there is no reason to leave, and the swing list keeps to the ones that hit)
+        boolean coverHands = _brain.coverHands();
+        _killAura.setPolicy(_brain.auraKiting() && !standHit, _brain.auraShield(), _brain.auraFighting() || standHit || coverHands,
                 standHit ? -1 : _brain.fightTarget());
         _killAura.setRimGuard(_brain.auraRimGuard());
 

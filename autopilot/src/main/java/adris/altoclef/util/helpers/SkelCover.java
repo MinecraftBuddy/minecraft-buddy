@@ -56,6 +56,48 @@ public final class SkelCover {
         return Tuning.get("skel_cover_over_runs", 0) > 0;
     }
 
+    // (pillbox_top_support, a fix of 14 Nov 2026, on: SkelCoverTask) the pillbox's top on flat bare ground: a block on a wall
+    // cell's top first, clicked at the top of a jump, then the top against its side; the body to the cell's middle before a side
+    public static boolean topSupportOn() {
+        return Tuning.get("pillbox_top_support", 0) > 0;
+    }
+
+    // (pillbox_hold_melee, a fix of 14 Nov 2026, on: CombatCommit, CombatBrain) inside a shut cover a melee mob at the walls is no
+    // reason to leave it; the aura swings at one that hits in reach with a line
+    public static boolean holdMeleeOn() {
+        return Tuning.get("pillbox_hold_melee", 0) > 0;
+    }
+
+    // (pillbox_top_support) the body this far off the cell's middle at most on each axis before a side goes in: half the body
+    // (0.3) and this stay inside the cell, so no side cell has the body in it
+    public static final double CENTRE_SLACK = 0.15;
+    // (pillbox_top_support) the eye this far over the wall's top before the click on it (the face is in sight from above only)
+    public static final double OVER_TOP = 0.1;
+    // (pillbox_top_support) jumps for the top's support at one pillbox, then no top as before
+    public static final int TOP_JUMPS = 3;
+
+    // (pillbox_top_support) which side of the pillbox (in boxSides' order) takes the top's support, -1 for none: the first whose
+    // cell at the eye's height is up and whose cell over it is free for a block. topFaced: the top has a face to go against
+    // already (no support wanted then)
+    public static int topSupportSide(boolean topFaced, boolean[] wallUp, boolean[] overFree) {
+        if (topFaced) return -1;
+        for (int i = 0; i < wallUp.length && i < overFree.length; i++) {
+            if (wallUp[i] && overFree[i]) return i;
+        }
+        return -1;
+    }
+
+    // (pillbox_top_support) the body off the cell's middle more than the slack on an axis: x and z the feet, cellX and cellZ the
+    // cell's corner
+    public static boolean offCentre(double x, double z, int cellX, int cellZ, double slack) {
+        return Math.abs(x - (cellX + 0.5)) > slack || Math.abs(z - (cellZ + 0.5)) > slack;
+    }
+
+    // (pillbox_top_support) the eye over the wall's top (at wallTopY) enough to click its top face
+    public static boolean eyeOverTop(double eyeY, int wallTopY) {
+        return eyeY >= wallTopY + OVER_TOP;
+    }
+
     // (skel_cover_hold) the hp the cover lets go at whatever a skeleton does (a player's full bar)
     public static final float FULL_HP = 20;
     // (skel_cover_hold) a line gone this long (5 s) is gone: the hp line and the stall may let go then
@@ -234,6 +276,14 @@ public final class SkelCover {
         private double witchNearest = Double.POSITIVE_INFINITY;
         private long witchLineAt = Long.MIN_VALUE / 2;
         private boolean witch;
+        // (mounted_no_run, MountRules) the mounts' side, handed in before each step: the key, a mounted melee mob wants the cover
+        // this tick, the nearest mounted melee mob (infinity for none); when one was last within RANGE, and whether this stretch
+        // in cover was taken for one
+        private boolean mountOn;
+        private boolean mountWanted;
+        private double mountNearest = Double.POSITIVE_INFINITY;
+        private long mountAt = Long.MIN_VALUE / 2;
+        private boolean mount;
 
         public boolean on() {
             return on;
@@ -265,8 +315,21 @@ public final class SkelCover {
             return on && witch;
         }
 
+        // (mounted_no_run) the mounts' facts, handed in before each step; all off in a bare hold
+        public void mountFacts(boolean on, boolean wanted, double nearest) {
+            mountOn = on;
+            mountWanted = on && wanted;
+            mountNearest = on ? nearest : Double.POSITIVE_INFINITY;
+        }
+
+        // (mounted_no_run) this stretch in cover was taken for a mounted mob, with no skeleton's line and no witch (its lines say
+        // "mount cover")
+        public boolean mount() {
+            return on && mount;
+        }
+
         private String name() {
-            return witch ? "witch cover" : "skeleton cover";
+            return witch ? "witch cover" : mount ? "mount cover" : "skeleton cover";
         }
 
         // a stall or a cover that could not be had waits its retry (a clock that went back, a new world, lets it go)
@@ -301,7 +364,11 @@ public final class SkelCover {
                 stallSaid = false;
                 witch = witchWanted;
                 witchLineAt = witchLines > 0 ? now : Long.MIN_VALUE / 2;
-                if (witch) {
+                mount = mountWanted && !witch && lines == 0;
+                mountAt = mountNearest <= RANGE ? now : Long.MIN_VALUE / 2;
+                if (mount) {
+                    note = String.format(Locale.ROOT, "mount cover: a mounted mob within %.1f at %.1f hp, taking cover", mountNearest, hp);
+                } else if (witch) {
                     String within = Double.isInfinite(witchLineDist) ? "" : String.format(Locale.ROOT, " within %.1f", witchLineDist);
                     note = String.format(Locale.ROOT, "witch cover: %d %s with a line%s at %.1f hp%s%s, taking cover", witchLines,
                             witchLines == 1 ? "witch" : "witches", within, hp, poisoned ? ", poisoned" : "",
@@ -321,6 +388,9 @@ public final class SkelCover {
             if (witchOn && (witchLines > 0 || now < witchLineAt)) witchLineAt = now;
             boolean witchLineGone = !witchOn || now - witchLineAt >= LINE_GONE_TICKS;
             boolean witchClear = witchLineGone && !poisoned;
+            // (mounted_no_run) and no mounted melee mob within RANGE for LINE_GONE_TICKS: it rides up in a second
+            if (mountOn && (mountNearest <= RANGE || now < mountAt)) mountAt = now;
+            witchClear &= !mountOn || now - mountAt >= LINE_GONE_TICKS;
             if (holdRules) {
                 if (hp >= FULL_HP && witchClear) {
                     leave(now, String.format(Locale.ROOT, "hp %.1f", hp) + witchSaid(), 0);
@@ -338,12 +408,12 @@ public final class SkelCover {
                 leave(now, "no cover here (" + failed + ")", RETRY_FAILED_TICKS);
                 return;
             }
-            // (witch_cover: no witch within LEAVE_RANGE either, and the poison over)
-            double near = Math.min(nearest, witchNearest);
+            // (witch_cover: no witch within LEAVE_RANGE either, and the poison over) (mounted_no_run: nor a mounted mob)
+            double near = Math.min(nearest, Math.min(witchNearest, mountNearest));
             if (near > LEAVE_RANGE && !meleeNear && !poisoned) {
                 if (farSince < 0 || now < farSince) farSince = now;
                 if (now - farSince >= LEAVE_TICKS) {
-                    leave(now, "no skeleton " + (witchOn ? "or witch " : "") + "within " + Math.round(LEAVE_RANGE) + " for " + LEAVE_TICKS / 20 + " s", 0);
+                    leave(now, "no skeleton " + (witchOn ? "or witch " : "") + (mountOn ? "or mounted mob " : "") + "within " + Math.round(LEAVE_RANGE) + " for " + LEAVE_TICKS / 20 + " s", 0);
                     return;
                 }
             } else {
@@ -358,7 +428,7 @@ public final class SkelCover {
             // (skel_cover_hold) out only into no line: none for LINE_GONE_TICKS and no skeleton within RANGE to step into
             // (witch_cover: nor a witch's)
             if (lineGone && witchLineGone && near > RANGE) {
-                leave(now, stall + ", no skeleton " + (witchOn ? "or witch " : "") + "within " + Math.round(RANGE), RETRY_STALL_TICKS);
+                leave(now, stall + ", no skeleton " + (witchOn ? "or witch " : "") + (mountOn ? "or mounted mob " : "") + "within " + Math.round(RANGE), RETRY_STALL_TICKS);
                 return;
             }
             if (now - gainAt >= STALL_TICKS + STALL_CAP_TICKS) {
@@ -367,7 +437,7 @@ public final class SkelCover {
             }
             if (!stallSaid) {
                 stallSaid = true;
-                note = name() + ": " + stall + ", staying while a " + (witch ? "witch or skeleton" : "skeleton") + " is within "
+                note = name() + ": " + stall + ", staying while a " + (witch ? "witch or skeleton" : mount ? "mounted mob or skeleton" : "skeleton") + " is within "
                         + Math.round(RANGE) + (lineGone && witchLineGone ? "" : " with a line");
             }
         }
@@ -380,6 +450,8 @@ public final class SkelCover {
         public void reset() {
             on = false;
             witch = false;
+            mount = false;
+            mountAt = Long.MIN_VALUE / 2;
             witchLineAt = Long.MIN_VALUE / 2;
             farSince = -1;
             blockedUntil = Long.MIN_VALUE / 2;
@@ -387,8 +459,9 @@ public final class SkelCover {
             note = null;
         }
 
-        // (witch_cover) what a witch's cover adds to an hp exit's words
+        // (witch_cover) what a witch's cover adds to an hp exit's words (mounted_no_run: a mount's cover the same)
         private String witchSaid() {
+            if (mount) return ", no mounted mob within " + Math.round(RANGE) + " for " + LINE_GONE_TICKS / 20 + " s";
             return witch ? ", no poison, no witch's line for " + LINE_GONE_TICKS / 20 + " s" : "";
         }
 
@@ -396,6 +469,7 @@ public final class SkelCover {
             String name = name();
             on = false;
             witch = false;
+            mount = false;
             farSince = -1;
             if (retry > 0) {
                 blockedFrom = now;

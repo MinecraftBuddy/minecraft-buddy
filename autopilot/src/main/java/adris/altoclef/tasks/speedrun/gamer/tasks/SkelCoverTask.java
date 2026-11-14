@@ -5,8 +5,11 @@ import adris.altoclef.Debug;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.CombatCommit;
 import adris.altoclef.util.helpers.SkelCover;
+import adris.altoclef.util.helpers.StorageHelper;
+import baritone.api.utils.input.Input;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.Witch;
 import net.minecraft.world.entity.monster.skeleton.Bogged;
@@ -47,6 +50,14 @@ import java.util.function.Supplier;
 // stood 36 s in water under six arrows
 // (Tuning witch_cover, a fix of 14 Nov 2026, on) a witch's hit, or the poison with a witch within 16, takes the same cover (the
 // brain's _coverDig digs first for it): the witch throws only with a line, and a shut top stops an arcing splash
+// (Tuning mounted_no_run, a fix of 14 Nov 2026, on) a melee mob on a mount about with no sword or axe at hand, or under the fight's
+// hp, takes it too (dug in first): two down with the top shut, or a shut pillbox, keeps its spear off
+// (Tuning pillbox_top_support, a fix of 14 Nov 2026, on) on flat bare ground the pillbox's top had no face to go against: the cell
+// over the head touches the four walls at the eye's height only at their edges, and a wall's top face is in sight only with the eye
+// over it. test heel: "1 of 5 cells shut, no top", knocked off the spot by the next arrow, "no block of the pillbox went in", runs
+// of 16 and 44 blocks, 7 arrows, dead. so a block goes on a wall cell's top first, clicked at the top of a jump, and the top
+// against its side; and before a side goes in the buddy steps to the cell's middle (sneaking), so the body stands in no side cell:
+// off the middle after a knock, the cells toward the skeleton had the body in them and were never shut
 public final class SkelCoverTask extends Task {
 
     // the skeletons about as one tick's look: lines, the ones with a line to the buddy within range, nearest first; lineDist the
@@ -168,6 +179,20 @@ public final class SkelCoverTask extends Task {
     private int boxClicks;
     private int boxRounds;
     private String boxLead = "skeleton cover: ";
+    // (mounted_no_run) this cover was taken for a mounted mob: its lines say so
+    private final boolean mount;
+    // (pillbox_top_support) the cell on a wall's top the top goes against, clicked at the top of a jump: the cell, when the jump
+    // began, the jumps at this pillbox; and the ticks spent stepping to the cell's middle
+    private BlockPos jumpFor;
+    private long jumpAt;
+    private int topJumps;
+    private int centreTicks;
+    // a jump leaves the ground within this long of the press; back on the ground after it, the try is over
+    private static final long JUMP_START_TICKS = 2;
+    // the step to the middle gets this long at most at one pillbox
+    private static final int CENTRE_TICKS = 20;
+    // the support's click goes against the wall's top face, nothing else
+    private static final Direction[] ON_TOP = {Direction.DOWN};
 
     public SkelCoverTask(Supplier<Seen> seen) {
         this(seen, SkelCover::digFirstOn, () -> Long.MIN_VALUE / 2);
@@ -178,10 +203,21 @@ public final class SkelCoverTask extends Task {
     }
 
     public SkelCoverTask(Supplier<Seen> seen, BooleanSupplier digFirst, LongSupplier shotAt, boolean witch) {
+        this(seen, digFirst, shotAt, witch, false);
+    }
+
+    public SkelCoverTask(Supplier<Seen> seen, BooleanSupplier digFirst, LongSupplier shotAt, boolean witch, boolean mount) {
         this.seen = seen;
         this.digFirst = digFirst;
         this.shotAt = shotAt;
         this.witch = witch;
+        this.mount = mount && !witch;
+    }
+
+    // (pillbox_hold_melee) the buddy's cells shut in: the four at the eye's height and the one over the head solid (a shut pillbox,
+    // or a hole dug in with its top), so a melee mob at the walls cannot reach in
+    public static boolean shutIn(Level level, BlockPos feet) {
+        return walled(level, feet) && CornerWallTask.solid(level, feet.above(2));
     }
 
     // why the cover could not be had, null while it has not given up (SkelCover.Hold's failed)
@@ -219,7 +255,7 @@ public final class SkelCoverTask extends Task {
 
     @Override
     protected String toDebugString() {
-        String from = witch ? "a witch" : "skeletons";
+        String from = witch ? "a witch" : mount ? "a mounted mob" : "skeletons";
         return dig != null ? "Taking cover from " + from + " (dug in)" : boxing ? "Taking cover from " + from + " (pillbox)" : "Taking cover from " + from;
     }
 
@@ -321,7 +357,7 @@ public final class SkelCoverTask extends Task {
     // no cover here: SkelCover.Hold lets go, the run's rules again
     private Task fail(AltoClef mod, String why) {
         failed = why;
-        Debug.logInternal("combat: " + (witch ? "witch" : "skeleton") + " cover: no cover: " + why);
+        Debug.logInternal("combat: " + (witch ? "witch" : mount ? "mount" : "skeleton") + " cover: no cover: " + why);
         return stand(mod);
     }
 
@@ -365,6 +401,9 @@ public final class SkelCoverTask extends Task {
         boxCells.clear();
         boxSkipped.clear();
         current = null;
+        jumpFor = null;
+        topJumps = 0;
+        centreTicks = 0;
         // (witch_cover: the witch's side first in a witch's cover)
         List<Mob> first = witch && !s.witchLines().isEmpty() ? s.witchLines() : s.lines();
         Mob toward = first.isEmpty() ? null : first.get(0);
@@ -377,13 +416,32 @@ public final class SkelCoverTask extends Task {
     }
 
     private Task box(AltoClef mod, LocalPlayer player, Level level, long now, Seen s, boolean arrow, long shot) {
+        boolean topKey = SkelCover.topSupportOn();
+        // (pillbox_top_support) in the air on the jump for the top's support: the click on the wall's top while the eye is over it
+        if (jumpFor != null && !player.onGround() && !mod.getFoodChain().isTryingToEat()) {
+            BlockPos at = player.blockPosition();
+            if (at.getX() == boxFeet.getX() && at.getZ() == boxFeet.getZ() && at.getY() >= boxFeet.getY() && at.getY() <= boxFeet.getY() + 1) {
+                return jumpClick(mod, player, level);
+            }
+        }
         if (!player.onGround() || mod.getFoodChain().isTryingToEat()) return stand(mod);
         if (!player.blockPosition().equals(boxFeet)) {
             // knocked off the spot: a new look from where the buddy is now
             boxing = false;
             boxFeet = null;
             current = null;
+            jumpFor = null;
             return stand(mod);
+        }
+        // (pillbox_top_support) on the ground with a jump begun: the first ticks are the jump's own (it leaves the ground a tick
+        // after the press), after them the try is over, landed with the support in or not
+        if (jumpFor != null) {
+            if (!CornerWallTask.solid(level, jumpFor) && now >= jumpAt && now - jumpAt <= JUMP_START_TICKS) {
+                placing = true;
+                mod.getClientBaritone().getPathingBehavior().requestPause();
+                return null;
+            }
+            jumpFor = null;
         }
         if (boxDone) {
             if (!arrow) return stand(mod);
@@ -404,13 +462,29 @@ public final class SkelCoverTask extends Task {
             current = null;
         }
         if (arrow) shotHandled = shot;
-        BlockPos next = CornerWallTask.wallItems(mod).length > 0 && boxClicks < BOX_MAX_CLICKS ? nextBoxCell(level, player) : null;
+        boolean blocks = CornerWallTask.wallItems(mod).length > 0;
+        // (pillbox_top_support) to the cell's middle first while a side is still open, so the body stands in none of them
+        if (topKey && blocks && centreTicks < CENTRE_TICKS && sideOpen(level)
+                && SkelCover.offCentre(player.getX(), player.getZ(), boxFeet.getX(), boxFeet.getZ(), SkelCover.CENTRE_SLACK)) {
+            centreTicks++;
+            mod.getInputControls().releaseOwnedBy(keys);
+            mod.getClientBaritone().getPathingBehavior().requestPause();
+            centre(mod, player);
+            return null;
+        }
+        BlockPos next = blocks && boxClicks < BOX_MAX_CLICKS ? nextBoxCell(level, player) : null;
+        // (pillbox_top_support) the sides done as far as they go and the top with nothing to go against: a block on a wall's top
+        if (next == null && topKey && blocks && topJumps < SkelCover.TOP_JUMPS && !CornerWallTask.solid(level, boxFeet.above(2))) {
+            BlockPos support = topSupportCell(level, player);
+            if (support != null) return jumpForSupport(mod, now, support);
+        }
         if (next == null) {
             boxDone = true;
             int up = 0;
             for (BlockPos cell : boxCells) if (CornerWallTask.solid(level, cell)) up++;
             Debug.logInternal("combat: " + boxLead + "pillbox up at " + boxFeet.toShortString() + ": " + up + " of " + boxCells.size()
-                    + " cells shut" + (CornerWallTask.solid(level, boxFeet.above(2)) ? "" : ", no top (nothing to put it against)"));
+                    + " cells shut" + (CornerWallTask.solid(level, boxFeet.above(2)) ? ""
+                    : ", no top (nothing to put it against" + (topJumps > 0 ? ", " + topJumps + (topJumps == 1 ? " jump" : " jumps") + " for a support" : "") + ")"));
             if (up == 0) return fail(mod, "no block of the pillbox went in at " + boxFeet.toShortString());
             return stand(mod);
         }
@@ -445,6 +519,81 @@ public final class SkelCoverTask extends Task {
     private boolean boxUsable(Level level, LocalPlayer player, BlockPos cell) {
         return !boxSkipped.contains(cell) && CornerWallTask.open(level, cell, player)
                 && CornerWallTask.support(level, player, cell, CornerWallTask.BESIDE_SUPPORT) != null;
+    }
+
+    // (pillbox_top_support) a sneaking step toward the cell's middle, by the keys relative to where the buddy looks (the
+    // blaze pillbox's own way: sneaking keeps the feet on the block's edge, and the steps are short)
+    private void centre(AltoClef mod, LocalPlayer player) {
+        double dx = boxFeet.getX() + 0.5 - player.getX(), dz = boxFeet.getZ() + 0.5 - player.getZ();
+        double yaw = Math.toRadians(player.getYRot());
+        // (forward is (-sin, cos) of the yaw, left (cos, sin): facing south, +z, the left hand is east)
+        double f = -dx * Math.sin(yaw) + dz * Math.cos(yaw), l = dx * Math.cos(yaw) + dz * Math.sin(yaw);
+        double dead = SkelCover.CENTRE_SLACK / 3;
+        var in = mod.getInputControls();
+        in.tryPress(Input.SNEAK);
+        if (f > dead) in.tryPress(Input.MOVE_FORWARD);
+        else if (f < -dead) in.tryPress(Input.MOVE_BACK);
+        if (l > dead) in.tryPress(Input.MOVE_LEFT);
+        else if (l < -dead) in.tryPress(Input.MOVE_RIGHT);
+    }
+
+    // (pillbox_top_support) a side cell at the eye's height still open
+    private boolean sideOpen(Level level) {
+        for (int i = 0; i < 4 && i < boxCells.size(); i++) {
+            if (!CornerWallTask.solid(level, boxCells.get(i))) return true;
+        }
+        return false;
+    }
+
+    // (pillbox_top_support) the cell on a wall's top the top can go against, the skeleton's side first (SkelCover.topSupportSide):
+    // its wall at the eye's height up and the cell over it free for a block; null when the top has a face already or none will do
+    private BlockPos topSupportCell(Level level, LocalPlayer player) {
+        BlockPos top = boxFeet.above(2);
+        boolean faced = CornerWallTask.support(level, player, top, CornerWallTask.BESIDE_SUPPORT) != null;
+        int sides = Math.min(4, boxCells.size());
+        boolean[] up = new boolean[sides];
+        boolean[] free = new boolean[sides];
+        for (int i = 0; i < sides; i++) {
+            BlockPos wall = boxCells.get(i);
+            up[i] = CornerWallTask.solid(level, wall);
+            free[i] = !boxSkipped.contains(wall.above()) && CornerWallTask.open(level, wall.above(), player);
+        }
+        int side = SkelCover.topSupportSide(faced, up, free);
+        return side < 0 ? null : boxCells.get(side).above();
+    }
+
+    // (pillbox_top_support) the jump for the top's support: the block in hand first, then the jump; the click comes in the air
+    private Task jumpForSupport(AltoClef mod, long now, BlockPos support) {
+        placing = true;
+        mod.getClientBaritone().getPathingBehavior().requestPause();
+        net.minecraft.world.item.Item[] blocks = CornerWallTask.wallItems(mod);
+        if (!StorageHelper.isEquipped(mod, blocks)) {
+            mod.getSlotHandler().forceEquipItem(blocks, true);
+            return null;
+        }
+        if (topJumps == 0) {
+            Debug.logInternal("combat: " + boxLead + "the pillbox's top has nothing to go against at " + boxFeet.above(2).toShortString()
+                    + ": a block on the wall's top at " + support.toShortString() + " first, at the top of a jump");
+        }
+        topJumps++;
+        jumpFor = support;
+        jumpAt = now;
+        mod.getInputControls().releaseOwnedBy(keys);
+        mod.getInputControls().tryPress(Input.JUMP);
+        return null;
+    }
+
+    // (pillbox_top_support) in the air: the click on the wall's top face once the eye is over it (the face is in sight from above
+    // only, and the click is the plain one, our own ray along the look)
+    private Task jumpClick(AltoClef mod, LocalPlayer player, Level level) {
+        placing = true;
+        mod.getClientBaritone().getPathingBehavior().requestPause();
+        if (CornerWallTask.solid(level, jumpFor)) return null;
+        if (SkelCover.eyeOverTop(player.getEyeY(), jumpFor.getY()) && CornerWallTask.open(level, jumpFor, player)
+                && CornerWallTask.click(mod, player, level, jumpFor, ON_TOP, keys)) {
+            clicked.putIfAbsent(jumpFor, boxLead);
+        }
+        return null;
     }
 
     // the first cell a block can go into, skeleton by skeleton nearest first: on the line from the buddy's eye to the
@@ -482,8 +631,10 @@ public final class SkelCoverTask extends Task {
         }
     }
 
-    // "skeleton cover: 2 skeletons with a line within 11.5 at 5.0 hp, " ("witch cover: 1 witch with a line within 8.0 at 9.0 hp, ")
+    // "skeleton cover: 2 skeletons with a line within 11.5 at 5.0 hp, " ("witch cover: 1 witch with a line within 8.0 at 9.0 hp, ",
+    // "mount cover: at 12.0 hp, ")
     private String lead(Seen s, LocalPlayer player) {
+        if (mount) return String.format(Locale.ROOT, "mount cover: at %.1f hp, ", player.getHealth());
         if (witch) {
             int w = s.witchLines().size();
             String within = Double.isInfinite(s.witchLineDist()) ? "range" : String.format(Locale.ROOT, "%.1f", s.witchLineDist());

@@ -13,6 +13,7 @@ import adris.altoclef.tasks.speedrun.gamer.tasks.CornerWallTask;
 import adris.altoclef.tasks.speedrun.gamer.tasks.PerchTask;
 import adris.altoclef.tasks.speedrun.gamer.tasks.SkelCoverTask;
 import adris.altoclef.util.helpers.ItemHelper;
+import adris.altoclef.util.helpers.MountRules;
 import adris.altoclef.util.helpers.SkelCover;
 import adris.altoclef.util.helpers.WitchRules;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -145,6 +146,8 @@ final class CombatBrain {
     // in cover), and this tick's look at the skeletons about
     private final SkelCover.Hold _cover = new SkelCover.Hold();
     private SkelCoverTask _coverTask;
+    // (pillbox_hold_melee) the buddy stands shut in the cover (asked once a tick with the key on, false otherwise)
+    private boolean _shutIn;
     private SkelCoverTask.Seen _seen = SkelCoverTask.Seen.NONE;
     // (skel_cover_dig_first, skel_cover_over_runs) the cover task digs first: its key, or the over-runs cover with a melee mob near
     private boolean _coverDig;
@@ -561,6 +564,12 @@ final class CombatBrain {
         return _commit.mode() == Mode.NONE && _cover.on() && _coverTask != null;
     }
 
+    // (pillbox_hold_melee) shut in the cover: the aura keeps its hands under the flee line too, on what hits in reach with a line
+    // (the swing list's own rule: a foe that hit us within contact, seen by the aura's line check)
+    boolean coverHands() {
+        return covering() && _shutIn;
+    }
+
     // (skel_cover) a block of the cover is on its way in: the arrow shield keeps its hands off the click
     boolean coverPlacing() {
         return covering() && _coverTask.placing();
@@ -943,7 +952,16 @@ final class CombatBrain {
             int lines = _seen.lines().size();
             boolean poisoned = player.hasEffect(MobEffects.POISON);
             boolean witchWanted = witchCover && WitchRules.coverWanted(true, player.getHealth(), witchHitLately(foes), poisoned, _seen.witchNearest());
-            boolean coverWanted = (coverOn && SkelCover.wanted(true, player.getHealth(), lines, SkelCover.hpLine())) || witchWanted;
+            // (Tuning mounted_no_run, a fix of 14 Nov 2026, on: MountRules. a melee mob on a mount is never run from on foot: with no
+            // sword or axe, or under its fight line, one about wants the cover; the machine hears which foes ride one and whether
+            // a blade is at hand, the bag asked only with one about)
+            boolean mountOn = overworld && MountRules.on();
+            Set<Integer> mountedIds = mountOn ? mountedIds(mobs, foes) : Set.of();
+            Foe mount = nearestMounted(foes, mountedIds);
+            boolean mountBlade = mount != null && hasBlade(mod);
+            _commit.mountFacts(mountOn, mountedIds, mountBlade);
+            boolean mountWanted = coverOn && mount != null && !MountRules.fight(mountBlade, player.getHealth());
+            boolean coverWanted = (coverOn && SkelCover.wanted(true, player.getHealth(), lines, SkelCover.hpLine())) || witchWanted || mountWanted;
             // (Tuning skel_cover_wet_fail, a fix of 14 Nov 2026, on: no cover is offered in water, the run's rules have it)
             boolean wetFail = coverOn && SkelCover.wetFailOn();
             boolean coverOffered = (coverWanted || _cover.on()) && CornerWallTask.offered(mod) && !(wetFail && player.isInWater());
@@ -959,10 +977,15 @@ final class CombatBrain {
             boolean lavaNear = asked && lavaAbout(mod, player);
             // (witch_cover: the witch's cover digs first whatever dig_first says: its line is no line a block on it would keep)
             _coverDig = (coverOn && SkelCover.digFirstOn()) || (overRuns && meleeWithin(foes, _seen, CombatCommit.FOE_RANGE))
-                    || witchWanted || _cover.witch();
+                    || witchWanted || _cover.witch() || mountWanted || _cover.mount();
+            // (Tuning pillbox_hold_melee, a fix of 14 Nov 2026, on: standing shut in, the four cells at the eye's height and the one
+            // over the head solid, a melee mob at the walls cannot reach in: the cover holds against it, and the aura's hands stay
+            // on what hits in reach with a line)
+            _shutIn = coverOn && SkelCover.holdMeleeOn() && _cover.on() && _coverTask != null && player.onGround()
+                    && SkelCoverTask.shutIn(mod.getWorld(), player.blockPosition());
             _commit.skelFacts(coverOn || closeOn ? new CombatCommit.Skel(_seen.kinds(), _seen.lineIds(), closeOn,
                     closeOn && lines > 0 && hasSword(mod), closeOn && lines > 0 ? armourPieces(player) : 0, coverTakes,
-                    SkelCover.closeHp(), SkelCover.range(), digHere, lavaNear, overRuns, witchCover ? _seen.witchIds() : Set.of()) : null);
+                    SkelCover.closeHp(), SkelCover.range(), digHere, lavaNear, overRuns, witchCover ? _seen.witchIds() : Set.of(), _shutIn) : null);
             // (Tuning witch_melee_reach, a fix of 14 Nov 2026, on: a witch within reach is a melee foe with a sword or an axe at hand
             // and no other shooter's line; the bag is asked only with a witch in reach)
             boolean witchReach = WitchRules.meleeReachOn();
@@ -984,6 +1007,8 @@ final class CombatBrain {
                 _cover.holdRules(SkelCover.holdOn());
                 // (witch_cover: the poison and the witches' lines keep the cover, WitchRules)
                 _cover.witchFacts(witchCover, witchWanted, poisoned, _seen.witchLines().size(), _seen.witchLineDist(), _seen.witchNearest());
+                // (mounted_no_run: a mounted mob within 16 keeps the cover, and 5 s after)
+                _cover.mountFacts(coverOn && mountOn, mountWanted, nearestMountedDistance(foes, mountedIds));
                 _cover.step(now, coverWanted, coverOffered, player.getHealth(), SkelCover.hpLine(), lines, _seen.lineDist(), _seen.nearest(),
                         mod.getFoodChain().isTryingToEat(), _coverTask == null ? null : _coverTask.failed(), mod.getFoodChain().hasFood(),
                         overRuns && meleeWithin(foes, _seen, CombatCommit.LOW_HP_RANGE));
@@ -995,7 +1020,7 @@ final class CombatBrain {
             if (!_cover.on()) {
                 _coverTask = null;
             } else if (_coverTask == null) {
-                _coverTask = new SkelCoverTask(this::seen, () -> _coverDig, () -> _shotTick, _cover.witch());
+                _coverTask = new SkelCoverTask(this::seen, () -> _coverDig, () -> _shotTick, _cover.witch(), _cover.mount());
                 mod.getClientBaritone().getPathingBehavior().cancelEverything();
             }
             // (unarmed_no_corner_fight) the wall the machine asked for: a new build for each round, the run's path let go of so it
@@ -1233,6 +1258,37 @@ final class CombatBrain {
             if (foe.melee() && foe.kind() == CombatCommit.Kind.NORMAL && foe.distance() <= range && !seen.kinds().contains(foe.id())) return true;
         }
         return false;
+    }
+
+    // (mounted_no_run) the foes that are melee mobs riding a living mount (a zombie on a zombie horse, a baby zombie on a chicken;
+    // a boat or a minecart is no mount): mobs and foes are the same list in the same order
+    private static Set<Integer> mountedIds(List<Mob> mobs, List<Foe> foes) {
+        Set<Integer> out = new HashSet<>();
+        for (int i = 0; i < mobs.size() && i < foes.size(); i++) {
+            Mob mob = mobs.get(i);
+            if (foes.get(i).id() == mob.getId() && foes.get(i).melee() && mob.isPassenger() && mob.getVehicle() instanceof net.minecraft.world.entity.LivingEntity) out.add(mob.getId());
+        }
+        return out;
+    }
+
+    // (mounted_no_run) the nearest mounted melee foe the runs are about (MountRules.about), null for none
+    private static Foe nearestMounted(List<Foe> foes, Set<Integer> mounted) {
+        Foe best = null;
+        if (mounted.isEmpty()) return null;
+        for (Foe foe : foes) {
+            if (!mounted.contains(foe.id()) || !MountRules.about(foe.distance(), foe.hitUs())) continue;
+            if (best == null || foe.distance() < best.distance()) best = foe;
+        }
+        return best;
+    }
+
+    // (mounted_no_run) the nearest mounted melee foe at all, for the cover's hold (infinity for none)
+    private static double nearestMountedDistance(List<Foe> foes, Set<Integer> mounted) {
+        double best = Double.POSITIVE_INFINITY;
+        for (Foe foe : foes) {
+            if (mounted.contains(foe.id())) best = Math.min(best, foe.distance());
+        }
+        return best;
     }
 
     // (skel_cover_over_runs) lava within a knock of the feet (GROUND_CLEAR), at the feet's level or under an open edge: a hit

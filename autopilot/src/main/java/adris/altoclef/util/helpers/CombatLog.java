@@ -52,7 +52,8 @@ public final class CombatLog {
             case PERCH_START -> tag + "PERCH, stacking up out of reach (hp " + hp + ")";
             case PERCH_END -> tag + "perch over";
             case FIGHT_TO_COVER -> tag + "fight over, not closing on " + fighting + ", into cover";
-            case RUN_TO_COVER -> tag + "run over, " + blocks + " blocks, an arrow at hp " + hp + ", digging in";
+            // (the note before it says why: a skeleton's arrow, skel_cover_over_runs, or a mounted mob about, mounted_no_run)
+            case RUN_TO_COVER -> tag + "run over, " + blocks + " blocks, at hp " + hp + ", into cover";
         };
     }
 

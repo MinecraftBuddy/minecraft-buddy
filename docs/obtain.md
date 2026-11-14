@@ -266,6 +266,13 @@ hunted; their meat is picked up.
   in sight for 5 seconds. A witch within reach is fought with a sword or an axe when no other shooter has the buddy in
   sight, and with bare hands too when the buddy is cornered. While poisoned, a witch 5 blocks or more off, or out of sight,
   puts off no meal, and under 10 health a golden apple goes down.
+- **Blocks round the head**: on flat ground the buddy first steps to the middle of the block, then puts up the four sides
+  and a block on top of one of them, placed at the top of a jump, so the roof over the head has something to go against.
+  Shut in like that, or in a hole with its top shut, a zombie or spider at the walls is no reason to come out; one that
+  hits through a gap is hit back from inside.
+- **Riders**: a zombie on a horse, or any monster riding another, outruns the buddy, so the buddy never runs from one on
+  foot. With a sword or an axe and 14 health or more the rider is fought; otherwise the buddy digs in, or puts the blocks
+  up round the head, on the spot, and stays there until no rider has been within 16 blocks for 5 seconds.
 - **Places to avoid**: where a patrol of pillagers was seen (twenty minutes) or the buddy was shot (ten), no search
   leg, no ore and no animal within 48 blocks.
 - **No meal with a monster in pursuit** within ten blocks (a wither skeleton: fourteen) or a shooter in sight, unless

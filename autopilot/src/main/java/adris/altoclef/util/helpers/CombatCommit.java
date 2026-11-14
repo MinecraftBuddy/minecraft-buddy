@@ -1140,8 +1140,16 @@ public final class CombatCommit {
     // feet, or under an open edge there; overRuns: the key
     // (witch_cover, a fix of 14 Nov 2026) witches: the ids of the witches about with the key on (empty with it off), a kind the
     // cover acts on as it does on the skeletons' (coverKind), never one the close rule asks about
+    // (pillbox_hold_melee, a fix of 14 Nov 2026) shut: the buddy stands in the cover with the four cells at the eye's height and
+    // the one over the head solid (a shut pillbox or a dug-in hole with its top), false with the key off: a melee mob at the walls
+    // cannot reach in, so it holds against melee mobs as the dug-in cover does
     public record Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
-                       double range, boolean dig, boolean lavaNear, boolean overRuns, Set<Integer> witches) {
+                       double range, boolean dig, boolean lavaNear, boolean overRuns, Set<Integer> witches, boolean shut) {
+        public Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
+                    double range, boolean dig, boolean lavaNear, boolean overRuns, Set<Integer> witches) {
+            this(kinds, lines, close, sword, armour, cover, closeHp, range, dig, lavaNear, overRuns, witches, false);
+        }
+
         public Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
                     double range) {
             this(kinds, lines, close, sword, armour, cover, closeHp, range, false, false, false);
@@ -1205,12 +1213,14 @@ public final class CombatCommit {
     }
 
     // (witch_cover) the cover's name in its notes: a witch's where a witch the cover acts on hit us lately
+    // (mounted_no_run) a mount's where a mounted melee mob is about and no skeleton has a line
     private String coverName(Tick t) {
         if (skel != null && !skel.witches().isEmpty()) {
             for (Foe foe : t.foes()) {
                 if (foe.kind() == Kind.LOBBER && foe.hitUs() && skel.witches().contains(foe.id())) return "witch cover";
             }
         }
+        if ((skel == null || skel.lines().isEmpty()) && mountAbout(t) != null) return "mount cover";
         return "skeleton cover";
     }
 
@@ -1225,6 +1235,8 @@ public final class CombatCommit {
     // the dug-in cover takes the buddy and holds against what is about: every shooter with a line a kind the cover acts on, no
     // lava near, no enderman, no creeper within SkelCover.CREEPER_RANGE, and with a plain melee mob about only where the ground
     // digs (the rest: a witch with the key off, a heavy hitter, a wither skeleton, is the run's)
+    // (pillbox_hold_melee) or where the buddy stands shut in already: test heel, a shut pillbox was left at once for a fight with a
+    // spider, and skeletons and a zombie killed the buddy outside it
     private boolean coverHolds(Tick t) {
         if (skel == null || !skel.cover() || skel.lavaNear()) return false;
         if (!coverForShots(t) || endermanAbout(t) != null || t.creeperRepeat()) return false;
@@ -1238,7 +1250,7 @@ public final class CombatCommit {
             if (!foe.melee() || foe.kind() != Kind.NORMAL || foe.wither()) return false;
             melee = true;
         }
-        return !melee || skel.dig();
+        return !melee || skel.dig() || skel.shut();
     }
 
     // (skel_cover_over_runs) a run under the cover's hp line (the cover takes the buddy) that took a skeleton's arrow since it
@@ -1326,6 +1338,59 @@ public final class CombatCommit {
             }
         }
         return false;
+    }
+
+    // (the buddy's fork, Tuning mounted_no_run, a fix of 14 Nov 2026, on; MountRules; the brain hands it in before each step, off in
+    // a bare machine) a melee mob riding a mount is never run from on foot: the mount outruns the buddy, and a run only gives it free
+    // hits. mounted: the ids of the foes riding a living mount (a zombie on a zombie horse, a chicken jockey); blade: a sword or an
+    // axe at hand. test heel: a night start with an empty hand ran 93 blocks uphill from a zombie on a zombie horse, four spear hits
+    // from 3 blocks off on the way and two after it, dead
+    private Set<Integer> mounted = Set.of();
+    private boolean mountBlade;
+
+    public void mountFacts(boolean on, Set<Integer> ids, boolean blade) {
+        mounted = on ? ids : Set.of();
+        mountBlade = on && blade;
+    }
+
+    // the nearest mounted melee foe the runs are about (MountRules.about), null for none
+    private Foe mountAbout(Tick t) {
+        if (mounted.isEmpty()) return null;
+        Foe best = null;
+        for (Foe foe : t.foes()) {
+            if (!mounted.contains(foe.id()) || !foe.melee() || !MountRules.about(foe.distance(), foe.hitUs())) continue;
+            if (best == null || foe.distance() < best.distance()) best = foe;
+        }
+        return best;
+    }
+
+    // the runs a mount turns: the low hp, crowd, unarmed and shot runs (a creeper's, a heavy hitter's, a witch's and the meter's
+    // keep theirs)
+    private static boolean mountTurns(Why reason) {
+        return reason == Why.LOW_HP || reason == Why.CROWD || reason == Why.UNARMED || reason == Why.SHOT;
+    }
+
+    // a run of those kinds with a mounted melee mob about is the cover where it holds (true: the brain's cover takes the buddy, a
+    // run under way ends), else the run as before. the fight on a mount is the hit's, as for any melee mob: the brain wants the cover
+    // for a mount only without a sword or an axe or under MountRules.FIGHT_HP, and the hit of one is the cover then too (mountHit)
+    private boolean mountInstead(Tick t, Why reason) {
+        if (!mountTurns(reason)) return false;
+        Foe mount = mountAbout(t);
+        if (mount == null) return false;
+        if (coverHolds(t)) {
+            skelNote(t, "mounted_no_run: foe #" + mount.id() + " on a mount, the cover in place of a run on foot [" + reason + "]");
+            return true;
+        }
+        skelNote(t, "mounted_no_run: foe #" + mount.id() + " on a mount, no cover to be had here: the run [" + reason + "]");
+        return false;
+    }
+
+    // the hit of a mounted melee mob with no sword or axe at hand or under MountRules.FIGHT_HP: the cover where it holds, in place of
+    // the fight with a pickaxe or the bare-handed run
+    private boolean mountHit(Tick t, Foe hit) {
+        if (!mounted.contains(hit.id()) || !hit.melee() || MountRules.fight(mountBlade, t.health()) || !coverHolds(t)) return false;
+        skelNote(t, "mounted_no_run: foe #" + hit.id() + " on a mount hit us, the cover in place of a " + (t.armed() ? "fight" : "run on foot"));
+        return true;
     }
 
     public void meter(DangerMeter.Level level, boolean calmHere) {
@@ -1898,7 +1963,11 @@ public final class CombatCommit {
             if (coverOverRun(t, run)) return Event.NONE;
             run = Why.NONE;
         }
-        if (run != Why.NONE) return runOrBox(t, run);
+        if (run != Why.NONE) {
+            // (mounted_no_run) a mounted melee mob about: the cover, no run on foot
+            if (mountInstead(t, run)) return Event.NONE;
+            return runOrBox(t, run);
+        }
         // cooldown or not: it is not something hitting us again, it is the creeper step going round in circles. a committed
         // fight asks the same thing at its top, the fight walking us back to the creeper is how the circle keeps going
         if (t.creeperRepeat()) {
@@ -1922,7 +1991,11 @@ public final class CombatCommit {
                 if (coverOverRun(t, again)) return Event.NONE;
                 again = Why.NONE;
             }
-            if (again != Why.NONE) return runOrBox(t, again);
+            if (again != Why.NONE) {
+                // (mounted_no_run) the same in the heal hold
+                if (mountInstead(t, again)) return Event.NONE;
+                return runOrBox(t, again);
+            }
         }
         // the fight is only for one we have not given up on, or one that has hit us since. with nothing in hand better than a
         // fist it is a run instead: a punch is not a fight, and the cornered rules still turn us round when a run goes nowhere
@@ -1967,11 +2040,22 @@ public final class CombatCommit {
                 boolean skelHit = skel != null && skel.kinds().contains(hit.id());
                 String noClose = skelHit && t.armed() ? closeRefusal(t, hit) : null;
                 if ((!skelHit || !t.armed() || noClose != null) && coverOverRun(t, Why.UNARMED)) {
-                    skelNote(t, !t.armed() ? "skeleton cover instead of a run [UNARMED]"
-                            : "skeleton cover instead of a fight with foe #" + hit.id() + (noClose != null ? ": " + noClose : ""));
+                    // (pillbox_hold_melee: shut in where the ground does not dig, the melee mob at the walls is no reason to leave)
+                    if (skel.shut() && !skel.dig() && hit.melee()) {
+                        skelNote(t, "pillbox_hold_melee: shut in, foe #" + hit.id() + " at the walls: no " + (t.armed() ? "fight" : "run"));
+                    } else {
+                        skelNote(t, !t.armed() ? coverName(t) + " instead of a run [UNARMED]"
+                                : coverName(t) + " instead of a fight with foe #" + hit.id() + (noClose != null ? ": " + noClose : ""));
+                    }
                     return Event.NONE;
                 }
-                if (!t.armed() && !hit.standsAndFights() && !enderAbout) return startRun(t, Why.UNARMED, Event.RUN_START);
+                // (mounted_no_run) a mounted mob's hit with no blade or the hp for it: the cover
+                if (mountHit(t, hit)) return Event.NONE;
+                if (!t.armed() && !hit.standsAndFights() && !enderAbout) {
+                    // (mounted_no_run) unarmed with a mounted melee mob about: the cover, no run on foot
+                    if (mountInstead(t, Why.UNARMED)) return Event.NONE;
+                    return startRun(t, Why.UNARMED, Event.RUN_START);
+                }
                 return startFight(t, hit, Why.HIT, Event.FIGHT_START, false);
             }
         }
@@ -2565,7 +2649,14 @@ public final class CombatCommit {
             // the same goes for something fast that has hit us and is close: it comes along on the run
             Foe fast = fastTarget(t);
             boolean stay = (bail == Why.CROWD || bail == Why.LOW_HP || bail == Why.DANGER) && (t.boxed() || fast != null);
-            if (!stay) return startRun(t, bail, Event.FIGHT_TO_RUN);
+            if (!stay) {
+                // (mounted_no_run) a bail with a mounted melee mob about: into the cover where it holds, no run on foot
+                if (mountTurns(bail) && mountAbout(t) != null && coverHolds(t)) {
+                    skelNote(t, "mounted_no_run: foe #" + mountAbout(t).id() + " on a mount, the cover in place of the fight's run [" + bail + "]");
+                    return end(t, Event.FIGHT_TO_COVER);
+                }
+                return startRun(t, bail, Event.FIGHT_TO_RUN);
+            }
             cornered = true;
             runLine = true;
             boxCorner = t.boxed();
@@ -3079,6 +3170,8 @@ public final class CombatCommit {
                     why, t.health()));
             return end(t, Event.RUN_TO_COVER);
         }
+        // (mounted_no_run) a mounted melee mob about the run: it ends in the cover where the buddy stands
+        if (!walling && mountInstead(t, why)) return end(t, Event.RUN_TO_COVER);
         // melee only things we cannot outrun: stack up right here instead of jogging (and instead of turning round on them later)
         int perchH = perchAt(t);
         if (perchH > 0) return startPerch(t, perchH, "run " + why);
