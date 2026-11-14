@@ -345,6 +345,13 @@ public final class Tuning {
             // the tries elsewhere spent and no cell to dig in by hand: with blocks enough for the walls and the top, a walk to the
             // nearest open cell within 24 whose four walls stand on ground, and a shut-in on the spot there
             java.util.Map.entry("shelter_flat_walk", 1.0),
+            // (a fix of 14 Nov 2026, a live look at the test heel's night start on frozen-ocean ice: an empty bag, no ground the hand
+            // breaks, the nearest log about 70 blocks off, "cannot shut, blocks 0" every 30 s for 6 minutes in the open, a creeper,
+            // and after its run of 24 blocks no new search) with no way to shelter left (too few blocks, the tries spent, no walk by
+            // hand or to flat ground, logs first used up or none in reach) the night's hole of the whole order gives up for now and
+            // the order's step runs; a new hole looks again once the bag holds 5 or more blocks or logs, or 16 or more blocks from
+            // where it last searched, 30 s after at the soonest (the buddy's ObtainSafe, Obtain, DigIn)
+            java.util.Map.entry("shelter_none_go_on", 1.0),
             // (a fix of 14 Nov 2026, a live look at the test heel's flint loop: a gravel column at a pond's edge, the flint rolled
             // into the water, each detour out of time, its blocks banned one by one, and the gravel that fell in from above
             // started the next detour at the same place for 3 to 5 minutes, 159 ban lines) a detour for a falling kind (gravel,
@@ -370,6 +377,20 @@ public final class Tuning {
             // fired in the tunnel of its own (mine_own_pit) gives the depth up; every turn of the step is logged, BranchMineTask,
             // TunnelFlip
             java.util.Map.entry("tunnel_flip_guard", 1.0),
+            // (fixes of 14 Nov 2026, a read of 8 of test heel's 14 witch deaths since 13 Nov, 11 at the gold mine: the poison first,
+            // then harming every 3 s within 10 with a line, 15 to 30 s to death; the run from the witch measured from the buddy's
+            // own spot ended clear at 12 with the witch following, no bite while it had a line, no swing at 1 m with the run stuck)
+            // a witch's hit, or a poison tick with a witch within 16, is the skeleton cover in place of the run: two down with the
+            // top shut, the pillbox from the bag where the ground will not dig, the meal inside, out once the poison is over, the hp
+            // is back to the cover's rule and no witch has had a line for 5 s; in water no cover (WitchRules, SkelCover,
+            // SkelCoverTask, CombatCommit, CombatBrain)
+            java.util.Map.entry("witch_cover", 1.0),
+            // a witch within reach is a melee foe with a sword or an axe at hand and no other shooter with a line within 16, and in
+            // any hand once the run is cornered or the cover is hit through (CombatCommit, CombatBrain)
+            java.util.Map.entry("witch_melee_reach", 1.0),
+            // poisoned, a witch 5 or more off or with no line keeps no bite shut, and a golden apple goes down under 10 hp
+            // (CombatBrain, FoodChain)
+            java.util.Map.entry("poison_eat", 1.0),
             // (a fix of 13 Nov 2026, test heel's first stone under the rigs' anti-xray, where every buried block below y 64 reaches
             // the client as an ore: with legitMine on in the overworld and the best stone more than 8 blocks below the feet, or
             // none known, a pit four deep at the feet first, so the real stone shows and the look round the feet takes it,

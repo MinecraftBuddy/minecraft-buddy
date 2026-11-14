@@ -14,6 +14,7 @@ import adris.altoclef.tasks.speedrun.gamer.tasks.PerchTask;
 import adris.altoclef.tasks.speedrun.gamer.tasks.SkelCoverTask;
 import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.SkelCover;
+import adris.altoclef.util.helpers.WitchRules;
 import net.minecraft.world.entity.EquipmentSlot;
 import adris.altoclef.util.helpers.PearlHuntHook;
 import net.minecraft.world.entity.monster.Blaze;
@@ -935,9 +936,14 @@ final class CombatBrain {
             boolean overworld = dimension == Dimension.OVERWORLD;
             boolean coverOn = overworld && SkelCover.coverOn();
             boolean closeOn = overworld && SkelCover.closeOn();
-            _seen = coverOn || closeOn ? SkelCoverTask.scan(mod, player, SkelCover.range()) : SkelCoverTask.Seen.NONE;
+            // (Tuning witch_cover, a fix of 14 Nov 2026, on: a witch is a kind the cover acts on, WitchRules. its hit, or a poison
+            // tick with a witch within 16, wants the cover; the witches are looked at with the skeletons)
+            boolean witchCover = coverOn && WitchRules.coverOn();
+            _seen = coverOn || closeOn ? SkelCoverTask.scan(mod, player, SkelCover.range(), witchCover) : SkelCoverTask.Seen.NONE;
             int lines = _seen.lines().size();
-            boolean coverWanted = coverOn && SkelCover.wanted(true, player.getHealth(), lines, SkelCover.hpLine());
+            boolean poisoned = player.hasEffect(MobEffects.POISON);
+            boolean witchWanted = witchCover && WitchRules.coverWanted(true, player.getHealth(), witchHitLately(foes), poisoned, _seen.witchNearest());
+            boolean coverWanted = (coverOn && SkelCover.wanted(true, player.getHealth(), lines, SkelCover.hpLine())) || witchWanted;
             // (Tuning skel_cover_wet_fail, a fix of 14 Nov 2026, on: no cover is offered in water, the run's rules have it)
             boolean wetFail = coverOn && SkelCover.wetFailOn();
             boolean coverOffered = (coverWanted || _cover.on()) && CornerWallTask.offered(mod) && !(wetFail && player.isInWater());
@@ -946,14 +952,21 @@ final class CombatBrain {
             // ground digs here and whether lava is near, asked only while the cover is in play; the cover digs first with its
             // key, or with a melee mob about)
             boolean overRuns = coverOn && SkelCover.overRunsOn();
-            boolean asked = overRuns && (coverWanted || _cover.on());
+            // (witch_cover: asked for the witch's cover too, the run stays where lava is near or the ground will not dig)
+            boolean asked = (overRuns || witchCover) && (coverWanted || _cover.on());
             boolean digHere = asked && ((_coverTask != null && _coverTask.digging())
                     || (player.onGround() && CornerWallTask.diggable(mod, mod.getWorld(), player.blockPosition())));
             boolean lavaNear = asked && lavaAbout(mod, player);
-            _coverDig = (coverOn && SkelCover.digFirstOn()) || (overRuns && meleeWithin(foes, _seen, CombatCommit.FOE_RANGE));
+            // (witch_cover: the witch's cover digs first whatever dig_first says: its line is no line a block on it would keep)
+            _coverDig = (coverOn && SkelCover.digFirstOn()) || (overRuns && meleeWithin(foes, _seen, CombatCommit.FOE_RANGE))
+                    || witchWanted || _cover.witch();
             _commit.skelFacts(coverOn || closeOn ? new CombatCommit.Skel(_seen.kinds(), _seen.lineIds(), closeOn,
                     closeOn && lines > 0 && hasSword(mod), closeOn && lines > 0 ? armourPieces(player) : 0, coverTakes,
-                    SkelCover.closeHp(), SkelCover.range(), digHere, lavaNear, overRuns) : null);
+                    SkelCover.closeHp(), SkelCover.range(), digHere, lavaNear, overRuns, witchCover ? _seen.witchIds() : Set.of()) : null);
+            // (Tuning witch_melee_reach, a fix of 14 Nov 2026, on: a witch within reach is a melee foe with a sword or an axe at hand
+            // and no other shooter's line; the bag is asked only with a witch in reach)
+            boolean witchReach = WitchRules.meleeReachOn();
+            _commit.witchMeleeFacts(witchReach, witchReach && witchInReach(foes) && hasBlade(mod));
             Event event = _commit.step(new CombatCommit.Tick(now, player.getHealth(), player.getX(), player.getZ(), foes, target,
                     way(mod, mobs, foes).withRim(rim).withLavaClose(lavaClose), armed(mod, foes), tryingToMove(mod, player), creeperRepeat, body(mod, dimension),
                     boxedIn(mod, player, mobs, foes), 0, _commit.recovering() && (freshShot || blazeWatching(mod, player)), lingering(player)));
@@ -969,6 +982,8 @@ final class CombatBrain {
                 // (Tuning skel_cover_hold, a fix of 14 Nov 2026, on: out at full hp, or at the line with no line for 5 s; the stall
                 // out only into no line) (skel_cover_over_runs: a melee mob close to the cover keeps it as a skeleton does)
                 _cover.holdRules(SkelCover.holdOn());
+                // (witch_cover: the poison and the witches' lines keep the cover, WitchRules)
+                _cover.witchFacts(witchCover, witchWanted, poisoned, _seen.witchLines().size(), _seen.witchLineDist(), _seen.witchNearest());
                 _cover.step(now, coverWanted, coverOffered, player.getHealth(), SkelCover.hpLine(), lines, _seen.lineDist(), _seen.nearest(),
                         mod.getFoodChain().isTryingToEat(), _coverTask == null ? null : _coverTask.failed(), mod.getFoodChain().hasFood(),
                         overRuns && meleeWithin(foes, _seen, CombatCommit.LOW_HP_RANGE));
@@ -980,7 +995,7 @@ final class CombatBrain {
             if (!_cover.on()) {
                 _coverTask = null;
             } else if (_coverTask == null) {
-                _coverTask = new SkelCoverTask(this::seen, () -> _coverDig, () -> _shotTick);
+                _coverTask = new SkelCoverTask(this::seen, () -> _coverDig, () -> _shotTick, _cover.witch());
                 mod.getClientBaritone().getPathingBehavior().cancelEverything();
             }
             // (unarmed_no_corner_fight) the wall the machine asked for: a new build for each round, the run's path let go of so it
@@ -1097,10 +1112,24 @@ final class CombatBrain {
         double nearestFast = Double.POSITIVE_INFINITY;
         double nearestMelee = Double.POSITIVE_INFINITY;
         boolean covered = covering();
+        // (Tuning poison_eat, a fix of 14 Nov 2026, on: WitchRules) poisoned, a witch 5 or more off or with no line is no reason to
+        // put off a bite: test heel's buddy ate nothing through 10 to 17 hp of poison, "too close to eat" at 12 m and "a shooter has
+        // a line on us", with no saturation for the regen. the skeletons keep their rule
+        boolean poisonEat = WitchRules.poisonEatOn();
+        boolean poisonedNow = player.hasEffect(MobEffects.POISON);
+        boolean witchNoMelee = adris.altoclef.util.helpers.Tuning.get("witch_no_melee", 0) > 0;
+        // (witch_melee_reach: the run cornered, or the cover hit through by a witch in reach, is any hand's swing)
+        boolean witchStuck = _commit.cornered() || covered;
         for (int i = 0; i < foes.size(); i++) {
             Foe foe = foes.get(i);
+            boolean witch = foe.kind() == Kind.LOBBER;
+            // (poison_eat) this witch keeps no meal shut
+            boolean witchFree = witch && !WitchRules.keepsMealShut(poisonEat, poisonedNow, foe.distance(), foe.sight());
             // (skel_cover) in cover a skeleton with no line is no reason to put off a meal: it cannot shoot and does not walk up
-            if (!(covered && _seen.kinds().contains(foe.id()) && !_seen.lineIds().contains(foe.id()))) nearest = Math.min(nearest, foe.distance());
+            // (witch_cover: nor a witch with none)
+            boolean lineless = covered && ((_seen.kinds().contains(foe.id()) && !_seen.lineIds().contains(foe.id()))
+                    || (_seen.witchIds().contains(foe.id()) && !_seen.witchLineIds().contains(foe.id())));
+            if (!lineless && !witchFree) nearest = Math.min(nearest, foe.distance());
             // (the nearest fast one gets to say when a bite may start, see CombatRules.RUN_BITE_START_FAST. shooters keep
             // their distance, so they are not chasers)
             if (foe.melee() && foe.distance() < nearestFast && foe.fast()) {
@@ -1108,13 +1137,14 @@ final class CombatBrain {
             }
             // a shooter close enough to hit us with a line to us. the los ray is only cast for the ones that are in range
             // (the ray is only cast when the cheap answers did not already say yes)
-            if (!shotAt && foe.ranged() && !foe.creeper()
+            if (!shotAt && !witchFree && foe.ranged() && !foe.creeper()
                     && CombatCommit.shotAt(foe, foe.distance() <= CombatRules.SHOOTER_RANGE && !foe.sight() && mobs.get(i).hasLineOfSight(player))) {
                 shotAt = true;
             }
             // (witch_no_melee: not a witch either, the machine runs from it and the aura keeps its hands off it)
+            // (witch_melee_reach: but one within reach that the rule makes a melee foe: a blade and no other shooter's line, or stuck)
             if (foe.hitUs() && foe.distance() <= CombatCommit.CONTACT
-                    && !(foe.kind() == Kind.LOBBER && adris.altoclef.util.helpers.Tuning.get("witch_no_melee", 0) > 0)) _swingAt.add(foe.id());
+                    && !(witch && witchNoMelee && !_commit.witchMelee(foe, foes, witchStuck))) _swingAt.add(foe.id());
             // (a creeper is not a melee foe to the rules but it is one to a bite, it walks up and goes off)
             // (the fight target counts whatever it is: a skeleton at point blank is no time to chew, and a melee target knocked back to
             // five blocks is not a walk-up, the swap to food would eat its swing cooldown. only a shooter we are closing on is)
@@ -1436,6 +1466,30 @@ final class CombatBrain {
     private static boolean hasSword(AltoClef mod) {
         for (WeaponPick.Candidate c : bagCandidates(mod)) {
             if (c.item() != null && ItemHelper.isSword(c.item())) return true;
+        }
+        return false;
+    }
+
+    // (witch_melee_reach) a sword or an axe in hand or in the bag: what a fight on a witch in reach takes
+    private static boolean hasBlade(AltoClef mod) {
+        for (WeaponPick.Candidate c : bagCandidates(mod)) {
+            if (c.item() != null && (ItemHelper.isSword(c.item()) || ItemHelper.isAxe(c.item()))) return true;
+        }
+        return false;
+    }
+
+    // (witch_melee_reach) a witch among the foes within reach
+    private static boolean witchInReach(List<Foe> foes) {
+        for (Foe foe : foes) {
+            if (foe.kind() == Kind.LOBBER && foe.inReach()) return true;
+        }
+        return false;
+    }
+
+    // (witch_cover) a witch within WitchRules.RANGE whose throw or poison hit the buddy within WitchRules.HIT_TICKS
+    private static boolean witchHitLately(List<Foe> foes) {
+        for (Foe foe : foes) {
+            if (foe.kind() == Kind.LOBBER && foe.distance() <= WitchRules.RANGE && foe.sinceHit() <= WitchRules.HIT_TICKS) return true;
         }
         return false;
     }

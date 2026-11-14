@@ -108,6 +108,12 @@ public record MobThreat(String kind, double width, double height, double eye, do
             // 2 raw once a second; climbs, so a wall is no way out (MobReachability lets spiders up walls too)
             Map.entry("spider", new MobThreat("spider", 1.4, 0.9, 0.65, 3.0, false, 16, false,
                     0.88, 0.7 + 0.83 + 0.3, false, 0, 0, 0, 0, 0.88, SafeStand.HIT, false, 16)),
+            // (a record, 14 Nov 2026: test heel's 14 witch deaths read "a body that hurts nobody", the level calm) a potion every
+            // 3 s within 10 with a line (RangedAttackGoal 60 ticks, 10 blocks): slowness first from 8 out, poison while the hp is
+            // 8 or more, else harming, 6 a throw (magic, through armour); the poison counts as the buddy's burn (DangerShadow).
+            // never in melee; 26 hp, walks at about 2.5 blocks a second
+            Map.entry("witch", new MobThreat("witch", 0.6, 1.95, 1.62, 2.5, false, 16, false,
+                    0, 0, false, 2.0, 10, 10, 0, 6.0, SafeStand.HIT, false, 26)),
             // 2 raw and 7 s of poison on Normal (about 0.8 a second on top)
             Map.entry("cave_spider", new MobThreat("cave_spider", 0.7, 0.5, 0.45, 3.0, false, 16, false,
                     1.7, 0.35 + 0.83 + 0.3, false, 0, 0, 0, 0, 0.88, SafeStand.HIT, false, 12)),

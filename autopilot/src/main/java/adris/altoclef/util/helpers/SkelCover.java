@@ -209,6 +209,9 @@ public final class SkelCover {
     // heel's buddy let go at 18 in a skeleton's line five times; and the stall leaves only once no skeleton has had a line for
     // LINE_GONE_TICKS and none is within RANGE, STALL_CAP_TICKS later at most: four held unhit with no food and walked out of
     // the cover into the line after the stall's minute
+    // (witch_cover, a fix of 14 Nov 2026, on: WitchRules) a witch's hit, or the poison with a witch within 16, takes the cover too
+    // (witchFacts); a witch's line counts as a skeleton's for the hold, the hp exits wait for the poison to be over and no witch's
+    // line for LINE_GONE_TICKS, and the far exit for no witch within LEAVE_RANGE and no poison either
     public static final class Hold {
         private boolean on;
         private long gainAt;
@@ -220,6 +223,17 @@ public final class SkelCover {
         private long blockedUntil = Long.MIN_VALUE / 2;
         private long blockedFrom = Long.MIN_VALUE / 2;
         private String note;
+        // (witch_cover) the witches' side, handed in before each step: the key, a witch wants the cover this tick, the poison on,
+        // the witches with a line within range and the nearest of them, the nearest witch seen or not; when a witch last had a
+        // line, and whether this stretch in cover was taken for a witch
+        private boolean witchOn;
+        private boolean witchWanted;
+        private boolean poisoned;
+        private int witchLines;
+        private double witchLineDist = Double.POSITIVE_INFINITY;
+        private double witchNearest = Double.POSITIVE_INFINITY;
+        private long witchLineAt = Long.MIN_VALUE / 2;
+        private boolean witch;
 
         public boolean on() {
             return on;
@@ -234,6 +248,25 @@ public final class SkelCover {
             String said = note;
             note = null;
             return said;
+        }
+
+        // (witch_cover) the witches' facts, handed in before each step; all off in a bare hold
+        public void witchFacts(boolean on, boolean wanted, boolean poisoned, int lines, double lineDist, double nearest) {
+            witchOn = on;
+            witchWanted = on && wanted;
+            this.poisoned = on && poisoned;
+            witchLines = on ? lines : 0;
+            witchLineDist = lineDist;
+            witchNearest = on ? nearest : Double.POSITIVE_INFINITY;
+        }
+
+        // (witch_cover) this stretch in cover was taken for a witch (its lines say "witch cover")
+        public boolean witch() {
+            return on && witch;
+        }
+
+        private String name() {
+            return witch ? "witch cover" : "skeleton cover";
         }
 
         // a stall or a cover that could not be had waits its retry (a clock that went back, a new world, lets it go)
@@ -266,35 +299,51 @@ public final class SkelCover {
                 farSince = -1;
                 lineAt = now;
                 stallSaid = false;
-                note = String.format(Locale.ROOT, "skeleton cover: %d %s with a line within %.1f at %.1f hp, taking cover", lines,
-                        lines == 1 ? "skeleton" : "skeletons", lineDist, hp);
+                witch = witchWanted;
+                witchLineAt = witchLines > 0 ? now : Long.MIN_VALUE / 2;
+                if (witch) {
+                    String within = Double.isInfinite(witchLineDist) ? "" : String.format(Locale.ROOT, " within %.1f", witchLineDist);
+                    note = String.format(Locale.ROOT, "witch cover: %d %s with a line%s at %.1f hp%s%s, taking cover", witchLines,
+                            witchLines == 1 ? "witch" : "witches", within, hp, poisoned ? ", poisoned" : "",
+                            lines > 0 ? ", " + lines + (lines == 1 ? " skeleton" : " skeletons") + " with a line" : "");
+                } else {
+                    note = String.format(Locale.ROOT, "skeleton cover: %d %s with a line within %.1f at %.1f hp, taking cover", lines,
+                            lines == 1 ? "skeleton" : "skeletons", lineDist, hp);
+                }
                 return;
             }
             if (hp > lastHp || eating || now < gainAt) gainAt = now;
             lastHp = hp;
             if (lines > 0 || now < lineAt) lineAt = now;
             boolean lineGone = now - lineAt >= LINE_GONE_TICKS;
+            // (witch_cover) a witch's line counts as a skeleton's for the hold, and the hp exits wait for the poison to be over
+            // and no witch's line for LINE_GONE_TICKS: the poison takes about 1 hp a 1.25 s whatever the hp says now
+            if (witchOn && (witchLines > 0 || now < witchLineAt)) witchLineAt = now;
+            boolean witchLineGone = !witchOn || now - witchLineAt >= LINE_GONE_TICKS;
+            boolean witchClear = witchLineGone && !poisoned;
             if (holdRules) {
-                if (hp >= FULL_HP) {
-                    leave(now, String.format(Locale.ROOT, "hp %.1f", hp), 0);
+                if (hp >= FULL_HP && witchClear) {
+                    leave(now, String.format(Locale.ROOT, "hp %.1f", hp) + witchSaid(), 0);
                     return;
                 }
-                if (hp >= hpLine && lineGone) {
-                    leave(now, String.format(Locale.ROOT, "hp %.1f, no line for %d s", hp, LINE_GONE_TICKS / 20), 0);
+                if (hp >= hpLine && lineGone && witchClear) {
+                    leave(now, String.format(Locale.ROOT, "hp %.1f, no line for %d s", hp, LINE_GONE_TICKS / 20) + witchSaid(), 0);
                     return;
                 }
-            } else if (hp >= hpLine) {
-                leave(now, String.format(Locale.ROOT, "hp %.1f", hp), 0);
+            } else if (hp >= hpLine && witchClear) {
+                leave(now, String.format(Locale.ROOT, "hp %.1f", hp) + witchSaid(), 0);
                 return;
             }
             if (failed != null) {
                 leave(now, "no cover here (" + failed + ")", RETRY_FAILED_TICKS);
                 return;
             }
-            if (nearest > LEAVE_RANGE && !meleeNear) {
+            // (witch_cover: no witch within LEAVE_RANGE either, and the poison over)
+            double near = Math.min(nearest, witchNearest);
+            if (near > LEAVE_RANGE && !meleeNear && !poisoned) {
                 if (farSince < 0 || now < farSince) farSince = now;
                 if (now - farSince >= LEAVE_TICKS) {
-                    leave(now, "no skeleton within " + Math.round(LEAVE_RANGE) + " for " + LEAVE_TICKS / 20 + " s", 0);
+                    leave(now, "no skeleton " + (witchOn ? "or witch " : "") + "within " + Math.round(LEAVE_RANGE) + " for " + LEAVE_TICKS / 20 + " s", 0);
                     return;
                 }
             } else {
@@ -307,8 +356,9 @@ public final class SkelCover {
                 return;
             }
             // (skel_cover_hold) out only into no line: none for LINE_GONE_TICKS and no skeleton within RANGE to step into
-            if (lineGone && nearest > RANGE) {
-                leave(now, stall + ", no skeleton within " + Math.round(RANGE), RETRY_STALL_TICKS);
+            // (witch_cover: nor a witch's)
+            if (lineGone && witchLineGone && near > RANGE) {
+                leave(now, stall + ", no skeleton " + (witchOn ? "or witch " : "") + "within " + Math.round(RANGE), RETRY_STALL_TICKS);
                 return;
             }
             if (now - gainAt >= STALL_TICKS + STALL_CAP_TICKS) {
@@ -317,8 +367,8 @@ public final class SkelCover {
             }
             if (!stallSaid) {
                 stallSaid = true;
-                note = "skeleton cover: " + stall + ", staying while a skeleton is within " + Math.round(RANGE)
-                        + (lineGone ? "" : " with a line");
+                note = name() + ": " + stall + ", staying while a " + (witch ? "witch or skeleton" : "skeleton") + " is within "
+                        + Math.round(RANGE) + (lineGone && witchLineGone ? "" : " with a line");
             }
         }
 
@@ -329,20 +379,29 @@ public final class SkelCover {
 
         public void reset() {
             on = false;
+            witch = false;
+            witchLineAt = Long.MIN_VALUE / 2;
             farSince = -1;
             blockedUntil = Long.MIN_VALUE / 2;
             blockedFrom = Long.MIN_VALUE / 2;
             note = null;
         }
 
+        // (witch_cover) what a witch's cover adds to an hp exit's words
+        private String witchSaid() {
+            return witch ? ", no poison, no witch's line for " + LINE_GONE_TICKS / 20 + " s" : "";
+        }
+
         private void leave(long now, String why, long retry) {
+            String name = name();
             on = false;
+            witch = false;
             farSince = -1;
             if (retry > 0) {
                 blockedFrom = now;
                 blockedUntil = now + retry;
             }
-            note = "skeleton cover: out of cover: " + why;
+            note = name + ": out of cover: " + why;
         }
     }
 }

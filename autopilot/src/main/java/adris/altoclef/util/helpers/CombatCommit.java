@@ -1138,11 +1138,23 @@ public final class CombatCommit {
     // (skel_cover_over_runs, a fix of 14 Nov 2026) dig: two down where the buddy stands come out with the tools at hand and the
     // floor holds (the dug-in cover is on offer, the one that keeps melee mobs off too); lavaNear: lava within a knock of the
     // feet, or under an open edge there; overRuns: the key
+    // (witch_cover, a fix of 14 Nov 2026) witches: the ids of the witches about with the key on (empty with it off), a kind the
+    // cover acts on as it does on the skeletons' (coverKind), never one the close rule asks about
     public record Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
-                       double range, boolean dig, boolean lavaNear, boolean overRuns) {
+                       double range, boolean dig, boolean lavaNear, boolean overRuns, Set<Integer> witches) {
         public Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
                     double range) {
             this(kinds, lines, close, sword, armour, cover, closeHp, range, false, false, false);
+        }
+
+        public Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
+                    double range, boolean dig, boolean lavaNear, boolean overRuns) {
+            this(kinds, lines, close, sword, armour, cover, closeHp, range, dig, lavaNear, overRuns, Set.of());
+        }
+
+        // a kind the cover acts on: a skeleton's, or (witch_cover) a witch
+        public boolean coverKind(int id) {
+            return kinds.contains(id) || witches.contains(id);
         }
     }
 
@@ -1161,7 +1173,7 @@ public final class CombatCommit {
     private boolean coverForShots(Tick t) {
         if (skel == null || !skel.cover()) return false;
         for (Foe foe : t.foes()) {
-            if (foe.ranged() && !foe.creeper() && foe.shooting() && !skel.kinds().contains(foe.id())) return false;
+            if (foe.ranged() && !foe.creeper() && foe.shooting() && !skel.coverKind(foe.id())) return false;
         }
         return true;
     }
@@ -1173,7 +1185,7 @@ public final class CombatCommit {
         if (coverOverRun(t, reason)) return true;
         if ((reason != Why.SHOT && reason != Why.LOW_HP) || !coverForShots(t)) return false;
         for (Foe foe : t.foes()) {
-            if (foe.distance() <= range && !skel.kinds().contains(foe.id())) return false;
+            if (foe.distance() <= range && !skel.coverKind(foe.id())) return false;
         }
         return true;
     }
@@ -1187,12 +1199,38 @@ public final class CombatCommit {
     // only where the ground digs. the run stays where it helps: a creeper close, lava near, a witch, a heavy hitter, ground that
     // will not dig with melee mobs about, no block and no ground at all (the cover is not on offer then)
     private boolean coverOverRun(Tick t, Why reason) {
-        if (skel == null || !skel.overRuns() || !skel.cover() || skel.lavaNear()) return false;
+        if (skel == null || !skel.overRuns()) return false;
         if (reason != Why.SHOT && reason != Why.LOW_HP && reason != Why.CROWD && reason != Why.UNARMED) return false;
+        return coverHolds(t);
+    }
+
+    // (witch_cover) the cover's name in its notes: a witch's where a witch the cover acts on hit us lately
+    private String coverName(Tick t) {
+        if (skel != null && !skel.witches().isEmpty()) {
+            for (Foe foe : t.foes()) {
+                if (foe.kind() == Kind.LOBBER && foe.hitUs() && skel.witches().contains(foe.id())) return "witch cover";
+            }
+        }
+        return "skeleton cover";
+    }
+
+    // (witch_cover, a fix of 14 Nov 2026, on: WitchRules) a witch's hit where the dug-in cover holds is the cover in place of the
+    // run out of its range (Why.LOBBER): test heel's runs from a witch ran from the buddy's own spot, in a tunnel along its line,
+    // ended clear at 12 with the witch following to 16, and the heal-up after stood still while it walked back. the run stays
+    // where the cover does not hold (water, lava near, a creeper close, an enderman, melee mobs where the ground will not dig)
+    private boolean witchCoverInstead(Tick t, Foe witch) {
+        return skel != null && skel.witches().contains(witch.id()) && coverHolds(t);
+    }
+
+    // the dug-in cover takes the buddy and holds against what is about: every shooter with a line a kind the cover acts on, no
+    // lava near, no enderman, no creeper within SkelCover.CREEPER_RANGE, and with a plain melee mob about only where the ground
+    // digs (the rest: a witch with the key off, a heavy hitter, a wither skeleton, is the run's)
+    private boolean coverHolds(Tick t) {
+        if (skel == null || !skel.cover() || skel.lavaNear()) return false;
         if (!coverForShots(t) || endermanAbout(t) != null || t.creeperRepeat()) return false;
         boolean melee = false;
         for (Foe foe : t.foes()) {
-            if (skel.kinds().contains(foe.id())) continue;
+            if (skel.coverKind(foe.id())) continue;
             if (foe.creeper()) {
                 if (foe.distance() <= SkelCover.CREEPER_RANGE) return false;
                 continue;
@@ -1246,7 +1284,48 @@ public final class CombatCommit {
     }
 
     private boolean noMelee(Foe foe) {
-        return witchNoMelee && foe.kind() == Kind.LOBBER;
+        return noMelee(foe, false);
+    }
+
+    // (witch_melee_reach) stuck: the run's corner (its pick, a cornered fight's next target), where any hand will do
+    private boolean noMelee(Foe foe, boolean stuck) {
+        return witchNoMelee && foe.kind() == Kind.LOBBER && !witchMelee(foe, stepFoes, stuck);
+    }
+
+    // (the buddy's fork, Tuning witch_melee_reach, a fix of 14 Nov 2026, on; the brain hands it in before each step, off in a bare
+    // machine) a witch within reach is a melee foe after all (WitchRules.melee): with a sword or an axe at hand and no other shooter
+    // with a line on the buddy within FOE_RANGE, or in any hand where the run is cornered. it has 26 hp and no armour, four or
+    // five sword hits; the 13 Nov rule came from a fight with skeletons about, which this keeps out. test heel: a climb out of a
+    // hole with the witch at 0 to 1 m for 24 s and the run stuck on its step, no swing; a stuck step in water with the witch at
+    // 0.6 m while the cornered rule fought a zombie it could not reach
+    private boolean witchReach;
+    private boolean witchBlade;
+    // this step's foes, for the other shooters' lines
+    private List<Foe> stepFoes = List.of();
+
+    public void witchMeleeFacts(boolean on, boolean blade) {
+        witchReach = on;
+        witchBlade = blade;
+    }
+
+    // (witch_melee_reach) this witch is one to swing at: the brain's aura asks it too (stuck: the run cornered, or the cover hit
+    // through). false with the key off
+    public boolean witchMelee(Foe witch, List<Foe> foes, boolean stuck) {
+        return witchReach && WitchRules.melee(true, witch.inReach(), witchBlade, otherShooterLine(foes, witch), stuck);
+    }
+
+    // another shooter with a line on the buddy within FOE_RANGE: a foe that shoots with its line (another witch, a skeleton, a
+    // blaze), or a skeleton of the kinds the brain saw with one
+    private boolean otherShooterLine(List<Foe> foes, Foe witch) {
+        for (Foe foe : foes) {
+            if (foe.id() != witch.id() && foe.ranged() && !foe.creeper() && foe.sight() && foe.distance() <= FOE_RANGE) return true;
+        }
+        if (skel != null) {
+            for (int id : skel.lines()) {
+                if (id != witch.id()) return true;
+            }
+        }
+        return false;
     }
 
     public void meter(DangerMeter.Level level, boolean calmHere) {
@@ -1483,6 +1562,7 @@ public final class CombatCommit {
         clockSkew = lastTick != Long.MIN_VALUE && t.now() < lastTick ? lastTick - t.now() : 0;
         if (clockSkew > 0) t = t.withNow(lastTick);
         t = t.withNextHit(watchHits(t));
+        stepFoes = t.foes();
         if (mode != Mode.NONE) {
             runMaxHit = Math.max(runMaxHit, t.nextHit());
             // whoever joins the chase is part of it: the hit was theirs as much as the first lot's. a tick late on purpose, the ones
@@ -1812,7 +1892,7 @@ public final class CombatCommit {
         Why run = unlatched(runReason(t, cooling), t);
         // (skel_cover) hurt under skeletons' arrows is the cover, not a run through their lines
         if (coverInstead(t, run, LOW_HP_RANGE)) {
-            skelNote(t, "skeleton cover instead of a run [" + run + "]");
+            skelNote(t, coverName(t) + " instead of a run [" + run + "]");
             // (skel_cover_over_runs) the cover in place of the run holds the wheel: no fight on what is on us either, that is
             // what the run was for
             if (coverOverRun(t, run)) return Event.NONE;
@@ -1838,7 +1918,7 @@ public final class CombatCommit {
             Why again = unlatched(rerun(t), t);
             // (skel_cover) a skeleton's arrow in the heal hold, or one walking about close, is the cover, not a run through its line
             if (coverInstead(t, again, RecoverHold.RERUN_RANGE)) {
-                skelNote(t, "skeleton cover instead of a run [" + again + "]");
+                skelNote(t, coverName(t) + " instead of a run [" + again + "]");
                 if (coverOverRun(t, again)) return Event.NONE;
                 again = Why.NONE;
             }
@@ -1864,11 +1944,23 @@ public final class CombatCommit {
             // (no run for these while an enderman is about: it follows, so a swing at what is on us is the better trade)
             boolean enderAbout = endermanAbout(t) != null;
             if (gaveUpOn(hit, t.now()) && !enderAbout) {
+                // (witch_cover) where the dug-in cover holds, the cover takes the buddy in place of the run out of its range
+                if (hit.kind() == Kind.LOBBER && witchCoverInstead(t, hit)) {
+                    skelNote(t, "witch cover instead of a run [LOBBER]");
+                    return Event.NONE;
+                }
                 if (noMelee(hit)) idleNote = "witch_no_melee: a witch hit us from " + Math.round(hit.distance()) + " blocks, no melee fight: a run out of its range";
                 return startRun(t, Why.LOBBER, Event.RUN_START);
             }
             // (witch_no_melee: with an enderman about the witch is no run and no fight either, the rules below go on)
             if (!noMelee(hit)) {
+                // (witch_melee_reach) a witch in reach with a sword or an axe at hand and no other shooter's line: the fight, not
+                // the cover in place of a run
+                if (witchNoMelee && hit.kind() == Kind.LOBBER) {
+                    idleNote = String.format(java.util.Locale.ROOT, "witch_melee_reach: a witch in reach %.1f blocks off, a sword or an axe "
+                            + "at hand, no other shooter with a line: a fight (hp %.1f)", hit.distance(), t.health());
+                    return startFight(t, hit, Why.HIT, Event.FIGHT_START, false);
+                }
                 // (skel_cover_over_runs) under skeletons' arrows with the dug-in cover to be had: the hole, not the unarmed run
                 // through their lines nor a fight in them (27 of the last 155 arrows landed in fights); a skeleton that walked up
                 // and hit is fought only where the close rule would walk up to it (the hp, a sword, armour, no second one)
@@ -2760,7 +2852,7 @@ public final class CombatCommit {
             // still boxed in: whatever is touching us and has hit us (bar the one thing that is never a fight, and creepers: that
             // is the creeper step's, a fresh zombie standing next to us is not a reason to keep swinging)
             for (Foe foe : t.foes()) {
-                if (foe.id() != targetId && foe.kind() != Kind.UNTOUCHABLE && !foe.creeper() && !noMelee(foe) && foe.hitUs() && foe.distance() <= CORNER_RANGE
+                if (foe.id() != targetId && foe.kind() != Kind.UNTOUCHABLE && !foe.creeper() && !noMelee(foe, true) && foe.hitUs() && foe.distance() <= CORNER_RANGE
                         && (best == null || foe.distance() < best.distance())) best = foe;
             }
             return best;
@@ -3076,7 +3168,8 @@ public final class CombatCommit {
         Foe closest = null;
         for (Foe foe : t.foes()) {
             if (holds) break;
-            if (foe.distance() > CORNER_WATCH || foe.kind() == Kind.UNTOUCHABLE || noMelee(foe)) continue;
+            // (witch_melee_reach: a witch within reach is the corner's pick too, in any hand)
+            if (foe.distance() > CORNER_WATCH || foe.kind() == Kind.UNTOUCHABLE || noMelee(foe, true)) continue;
             if (foe.creeper() || (foe.distance() > CORNER_RANGE && ignored.containsKey(foe.id()))) continue;
             if (closest == null || foe.distance() < closest.distance()) closest = foe;
         }

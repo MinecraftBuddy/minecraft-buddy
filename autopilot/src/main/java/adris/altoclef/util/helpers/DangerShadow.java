@@ -191,6 +191,14 @@ public final class DangerShadow {
         return (burnOn() ? BurnClock.hp(burnClock.ticks(), burnFireRes) : 0) + (poisonOn() ? poisonLeft : 0);
     }
 
+    // (a record, 14 Nov 2026) the burn the reading counts: burnHp(), and the poison still to take with risk_flee off too, so the
+    // meter's lines under a witch's poison stop reading calm (test heel: 9 of 14 witch deaths at "level calm"). burnHp(), which
+    // the decisions read, keeps its rule; with risk_flee off nothing reads the reading for a decision (the runs, the blaze
+    // fight's way back, the route and the mob field's pricing all ask risk_flee first), the forced drills' danger_force aside
+    private static double readingBurn() {
+        return burnHp() + (on() && !poisonOn() ? poisonLeft : 0);
+    }
+
     // (S137, one system) the hp the next piece needs (DangerMeter.need), the most the runs' reading asked while its level
     // was last at flee: what the way back after a flee waits for (the blaze fight's heal wait). 0 before any flee
     private static double need;
@@ -445,7 +453,7 @@ public final class DangerShadow {
         boolean forced = DangerForce.mode(Tuning.get("danger_force", 0)) != DangerForce.OFF;
         double bowDps = forced && adris.altoclef.tasks.entity.ForcedBowTask.canShoot(mod) ? BOW_DPS : 0;
         DangerMeter.Us us = new DangerMeter.Us(hp, dps, player.getArmorValue(), player.getAttributeValue(Attributes.ARMOR_TOUGHNESS),
-                level.getDifficulty().getId(), resistance == null ? 0 : resistance.getAmplifier() + 1, fireRes, bowDps, burnHp());
+                level.getDifficulty().getId(), resistance == null ? 0 : resistance.getAmplifier() + 1, fireRes, bowDps, readingBurn());
         // (and the full count: every hostile in sight or after us at want 1)
         List<DangerMeter.Mob> full = forced ? new ArrayList<>() : null;
 

@@ -8,6 +8,7 @@ import adris.altoclef.util.helpers.SkelCover;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.monster.Witch;
 import net.minecraft.world.entity.monster.skeleton.Bogged;
 import net.minecraft.world.entity.monster.skeleton.Parched;
 import net.minecraft.world.entity.monster.skeleton.Skeleton;
@@ -44,12 +45,21 @@ import java.util.function.Supplier;
 // the next block or digs at once, and one in the finished cover with nothing more to put up is a cover that failed.
 // (Tuning skel_cover_wet_fail, a fix of 14 Nov 2026, on) off the ground a second (in water) is a cover that failed: the task
 // stood 36 s in water under six arrows
+// (Tuning witch_cover, a fix of 14 Nov 2026, on) a witch's hit, or the poison with a witch within 16, takes the same cover (the
+// brain's _coverDig digs first for it): the witch throws only with a line, and a shut top stops an arcing splash
 public final class SkelCoverTask extends Task {
 
     // the skeletons about as one tick's look: lines, the ones with a line to the buddy within range, nearest first; lineDist the
-    // nearest of those; nearest the nearest of the kinds, seen or not; kinds and lineIds their entity ids
-    public record Seen(List<Mob> lines, double lineDist, double nearest, Set<Integer> kinds, Set<Integer> lineIds) {
+    // nearest of those; nearest the nearest of the kinds, seen or not; kinds and lineIds their entity ids.
+    // (witch_cover) the witches the same way, looked at only with the key on: witchLines, witchLineDist, witchNearest, witchIds,
+    // witchLineIds
+    public record Seen(List<Mob> lines, double lineDist, double nearest, Set<Integer> kinds, Set<Integer> lineIds,
+                       List<Mob> witchLines, double witchLineDist, double witchNearest, Set<Integer> witchIds, Set<Integer> witchLineIds) {
         public static final Seen NONE = new Seen(List.of(), Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Set.of(), Set.of());
+
+        public Seen(List<Mob> lines, double lineDist, double nearest, Set<Integer> kinds, Set<Integer> lineIds) {
+            this(lines, lineDist, nearest, kinds, lineIds, List.of(), Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Set.of(), Set.of());
+        }
     }
 
     // the tracker files an entity under its own class (MobDefenseChain.drawingShooter), so each kind is asked by name
@@ -60,10 +70,19 @@ public final class SkelCoverTask extends Task {
     // the skeletons of the kinds about, and which of them have a line to the buddy within range (their eye to ours, as their
     // bow goal asks it)
     public static Seen scan(AltoClef mod, LocalPlayer player, double range) {
+        return scan(mod, player, range, false);
+    }
+
+    // witches: (witch_cover) the witches too, the same way (a witch throws only with a line, RangedAttackGoal)
+    public static Seen scan(AltoClef mod, LocalPlayer player, double range, boolean witches) {
         List<Mob> lines = new ArrayList<>();
         Set<Integer> kinds = new HashSet<>();
         Set<Integer> lineIds = new HashSet<>();
         double nearest = Double.POSITIVE_INFINITY;
+        List<Mob> witchLines = new ArrayList<>();
+        Set<Integer> witchIds = new HashSet<>();
+        Set<Integer> witchLineIds = new HashSet<>();
+        double witchNearest = Double.POSITIVE_INFINITY;
         try {
             for (Class<? extends Mob> kind : KINDS) {
                 for (Mob mob : mod.getEntityTracker().getTrackedEntities(kind)) {
@@ -78,13 +97,28 @@ public final class SkelCoverTask extends Task {
                     }
                 }
             }
+            if (witches) {
+                for (Witch mob : mod.getEntityTracker().getTrackedEntities(Witch.class)) {
+                    if (!mob.isAlive()) continue;
+                    double d = mob.distanceTo(player);
+                    if (d > LOOK_RANGE) continue;
+                    witchIds.add(mob.getId());
+                    witchNearest = Math.min(witchNearest, d);
+                    if (d <= range && mob.hasLineOfSight(player)) {
+                        witchLines.add(mob);
+                        witchLineIds.add(mob.getId());
+                    }
+                }
+            }
         } catch (ConcurrentModificationException ignored) {
             // the tracker rebuilds its lists on another thread sometimes: what was seen so far, the next tick has the rest
         }
-        if (kinds.isEmpty()) return Seen.NONE;
+        if (kinds.isEmpty() && witchIds.isEmpty()) return Seen.NONE;
         lines.sort(Comparator.comparingDouble(m -> m.distanceTo(player)));
+        witchLines.sort(Comparator.comparingDouble(m -> m.distanceTo(player)));
         double lineDist = lines.isEmpty() ? Double.POSITIVE_INFINITY : lines.get(0).distanceTo(player);
-        return new Seen(lines, lineDist, nearest, kinds, lineIds);
+        double witchLineDist = witchLines.isEmpty() ? Double.POSITIVE_INFINITY : witchLines.get(0).distanceTo(player);
+        return new Seen(lines, lineDist, nearest, kinds, lineIds, witchLines, witchLineDist, witchNearest, witchIds, witchLineIds);
     }
 
     // one cell's click gets this long (the block in hand, the look, the click) before the next is tried
@@ -108,6 +142,8 @@ public final class SkelCoverTask extends Task {
     private final BooleanSupplier digFirst;
     // the game time of the last projectile that hit the buddy (CombatBrain.countShots)
     private final LongSupplier shotAt;
+    // (witch_cover) this cover was taken for a witch: its lines say so and the pillbox turns its first side to the witch
+    private final boolean witch;
     private final Object keys = new Object();
     private CornerWallTask dig;
     private long builtAt = -1;
@@ -138,9 +174,14 @@ public final class SkelCoverTask extends Task {
     }
 
     public SkelCoverTask(Supplier<Seen> seen, BooleanSupplier digFirst, LongSupplier shotAt) {
+        this(seen, digFirst, shotAt, false);
+    }
+
+    public SkelCoverTask(Supplier<Seen> seen, BooleanSupplier digFirst, LongSupplier shotAt, boolean witch) {
         this.seen = seen;
         this.digFirst = digFirst;
         this.shotAt = shotAt;
+        this.witch = witch;
     }
 
     // why the cover could not be had, null while it has not given up (SkelCover.Hold's failed)
@@ -178,7 +219,8 @@ public final class SkelCoverTask extends Task {
 
     @Override
     protected String toDebugString() {
-        return dig != null ? "Taking cover from skeletons (dug in)" : boxing ? "Taking cover from skeletons (pillbox)" : "Taking cover from skeletons";
+        String from = witch ? "a witch" : "skeletons";
+        return dig != null ? "Taking cover from " + from + " (dug in)" : boxing ? "Taking cover from " + from + " (pillbox)" : "Taking cover from " + from;
     }
 
     @Override
@@ -279,7 +321,7 @@ public final class SkelCoverTask extends Task {
     // no cover here: SkelCover.Hold lets go, the run's rules again
     private Task fail(AltoClef mod, String why) {
         failed = why;
-        Debug.logInternal("combat: skeleton cover: no cover: " + why);
+        Debug.logInternal("combat: " + (witch ? "witch" : "skeleton") + " cover: no cover: " + why);
         return stand(mod);
     }
 
@@ -323,7 +365,9 @@ public final class SkelCoverTask extends Task {
         boxCells.clear();
         boxSkipped.clear();
         current = null;
-        Mob toward = s.lines().isEmpty() ? null : s.lines().get(0);
+        // (witch_cover: the witch's side first in a witch's cover)
+        List<Mob> first = witch && !s.witchLines().isEmpty() ? s.witchLines() : s.lines();
+        Mob toward = first.isEmpty() ? null : first.get(0);
         double dx = toward == null ? 1 : toward.getX() - player.getX();
         double dz = toward == null ? 0 : toward.getZ() - player.getZ();
         for (int[] side : SkelCover.boxSides(dx, dz)) boxCells.add(boxFeet.offset(side[0], 1, side[1]));
@@ -438,8 +482,14 @@ public final class SkelCoverTask extends Task {
         }
     }
 
-    // "skeleton cover: 2 skeletons with a line within 11.5 at 5.0 hp, "
-    private static String lead(Seen s, LocalPlayer player) {
+    // "skeleton cover: 2 skeletons with a line within 11.5 at 5.0 hp, " ("witch cover: 1 witch with a line within 8.0 at 9.0 hp, ")
+    private String lead(Seen s, LocalPlayer player) {
+        if (witch) {
+            int w = s.witchLines().size();
+            String within = Double.isInfinite(s.witchLineDist()) ? "range" : String.format(Locale.ROOT, "%.1f", s.witchLineDist());
+            return String.format(Locale.ROOT, "witch cover: %d %s with a line within %s at %.1f hp, ", w, w == 1 ? "witch" : "witches",
+                    within, player.getHealth());
+        }
         int n = s.lines().size();
         String within = Double.isInfinite(s.lineDist()) ? "range" : String.format(Locale.ROOT, "%.1f", s.lineDist());
         return String.format(Locale.ROOT, "skeleton cover: %d %s with a line within %s at %.1f hp, ", n, n == 1 ? "skeleton" : "skeletons",

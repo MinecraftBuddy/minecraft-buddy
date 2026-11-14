@@ -258,6 +258,12 @@ hunted; their meat is picked up.
   feet's under it where needed), else the buddy digs two down and shuts the top. No run through their arrows. The meal and
   the healing happen in cover; out at 18 health, or once none is within 20 blocks for 5 seconds. The buddy walks up to
   one only with 16 health or more, a sword, some armour on and no second one in sight. The nether keeps its own rules.
+- **Witches**: a witch's throw, or poison with a witch within 16 blocks, sends the buddy into the same cover: two down with
+  the top shut, or blocks round the head where the ground will not dig. No run from a witch, except in water or with lava
+  close. The buddy eats in cover and comes out once the poison is over, the health is back and no witch has had the buddy
+  in sight for 5 seconds. A witch within reach is fought with a sword or an axe when no other shooter has the buddy in
+  sight, and with bare hands too when the buddy is cornered. While poisoned, a witch 5 blocks or more off, or out of sight,
+  puts off no meal, and under 10 health a golden apple goes down.
 - **Places to avoid**: where a patrol of pillagers was seen (twenty minutes) or the buddy was shot (ten), no search
   leg, no ore and no animal within 48 blocks.
 - **No meal with a monster in pursuit** within ten blocks (a wither skeleton: fourteen) or a shooter in sight, unless

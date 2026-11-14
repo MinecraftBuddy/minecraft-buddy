@@ -668,10 +668,15 @@ public class FoodChain extends SingleTaskChain {
         return burning && health <= 10 && hasGapple && mayEat;
     }
 
+    // (Tuning poison_eat, a fix of 14 Nov 2026, on: WitchRules.gapple) poisoned under 10 hp the gapple goes down the same way: its
+    // regen outheals the poison, which took 10 to 17 hp of each of test heel's witch deaths with nothing eaten
     private static boolean burnGapple(AltoClef mod, CombatRules.Stance stance) {
         LocalPlayer player = mod == null ? null : mod.getPlayer();
-        return player != null && burnGapple(player.isOnFire() && !adris.altoclef.util.helpers.FireRes.has(player), player.getHealth(),
-                mod.getItemStorage().hasItem(Items.GOLDEN_APPLE, Items.ENCHANTED_GOLDEN_APPLE), stance.mayEat());
+        if (player == null) return false;
+        boolean gapple = mod.getItemStorage().hasItem(Items.GOLDEN_APPLE, Items.ENCHANTED_GOLDEN_APPLE);
+        return burnGapple(player.isOnFire() && !adris.altoclef.util.helpers.FireRes.has(player), player.getHealth(), gapple, stance.mayEat())
+                || adris.altoclef.util.helpers.WitchRules.gapple(adris.altoclef.util.helpers.WitchRules.poisonEatOn(),
+                player.hasEffect(MobEffects.POISON), player.getHealth(), gapple, stance.mayEat());
     }
 
     // the chains are built one after another, so early on there may be no mob defense to ask yet
