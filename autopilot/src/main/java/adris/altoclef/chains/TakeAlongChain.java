@@ -2,6 +2,7 @@ package adris.altoclef.chains;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
+import adris.altoclef.takealong.FallBans;
 import adris.altoclef.takealong.TakeAlong;
 import adris.altoclef.takealong.TakeAlongKinds;
 import adris.altoclef.takealong.TakeAlongKinds.Kind;
@@ -113,6 +114,8 @@ public class TakeAlongChain extends SingleTaskChain {
     // the mining task asks the sight question for every candidate, every tick: same block same tick is the same answer
     private final Map<Long, Boolean> _sight = new HashMap<>();
     private long _sightTick = Long.MIN_VALUE;
+    // (take_along_falling_ban) the boxes of detours for a falling kind given up, banned by column (FallBans)
+    private final FallBans _fallBans = new FallBans();
     // the best cluster or drop group of the last look that was not worth it, for the "skipping" line
     private Choice _skipBlocks;
     private Choice _skipDrops;
@@ -209,7 +212,7 @@ public class TakeAlongChain extends SingleTaskChain {
                 return PRIORITY;
             case TIMEOUT:
             case STRAYED:
-                int banned = ban(mod, cfg);
+                int banned = ban(mod, cfg, step == Step.TIMEOUT ? "timeout" : "strayed", now);
                 end(mod, now, step.name().toLowerCase(), (step == Step.TIMEOUT ? "out of time" : "led too far from where it began")
                         + ", " + banned + (_detour == null ? " blocks" : _detour.animals != null ? " animals" : _detour.drops != null ? " drops"
                         : " blocks") + " banned for a while");
@@ -218,7 +221,9 @@ public class TakeAlongChain extends SingleTaskChain {
                 end(mod, now, "done", "the cluster is mined or the bag holds what it came for");
                 return Float.NEGATIVE_INFINITY;
             case CAPPED:
-                end(mod, now, "capped", "dug the blocks it was counted for");
+                // (take_along_falling_ban) capped with no flint got: not the same gravel again for the ban's time
+                int columns = fallBan(mod, cfg, "capped", now);
+                end(mod, now, "capped", "dug the blocks it was counted for" + (columns > 0 ? ", " + columns + " columns banned for a while" : ""));
                 return Float.NEGATIVE_INFINITY;
             case BLOCKED:
                 String why = TakeAlongRules.stopping(state, cfg);
@@ -387,7 +392,7 @@ public class TakeAlongChain extends SingleTaskChain {
             return;
         }
         int sig = bagSignature(p);
-        if (order.id() == _wishesOrder && sig == _bagSig && now >= _wishesAt && now - _wishesAt < REFRESH_TICKS) {
+        if (order.id() == _wishesOrder && sig == _bagSig && adris.altoclef.util.helpers.Recent.within(now, _wishesAt, REFRESH_TICKS)) {
             return;
         }
         _wishesOrder = order.id();
@@ -680,6 +685,17 @@ public class TakeAlongChain extends SingleTaskChain {
     private boolean pickable(AltoClef mod, BlockPos pos, Kind kind, TakeAlongConfig cfg) {
         if (BanPolicy.takeAlongBanned(mod.getBans(), WorldHelper.getCurrentDimension(), pos.getX(), pos.getY(), pos.getZ())) {
             return false;
+        }
+        // (take_along_falling_ban) gravel in a column given up, and gravel whose flint would land in water
+        if (kind.column() && fallingBanOn()) {
+            ClientLevel level = mod.getWorld();
+            if (_fallBans.banned(WorldHelper.getCurrentDimension().name(), pos.getX(), pos.getZ(), level.getGameTime())) {
+                return false;
+            }
+            BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+            if (FallBans.dropWet((x, y, z) -> level.getFluidState(at.set(x, y, z)).is(net.minecraft.tags.FluidTags.WATER), pos.getX(), pos.getY(), pos.getZ())) {
+                return false;
+            }
         }
         if (!WorldHelper.canBreak(mod, pos) || ResourceDetour.lavaBeside(mod.getWorld(), pos)) {
             return false;
@@ -978,13 +994,49 @@ public class TakeAlongChain extends SingleTaskChain {
         return DetourRules.strayed(me.getX() - d.anchor.getX(), me.getY() - d.anchor.getY(), me.getZ() - d.anchor.getZ(), d.budget);
     }
 
+    // (take_along_falling_ban, a fix of 14 Nov 2026, on) the key; off without it, as before
+    private static boolean fallingBanOn() {
+        return adris.altoclef.util.helpers.Tuning.get("take_along_falling_ban", 0) > 0;
+    }
+
+    // (take_along_falling_ban) a detour for a falling kind that ends out of time, led too far, or capped with none of the kind
+    // got: the columns of its box banned as one area for the ban's time, one line. a gravel column at a pond's edge refilled
+    // from above, each fallen block landed where the block bans had not named it, and the next detour began at the same place
+    // (159 ban lines in 3 to 5 minutes). the number of columns, 0 when none
+    private int fallBan(AltoClef mod, TakeAlongConfig cfg, String end, long now) {
+        Detour d = _detour;
+        if (d == null || d.drops != null || d.animals != null) {
+            return 0;
+        }
+        boolean falling = false;
+        int got = 0;
+        String what = null;
+        for (Map.Entry<Kind, Integer> e : d.target.entrySet()) {
+            if (!e.getKey().column()) {
+                continue;
+            }
+            falling = true;
+            what = e.getKey().raw();
+            got += count(mod, e.getKey()) - d.heldAtStart.getOrDefault(e.getKey(), 0);
+        }
+        if (!FallBans.areaBan(fallingBanOn(), falling, end, got)) {
+            return 0;
+        }
+        int columns = _fallBans.add(WorldHelper.getCurrentDimension().name(), d.lo.getX(), d.lo.getZ(), d.hi.getX(), d.hi.getZ(), now + cfg.banTicks);
+        Debug.logInternal("take along: ban: the columns " + d.lo.getX() + ".." + d.hi.getX() + ", " + d.lo.getZ() + ".." + d.hi.getZ()
+                + " for " + what + " (" + end + ", got " + got + ")");
+        return columns;
+    }
+
     // what is left of the cluster goes on the ban list, not just the block the miner was stuck on: which one that was is the
     // mining task's secret, and its neighbours are stuck the same way more often than not
-    private int ban(AltoClef mod, TakeAlongConfig cfg) {
+    private int ban(AltoClef mod, TakeAlongConfig cfg, String end, long now) {
         Detour d = _detour;
         if (d == null) {
             return 0;
         }
+        // (take_along_falling_ban) a falling kind's blocks by area, not one by one
+        int area = fallBan(mod, cfg, end, now);
         if (d.animals != null) {
             int n = 0;
             for (Entity e : d.animals) {
@@ -1011,13 +1063,16 @@ public class TakeAlongChain extends SingleTaskChain {
             for (int y = d.lo.getY(); y <= d.hi.getY(); y++) {
                 for (int z = d.lo.getZ(); z <= d.hi.getZ(); z++) {
                     Kind kind = TakeAlongKinds.ofBlock(level.getBlockState(at.set(x, y, z)).getBlock());
+                    if (kind != null && area > 0 && kind.column()) {
+                        continue;
+                    }
                     if (kind != null && d.target.containsKey(kind) && BanPolicy.takeAlong(mod.getBans(), dim, x, y, z, cfg.banTicks)) {
                         added++;
                     }
                 }
             }
         }
-        return added;
+        return added + area;
     }
 
     // the blocks broken since the detour began, for the cap of a chance drop (DetourRules.Tally)

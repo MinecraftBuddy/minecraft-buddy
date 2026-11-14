@@ -332,6 +332,35 @@ public final class Tuning {
             // past 120; the land walked to from open water is one 48 from every such spot when one lies within 64; the place watch
             // and its fires are kept over a task made anew, BranchMineTask, MineLeave, LandFinder
             java.util.Map.entry("mine_leave_dry", 1.0),
+            // (fixes of 14 Nov 2026, a live look at the test heel's night start with an empty bag on bare stone, a stony shore rim:
+            // no ground the hand digs, no hole, three tries elsewhere at the same feet and then a wait in the open till morning; a
+            // second night on a snowy slope, a wall cell over a drop that would not shut, the hand dig elsewhere 2 min 20 s after
+            // the third try; the buddy's ObtainSafe and DigIn)
+            // with fewer than 5 blocks in the bag and no hole to dig: logs within 24 punched by hand, up to 3, made into planks in
+            // the 2x2 grid when no monster is about, then the shelter again where the buddy stands; at blocks first when the ground
+            // the hand breaks gave too few, and in place of the open wait once no try elsewhere and no dig-in by hand is left
+            java.util.Map.entry("shelter_logs_first", 1.0),
+            // with fewer than 5 blocks in the bag and no site to dig within 16, no tries elsewhere: they kept the same feet
+            java.util.Map.entry("shelter_skip_tries", 1.0),
+            // the tries elsewhere spent and no cell to dig in by hand: with blocks enough for the walls and the top, a walk to the
+            // nearest open cell within 24 whose four walls stand on ground, and a shut-in on the spot there
+            java.util.Map.entry("shelter_flat_walk", 1.0),
+            // (a fix of 14 Nov 2026, a live look at the test heel's flint loop: a gravel column at a pond's edge, the flint rolled
+            // into the water, each detour out of time, its blocks banned one by one, and the gravel that fell in from above
+            // started the next detour at the same place for 3 to 5 minutes, 159 ban lines) a detour for a falling kind (gravel,
+            // sand) that ends out of time, led too far, or capped with nothing got bans the columns of its box as one area for the
+            // ban's time; gravel or sand with water beside it or beside the cell under it is not started on, TakeAlongChain,
+            // FallBans
+            java.util.Map.entry("take_along_falling_ban", 1.0),
+            // (fixes of 14 Nov 2026, a live look at the test heel's gold mine at y -17: the ore's worn iron pickaxe and the rock's
+            // worn stone one took turns in hotbar slot 5, about four swaps a second for 18 minutes, each a pause of the pathing, so
+            // no path search ran; gold_rock_iron, which would have given the rock the iron one too, never ran: its once-a-second
+            // clock began at Long.MIN_VALUE and the overflow said "looked a moment ago" for ever, a bug fixed with no key, Recent)
+            // a hotbar slot a swap of HotbarTools filled is not emptied for another tool for 5 s, and the same pair of slots
+            // swapped three times within a minute is refused for a minute, HotbarTools, SwapGuard
+            java.util.Map.entry("hotbar_swap_guard", 1.0),
+            // a run of the inventory pauser's pauses holds the pathing about 2 s at most, then 3 s with no pause, PauseCap
+            java.util.Map.entry("inv_pause_cap", 1.0),
             // (a fix of 13 Nov 2026, test heel's first stone under the rigs' anti-xray, where every buried block below y 64 reaches
             // the client as an ore: with legitMine on in the overworld and the best stone more than 8 blocks below the feet, or
             // none known, a pit four deep at the feet first, so the real stone shows and the look round the feet takes it,

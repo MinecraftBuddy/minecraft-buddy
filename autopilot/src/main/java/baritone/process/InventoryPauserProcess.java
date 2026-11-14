@@ -27,6 +27,9 @@ public class InventoryPauserProcess extends BaritoneProcessHelper {
     boolean pauseRequestedLastTick;
     boolean safeToCancelLastTick;
     int ticksOfStationary;
+    // (inv_pause_cap, a fix of 14 Nov 2026, on) a run of pauses held to PauseCap's ticks, then the pathing runs a while
+    private final PauseCap pauseCap = new PauseCap();
+    private boolean capSaid;
 
     public InventoryPauserProcess(Baritone baritone) {
         super(baritone);
@@ -57,6 +60,27 @@ public class InventoryPauserProcess extends BaritoneProcessHelper {
     public PathingCommand onTick(boolean calcFailed, boolean isSafeToCancel) {
         //logDebug(pauseRequestedLastTick + " " + safeToCancelLastTick + " " + ticksOfStationary);
         safeToCancelLastTick = isSafeToCancel;
+        // (inv_pause_cap) at the gold mine a swap loop asked for a pause four times a second for 18 minutes and no path search
+        // ran: a run of pauses holds the pathing about 2 s at most, then 3 s with no pause (and so no move that waits for one)
+        if (adris.altoclef.util.helpers.Tuning.get("inv_pause_cap", 0) > 0) {
+            boolean requested = pauseRequestedLastTick;
+            pauseRequestedLastTick = false;
+            if (!pauseCap.tick(requested)) {
+                if (pauseCap.freeing() && !capSaid) {
+                    capSaid = true;
+                    logDebug("inventory pauser: pauses held the pathing " + PauseCap.CAP_TICKS + " ticks, the pathing runs " + PauseCap.FREE_TICKS + " ticks first (inv_pause_cap)");
+                }
+                if (!pauseCap.freeing()) {
+                    capSaid = false;
+                }
+                ticksOfStationary = 0;
+                return new PathingCommand(null, PathingCommandType.DEFER);
+            }
+            if (stationaryNow()) {
+                ticksOfStationary++;
+            }
+            return new PathingCommand(null, PathingCommandType.REQUEST_PAUSE);
+        }
         if (pauseRequestedLastTick) {
             pauseRequestedLastTick = false;
             if (stationaryNow()) {

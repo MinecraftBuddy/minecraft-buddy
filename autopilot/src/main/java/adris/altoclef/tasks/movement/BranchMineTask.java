@@ -963,7 +963,9 @@ public class BranchMineTask extends Task {
             _rockIron = false;
             return;
         }
-        if (now >= _rockLook && now - _rockLook < 20) {
+        // (a bug fix of 14 Nov 2026: _rockLook starts at Long.MIN_VALUE, and now - Long.MIN_VALUE overflowed to a negative
+        // number, so this returned on every tick and gold_rock_iron never ran, test heel's gold mine; Recent.within)
+        if (adris.altoclef.util.helpers.Recent.within(now, _rockLook, 20)) {
             ToolPick.rockIron(_rockFree, System.currentTimeMillis() + 30_000);
             return;
         }

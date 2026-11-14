@@ -23,6 +23,16 @@ public final class HotbarTools {
     private HotbarTools() {
     }
 
+    // (hotbar_swap_guard, a fix of 14 Nov 2026, on) the swaps held in check (SwapGuard): a slot a swap filled less than 5 s ago
+    // is not emptied for another tool, and the same pair of slots swapped three times in a minute is refused for a minute. at
+    // the gold mine the ore's worn iron pickaxe and the rock's worn stone one took turns in hotbar slot 5, four swaps a second
+    private static final SwapGuard GUARD = new SwapGuard();
+    private static long refusedSaid;
+
+    private static boolean guardOn() {
+        return Tuning.get("hotbar_swap_guard", 0) > 0;
+    }
+
     // the axe for logs and planks-y stuff, the shovel for dirt and sand. pickaxes are InventoryBehavior's job already
     public static void forBlocks(AltoClef mod, Block... blocks) {
         boolean axe = false;
@@ -77,8 +87,21 @@ public final class HotbarTools {
     // SWAP with the hotbar index as the button, the selected slot stays where it is. through baritone's gate so
     // allowInventory, the move delay and standing still hold here too (2b2t does not love a swap mid sprint)
     private static void swapIn(AltoClef mod, int from, int to) {
-        mod.getClientBaritone().getInventoryBehavior().inventoryMoveIfAllowed(
+        long now = System.currentTimeMillis();
+        boolean guard = guardOn();
+        if (guard && !GUARD.allowed(from, to, now)) {
+            if (now - refusedSaid >= 10_000) {
+                refusedSaid = now;
+                adris.altoclef.Debug.logInternal("hotbar tools: no swap of bag slot " + from + " and hotbar slot " + to
+                        + ", the slot was just filled or the pair went back and forth (hotbar_swap_guard)");
+            }
+            return;
+        }
+        boolean went = mod.getClientBaritone().getInventoryBehavior().inventoryMoveIfAllowed(
                 () -> mod.getSlotHandler().clickSlot(new PlayerSlot(from), to, ContainerInput.SWAP));
+        if (went && guard) {
+            GUARD.swapped(from, to, now);
+        }
     }
 
     // the best one of this ItemHelper.toolKind from the bag into the hotbar, unless the hotbar has one already
@@ -127,8 +150,12 @@ public final class HotbarTools {
         for (int h = 6; h >= 2; h--) {
             if (h != selected && !ItemHelper.isTool(inv.getItem(h).getItem())) return h;
         }
+        // (hotbar_swap_guard) not a tool a swap of ours brought down a moment ago, for another caller's
+        boolean guard = guardOn();
+        long now = System.currentTimeMillis();
         for (int h = 6; h >= 2; h--) {
             ItemStack stack = inv.getItem(h);
+            if (guard && GUARD.held(h, now)) continue;
             if (h != selected && kind.equals(ItemHelper.toolKind(stack.getItem()))
                     && ToolWear.wornOut(stack.getDamageValue(), stack.getMaxDamage())) return h;
         }
