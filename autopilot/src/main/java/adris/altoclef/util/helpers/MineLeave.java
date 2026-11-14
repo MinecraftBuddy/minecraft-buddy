@@ -161,4 +161,106 @@ public final class MineLeave {
             n = 0;
         }
     }
+
+    // (Tuning mine_water_streak, a fix of 14 Nov 2026, on) walk-outs of water under a roof, counted by place. a branch mine for
+    // iron at y 16 walked up a cave into an underground pool at y 22, inside its band: the walk out of the water and the staircase
+    // down from the dry cell took turns about once a second, the staircase's step leading back into the pool, and after the
+    // search found no path a wander took the buddy down and baritone's mine walked back to the pool, laps of 60 to 75 s that
+    // went 15 to 25 blocks off, so the place watch started again every lap (test heel, 14 Nov 2026). static, like the spots: a
+    // task made anew after an interruption keeps the count
+    public static final WalkOuts WALK_OUTS = new WalkOuts(3, 10, 2400);
+
+    public static final class WalkOuts {
+        // a walk-out that starts within this many blocks of the last dry cell stood on, or of a water cell of the last walk-out,
+        // is one more of the same
+        public static final double NEAR = 4;
+        // the water cell walked out of counts for the staircase's step this long after the buddy was last in it
+        public static final long KEEP = 1200;
+        private final Streak streak;
+        // the streak's fires, by place: the second within ten blocks in ten game minutes gives the depth up there, in a task
+        // made anew too
+        private final PlaceWatch.Fires fires = new PlaceWatch.Fires(2, 12000, 10);
+        private String dim;
+        private boolean has;
+        // where the last walk-out began, the last water cell stood in (the one walked out of), and when
+        private int sx, sy, sz, wx, wy, wz;
+        private long wetAt;
+
+        // count walk-outs in a row within radius blocks (level distance) of the first, each within gap ticks of the one before
+        public WalkOuts(int count, double radius, long gap) {
+            streak = new Streak(count, radius, gap);
+        }
+
+        // a walk-out starting at the water cell (x, y, z) in dim; dry is the last dry cell stood on ({x, y, z}) or null. true
+        // when it makes the streak fire. one that starts away from the dry cell and from the last walk-out's water cells is
+        // kept as the last walk-out but not counted
+        public synchronized boolean start(String dim, int x, int y, int z, int[] dry, long now) {
+            boolean same = has && java.util.Objects.equals(dim, this.dim);
+            if (!same) {
+                streak.reset();
+                fires.clear();
+            }
+            boolean near = dry != null && within(x, y, z, dry[0], dry[1], dry[2])
+                    || same && (within(x, y, z, sx, sy, sz) || within(x, y, z, wx, wy, wz));
+            this.dim = dim;
+            has = true;
+            sx = wx = x;
+            sy = wy = y;
+            sz = wz = z;
+            wetAt = now;
+            if (!near || !streak.fail(x, z, now)) return false;
+            fires.add(streak.x(), streak.z(), now);
+            return true;
+        }
+
+        // the buddy still in the water of this walk-out, at (x, y, z): the cell walked out of, so far
+        public synchronized void wet(String dim, int x, int y, int z, long now) {
+            if (!has || !java.util.Objects.equals(dim, this.dim)) return;
+            wx = x;
+            wy = y;
+            wz = z;
+            wetAt = now;
+        }
+
+        // the water cell last walked out of ({x, y, z}), when the buddy was in it within KEEP ticks of now in dim; else null
+        public synchronized int[] cell(String dim, long now) {
+            if (!has || !java.util.Objects.equals(dim, this.dim) || now < wetAt || now - wetAt > KEEP) return null;
+            return new int[]{wx, wy, wz};
+        }
+
+        // the walk-outs in the row so far, and where the row began (where it fired, once it has)
+        public synchronized int count() {
+            return streak.count();
+        }
+
+        public synchronized int x() {
+            return streak.x();
+        }
+
+        public synchronized int z() {
+            return streak.z();
+        }
+
+        // the streak's fires near the latest, at its last fire
+        public synchronized int fires() {
+            return fires.last();
+        }
+
+        // the depth given up: its fires start again
+        public synchronized void clearFires() {
+            fires.clear();
+        }
+
+        public synchronized void clear() {
+            streak.reset();
+            fires.clear();
+            has = false;
+            dim = null;
+        }
+
+        private static boolean within(int x, int y, int z, int ax, int ay, int az) {
+            double dx = x - ax, dy = y - ay, dz = z - az;
+            return dx * dx + dy * dy + dz * dz <= NEAR * NEAR;
+        }
+    }
 }

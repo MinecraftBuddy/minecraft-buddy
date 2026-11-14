@@ -146,9 +146,16 @@ public class BranchMineTask extends Task {
     // last dry cell stood on (the way the buddy came)
     private BlockPos _dry, _lastDry;
     private long _drySince;
-    private final java.util.Set<BlockPos> _dryTried = new java.util.HashSet<>();
+    // the cells not reached in time and when: with mine_water_streak on they are passed over for DRY_TRIED_KEEP ticks, where
+    // every dry tick emptied the list, and each walk back into the water tried the same cell out of reach for 20 s again
+    private final java.util.Map<BlockPos, Long> _dryTried = new java.util.HashMap<>();
     private static final long DRY_STEP = 400;
+    static final long DRY_TRIED_KEEP = 1200;
     static final int DRY_REACH = 12, DRY_BACK = 48;
+    // (mine_water_streak) in water under a roof since the last dry tick, so the next such tick is no new walk-out; a third
+    // walk-out at one place for the place watch's block on the next tick, and where its row began
+    private boolean _wetNow, _wetStall;
+    private int _wetX, _wetZ;
     // the cell the walk along (the sculk's, or the 32 blocks of a stuck staircase) came from: never stepped back onto
     private BlockPos _awayPrev;
     // the rock goes to a cheap pick and the iron one is kept for the ore. an iron pickaxe is through in 250 blocks and a staircase
@@ -240,14 +247,23 @@ public class BranchMineTask extends Task {
         boolean watch = _place.tick(feet.getX(), feet.getZ(), now);
         boolean stall = _downStall;
         _downStall = false;
-        if (watch || stall) {
-            int fx = watch ? _place.x() : _downFails.x(), fz = watch ? _place.z() : _downFails.z();
+        // (mine_water_streak) a third walk-out of water under a roof at one place counts as a fire too
+        boolean wetLoop = _wetStall;
+        _wetStall = false;
+        if (watch || stall || wetLoop) {
+            int fx = watch ? _place.x() : stall ? _downFails.x() : _wetX, fz = watch ? _place.z() : stall ? _downFails.z() : _wetZ;
             stopMine(mod);
             // (gold_poke_shafts) the run is not resumed here after the tunnel of its own
-            if (pokeOn()) PokeMineTask.dropRun(watch ? "the place watch fired" : "the way down got nowhere");
+            if (pokeOn()) PokeMineTask.dropRun(watch ? "the place watch fired" : stall ? "the way down got nowhere" : "the walk out of the water came back");
             if (adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0) {
                 _fires.add(fx, fz, now);
-                if (_fires.last() >= firesToGiveUp()) return giveUpHere(mod, now, y, fx, fz, !watch);
+                // (mine_water_streak) the walk-outs' own fires are kept over a task made anew: a take-along or a station between
+                // two of them made a new task with no fires
+                boolean wetGiveUp = wetLoop && MineLeave.WALK_OUTS.fires() >= firesToGiveUp();
+                if (_fires.last() >= firesToGiveUp() || wetGiveUp) {
+                    return giveUpHere(mod, now, y, fx, fz, Math.max(_fires.last(), wetGiveUp ? MineLeave.WALK_OUTS.fires() : 0),
+                            watch ? "" : stall ? ", the last fire the way down's, mine_leave_given_up" : ", the last fire the walk-outs', mine_water_streak");
+                }
             }
             // (mine_leave_given_up) a walk along under way goes on, way and all: zeroing it here stopped one at 25 blocks to
             // go, and the mine started again in the place the walk was leaving
@@ -268,10 +284,12 @@ public class BranchMineTask extends Task {
             _starts.clear();
             _tunnelUntil = now + 2400;
             _tunnel = null;
-            adris.altoclef.Debug.logInternal("branch mine: " + (watch ? "three game minutes" : "the way down got nowhere three times")
-                    + " within ten blocks of " + fx + ", " + fz + " at y " + y + ", a tunnel of its own at y " + _mineY + " for two game minutes"
-                    + (watch ? "" : " (mine_leave_given_up)"));
-            setDebugState((watch ? "Three game minutes in one place" : "The way down got nowhere three times here") + ", a tunnel of its own");
+            adris.altoclef.Debug.logInternal("branch mine: " + (watch ? "three game minutes" : stall ? "the way down got nowhere three times"
+                    : "three walk-outs of water under a roof") + " within ten blocks of " + fx + ", " + fz + " at y " + y
+                    + ", a tunnel of its own at y " + _mineY + " for two game minutes"
+                    + (watch ? "" : stall ? " (mine_leave_given_up)" : " (mine_water_streak)"));
+            setDebugState((watch ? "Three game minutes in one place" : stall ? "The way down got nowhere three times here"
+                    : "Three walk-outs of the water here") + ", a tunnel of its own");
             return null;
         }
         // (Tuning ice_start_tunnel_hold, a fix of 13 Nov 2026, on) the tunnel of its own keeps the tick for its whole time on ice or
@@ -289,9 +307,12 @@ public class BranchMineTask extends Task {
         if (!water && mod.getPlayer().onGround()) {
             _lastDry = feet;
             _dry = null;
-            _dryTried.clear();
+            _wetNow = false;
+            if (waterStreakOn()) _dryTried.values().removeIf(at -> now < at || now - at > DRY_TRIED_KEEP);
+            else _dryTried.clear();
         }
         if (roofed) {
+            if (waterStreakOn()) walkOut(feet, now);
             Task out = outOfRoofedWater(mod, feet, now);
             if (out != null) return out;
         }
@@ -622,17 +643,18 @@ public class BranchMineTask extends Task {
     // count tells the caller (the buddy's piece fails over to its next one); left to itself the mine walks 32 blocks on, a
     // quarter turned, and starts afresh there. with mine_leave_given_up on, the spot is kept for every branch mine after this
     // one, and this one leaves it 48 blocks first instead of the walk
-    private Task giveUpHere(AltoClef mod, long now, int y, int fx, int fz, boolean stall) {
-        int fired = _fires.last();
+    // fired: the fires counted here; lastFire: what the last one was, for the log line ("" for the place watch's own)
+    private Task giveUpHere(AltoClef mod, long now, int y, int fx, int fz, int fired, String lastFire) {
         String line = "branch mine: the place watch fired " + fired + " times at " + fx + ", " + fz
                 + ", giving up y " + _mineY + " here";
         adris.altoclef.Debug.logInternal(line + " (at y " + y + ", mine_water_roof" + (fired < 3 ? ", mine_own_pit" : "")
-                + (stall ? ", the last fire the way down's, mine_leave_given_up" : "") + ")");
+                + lastFire + ")");
         // (mine_leave_given_up) the spot, for any branch mine after this one: the next piece's mine leaves it first
         if (leaveOn()) MineLeave.GIVEN_UP.record(dimension(), fx, fz, now);
         gaveUpLine = line;
         gaveUps++;
         _fires.clear();
+        MineLeave.WALK_OUTS.clearFires();
         _bandExits.clear();
         _ownTunnelAt = null;
         _tunnelUntil = now;
@@ -662,6 +684,38 @@ public class BranchMineTask extends Task {
 
     static boolean leaveOn() {
         return adris.altoclef.util.helpers.Tuning.get("mine_leave_given_up", 0) > 0;
+    }
+
+    static boolean waterStreakOn() {
+        return adris.altoclef.util.helpers.Tuning.get("mine_water_streak", 0) > 0;
+    }
+
+    // (mine_water_streak) a tick in water under a roof: the cell is kept as the one walked out of, and the first such tick
+    // since the last dry one starts a walk-out, counted by place (MineLeave.WALK_OUTS). a new walk-out picks the staircase's and
+    // the tunnel's next step anew, so closedWay's water rule keeps them out of the water: the old step stood until reached, and
+    // the way to it led back into the pool about once a second
+    private void walkOut(BlockPos feet, long now) {
+        String dim = dimension();
+        if (_wetNow) {
+            MineLeave.WALK_OUTS.wet(dim, feet.getX(), feet.getY(), feet.getZ(), now);
+            return;
+        }
+        _wetNow = true;
+        _step = null;
+        _tunnel = null;
+        int had = MineLeave.WALK_OUTS.count();
+        int[] dry = _lastDry == null ? null : new int[]{_lastDry.getX(), _lastDry.getY(), _lastDry.getZ()};
+        if (MineLeave.WALK_OUTS.start(dim, feet.getX(), feet.getY(), feet.getZ(), dry, now)) {
+            _wetStall = true;
+            _wetX = MineLeave.WALK_OUTS.x();
+            _wetZ = MineLeave.WALK_OUTS.z();
+            adris.altoclef.Debug.logInternal("branch mine: in water under a roof again at " + feet.toShortString() + ", the third walk-out"
+                    + " in a row within ten blocks of " + _wetX + ", " + _wetZ + ", a fire of the place watch there ("
+                    + MineLeave.WALK_OUTS.fires() + " of the walk-outs' within ten game minutes) (mine_water_streak)");
+        } else if (MineLeave.WALK_OUTS.count() != had && MineLeave.WALK_OUTS.count() > 1) {
+            adris.altoclef.Debug.logInternal("branch mine: in water under a roof again at " + feet.toShortString() + ", "
+                    + MineLeave.WALK_OUTS.count() + " walk-outs in a row here (mine_water_streak)");
+        }
     }
 
     private static String dimension() {
@@ -872,12 +926,12 @@ public class BranchMineTask extends Task {
     // is none, and the checks after this have the tick
     private Task outOfRoofedWater(AltoClef mod, BlockPos feet, long now) {
         if (_dry != null && now - _drySince > DRY_STEP && !feet.equals(_dry)) {
-            _dryTried.add(_dry);
+            _dryTried.put(_dry, now);
             _dry = null;
         }
         if (_dry == null || feet.equals(_dry)) {
-            _dry = dryCell(mod, feet, _dryTried);
-            if (_dry == null && _lastDry != null && !_dryTried.contains(_lastDry) && _lastDry.closerThan(feet, DRY_BACK)) _dry = _lastDry;
+            _dry = dryCell(mod, feet, _dryTried.keySet());
+            if (_dry == null && _lastDry != null && !_dryTried.containsKey(_lastDry) && _lastDry.closerThan(feet, DRY_BACK)) _dry = _lastDry;
             _drySince = now;
             if (_dry == null) return null;
             adris.altoclef.Debug.logInternal("branch mine: in water under a roof at " + feet.toShortString() + ", out of the water first, to "
@@ -1123,6 +1177,10 @@ public class BranchMineTask extends Task {
     // ravine's edge let an arrow push it twenty blocks down (the runner, 1 Nov 2026, its first iron without armour). when
     // all four open into one, it keeps its way
     private void closedWay(AltoClef mod, BlockPos feet, int down) {
+        if (waterStreakOn()) {
+            driestWay(mod, feet, down);
+            return;
+        }
         for (int turn = 0; turn < 4; turn++) {
             if (!opens(mod, feet, _dx, _dz, down)) return;
             int t = _dx;
@@ -1144,13 +1202,131 @@ public class BranchMineTask extends Task {
         return true;
     }
 
-    private static boolean opens(AltoClef mod, BlockPos feet, int dx, int dz, int down) {
+    // (mine_water_streak) closedWay with water told apart: of the four ways, from the one it goes and round, the first whose
+    // step opens into nothing, else the first that opens only into the open (a cave, a hole), else the first; a way whose step
+    // comes within a block of the water cell last walked out of is taken only when all four do. in a cave every way opens into
+    // the open, so the way kept was the one into the pool beside the dry cell, and baritone breaks nothing beside water
+    private void driestWay(AltoClef mod, BlockPos feet, int down) {
         var level = mod.getWorld();
+        int[] wetCell = MineLeave.WALK_OUTS.cell(dimension(), level.getGameTime());
+        int[] rank = wayRanks(level::getBlockState, feet, _dx, _dz, down);
+        boolean[] never = wayNever(feet, _dx, _dz, down, wetCell);
+        int pick = pickWay(rank, never);
+        int old = 0;
+        for (int i = 0; i < 4; i++) {
+            if (rank[i] == WAY_CLOSED) {
+                old = i;
+                break;
+            }
+        }
+        if (pick != old) {
+            adris.altoclef.Debug.logInternal("branch mine: the step " + (down < 0 ? "down" : down > 0 ? "up" : "on") + " from "
+                    + feet.toShortString() + " " + TURN_NAMES[pick] + ", " + WAY_NAMES[rank[pick]] + " there, against "
+                    + WAY_NAMES[rank[old]] + (never[old] ? " beside the water walked out of" : "") + " (mine_water_streak)");
+        }
+        for (int i = 0; i < pick; i++) {
+            int t = _dx;
+            _dx = -_dz;
+            _dz = t;
+        }
+    }
+
+    // (mine_water_streak) how a way's step opens
+    static final int WAY_CLOSED = 0, WAY_OPEN = 1, WAY_WET = 2;
+    private static final String[] WAY_NAMES = {"closed", "open to a cave", "water"};
+    private static final String[] TURN_NAMES = {"kept its way", "turned a quarter", "turned half round", "turned three quarters"};
+
+    // the four ways' wayOpening, from (dx, dz) and a quarter turned each time (to the right: east, south, west, north)
+    static int[] wayRanks(java.util.function.Function<BlockPos, net.minecraft.world.level.block.state.BlockState> at, BlockPos feet,
+                          int dx, int dz, int down) {
+        int[] rank = new int[4];
+        for (int turn = 0; turn < 4; turn++) {
+            rank[turn] = wayOpening(at, feet, dx, dz, down);
+            int t = dx;
+            dx = -dz;
+            dz = t;
+        }
+        return rank;
+    }
+
+    // the four ways' besideWater in the same order, none when there is no water cell
+    static boolean[] wayNever(BlockPos feet, int dx, int dz, int down, int[] wetCell) {
+        boolean[] never = new boolean[4];
+        for (int turn = 0; turn < 4 && wetCell != null; turn++) {
+            never[turn] = besideWater(feet, dx, dz, down, wetCell);
+            int t = dx;
+            dx = -dz;
+            dz = t;
+        }
+        return never;
+    }
+
+    // the way to take: the first of the lowest rank that is not never, else the first of the lowest rank of all; rank and never
+    // in the order of the turns from the way it goes, so the answer is the number of quarter turns
+    static int pickWay(int[] rank, boolean[] never) {
+        int best = -1;
+        for (int pass = 0; pass < 2 && best < 0; pass++) {
+            for (int i = 0; i < rank.length; i++) {
+                if (pass == 0 && never[i]) continue;
+                if (best < 0 || rank[i] < rank[best]) best = i;
+            }
+        }
+        return Math.max(best, 0);
+    }
+
+    // what baritone digs for a step: its feet, its head, and above that where it steps down, or over its own head where it
+    // steps up
+    static java.util.List<BlockPos> stepCells(BlockPos feet, int dx, int dz, int down) {
         BlockPos a = feet.offset(dx, down, dz);
-        // what baritone digs for the step: its feet, its head, and above the head where it steps down
         java.util.List<BlockPos> dug = new java.util.ArrayList<>(java.util.List.of(a, a.above()));
         if (down < 0) dug.add(a.above(2));
         if (down > 0) dug.add(feet.above(2));
+        return dug;
+    }
+
+    // (mine_water_streak) the step's cells to stand in, the step and the one over it, within a block of the water cell (x, y, z)
+    // on every axis
+    static boolean besideWater(BlockPos feet, int dx, int dz, int down, int[] cell) {
+        BlockPos a = feet.offset(dx, down, dz);
+        for (BlockPos c : new BlockPos[]{a, a.above()}) {
+            if (Math.abs(c.getX() - cell[0]) <= 1 && Math.abs(c.getY() - cell[1]) <= 1 && Math.abs(c.getZ() - cell[2]) <= 1) return true;
+        }
+        return false;
+    }
+
+    // (mine_water_streak) WAY_WET when a fluid lies in a cell the step digs or walks through, on top of one, beside one or under
+    // the step; else WAY_OPEN when air lies beside a cell or under the step (or the step's floor is no solid block); else
+    // WAY_CLOSED. opens() is the old test, which saw no fluid in the cells dug or on top of them
+    static int wayOpening(java.util.function.Function<BlockPos, net.minecraft.world.level.block.state.BlockState> at, BlockPos feet,
+                          int dx, int dz, int down) {
+        java.util.List<BlockPos> dug = stepCells(feet, dx, dz, down);
+        java.util.Set<BlockPos> ours = new java.util.HashSet<>(dug);
+        ours.add(feet);
+        ours.add(feet.above());
+        ours.add(feet.above(2));
+        boolean open = false, wet = false;
+        var under = at.apply(dug.get(0).below());
+        if (!under.getFluidState().isEmpty()) wet = true;
+        else if (bad(under, true)) open = true;
+        for (BlockPos d : dug) {
+            if (!at.apply(d).getFluidState().isEmpty()) wet = true;
+            BlockPos top = d.above();
+            if (!ours.contains(top) && !at.apply(top).getFluidState().isEmpty()) wet = true;
+            for (var dir : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+                BlockPos n = d.relative(dir);
+                if (ours.contains(n)) continue;
+                var st = at.apply(n);
+                if (!st.getFluidState().isEmpty()) wet = true;
+                else if (st.isAir()) open = true;
+            }
+        }
+        return wet ? WAY_WET : open ? WAY_OPEN : WAY_CLOSED;
+    }
+
+    private static boolean opens(AltoClef mod, BlockPos feet, int dx, int dz, int down) {
+        var level = mod.getWorld();
+        BlockPos a = feet.offset(dx, down, dz);
+        java.util.List<BlockPos> dug = stepCells(feet, dx, dz, down);
         java.util.Set<BlockPos> ours = new java.util.HashSet<>(dug);
         ours.add(feet);
         ours.add(feet.above());

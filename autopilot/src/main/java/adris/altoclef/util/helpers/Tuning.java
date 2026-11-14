@@ -264,6 +264,14 @@ public final class Tuning {
             // three times within ten blocks counts as a fire of the place watch; a fire leaves a walk along under way going,
             // BranchMineTask)
             java.util.Map.entry("mine_leave_given_up", 1.0),
+            // (a fix of 14 Nov 2026, a live look at the test heel's branch mine for iron at y 16, an underground pool at y 22 inside
+            // its band: the walk out of water under a roof and the staircase's step back into it took turns about once a second,
+            // in laps of 60 to 75 s that no watch saw: a walk-out that starts where the last one began or ended, or by the last
+            // dry cell, is counted by place, kept over a task made anew, and the third within ten blocks counts as a fire of the
+            // place watch, so the second such fire gives the depth up and the mine leaves 48 blocks; the staircase's and the
+            // tunnel's step keeps a block from the water cell walked out of and takes a way into the open before one into water;
+            // a dry cell not reached in time is passed over for a game minute, BranchMineTask, MineLeave)
+            java.util.Map.entry("mine_water_streak", 1.0),
             // (his word, 14 Nov 2026, the test heel's gold: the gold mine (and the slime dig at its height) digs poke holes off its
             // tunnel, a 1x1 hole 4 deep each side at head height every 4 steps, dug standing, legs 12 apart, out of caves; for gold
             // the band it stays in is -28 to -4; its rock goes to an iron pickaxe the kit can spare, BranchMineTask, PokeMineTask,
@@ -285,6 +293,12 @@ public final class Tuning {
             // blocks in the bag too, and a try elsewhere that leaves the feet where they were keeps the shut-in on the spot, so the
             // other walls and the top still go up round the cell that will not shut, the buddy's ObtainSafe and DigIn)
             java.util.Map.entry("shelter_stuck_way_out", 1.0),
+            // (a fix of 14 Nov 2026, a live look at the test heel's night shelter on a bare start in a forest's canopy, oak leaves
+            // at y 75 and the floor 5 to 9 below, "shut but for 8 cells" with no block in the bag till a phantom and spiders drove
+            // the buddy down: on leaves or a log, or more than four over the ground under the feet, the night shelter walks down to
+            // the nearest ground first; its sites are measured from the ground under the feet, and with no block in the bag and
+            // nothing under the feet to dig there is no shut-in on the spot, the buddy's ObtainSafe and DigIn)
+            java.util.Map.entry("shelter_down_from_tree", 1.0),
             // (a fix of 13 Nov 2026, test heel's first stone under the rigs' anti-xray, where every buried block below y 64 reaches
             // the client as an ore: with legitMine on in the overworld and the best stone more than 8 blocks below the feet, or
             // none known, a pit four deep at the feet first, so the real stone shows and the look round the feet takes it,
