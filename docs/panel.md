@@ -19,8 +19,10 @@ Under the buttons stands the buddy's version, with an arrow when a newer release
 (see [Installing](install.md#updates)).
 
 While the buddy is not in the game, the map, the 3D view and the chat say why: the buddy is off the server, the game is
-starting or has stopped, or the page has lost the panel (as during an update). What they show is the last the buddy
-saw, so it turns grey. A chat line is not sent and stays in the box, and Take control waits until the buddy is back.
+starting or has stopped, or the page has lost the panel. During an update they say that it is the update, and in the
+five minutes after it (or after a restart of the container) that the buddy is on the way back, with the version when
+the update was asked from that page. What they show is the last the buddy saw, so it turns grey. A chat line is not
+sent and stays in the box, and Take control waits until the buddy is back.
 
 On a phone the parts come one at a time, chosen in a bar at the bottom (Map, Inventory, Chat, Settings). On a computer
 the chat stays in view while the rest of the page scrolls.

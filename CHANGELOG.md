@@ -3,6 +3,13 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.27
+
+- After an update the panel says that this is why the view is grey: "Updated to 0.5.27: … is back in a minute or two",
+  from the moment the page is back until the buddy is in the game again. The same after a restart of the container.
+- Telegram: the game's chat is no longer lost when Telegram cannot be reached for a few minutes. It comes in once
+  Telegram is back, under a line that says how long it was gone.
+
 ## 0.5.26
 
 - Take control: a buddy that crouched along with you (**Crouch**) no longer stays crouched, at a sneak's pace, while

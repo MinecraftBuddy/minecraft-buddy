@@ -148,11 +148,24 @@ def send(text):
     OUTBOX.put(text)
 
 
+def late_notice(seconds):
+    """The line on top of the first message after Telegram could not be reached for a minute or more."""
+    m = max(1, round(seconds / 60))
+    took = f"{m // 60} hours" if m >= 120 else f"{m} minute" + ("s" if m != 1 else "")
+    return f"⚠ Telegram could not be reached for {took}. These lines come late."
+
+
 def sender():
-    """One open HTTPS connection to Telegram: a new connection per message cost about 0.3 s more."""
+    """One open HTTPS connection to Telegram: a new connection per message cost about 0.3 s more.
+
+    Telegram is unreachable now and then (502 Bad Gateway, no answer, a closed connection, for minutes at a time): then
+    the message is tried again, with longer pauses up to half a minute, until it goes, and what the game says meanwhile
+    waits in the queue. Dropping it after a few tries lost every line of such an outage. Only a message Telegram
+    refuses (a 4xx other than 429) is dropped, since sending it again would not help."""
     conn = None
     held = None
     loose = []    # the parts of a bundle Telegram refused, sent again one by one
+    down = None   # since when Telegram has not answered: the first failed try of this outage
     while True:
         if loose:
             parts = [loose.pop(0)]
@@ -170,13 +183,16 @@ def sender():
                     held = more
                     break
                 parts.append(more)
-        text = "\n".join(parts)
-        payload = urllib.parse.urlencode({
-            "chat_id": MAIN_CHAT, "text": text,
-            "disable_web_page_preview": "true", "parse_mode": "HTML",
-        })
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        for attempt in range(5):
+        tries = 0
+        while True:
+            text = "\n".join(parts)
+            if down is not None and time.time() - down >= 60:
+                text = late_notice(time.time() - down) + "\n" + text
+            payload = urllib.parse.urlencode({
+                "chat_id": MAIN_CHAT, "text": text,
+                "disable_web_page_preview": "true", "parse_mode": "HTML",
+            })
             try:
                 if conn is None:
                     conn = http.client.HTTPSConnection("api.telegram.org", timeout=20)
@@ -187,6 +203,7 @@ def sender():
                     # the servers' public chat and the buddy's private messages: they stay out of the journal
                     print("→", f"{len(parts)} line(s), {len(text)} characters", flush=True)
                     bridge_status(sent=int(time.time()))
+                    down = None
                     break
                 if r.status == 429:
                     # Telegram says how long to wait (in a group about twenty messages a minute)
@@ -196,19 +213,27 @@ def sender():
                         wait = 5
                     time.sleep(wait)
                     continue
-                print("telegram refused:", r.status, body[:200], flush=True)
+                if r.status < 500:
+                    print("telegram refused:", r.status, body[:200], flush=True)
+                    bridge_status(send_error={"at": int(time.time()), "code": r.status, "text": telegram_error(body)})
+                    if len(parts) > 1:
+                        loose = parts + loose      # one bad part must not take the others along
+                    break                          # a 400 and the like: trying again does not help
+                # Telegram's own trouble (502 Bad Gateway and the like): the same as no answer, below
+                print("telegram unreachable:", r.status, telegram_error(body), flush=True)
                 bridge_status(send_error={"at": int(time.time()), "code": r.status, "text": telegram_error(body)})
-                if len(parts) > 1:
-                    loose = parts + loose      # one bad part must not take the others along
-                break                          # a 400 and the like: trying again does not help
             except Exception as e:
                 print("telegram error:", e, flush=True)
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-                conn = None
-                time.sleep(2 * (attempt + 1))
+            # not sent: a new connection, and again after a pause that grows to half a minute
+            try:
+                conn.close()
+            except Exception:
+                pass
+            conn = None
+            if down is None:
+                down = time.time()
+            tries += 1
+            time.sleep(min(2 * tries, 30))
 
 
 def escape(s):

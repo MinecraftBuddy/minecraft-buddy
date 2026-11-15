@@ -15,6 +15,9 @@ One Telegram chat is the buddy's. The buddy's game chat shows up there, and in t
 Only the admins are heard: the Telegram user ids in Trusted players (Settings, Access). A message from anyone else gets
 no answer, but the panel's chat says so, with that person's Telegram user id; in a group only a line with `!` counts.
 
+Telegram is sometimes unreachable for minutes at a time. The game's lines then wait and come in once it answers again,
+under a line that says how long it was gone.
+
 ## Setting it up
 
 In the panel, Settings, Telegram:

@@ -1848,13 +1848,23 @@ async function state() {
    at once). The panel is gone when no state came for five seconds, whether the asks fail or hang. */
 let okAt = Date.now(), updating = false, seenT = 0, seenAt = Date.now() - 6000;
 const noPanel = () => Date.now() - okAt > 5000;
-const gameSilent = () => !!S && Date.now() - seenAt > (S.online && S.beat ? 10000 : 25000);
+const gameSilent = () => !!S && (S.old === true || Date.now() - seenAt > (S.online && S.beat ? 10000 : 25000));
+/* The panel started in the last five minutes, and the game with it: after an update or a restart. A buddy not in the
+   game yet is told as that, not as a game that stopped, and at once while the state is from before that start (old:
+   the game has not written one since). An update asked from this page reloads it: the version it went to is kept over
+   the reload, to name it. */
+const starting = () => !!S && S.up < 300;
+let updated = null;
+try { updated = JSON.parse(sessionStorage.getItem('buddy-updated') || 'null'); } catch { }
+if (!updated || typeof updated.v !== 'string' || Date.now() - updated.t > 300000) updated = null;
 function awayText() {
   if (noPanel()) return updating ? nm('Updating: {n} and this page are back in a minute or two.') : 'No connection to the panel. This page keeps trying.';
   if (!S) return '';
-  if (gameSilent()) return nm('{N}\'s game does not answer: it is starting or has stopped.');
-  if (!S.online) return nm(S.stay_offline ? '{N} is off the server until you press Join.' : '{N} is not on a server.');
-  return '';
+  const silent = gameSilent();
+  if (!silent && S.online) return '';
+  if (!silent && S.stay_offline) return nm('{N} is off the server until you press Join.');
+  if (starting()) return nm((updated ? 'Updated to ' + updated.v : 'Just updated or restarted') + ': {n} is back in a minute or two.');
+  return nm(silent ? '{N}\'s game does not answer: it is starting or has stopped.' : '{N} is not on a server.');
 }
 function away() {
   if (document.hidden) return;
@@ -1867,8 +1877,8 @@ function away() {
   $('mapbox').classList.toggle('off', !!t);
   $('pad').classList.toggle('off', !!t);
   // the header too, where the last state still said online
-  const head = noPanel() ? 'No connection to the panel' : gameSilent() ? nm('{N}\'s game does not answer') : '';
-  if (head) { $('dot').className = 'dot'; $('status').textContent = head; $('connstate').textContent = head; }
+  const head = noPanel() ? (updating ? 'Updating' : 'No connection to the panel') : !gameSilent() ? '' : starting() ? 'Starting the game' : nm('{N}\'s game does not answer');
+  if (head) { $('dot').className = 'dot'; $('status').textContent = head; $('connstate').textContent = head; $('now').textContent = noPanel() ? 'No connection' : 'Offline'; $('nowm').textContent = ''; }
   // the controls go back: the keys would go nowhere, and the buddy is not held when the game returns
   if (t && steer.on) giveBack();
 }
@@ -3184,7 +3194,11 @@ async function imageUpdate(b, was, latest) {
   while (Date.now() < until) {
     await new Promise(r => setTimeout(r, 3000));
     let g; try { g = await (await fetch('/api/game')).json(); } catch (e) { continue; }
-    if (g.docker && g.docker.version && g.docker.version !== was) { note('Updated to ' + g.docker.version); setTimeout(() => location.reload(), 1500); return; }
+    if (g.docker && g.docker.version && g.docker.version !== was) {
+      // kept over the reload: the page then says why the buddy is not in the game yet (awayText)
+      try { sessionStorage.setItem('buddy-updated', JSON.stringify({v: g.docker.version, t: Date.now()})); } catch { }
+      note('Updated to ' + g.docker.version); setTimeout(() => location.reload(), 1500); return;
+    }
     const u = g.docker && g.docker.update;
     if (u && u.done) { if (!$('settings').hidden) { G = g; gRender(); } note(imageUpdateText(u)); break; }
   }

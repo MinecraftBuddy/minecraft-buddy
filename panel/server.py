@@ -50,6 +50,9 @@ import game  # noqa: E402
 import owner  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# when the panel started, and with it the container and the game (after an update or a restart): the page tells a buddy
+# who is not in the game yet in the first minutes from one who left or whose game stopped
+STARTED = time.time()
 # what the chat log shows: what was said and done, and what the mod reports of its jobs (the mod writes English names)
 LOG_TYPES = {"chat", "chat_sent", "follow", "corpse guard", "carrier", "tap", "base", "torch", "furnaces", "helper", "drop",
              "forget", "profile", "error", "connection", "player_join", "player_leave", "death_cause", "teleport",
@@ -539,8 +542,16 @@ class Panel(BaseHTTPRequestHandler):
             data = (self.file("state.json") or b"").strip()
             if not data.startswith(b"{"):
                 return self.answer(200, {"empty": True})
-            # who is playing, beside the buddy's state (the file is passed on as it is, with this in front)
-            ctl = json.dumps({"control": self.control_info(self.page((q.get("page") or [""])[0]))}).encode("utf-8")
+            # who is playing and how many seconds the panel has run, beside the buddy's state (the file is passed on as it
+            # is, with this in front); in the panel's first minutes also whether the state is from before it started:
+            # the game has not written one since
+            ctl = {"control": self.control_info(self.page((q.get("page") or [""])[0])), "up": int(time.time() - STARTED)}
+            if ctl["up"] < 300:
+                try:
+                    ctl["old"] = float(json.loads(data).get("t") or 0) < STARTED * 1000
+                except (ValueError, TypeError, AttributeError):
+                    pass
+            ctl = json.dumps(ctl).encode("utf-8")
             rest = data[1:].lstrip()
             return self.answer(200, ctl[:-1] + (b"}" if rest.startswith(b"}") else b",") + (rest[1:] if rest.startswith(b"}") else rest))
         if path == "/api/map":
