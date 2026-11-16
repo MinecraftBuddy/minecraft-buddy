@@ -482,8 +482,9 @@ final class Obtain {
 		// practice server's five times the speed included, where the wall clock made them five times as slow in the game
 		// nearly full: what is worth nothing out first, between two of its clicks; for Soprano's order too (a staircase's
 		// cobblestone filled 29 slots, there was no room for iron or wood, and the kit went round for three hours). Over 96
-		// blocks of stone and the like go, the rest stays for steps, pillars and the night's hole. Asked here, thrown at the
-		// start of the next tick (throwJunk)
+		// blocks of stone and the like go, the rest stays for steps, pillars and the night's hole; in the nether (nether_keep_rack)
+		// 96 of netherrack, blackstone and basalt stay whatever the count, and the barter's junk goes first. Asked here, thrown at
+		// the start of the next tick (throwJunk)
 		long tk = p.level().getGameTime();
 		watchJunk(p, tk);
 		if (Work.freeSlots(p) <= 3 && p.containerMenu == p.inventoryMenu && now >= nextThrow) {

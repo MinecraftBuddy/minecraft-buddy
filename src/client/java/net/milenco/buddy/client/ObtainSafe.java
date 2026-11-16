@@ -798,6 +798,19 @@ final class ObtainSafe {
 		var in = p.getInventory();
 		int blocks = 0;
 		boolean deepJunk = deepJunkOn(p);
+		// (nether_keep_rack) in the nether the stacks of netherrack, blackstone and basalt within the keep never go
+		boolean netherKeep = netherKeepOn(p);
+		boolean[] kept = null;
+		if (netherKeep) {
+			String[] ids = new String[36];
+			int[] counts = new int[36];
+			for (int i = 0; i < 36; i++) {
+				var st = in.getItem(i);
+				ids[i] = st.isEmpty() ? "" : AfkHelperClient.itemId(st);
+				counts[i] = st.getCount();
+			}
+			kept = netherKept(ids, counts);
+		}
 		for (int i = 0; i < 36; i++) {
 			var st = in.getItem(i);
 			if (st.isEmpty()) continue;
@@ -809,6 +822,8 @@ final class ObtainSafe {
 			if (id.equals("leaf_litter") || id.equals("wheat_seeds") || id.equals("poisonous_potato") || id.equals("rotten_flesh")
 					|| id.equals("short_grass") || id.equals("dead_bush") || id.equals("pointed_dripstone")) return i;
 			if (deepJunk && DEEP_JUNK.contains(id) && !id.equals(Obtain.item())) return i;
+			// (nether_keep_rack) the barter's junk first in the nether
+			if (netherKeep && BARTER_JUNK.contains(id) && !id.equals(Obtain.item())) return i;
 			if (id.endsWith("_sapling") && st.getCount() > 4 && Obtain.item() != null && !Obtain.item().equals(id)) return i;
 			// a tool worn to its last uses: the plan counts it as gone already (four of them filled a bag); thrown only when one
 			// that still works is there, for the last uses are its way out of a hole
@@ -824,7 +839,7 @@ final class ObtainSafe {
 				var st = in.getItem(i);
 				if (!throwaway(st)) continue;
 				String id = AfkHelperClient.itemId(st);
-				if (id.equals(Obtain.item()) || held.test(id)) continue;
+				if (id.equals(Obtain.item()) || held.test(id) || kept != null && kept[i]) continue;
 				if (!id.equals("cobblestone")) return i;
 				cobble += st.getCount();
 				cobbleSlot = i;
@@ -840,6 +855,54 @@ final class ObtainSafe {
 	 * full bag of these the autopilot's own full-bag throw went for the bed and the furnace first (M3.3's smoke 5).
 	 */
 	static final java.util.Set<String> DEEP_JUNK = java.util.Set.of("cinnabar", "sulfur", "clay_ball", "bone", "raw_copper");
+
+	/**
+	 * The nether's building blocks the bag keeps there with the autopilot's nether_keep_rack (a fix of 16 Nov 2026, on), as its
+	 * GarbageRules.netherKept: an M4 run threw 113 netherrack away in the piglin trade by the rule above (96 blocks of stone and
+	 * the like, the first stack that is no cobblestone), and the brew's pillbox by the spawner starved with 9 blocks for 15. The
+	 * standing rule: netherrack is topped up in the nether, never thrown there.
+	 */
+	static final int NETHER_KEEP = 96;
+
+	/** What a piglin's barter fills the bag with and nothing on the route asks for: thrown first in the nether (nether_keep_rack). */
+	static final java.util.Set<String> BARTER_JUNK = java.util.Set.of("nether_brick", "soul_sand", "gravel");
+
+	static boolean netherKeepOn(LocalPlayer p) {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("nether_keep_rack", 0) > 0 && p.level().dimension().equals(Level.NETHER);
+	}
+
+	/** The nether's building blocks in the order they are kept: netherrack, blackstone, basalt; -1 for anything else. */
+	static int netherKeepOrder(String id) {
+		return switch (id) {
+			case "netherrack" -> 0;
+			case "blackstone" -> 1;
+			case "basalt" -> 2;
+			default -> -1;
+		};
+	}
+
+	/**
+	 * Which slots the nether keeps: netherrack's stacks first, the biggest first, then blackstone's and basalt's, each while the
+	 * total kept before it is under NETHER_KEEP (96 at least whenever the bag holds them, a stack more at most).
+	 */
+	static boolean[] netherKept(String[] ids, int[] counts) {
+		boolean[] kept = new boolean[ids.length];
+		List<Integer> order = new ArrayList<>();
+		for (int i = 0; i < ids.length; i++) if (ids[i] != null && counts[i] > 0 && netherKeepOrder(ids[i]) >= 0) order.add(i);
+		order.sort((a, b) -> {
+			int byKind = Integer.compare(netherKeepOrder(ids[a]), netherKeepOrder(ids[b]));
+			if (byKind != 0) return byKind;
+			int byCount = Integer.compare(counts[b], counts[a]);
+			return byCount != 0 ? byCount : Integer.compare(a, b);
+		});
+		int total = 0;
+		for (int i : order) {
+			if (total >= NETHER_KEEP) break;
+			kept[i] = true;
+			total += counts[i];
+		}
+		return kept;
+	}
 
 	static boolean deepJunkOn(LocalPlayer p) {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("bag_junk_first", 0) > 0 && Alto.routeDeep(p);
