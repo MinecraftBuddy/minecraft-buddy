@@ -568,6 +568,10 @@ public final class Tuning {
             // and the barter's junk (nether brick, soul sand, gravel) goes first (GarbageRules.netherKept, junkNether; the buddy's
             // own junk rule, ObtainSafe.junkSlot, the same)
             java.util.Map.entry("nether_keep_rack", 1.0),
+            // (a fix of 16 Nov 2026, box 3 lane t4: the brew errand flipped at the wart reach's edge, each pick restarting its
+            // give-up, one wart held 10 minutes) the wart held stays in reach to the reach + 16, and the same wart picked again
+            // keeps its clocks (RouteRules.wartHeldInReach, CollectBlazeRodsTask.wartFetch)
+            java.util.Map.entry("wart_hold_reach", 1.0),
             // (off; an A/B's B arm turns it on, test grotdek) the cover in a cave: where the floor will not dig, a cell 1 wide and 2
             // high dug into the nearest cave wall within 3, stepped into and its opening shut with a block at the head's height
             // (the feet's too when needed), instead of the pillbox; a notch on offer counts as ground that digs for the cover in

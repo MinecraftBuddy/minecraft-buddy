@@ -520,6 +520,19 @@ public class RouteRulesTest {
     }
 
     @Test
+    public void wartHeldKeepsReachSlack() {
+        // (wart_hold_reach on: the held wart stays in reach to the reach + 16)
+        assertTrue(RouteRules.wartHeldInReach(150, RouteRules.WART_NEAR, true));
+        assertTrue(RouteRules.wartHeldInReach(166, RouteRules.WART_NEAR, true));
+        assertFalse(RouteRules.wartHeldInReach(167, RouteRules.WART_NEAR, true));
+        // (off: the reach as before)
+        assertTrue(RouteRules.wartHeldInReach(150, RouteRules.WART_NEAR, false));
+        assertFalse(RouteRules.wartHeldInReach(151, RouteRules.WART_NEAR, false));
+        // (no reach: any distance either way)
+        assertTrue(RouteRules.wartHeldInReach(10132, 0, true));
+    }
+
+    @Test
     public void wartDrinkAtAGuardedWart() {
         // (route_wart_drink) the potion goes down at a wart only with the switch on, three walk-aways, within 100, a potion
         // in the bag and none in effect

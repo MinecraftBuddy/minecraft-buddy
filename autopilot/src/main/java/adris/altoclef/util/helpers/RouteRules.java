@@ -183,6 +183,20 @@ public final class RouteRules {
         return near <= 0 || fromAnchor <= near;
     }
 
+    // (Tuning wart_hold_reach, a fix of 16 Nov 2026, on: box 3 lane t4, the brew errand logged "nothing in sight" 123 times in
+    // 180 s) the wart the errand holds stays in reach up to WART_HOLD_SLACK past the reach, so a buddy at the reach's edge does
+    // not drop it and pick it again tick after tick; and a wart picked again after it was dropped keeps its clocks
+    // (CollectBlazeRodsTask.wartFetch): each pick started the 90 s give-up again, and the errand held one wart 10 minutes
+    public static final double WART_HOLD_SLACK = 16;
+
+    public static boolean wartHoldOn() {
+        return Tuning.get("wart_hold_reach", 0) > 0;
+    }
+
+    public static boolean wartHeldInReach(double fromAnchor, double near, boolean holdOn) {
+        return wartInReach(fromAnchor, holdOn && near > 0 ? near + WART_HOLD_SLACK : near);
+    }
+
     // ---- the far pass for the wart (Tuning route_wart_far, on since 12 Nov 2026; 11 Nov 2026). WART_NEAR's "a fortress's wart rooms lie well
     // within 150 of its spawner" does not hold on every fortress: of 20 whole-route runs that began phase 4 without wart
     // (11 Nov 2026, 03:00-09:00), 6 had none within 150 of the spawner, its rooms 215 to 520 off (two fortresses of the

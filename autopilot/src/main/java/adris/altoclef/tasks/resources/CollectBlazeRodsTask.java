@@ -150,6 +150,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private adris.altoclef.tasks.movement.GetToXZTask _errandWalk;
     private double _errandFrom = Double.NaN;
     private BlockPos _wartAt;
+    // (Tuning wart_hold_reach) the last wart held, kept when the hold drops it, so the same wart picked again keeps its clocks
+    private BlockPos _wartLastHeld;
     private long _wartTicks;
     private final java.util.Set<BlockPos> _wartGaveUp = new java.util.HashSet<>();
     // (Tuning route_wart_far, RouteRules.wartFarBegins) the far pass: the game time it began (-1 none) and its brick search
@@ -1622,7 +1624,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _wartZonedSaid = _wartAt;
             Debug.logInternal("route: the wart at " + _wartAt.toShortString() + " is in a zone walked away from, passed over for now");
         }
-        boolean keep = walk && _wartAt != null && !_wartGaveUp.contains(_wartAt) && inReach.test(_wartAt) && unzoned.test(_wartAt)
+        boolean holdOn = adris.altoclef.util.helpers.RouteRules.wartHoldOn();
+        java.util.function.Predicate<BlockPos> heldReach = p -> adris.altoclef.util.helpers.RouteRules.wartHeldInReach(anchor.distanceTo(Vec3.atCenterOf(p)), wartNear, holdOn);
+        boolean keep = walk && _wartAt != null && !_wartGaveUp.contains(_wartAt) && heldReach.test(_wartAt) && unzoned.test(_wartAt)
                 && mod.getBlockTracker().blockIsValid(_wartAt, Blocks.NETHER_WART);
         Optional<BlockPos> block = keep ? Optional.of(_wartAt)
                 : mod.getBlockTracker().getNearestTracking(me.position(), p -> !_wartGaveUp.contains(p) && inReach.test(p) && unzoned.test(p), Blocks.NETHER_WART);
@@ -1631,8 +1635,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
             return null;
         }
         BlockPos at = block.orElse(null);
-        if (at != null && !at.equals(_wartAt)) {
+        if (at != null && !at.equals(_wartAt) && holdOn && at.equals(_wartLastHeld) && !_wartGaveUp.contains(at)) {
+            // (wart_hold_reach: the same wart again, dropped a moment ago: its clocks go on)
             _wartAt = at;
+            _wartWalk = null;
+            _wartBreak = null;
+        } else if (at != null && !at.equals(_wartAt)) {
+            _wartAt = at;
+            _wartLastHeld = at;
             _wartTicks = 0;
             double d = me.position().distanceTo(Vec3.atCenterOf(at));
             _wartBest = d;
