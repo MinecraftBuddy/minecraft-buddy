@@ -208,9 +208,42 @@ public final class LandFinder {
         return false;
     }
 
+    // (the buddy's fork, Tuning ice_berg_not_land, a fix of 16 Nov 2026, on) an iceberg's top is no land: noIce looks for ice
+    // down to the sea's top block, not ICE_DEPTH alone. an iceberg's snow cap held no ice in the five blocks under its top, so
+    // the ice rule picked it as land to walk to through the water under the sea ice, and the staircase from it met the
+    // packed ice again (a frozen-ocean start, box 3, 16 Nov 2026: 31 minutes of loops in M3.3's gold, no gold)
+    public static boolean bergCheckOn() {
+        return Tuning.get("ice_berg_not_land", 0) > 0;
+    }
+
+    // (ice_berg_not_land) a column is looked down this far at most for an iceberg's ice
+    public static final int BERG_DEPTH = 48;
+
+    // (ice_berg_not_land) how many blocks under a top (topY, the cell over the ground) are looked at: down to the sea's top
+    // block (seaLevel - 1, where the sea ice is), ICE_DEPTH at least and BERG_DEPTH at most
+    public static int bergDepth(int topY, int seaLevel) {
+        return Math.min(BERG_DEPTH, Math.max(ICE_DEPTH, topY - (seaLevel - 1)));
+    }
+
+    // ice or water in the ICE_DEPTH blocks under the top (atY by height), as iceUnder; berg (ice_berg_not_land): ice of any kind
+    // (ice, packed, blue, frosted) further down to bergDepth too, water there not counted (a cave's pool under a hill is land)
+    public static boolean icyColumn(java.util.function.IntFunction<BlockState> atY, int topY, int seaLevel, boolean berg) {
+        for (int i = 1; i <= ICE_DEPTH; i++) {
+            BlockState b = atY.apply(topY - i);
+            if (ice(b) || !b.getFluidState().isEmpty()) return true;
+        }
+        if (!berg) return false;
+        int depth = bergDepth(topY, seaLevel);
+        for (int i = ICE_DEPTH + 1; i <= depth; i++) {
+            if (ice(atY.apply(topY - i))) return true;
+        }
+        return false;
+    }
+
     // noIce: land with no ice and no water in the ICE_DEPTH blocks under its top either (an iceberg or a frozen sea is no land
     // to dig in: the top of an iceberg counted as land, and the staircase from it stepped down onto the ice again, the walk to
-    // land and the next step taking turns twice a second for an hour, 10 Nov 2026)
+    // land and the next step taking turns twice a second for an hour, 10 Nov 2026). (ice_berg_not_land: ice down to the sea's
+    // top block, icyColumn)
     public static BlockPos nearestLand(AltoClef mod, BlockPos feet, int reach, boolean noIce) {
         return nearestLand(mod, feet, reach, noIce, null);
     }
@@ -227,6 +260,9 @@ public final class LandFinder {
                                        java.util.function.Predicate<BlockPos> prefer) {
         BlockPos any = null;
         Level level = mod.getWorld();
+        // (ice_berg_not_land) the iceberg's ice under its snow cap, down to the sea's top block
+        boolean berg = noIce && bergCheckOn();
+        int seaLevel = level.getSeaLevel();
         for (int r = 2; r <= reach; r += r < 64 ? 2 : 4) {
             int s = r < 64 ? 2 : 4;
             for (int dx = -r; dx <= r; dx += s) {
@@ -236,7 +272,8 @@ public final class LandFinder {
                     if (!level.hasChunk(x >> 4, z >> 4)) continue;
                     int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
                     BlockState ground = level.getBlockState(new BlockPos(x, top - 1, z));
-                    if (ground.getFluidState().isEmpty() && ground.isSolid() && !(noIce && (ice(ground) || iceUnder(level, new BlockPos(x, top, z), ICE_DEPTH)))) {
+                    if (ground.getFluidState().isEmpty() && ground.isSolid()
+                            && !(noIce && (ice(ground) || icyColumn(y -> level.getBlockState(new BlockPos(x, y, z)), top, seaLevel, berg)))) {
                         BlockPos land = new BlockPos(x, top, z);
                         if (require != null && !require.test(land)) continue;
                         if (prefer == null || prefer.test(land)) return land;

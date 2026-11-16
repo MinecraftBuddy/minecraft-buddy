@@ -123,6 +123,38 @@ public class BranchMineTask extends Task {
     static boolean leaveDryOn() {
         return adris.altoclef.util.helpers.Tuning.get("mine_leave_dry", 0) > 0;
     }
+
+    // (Tuning ice_same_land, a fix of 16 Nov 2026, on) the open-water rule and the ice rule aim at the same land: the open
+    // water's land search rules ice out (noIce) as the ice rule's does, the ice rule asks that same search, and standing on
+    // ice is no dry ground for the walk out of the water. the open water's search took the sea ice for dry ground, the walk
+    // out of the water ended on it, and the ice rule sent the buddy back through the water under the ice to an iceberg's top:
+    // 31 minutes of loops in M3.3's gold with no gold (a frozen-ocean start, box 3, 16 Nov 2026)
+    static boolean iceSameLandOn() {
+        return adris.altoclef.util.helpers.Tuning.get("ice_same_land", 0) > 0;
+    }
+
+    // (Tuning ice_pick_at_column, a fix of 16 Nov 2026, on) the ice rule picks its land again only once the feet stand in the
+    // land's column (its x and z), or after ICE_LAND_HOLD. within 1.5 it picked again one step short, often a block lower,
+    // and the land search's rings of two (from 2 out) never see a column one off, so it ping-ponged between two columns two
+    // or three blocks apart: "on ice at .., to land at .. first" 64 times a minute (the same start)
+    static boolean icePickAtColumnOn() {
+        return adris.altoclef.util.helpers.Tuning.get("ice_pick_at_column", 0) > 0;
+    }
+
+    // how long a land picked off the ice is kept before it is picked again (half a game minute)
+    static final long ICE_LAND_HOLD = 600;
+
+    // the ice rule picks its land again: none yet, held ICE_LAND_HOLD, or reached: in its column (ice_pick_at_column, atColumn)
+    // or within 1.5 (as before)
+    static boolean iceRepick(boolean atColumn, BlockPos feet, BlockPos land, long since, long now) {
+        if (land == null || now - since > ICE_LAND_HOLD) return true;
+        return atColumn ? feet.getX() == land.getX() && feet.getZ() == land.getZ() : feet.closerThan(land, 1.5);
+    }
+
+    // standing on ice, or ice in the few blocks under the feet: the ice rule's case (iceColumn)
+    private static boolean onIce(AltoClef mod, BlockPos feet) {
+        return adris.altoclef.util.helpers.LandFinder.ice(mod.getWorld().getBlockState(feet.below())) || iceColumn(mod, feet);
+    }
     // (Tuning mine_own_pit, a fix of 13 Nov 2026, on) baritone's mine leaving its band, counted by place: the second time within
     // ten blocks in ten game minutes, the tunnel of its own keeps the tick for the rest of the task within OWN_TUNNEL_REACH of
     // there. baritone's mine walked up the buddy's own staircase, out of the band, the mine stopped and the staircase ran down
@@ -482,7 +514,9 @@ public class BranchMineTask extends Task {
         // step went back into the sea: the two took turns every tick for 11 minutes, "No path" 15 to 37 a minute (test heel's
         // flooded start, look 97)
         if (landHold) {
-            boolean dryHere = !water && mod.getPlayer().onGround() && dryGround(mod.getWorld()::getBlockState, feet);
+            // (ice_same_land) on the sea ice is no dry ground: the walk out of the water goes on to the land the ice rule would pick
+            boolean dryHere = !water && mod.getPlayer().onGround() && dryGround(mod.getWorld()::getBlockState, feet)
+                    && !(iceSameLandOn() && onIce(mod, feet));
             boolean landed = dryHere || !water && mod.getPlayer().onGround() && _land != null && feet.closerThan(_land, 1.5);
             int step = landStep(open, openLately, _landWalk, landed);
             if (step == LAND_OFF && _landWalk) {
@@ -540,12 +574,16 @@ public class BranchMineTask extends Task {
         // path", for thirty game minutes with no gold (the overworld route's gold, box 1, 10 Nov 2026). land with no ice or
         // water under its top first (none within reach: as before). ice anywhere in the few blocks under the feet counts: on
         // the snow of an iceberg's top the rule saw no ice, the staircase stepped down onto it, and the two took turns
-        if (adris.altoclef.util.helpers.LandFinder.ice(mod.getWorld().getBlockState(feet.below()))
-                || iceColumn(mod, feet)) {
-            if (_iceLand == null || now - _iceLandSince > 600 || feet.closerThan(_iceLand, 1.5)) {
-                _iceLand = adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, ICE_LAND_REACH, true);
+        // (ice_same_land: the land the open water's rule picks, by the same search; ice_pick_at_column: picked again only in its
+        // column or after ICE_LAND_HOLD; ice_berg_not_land: an iceberg's top is no land, LandFinder.icyColumn)
+        if (onIce(mod, feet)) {
+            boolean atColumn = icePickAtColumnOn();
+            if (iceRepick(atColumn, feet, _iceLand, _iceLandSince, now)) {
+                boolean same = iceSameLandOn();
+                _iceLand = same ? nearestLand(mod, feet, now, true) : adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, ICE_LAND_REACH, true);
                 _iceLandSince = now;
-                if (_iceLand != null) adris.altoclef.Debug.logInternal("branch mine: on ice at " + feet.toShortString() + ", to land at " + _iceLand.toShortString() + " first");
+                if (_iceLand != null) adris.altoclef.Debug.logInternal("branch mine: on ice at " + feet.toShortString() + ", to land at " + _iceLand.toShortString() + " first"
+                        + iceKeys(same, atColumn));
             }
             if (_iceLand != null) {
                 stopMine(mod);
@@ -1948,22 +1986,37 @@ public class BranchMineTask extends Task {
     // the spot the leave had just walked 48 blocks from, and the staircase from it met the same flooded layer again
     // (open_water_land_hold) only dry ground (dryGround) is land, looked for out to ICE_LAND_REACH as off the ice: the nearest
     // land by the height map was a one-block islet, and the land the buddy reached at last lay 76 blocks off
+    // (ice_same_land) the ice rule asks it too (onIce), and ice is no land to either (noIce)
     private static BlockPos nearestLand(AltoClef mod, BlockPos feet, long now) {
+        return nearestLand(mod, feet, now, false);
+    }
+
+    private static BlockPos nearestLand(AltoClef mod, BlockPos feet, long now, boolean onIce) {
         var level = mod.getWorld();
         boolean strict = landHoldOn();
+        boolean noIce = iceSameLandOn();
         java.util.function.Predicate<BlockPos> dry = strict ? p -> dryGround(level::getBlockState, p) : null;
         int reach = strict ? ICE_LAND_REACH : 64;
         if (!leaveDryOn() || MineLeave.GIVEN_UP.size() == 0) {
-            return adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, reach, false, dry, null);
+            return adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, reach, noIce, dry, null);
         }
         String dim = dimension();
-        BlockPos land = adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, reach, false, dry,
+        BlockPos land = adris.altoclef.util.helpers.LandFinder.nearestLand(mod, feet, reach, noIce, dry,
                 p -> MineLeave.GIVEN_UP.clearOf(dim, p.getX(), p.getZ(), now, MineLeave.FAR, MineLeave.FRESH));
         if (land != null && !MineLeave.GIVEN_UP.clearOf(dim, land.getX(), land.getZ(), now, MineLeave.FAR, MineLeave.FRESH)) {
-            adris.altoclef.Debug.logInternal("branch mine: in open water at " + feet.toShortString() + ", no land within " + reach + " clear of a spot"
+            adris.altoclef.Debug.logInternal("branch mine: " + (onIce ? "on ice" : "in open water") + " at " + feet.toShortString() + ", no land within " + reach + " clear of a spot"
                     + " a mine gave up, to the nearest at " + land.toShortString() + " (mine_leave_dry)");
         }
         return land;
+    }
+
+    // the ice keys in force, for the ice rule's line
+    private static String iceKeys(boolean same, boolean atColumn) {
+        java.util.List<String> on = new java.util.ArrayList<>();
+        if (same) on.add("ice_same_land");
+        if (atColumn) on.add("ice_pick_at_column");
+        if (adris.altoclef.util.helpers.LandFinder.bergCheckOn()) on.add("ice_berg_not_land");
+        return on.isEmpty() ? "" : " (" + String.join(", ", on) + ")";
     }
 
     // the next step of a staircase (down one) or of a tunnel (level) in the way it goes, or the first of the other three

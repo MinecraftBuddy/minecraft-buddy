@@ -550,6 +550,14 @@ public final class Tuning {
             // (SkelCover.Hold.tillDawn): about 51 of 132 deaths before the iron tools in whole runs were on the surface at night
             // with no shelter, the bed slept 6 of 146 nights on one lane of the shared servers, and the hole was never dug
             java.util.Map.entry("night_hole_bedless", 0.0),
+            // (fixes of 16 Nov 2026, a frozen-ocean start: 31 minutes of loops in M3.3's gold, no gold) the open water's land
+            // search rules ice out as the ice rule's does and both ask the same search, the sea ice no dry ground for the walk out
+            // of the water (BranchMineTask, ice_same_land); the ice rule picks its land again only in the land's column or after
+            // half a minute, not one step short (ice_pick_at_column); an iceberg's top is no land, its column looked down to the
+            // sea's top block for ice (LandFinder.icyColumn, ice_berg_not_land)
+            java.util.Map.entry("ice_same_land", 1.0),
+            java.util.Map.entry("ice_pick_at_column", 1.0),
+            java.util.Map.entry("ice_berg_not_land", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),
