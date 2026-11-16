@@ -213,18 +213,25 @@ public class StorageHelper {
         Bag bag = bag(mod);
         int units = bagFoodUnits(mod);
         return at(bag, GarbageRules.nextPick(entries(mod, bag, units), reserve(), Baritone.settings().altoThrowAwayUnusedItems.value,
-                units, Baritone.settings().altoFoodKeepUnits.value, GarbageRules.junkFirstNow(), GarbageRules.kitNow()));
+                units, Baritone.settings().altoFoodKeepUnits.value, GarbageRules.junkFirstNow(nether()), GarbageRules.kitNow()));
     }
 
     // one look at the bag: its slots, what is in them (read off the menu slot itself: under a menu Slot has no type for, window 45
-    // is a bag slot and getItemStackInSlot would hand back the offhand), and which armor pieces are the ones we would put on
-    private record Bag(List<Slot> slots, List<ItemStack> stacks, boolean[] wear) {
+    // is a bag slot and getItemStackInSlot would hand back the offhand), and which armor pieces are the ones we would put on.
+    // (nether_keep_rack) keep: the stacks of netherrack, blackstone and basalt the nether keeps (GarbageRules.netherKept), none
+    // elsewhere or with the key off
+    private record Bag(List<Slot> slots, List<ItemStack> stacks, boolean[] wear, boolean[] keep) {
+    }
+
+    // (nether_keep_rack) the buddy is in the nether
+    private static boolean nether() {
+        return WorldHelper.getCurrentDimension() == baritone.api.utils.Dimension.NETHER;
     }
 
     private static Bag bag(AltoClef mod) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) {
-            return new Bag(List.of(), List.of(), new boolean[0]);
+            return new Bag(List.of(), List.of(), new boolean[0], new boolean[0]);
         }
         AbstractContainerMenu menu = player.containerMenu;
         List<Slot> slots = new ArrayList<>();
@@ -237,7 +244,8 @@ public class StorageHelper {
             stacks.add(stack);
             armor.add(armorOf(mod, stack));
         }
-        return new Bag(slots, stacks, GarbageRules.keptArmor(armor));
+        boolean[] keep = GarbageRules.netherKeepOn() && nether() ? GarbageRules.netherKept(stacks) : new boolean[stacks.size()];
+        return new Bag(slots, stacks, GarbageRules.keptArmor(armor), keep);
     }
 
     private static GarbageRules.Armor armorOf(AltoClef mod, ItemStack stack) {
@@ -269,7 +277,7 @@ public class StorageHelper {
 
     // what every garbage tier asks of a bag stack. foodUnits is the bag total the food floor is held against
     private static boolean mayGo(AltoClef mod, Bag bag, int i, int foodUnits) {
-        return !bag.wear[i] && ItemHelper.canDropStack(mod, bag.stacks.get(i), foodUnits);
+        return !bag.wear[i] && !bag.keep[i] && ItemHelper.canDropStack(mod, bag.stacks.get(i), foodUnits);
     }
 
     private static List<GarbageRules.Entry> entries(AltoClef mod, Bag bag, int foodUnits) {
@@ -299,7 +307,7 @@ public class StorageHelper {
         Bag bag = bag(mod);
         List<GarbageRules.Entry> entries = entries(mod, bag, bagFoodUnits(mod));
         // (bag_junk_first: the deep mine's leftovers are junk too, ahead of the rest)
-        int first = GarbageRules.junkFirstPick(entries, GarbageRules.junkFirstNow());
+        int first = GarbageRules.junkFirstPick(entries, GarbageRules.junkFirstNow(nether()));
         // (bag_kit_last: no kit item on the throwaway list, sand, is junk)
         return at(bag, first >= 0 ? first : GarbageRules.junkPick(entries, reserve(), GarbageRules.kitNow()));
     }
@@ -355,7 +363,7 @@ public class StorageHelper {
             _floor = Baritone.settings().altoFoodKeepUnits.value;
             _throwUnused = Baritone.settings().altoThrowAwayUnusedItems.value;
             _reserve = reserve();
-            _junkFirst = GarbageRules.junkFirstNow();
+            _junkFirst = GarbageRules.junkFirstNow(nether());
             _kit = GarbageRules.kitNow();
             _pick = GarbageRules.nextPick(_entries, _reserve, _throwUnused, _foodUnits, _floor, _junkFirst, _kit);
         }

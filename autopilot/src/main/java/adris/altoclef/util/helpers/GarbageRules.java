@@ -244,6 +244,78 @@ public final class GarbageRules {
         return item -> -1;
     }
 
+    // the same, in the nether with nether_keep_rack on the barter's junk ahead of it all (junkNether)
+    public static java.util.function.ToIntFunction<Item> junkFirstNow(boolean nether) {
+        java.util.function.ToIntFunction<Item> base = junkFirstNow();
+        if (!nether || !netherKeepOn()) return base;
+        return item -> junkNether(base, item);
+    }
+
+    // (Tuning nether_keep_rack, a fix of 16 Nov 2026, on) in the nether netherrack, blackstone and basalt are the building blocks
+    // the bag keeps, NETHER_KEEP of them: the stacks within it never go to make room (netherKept). an M4 run from the nether's
+    // phase 3 (box 1 lane t1) threw 113 netherrack away in the piglin trade (the buddy's own junk rule) and 25 basalt a few
+    // minutes later (this one's junk-first tier, basalt as wide junk), and the brew's pillbox by the spawner starved with 9
+    // blocks in the bag for 15, the buddy dead at 27 game minutes with 2 rods. the standing rule: netherrack is topped up in the
+    // nether, never thrown there
+    public static final int NETHER_KEEP = 96;
+
+    public static boolean netherKeepOn() {
+        return Tuning.get("nether_keep_rack", 0) > 0;
+    }
+
+    // the nether's building blocks, in the order they are kept: netherrack first (the pillbox's and the bridges' block), then
+    // blackstone, then basalt; -1 for anything else
+    static int netherKeepOrder(Item item) {
+        if (item == Items.NETHERRACK) return 0;
+        if (item == Items.BLACKSTONE) return 1;
+        if (item == Items.BASALT) return 2;
+        return -1;
+    }
+
+    // which stacks of the bag the nether keeps: netherrack's first, the biggest stack first, then blackstone's and basalt's,
+    // each while the total kept before it is under NETHER_KEEP (so 96 at least whenever the bag holds them, and a stack more
+    // at most). the rest of them are junk as before
+    public static boolean[] netherKept(List<ItemStack> bag) {
+        boolean[] kept = new boolean[bag.size()];
+        List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < bag.size(); i++) {
+            ItemStack s = bag.get(i);
+            if (s != null && !s.isEmpty() && netherKeepOrder(s.getItem()) >= 0) order.add(i);
+        }
+        order.sort((a, b) -> {
+            int byKind = Integer.compare(netherKeepOrder(bag.get(a).getItem()), netherKeepOrder(bag.get(b).getItem()));
+            if (byKind != 0) return byKind;
+            int byCount = Integer.compare(bag.get(b).getCount(), bag.get(a).getCount());
+            return byCount != 0 ? byCount : Integer.compare(a, b);
+        });
+        int total = 0;
+        for (int i : order) {
+            if (total >= NETHER_KEEP) break;
+            kept[i] = true;
+            total += bag.get(i).getCount();
+        }
+        return kept;
+    }
+
+    // what a piglin's barter fills the bag with and no piece of the route asks for: the nether brick (the item), soul sand and
+    // gravel, in that order; -1 for anything else
+    public static int barterJunkRank(Item item) {
+        if (item == Items.NETHER_BRICK) return 0;
+        if (item == Items.SOUL_SAND) return 1;
+        if (item == Items.GRAVEL) return 2;
+        return -1;
+    }
+
+    // (nether_keep_rack) the nether's junk-first tier: the barter's junk first, then base's tier after it; the nether's
+    // building blocks never in it (the wide tier had basalt, which went whatever the building reserve said)
+    static int junkNether(java.util.function.ToIntFunction<Item> base, Item item) {
+        int barter = barterJunkRank(item);
+        if (barter >= 0) return barter;
+        if (netherKeepOrder(item) >= 0) return -1;
+        int rank = base.applyAsInt(item);
+        return rank < 0 ? -1 : rank + 3;
+    }
+
     // (Tuning bag_kit_last, a fix of 14 Nov 2026, on) the natural junk a mine or a walk fills the bag with and no piece of the
     // route asks for, ranked after junkFirstRank's: plants and carpets, seeds and bits, moss, then the stones that are no core
     // building block (cobblestone, cobbled deepslate, dirt and netherrack keep the building reserve's rules, junkPick). -1 for
