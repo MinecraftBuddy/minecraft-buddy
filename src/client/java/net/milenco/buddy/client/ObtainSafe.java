@@ -860,9 +860,10 @@ final class ObtainSafe {
 	 * The nether's building blocks the bag keeps there with the autopilot's nether_keep_rack (a fix of 16 Nov 2026, on), as its
 	 * GarbageRules.netherKept: an M4 run threw 113 netherrack away in the piglin trade by the rule above (96 blocks of stone and
 	 * the like, the first stack that is no cobblestone), and the brew's pillbox by the spawner starved with 9 blocks for 15. The
-	 * standing rule: netherrack is topped up in the nether, never thrown there.
+	 * standing rule: netherrack is topped up in the nether, never all of it thrown there; at most one stack in all (a bag that never
+	 * throws netherrack fills up fast): above NETHER_KEEP it is junk as before.
 	 */
-	static final int NETHER_KEEP = 96;
+	static final int NETHER_KEEP = 64;
 
 	/** What a piglin's barter fills the bag with and nothing on the route asks for: thrown first in the nether (nether_keep_rack). */
 	static final java.util.Set<String> BARTER_JUNK = java.util.Set.of("nether_brick", "soul_sand", "gravel");
@@ -883,7 +884,7 @@ final class ObtainSafe {
 
 	/**
 	 * Which slots the nether keeps: netherrack's stacks first, the biggest first, then blackstone's and basalt's, each while the
-	 * total kept before it is under NETHER_KEEP (96 at least whenever the bag holds them, a stack more at most).
+	 * total with it stays within NETHER_KEEP (the first stack always: one stack at most).
 	 */
 	static boolean[] netherKept(String[] ids, int[] counts) {
 		boolean[] kept = new boolean[ids.length];
@@ -897,7 +898,7 @@ final class ObtainSafe {
 		});
 		int total = 0;
 		for (int i : order) {
-			if (total >= NETHER_KEEP) break;
+			if (total > 0 && total + counts[i] > NETHER_KEEP) continue;
 			kept[i] = true;
 			total += counts[i];
 		}
