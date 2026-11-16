@@ -112,18 +112,53 @@ public class ConstructNetherPortalObsidianTask extends Task {
     // cast had the order (attempt 175)
     private static final double RESUME_RANGE = 256;
 
-    // the frame under way as a memory of the run (RunMemory): 1 with one known
+    // (Tuning frame_new_site, a fix of 16 Nov 2026, on) a frame cell that will not go in drops the site: after DROP_FAILS clicks
+    // given up on it (InteractWithBlockTask.clicksGivenUp, on a block a step from it at most), or DROP_TICKS of placing with no
+    // frame block put in, a new site is picked at least DROP_AWAY blocks from every site dropped, and a dropped site stays out
+    // for the run. the click on a frame cell bans the block it was on and wanders, and the frame handed the same cell out
+    // again: "Failed, blacklisting and wandering." 47 to 84 times on one cell over 30 to 74 minutes, 7 stalls of heel-27/28
+    static final int DROP_FAILS = 3;
+    static final long DROP_TICKS = 2 * 60 * 20;
+    static final double DROP_AWAY = 8;
+
+    // a site dropped: where, in which dimension, and its obsidian as last seen (fetched back into the bag before a new frame)
+    static final class Dropped {
+        final BlockPos at;
+        final baritone.api.utils.Dimension dim;
+        int count;
+
+        Dropped(BlockPos at, baritone.api.utils.Dimension dim, int count) {
+            this.at = at;
+            this.dim = dim;
+            this.count = count;
+        }
+    }
+
+    private static final List<Dropped> DROPPED = new ArrayList<>();
+
+    static boolean newSiteOn() {
+        return adris.altoclef.util.helpers.Tuning.get("frame_new_site", 0) > 0;
+    }
+
+    // the frame under way and the sites dropped as a memory of the run (RunMemory): 1 with one known, and one for each dropped
     public static int remembered() {
-        return _lastOrigin != null ? 1 : 0;
+        return (_lastOrigin != null ? 1 : 0) + DROPPED.size();
     }
 
     public static void forgetRun() {
         _lastOrigin = null;
         _lastDimension = null;
         _lastCount = 0;
+        DROPPED.clear();
     }
 
     private BlockPos _origin;
+
+    // (frame_new_site) the frame cell being placed, the clicks given up on it, the count of given-up clicks last looked at; the
+    // game ticks spent placing since a frame block last went in, the frame's obsidian then, and the last tick looked at
+    private BlockPos _tryCell;
+    private int _tryFails, _seenGivenUp, _placedSeen = -1;
+    private long _placingTicks, _placingAt = Long.MIN_VALUE;
 
     private BlockPos _destroyTarget;
     // ticks the interior cell we're on has gone without a ray, see InteriorPick
@@ -193,6 +228,50 @@ public class ConstructNetherPortalObsidianTask extends Task {
     // obsidian standing in the frame we left nearby: it counts toward a frame as much as the bag's
     public static int obsidianInLastFrame(AltoClef mod) {
         return lastFrame(mod) == null ? 0 : _lastCount;
+    }
+
+    // (frame_new_site) that and the obsidian standing in the sites dropped nearby (as last seen): the frame fetches it back into
+    // the bag before it picks a new site, so for the choice of a frame from the bag over the bucket cast it counts as the bag's
+    public static int obsidianOfOurFrames(AltoClef mod) {
+        int n = obsidianInLastFrame(mod);
+        if (!newSiteOn() || mod.getPlayer() == null) return n;
+        for (Dropped d : DROPPED) {
+            if (d.dim != WorldHelper.getCurrentDimension() || !d.at.closerToCenterThan(mod.getPlayer().position(), RESUME_RANGE)) continue;
+            if (mod.getWorld().isLoaded(d.at)) d.count = obsidianIn(mod, d.at);
+            n += d.count;
+        }
+        return n;
+    }
+
+    // (frame_new_site) the site is dropped: a few clicks given up on one frame cell, or long with no frame block put in
+    static boolean dropSite(int fails, long placingTicks) {
+        return fails >= DROP_FAILS || placingTicks >= DROP_TICKS;
+    }
+
+    // (frame_new_site) a click given up on this block was one for this frame cell: on the cell's floor, a side or a corner's floor
+    static boolean byCell(BlockPos clicked, BlockPos cell) {
+        return Math.abs(clicked.getX() - cell.getX()) <= 1 && Math.abs(clicked.getY() - cell.getY()) <= 1
+                && Math.abs(clicked.getZ() - cell.getZ()) <= 1;
+    }
+
+    // (frame_new_site) the game ticks between two looks that count as placing: none across a pause of more than a second (a
+    // food run, a fight, the obsidian or the flint fetched), so only time spent at the frame counts
+    static long placingStep(long last, long now) {
+        long d = now - last;
+        return last == Long.MIN_VALUE || d <= 0 || d > 20 ? 0 : d;
+    }
+
+    // (frame_new_site) the distance across (x and z) from this origin to the nearest of these sites; MAX_VALUE with none
+    static double awayFrom(BlockPos origin, List<BlockPos> sites) {
+        double best = Double.MAX_VALUE;
+        for (BlockPos at : sites) best = Math.min(best, Math.hypot(origin.getX() - at.getX(), origin.getZ() - at.getZ()));
+        return best;
+    }
+
+    private static List<BlockPos> droppedHere() {
+        List<BlockPos> out = new ArrayList<>();
+        for (Dropped d : DROPPED) if (d.dim == WorldHelper.getCurrentDimension()) out.add(d.at);
+        return out;
     }
 
     // a spot picked, or a frame begun nearby: it is finished where it is, wherever that is
@@ -265,6 +344,17 @@ public class ConstructNetherPortalObsidianTask extends Task {
                 _areaSearchTimer.reset();
                 Debug.logMessage("(Searching for area to build portal nearby...)");
                 _origin = getBuildableAreaNearby(mod);
+                // (frame_new_site) never within DROP_AWAY of a site dropped: the wander goes on
+                List<BlockPos> dropped = newSiteOn() ? droppedHere() : List.of();
+                if (_origin != null && !dropped.isEmpty()) {
+                    double away = awayFrom(_origin, dropped);
+                    if (away < DROP_AWAY) {
+                        _origin = null;
+                    } else {
+                        Debug.logInternal("portal frame: a new site at " + _origin.toShortString() + ", " + Math.round(away)
+                                + " blocks from the nearest of " + dropped.size() + " dropped (frame_new_site)");
+                    }
+                }
                 if (_origin != null) {
                     _lastOrigin = _origin;
                     _lastDimension = WorldHelper.getCurrentDimension();
@@ -284,6 +374,11 @@ public class ConstructNetherPortalObsidianTask extends Task {
         // Place frame
         if (placeTarget != null) {
             _airTicks = 0;
+            // (frame_new_site) a cell that will not go in: the site dropped, a new one looked for after the obsidian is back
+            if (newSiteOn() && siteGivenUp(mod, placeTarget)) {
+                setDebugState("Frame site dropped, a new one");
+                return null;
+            }
             setDebugState("Placing frame...");
             Task click = clickInFrame(mod, placeTarget);
             if (click != null) return click;
@@ -317,6 +412,59 @@ public class ConstructNetherPortalObsidianTask extends Task {
         }
         // Flint and steel
         return new InteractWithBlockTask(new ItemTarget(Items.FLINT_AND_STEEL, 1), Direction.UP, _origin.below(), true);
+    }
+
+    // (frame_new_site) the watch over the cell being placed; true once it dropped the site
+    private boolean siteGivenUp(AltoClef mod, BlockPos cell) {
+        int placed = obsidianIn(mod, _origin);
+        if (!cell.equals(_tryCell)) {
+            _tryCell = cell;
+            _tryFails = 0;
+            _seenGivenUp = InteractWithBlockTask.clicksGivenUp;
+        }
+        if (placed != _placedSeen) {
+            _placedSeen = placed;
+            _placingTicks = 0;
+        }
+        long gt = mod.getWorld().getGameTime();
+        _placingTicks += placingStep(_placingAt, gt);
+        _placingAt = gt;
+        int n = InteractWithBlockTask.clicksGivenUp;
+        if (n != _seenGivenUp) {
+            BlockPos at = InteractWithBlockTask.givenUpAt;
+            if (at != null && byCell(at, cell)) _tryFails += n - _seenGivenUp;
+            _seenGivenUp = n;
+        }
+        if (!dropSite(_tryFails, _placingTicks)) return false;
+        String why = _tryFails >= DROP_FAILS ? _tryFails + " clicks given up on the frame cell at " + cell.toShortString()
+                : "no frame block put in for " + _placingTicks / 1200 + " minutes";
+        BlockPos was = _origin;
+        baritone.api.utils.Dimension dim = WorldHelper.getCurrentDimension();
+        DROPPED.add(new Dropped(was, dim, placed));
+        if (was.equals(_lastOrigin)) {
+            _lastOrigin = null;
+            _lastDimension = null;
+            _lastCount = 0;
+        }
+        // the click's bans on the old frame's blocks lifted, so its obsidian can be mined back
+        int lifted = mod.getBans().lift("couldn't reach it", k -> k.kind() == adris.altoclef.trackers.Bans.Kind.BLOCK && k.dim() == dim
+                && Math.abs(k.x() - was.getX()) <= 2 && k.y() >= was.getY() - 2 && k.y() <= was.getY() + 4
+                && k.z() >= was.getZ() - 3 && k.z() <= was.getZ() + 4);
+        Debug.logInternal("portal frame: the site at " + was.toShortString() + " dropped (" + why + ", " + placed + " of 10 placed"
+                + (lifted > 0 ? ", " + lifted + " bans on it lifted" : "") + "): a new one at least " + Math.round(DROP_AWAY)
+                + " blocks from every site dropped (frame_new_site)");
+        _origin = null;
+        _destroyTarget = null;
+        _noReachTicks = 0;
+        _reachSwitches = 0;
+        _standGoal = null;
+        _standCell = null;
+        _tryCell = null;
+        _tryFails = 0;
+        _placedSeen = -1;
+        _placingTicks = 0;
+        _placingAt = Long.MIN_VALUE;
+        return true;
     }
 
     // (the buddy's fork: a frame cell with a face to click on goes in with a plain click, as a player builds it. baritone's

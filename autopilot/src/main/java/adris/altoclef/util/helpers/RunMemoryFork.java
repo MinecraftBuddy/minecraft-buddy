@@ -53,7 +53,8 @@ final class RunMemoryFork {
         RunMemory.register("portal_frame", () -> ConstructNetherPortalObsidianTask.remembered(), () -> ConstructNetherPortalObsidianTask.forgetRun(),
                 P + "tasks.construction.compound.ConstructNetherPortalObsidianTask#_lastOrigin",
                 P + "tasks.construction.compound.ConstructNetherPortalObsidianTask#_lastDimension",
-                P + "tasks.construction.compound.ConstructNetherPortalObsidianTask#_lastCount");
+                P + "tasks.construction.compound.ConstructNetherPortalObsidianTask#_lastCount",
+                P + "tasks.construction.compound.ConstructNetherPortalObsidianTask#DROPPED");
         RunMemory.register("land_steers", () -> LandFinder.steersKept(), () -> LandFinder.forgetSteers(),
                 P + "util.helpers.LandFinder#STEERS", P + "util.helpers.LandFinder#_steerAt");
         // a branch mine's level, left in Baritone's setting by BranchMineTask

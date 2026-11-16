@@ -194,9 +194,11 @@ public class DefaultGoToDimensionTask extends Task {
     // a frame's worth of obsidian in the bag (or standing in the frame we left nearby) and flint and steel: a frame of it
     // where we stand, no lava to find. the cast alone sent the buddy down a cave for lava six times in one order, each
     // time a new frame at a new spot, with ten obsidian in the bag all the while (attempt 167)
+    // (frame_new_site: the obsidian standing in a site the frame dropped counts too, as it is fetched back for the new one; an
+    // order made anew after a food run otherwise saw five in the bag and five in the old frame and went for the bucket cast)
     private boolean obsidianFrame(AltoClef mod) {
         if (!_obsidianFrame && mod.getItemStorage().hasItem(Items.FLINT_AND_STEEL)
-                && mod.getItemStorage().getItemCount(Items.OBSIDIAN) + ConstructNetherPortalObsidianTask.obsidianInLastFrame(mod) >= 10) {
+                && mod.getItemStorage().getItemCount(Items.OBSIDIAN) + ConstructNetherPortalObsidianTask.obsidianOfOurFrames(mod) >= 10) {
             _obsidianFrame = true;
             setDebugState("Constructing nether portal with the obsidian in the bag");
         }

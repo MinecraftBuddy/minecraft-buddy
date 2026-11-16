@@ -539,6 +539,11 @@ public final class Tuning {
             // (BranchMineTask.picksWorn): a stone one was made and the kit's wore through on the ore, then M3.4 asked them again
             // under the ground with no wood, 6 stalls of heel-27/28
             java.util.Map.entry("gold_keep_picks", 1.0),
+            // a frame cell that will not go in drops the portal's site after 3 clicks given up on it or 2 minutes of placing with no
+            // frame block put in; a new site at least 8 blocks from every dropped one, which stays out for the run
+            // (ConstructNetherPortalObsidianTask.siteGivenUp): the click banned its block, wandered and came back to the same cell
+            // 47 to 84 times over 30 to 74 minutes, 7 stalls of heel-27/28
+            java.util.Map.entry("frame_new_site", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

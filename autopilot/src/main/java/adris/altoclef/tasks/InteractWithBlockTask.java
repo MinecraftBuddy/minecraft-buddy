@@ -176,6 +176,17 @@ public class InteractWithBlockTask extends Task {
         return scoop;
     }
 
+    // (the buddy's fork, Tuning frame_new_site) every click given up for a wander (a stalled walk, no way from here, a click
+    // that did nothing for its whole timeout) and the block it was on: a parent that makes a new click task each tick (the
+    // portal frame) counts its own by them, against the count it saw last
+    public static volatile int clicksGivenUp;
+    public static volatile BlockPos givenUpAt;
+
+    private static void givenUp(BlockPos target) {
+        givenUpAt = target;
+        clicksGivenUp++;
+    }
+
     // wandering off crouched is slow and pointless, the sneak is for the click
     private Task wander(AltoClef mod) {
         if (_shiftClick) {
@@ -394,6 +405,7 @@ public class InteractWithBlockTask extends Task {
         } else if (!_moveChecker.check(mod)) {
             Debug.logMessage("Failed, blacklisting and wandering.");
             mod.getBlockTracker().requestBlockUnreachable(_target);
+            givenUp(_target);
             return wander(mod);
         }
 
@@ -422,6 +434,7 @@ public class InteractWithBlockTask extends Task {
                 if (wandersWhenStuck(_stayPut) && mod.getClientBaritone().getPathingBehavior().givenUpHere(moveGoal)) {
                     Debug.logInternal("interact: no way to " + _target.toShortString() + " from here, wandering");
                     _moveChecker.reset();
+                    givenUp(_target);
                     return wander(mod);
                 }
                 setDebugState("Getting to our goal");
@@ -454,6 +467,7 @@ public class InteractWithBlockTask extends Task {
                         // the parent's step watchdog owns a click that does nothing
                         return null;
                     }
+                    givenUp(_target);
                     return wander(mod);
                 }
             }
