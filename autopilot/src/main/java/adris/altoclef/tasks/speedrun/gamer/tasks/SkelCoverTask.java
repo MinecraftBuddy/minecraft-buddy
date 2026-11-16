@@ -3,6 +3,7 @@ package adris.altoclef.tasks.speedrun.gamer.tasks;
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.util.helpers.CaveNotch;
 import adris.altoclef.util.helpers.CombatCommit;
 import adris.altoclef.util.helpers.SkelCover;
 import adris.altoclef.util.helpers.StorageHelper;
@@ -58,6 +59,11 @@ import java.util.function.Supplier;
 // of 16 and 44 blocks, 7 arrows, dead. so a block goes on a wall cell's top first, clicked at the top of a jump, and the top
 // against its side; and before a side goes in the buddy steps to the cell's middle (sneaking), so the body stands in no side cell:
 // off the middle after a knock, the cells toward the skeleton had the body in them and were never shut
+// (Tuning cave_notch_cover, off: an A/B's B arm, test grotdek) where the floor will not dig (a cave's: air under it, fluid near,
+// ores, gravel) and no nook stands to top off, a cell 1 wide and 2 high dug into the nearest cave wall within 3 (CaveNotch), stepped
+// into, and its opening shut with a block at the head's height, the feet's too when needed, instead of the pillbox; out by the
+// cover's exits as the dug-in hole. a notch given up (not in it in time, knocked out, the opening will not shut) leaves the pillbox
+// where the buddy stands, as without the key
 public final class SkelCoverTask extends Task {
 
     // the skeletons about as one tick's look: lines, the ones with a line to the buddy within range, nearest first; lineDist the
@@ -196,6 +202,27 @@ public final class SkelCoverTask extends Task {
     // the support's click goes against the wall's top face, nothing else
     private static final Direction[] ON_TOP = {Direction.DOWN};
 
+    // (cave_notch_cover) the notch in the cave wall: its plan and cell, the walk and dig into it, when it began, when the buddy
+    // stood in it, when the head's height of its opening was shut, its line said, whether one was tried in this cover, an arrow
+    // in it since, the cells given up and the ticks spent stepping to its middle
+    private CaveNotch.Notch notch;
+    private BlockPos notchCell;
+    private Task notchIn;
+    private long notchSince;
+    private long notchInAt = -1;
+    private long notchShutAt = -1;
+    private boolean notchDone;
+    private boolean notchTried;
+    private boolean notchArrow;
+    private String notchLead = "skeleton cover: ";
+    private final Set<BlockPos> notchSkipped = new HashSet<>();
+    private int notchCentreTicks;
+    // the walk to the notch and the dig into it get this long (the dug-in hole's DIG_TICKS); the dug blocks this long to come
+    // into the bag; a mob this near that fits a one-high cell wants the feet's cell shut too
+    static final long NOTCH_TICKS = 120;
+    private static final long NOTCH_PICKUP_TICKS = 20;
+    private static final double SMALL_MOB_NEAR = 6;
+
     public SkelCoverTask(Supplier<Seen> seen) {
         this(seen, SkelCover::digFirstOn, () -> Long.MIN_VALUE / 2);
     }
@@ -230,6 +257,7 @@ public final class SkelCoverTask extends Task {
     // (skel_cover_over_runs) the buddy is digging in, or dug in, here: the cover against melee mobs too, whatever the ground under
     // the hole's floor would say
     public boolean digging() {
+        if (failed == null && notch != null) return true;
         return failed == null && dig != null && dig.state() != CombatCommit.WallState.FAILED;
     }
 
@@ -258,6 +286,7 @@ public final class SkelCoverTask extends Task {
     @Override
     protected String toDebugString() {
         String from = witch ? "a witch" : mount ? "a mounted mob" : "skeletons";
+        if (notch != null) return "Taking cover from " + from + " (" + (notchInAt < 0 ? "digging into the cave wall" : "in a notch") + ")";
         return dig != null ? "Taking cover from " + from + " (dug in)" : boxing ? "Taking cover from " + from + " (pillbox)" : "Taking cover from " + from;
     }
 
@@ -284,9 +313,17 @@ public final class SkelCoverTask extends Task {
         long shot = shotAt.getAsLong();
         // (skel_cover_dig_first) an arrow landed since the last one acted on, lately
         boolean arrow = first && shot > shotHandled && now >= shot && now - shot <= ARROW_TICKS;
+        // (cave_notch_cover) on the way into the notch in the cave wall, or in it
+        if (notch != null) return notchTick(mod, player, level, now, arrow, shot);
         if (dig != null) {
             CombatCommit.WallState state = dig.state();
             if (state == CombatCommit.WallState.FAILED) {
+                // (cave_notch_cover: the ground that would not come out after all, a notch in the cave wall first, once a cover)
+                if (first && CaveNotch.on() && !notchTried && player.onGround()
+                        && startNotch(mod, player, level, seen.get(), player.blockPosition(), now)) {
+                    dig = null;
+                    return null;
+                }
                 // (dig_first: the ground that would not come out after all is the pillbox's, once)
                 if (first && !boxing && boxFeet == null && CornerWallTask.wallItems(mod).length > 0 && player.onGround()) {
                     dig = null;
@@ -386,8 +423,15 @@ public final class SkelCoverTask extends Task {
 
     private Task takeCover(AltoClef mod, LocalPlayer player, Level level, Seen s, BlockPos feet, long shot) {
         boolean blocks = CornerWallTask.wallItems(mod).length > 0;
-        SkelCover.Way way = SkelCover.way(CornerWallTask.shut(level, feet), walled(level, feet), CornerWallTask.diggable(mod, level, feet), blocks);
+        boolean walled = walled(level, feet);
+        SkelCover.Way way = SkelCover.way(CornerWallTask.shut(level, feet), walled, CornerWallTask.diggable(mod, level, feet), blocks);
         shotHandled = Math.max(shotHandled, shot);
+        // (cave_notch_cover) the floor will not dig and no nook stands to top off: a notch in the nearest cave wall, not the
+        // pillbox; with none, the way as before
+        if (CaveNotch.on() && (way == SkelCover.Way.NONE || way == SkelCover.Way.BOX && !walled)
+                && startNotch(mod, player, level, s, feet, level.getGameTime())) {
+            return null;
+        }
         switch (way) {
             case SHUT -> {
                 return stand(mod);
@@ -545,7 +589,12 @@ public final class SkelCoverTask extends Task {
     // (pillbox_top_support) a sneaking step toward the cell's middle, by the keys relative to where the buddy looks (the
     // blaze pillbox's own way: sneaking keeps the feet on the block's edge, and the steps are short)
     private void centre(AltoClef mod, LocalPlayer player) {
-        double dx = boxFeet.getX() + 0.5 - player.getX(), dz = boxFeet.getZ() + 0.5 - player.getZ();
+        centreOn(mod, player, boxFeet);
+    }
+
+    // the same toward this cell's middle (cave_notch_cover: the notch's)
+    private void centreOn(AltoClef mod, LocalPlayer player, BlockPos cell) {
+        double dx = cell.getX() + 0.5 - player.getX(), dz = cell.getZ() + 0.5 - player.getZ();
         double yaw = Math.toRadians(player.getYRot());
         // (forward is (-sin, cos) of the yaw, left (cos, sin): facing south, +z, the left hand is east)
         double f = -dx * Math.sin(yaw) + dz * Math.cos(yaw), l = dx * Math.cos(yaw) + dz * Math.sin(yaw);
@@ -649,6 +698,202 @@ public final class SkelCoverTask extends Task {
             BlockPos cell = e.getKey();
             if (!CornerWallTask.solid(level, cell) || !said.add(cell)) continue;
             Debug.logInternal("combat: " + e.getValue() + "a block at " + cell.getX() + " " + cell.getY() + " " + cell.getZ());
+        }
+    }
+
+    // ---- (cave_notch_cover) the notch in the cave wall
+
+    // the nearest notch from the feet (CornerWallTask.notch): taken, true; none, false (and said once a cover)
+    private boolean startNotch(AltoClef mod, LocalPlayer player, Level level, Seen s, BlockPos feet, long now) {
+        if (notchTried) return false;
+        notchTried = true;
+        String lead = lead(s, player);
+        CaveNotch.Notch n = CornerWallTask.notch(mod, level, feet);
+        if (n == null) {
+            Debug.logInternal("combat: " + lead + "no notch in a cave wall within " + (int) CaveNotch.REACH + " of " + feet.toShortString()
+                    + " (cave_notch_cover)");
+            return false;
+        }
+        notch = n;
+        notchCell = new BlockPos(n.x(), n.y(), n.z());
+        notchIn = null;
+        notchSince = now;
+        notchInAt = -1;
+        notchShutAt = -1;
+        notchDone = false;
+        notchArrow = false;
+        notchSkipped.clear();
+        notchCentreTicks = 0;
+        current = null;
+        notchLead = lead;
+        int[] o = n.opening();
+        Debug.logInternal(String.format(Locale.ROOT, "combat: %sno ground to dig at %s: a notch in the cave wall at %s, its opening at %s, %.1f off"
+                        + " (cave_notch_cover)", lead, feet.toShortString(), notchCell.toShortString(), new BlockPos(o[0], o[1], o[2]).toShortString(),
+                Math.sqrt(feet.distSqr(notchCell))));
+        mod.getClientBaritone().getPathingBehavior().cancelEverything();
+        return true;
+    }
+
+    // the walk and the dig into the notch, then its opening shut: the head's height first (its block takes the line to the eyes),
+    // with the feet's cell under it first where the head's has no face yet; the feet's cell too when CaveNotch.feetToo says so;
+    // then still, as in the dug-in hole
+    private Task notchTick(AltoClef mod, LocalPlayer player, Level level, long now, boolean arrow, long shot) {
+        BlockPos cell = notchCell;
+        BlockPos feet = player.blockPosition();
+        if (notchInAt < 0) {
+            if (feet.equals(cell) && player.onGround()) {
+                notchInAt = now;
+                mod.getClientBaritone().getPathingBehavior().cancelEverything();
+                Debug.logInternal(String.format(Locale.ROOT, "combat: %sin the notch at %s after %.1f s (cave_notch_cover)", notchLead,
+                        cell.toShortString(), (now - notchSince) / 20.0));
+            } else {
+                if (now - notchSince > NOTCH_TICKS) {
+                    return notchGiveUp(mod, player, "not in the notch at " + cell.toShortString() + " in " + NOTCH_TICKS / 20 + " s");
+                }
+                if (mod.getFoodChain().isTryingToEat()) return stand(mod);
+                // (the shield's use key would stop the dig: down while the notch goes in, as while a block goes in)
+                placing = true;
+                if (notchIn == null) notchIn = new NotchIn(cell);
+                return notchIn;
+            }
+        }
+        if (!player.onGround() || mod.getFoodChain().isTryingToEat()) return stand(mod);
+        if (!feet.equals(cell)) return notchGiveUp(mod, player, "knocked out of the notch at " + cell.toShortString());
+        if (arrow) shotHandled = shot;
+        List<BlockPos> heads = openSides(level, cell.above());
+        List<BlockPos> lows = openSides(level, cell);
+        BlockPos next = null;
+        for (BlockPos h : heads) {
+            if (notchUsable(level, player, h)) {
+                next = h;
+                break;
+            }
+            BlockPos below = h.below();
+            if (lows.contains(below) && notchUsable(level, player, below)) {
+                next = below;
+                break;
+            }
+        }
+        if (heads.isEmpty()) {
+            if (notchShutAt < 0) {
+                notchShutAt = now;
+                Debug.logInternal("combat: " + notchLead + "the notch at " + cell.toShortString() + " shut at the head's height, "
+                        + lows.size() + " open at the feet's (cave_notch_cover)");
+            }
+            boolean arrowIn = arrow && shot > notchShutAt + SETTLE_TICKS;
+            if (arrowIn && lows.isEmpty()) {
+                notch = null;
+                notchIn = null;
+                return failOrDig(mod, "an arrow in the shut notch at " + cell.toShortString());
+            }
+            notchArrow |= arrowIn;
+            Seen s = seen.get();
+            boolean settled = now - notchShutAt >= SETTLE_TICKS;
+            boolean lineLeft = settled && (!s.lines().isEmpty() || !s.witchLines().isEmpty());
+            if (!lows.isEmpty() && CaveNotch.feetToo(lineLeft, smallMobNear(level, player), notchArrow)) {
+                for (BlockPos l : lows) {
+                    if (notchUsable(level, player, l)) {
+                        next = l;
+                        break;
+                    }
+                }
+            }
+            if (next == null) {
+                if (!notchDone) {
+                    notchDone = true;
+                    Debug.logInternal("combat: " + notchLead + "shut in the notch at " + cell.toShortString() + (lows.isEmpty() ? "" : ", "
+                            + lows.size() + " open at the feet's height") + " (cave_notch_cover)");
+                }
+                return stand(mod);
+            }
+        }
+        Item[] blocks = CornerWallTask.wallItems(mod);
+        if (blocks.length == 0) {
+            // (the two dug blocks on their way into the bag)
+            if (now - notchInAt <= NOTCH_PICKUP_TICKS) return stand(mod);
+            return notchGiveUp(mod, player, "no block to shut the notch at " + cell.toShortString() + " with");
+        }
+        if (next == null) return notchGiveUp(mod, player, "the opening of the notch at " + cell.toShortString() + " would not shut at the head's height");
+        // (the body in the cell a block goes into: a step to the notch's middle first)
+        if (player.getBoundingBox().intersects(new AABB(next)) && notchCentreTicks < CENTRE_TICKS) {
+            notchCentreTicks++;
+            mod.getInputControls().releaseOwnedBy(keys);
+            mod.getClientBaritone().getPathingBehavior().requestPause();
+            centreOn(mod, player, cell);
+            return null;
+        }
+        if (!next.equals(current)) {
+            current = next;
+            currentSince = now;
+        }
+        placing = true;
+        mod.getClientBaritone().getPathingBehavior().requestPause();
+        if (now - currentSince > CELL_TICKS || !CornerWallTask.click(mod, player, level, next, CornerWallTask.BESIDE_SUPPORT, keys)) {
+            notchSkipped.add(next);
+            current = null;
+        } else {
+            clicked.putIfAbsent(next, notchLead);
+        }
+        return null;
+    }
+
+    // a notch given up: the pillbox where the buddy stands, as without the key, else the cover's give-up
+    private Task notchGiveUp(AltoClef mod, LocalPlayer player, String why) {
+        Debug.logInternal("combat: " + notchLead + "the notch given up: " + why + " (cave_notch_cover)");
+        notch = null;
+        notchIn = null;
+        current = null;
+        mod.getClientBaritone().getPathingBehavior().cancelEverything();
+        if (player.onGround() && !boxing && CornerWallTask.wallItems(mod).length > 0) {
+            startBox(player, seen.get());
+            return null;
+        }
+        return failOrDig(mod, why);
+    }
+
+    // the cells beside this one, on the four sides, that are not solid
+    private static List<BlockPos> openSides(Level level, BlockPos c) {
+        List<BlockPos> out = new ArrayList<>();
+        for (Direction d : Direction.Plane.HORIZONTAL) {
+            if (!CornerWallTask.solid(level, c.relative(d))) out.add(c.relative(d));
+        }
+        return out;
+    }
+
+    private boolean notchUsable(Level level, LocalPlayer player, BlockPos cell) {
+        return !notchSkipped.contains(cell) && CornerWallTask.open(level, cell, player)
+                && CornerWallTask.support(level, player, cell, CornerWallTask.BESIDE_SUPPORT) != null;
+    }
+
+    // a hostile small enough for a one-high cell (a baby zombie, a cave spider, a silverfish) within SMALL_MOB_NEAR
+    private static boolean smallMobNear(Level level, LocalPlayer player) {
+        return !level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(SMALL_MOB_NEAR),
+                m -> m.isAlive() && m instanceof net.minecraft.world.entity.monster.Enemy && m.getBbHeight() < 1 && m.getBbWidth() < 1).isEmpty();
+    }
+
+    // (cave_notch_cover) the walk into the notch's cell: Baritone's goal there, which breaks its two cells on the way in from the
+    // opening; never a wander (a wander under arrows walks off into the open)
+    static final class NotchIn extends adris.altoclef.tasks.movement.CustomBaritoneGoalTask {
+        private final BlockPos cell;
+
+        NotchIn(BlockPos cell) {
+            super(false);
+            this.cell = cell;
+        }
+
+        @Override
+        protected baritone.api.pathing.goals.Goal newGoal(AltoClef mod) {
+            return new baritone.api.pathing.goals.GoalBlock(cell);
+        }
+
+        @Override
+        protected boolean isEqual(Task other) {
+            return other instanceof NotchIn n && n.cell.equals(cell);
+        }
+
+        @Override
+        protected String toDebugString() {
+            return "Digging into the cave wall at " + cell.toShortString();
         }
     }
 

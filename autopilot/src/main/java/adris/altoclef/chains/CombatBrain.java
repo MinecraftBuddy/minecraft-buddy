@@ -1069,7 +1069,9 @@ final class CombatBrain {
             boolean coverWanted = (coverOn && SkelCover.wanted(true, player.getHealth(), lines, SkelCover.hpLine())) || witchWanted || mountWanted;
             // (Tuning skel_cover_wet_fail, a fix of 14 Nov 2026, on: no cover is offered in water, the run's rules have it)
             boolean wetFail = coverOn && SkelCover.wetFailOn();
-            boolean coverOffered = (coverWanted || _cover.on()) && CornerWallTask.offered(mod) && !(wetFail && player.isInWater());
+            // (Tuning cave_notch_cover, off: a notch in a cave wall within reach is a cover on offer too, the dug blocks shut it)
+            boolean coverOffered = (coverWanted || _cover.on()) && (CornerWallTask.offered(mod) || notchHere(mod, player, now))
+                    && !(wetFail && player.isInWater());
             boolean coverTakes = coverOn && _cover.takes(now, coverWanted, coverOffered);
             // (Tuning skel_cover_over_runs and skel_cover_dig_first, fixes of 14 Nov 2026, on: the machine hears whether the
             // ground digs here and whether lava is near, asked only while the cover is in play; the cover digs first with its
@@ -1077,8 +1079,11 @@ final class CombatBrain {
             boolean overRuns = coverOn && SkelCover.overRunsOn();
             // (witch_cover: asked for the witch's cover too, the run stays where lava is near or the ground will not dig)
             boolean asked = (overRuns || witchCover) && (coverWanted || _cover.on());
+            // (cave_notch_cover: or a notch in a cave wall within reach, where the floor will not dig: the cover then holds against
+            // melee mobs as the dug-in hole does, in place of the run that ended cornered in 8 of 11 underground deaths read)
             boolean digHere = asked && ((_coverTask != null && _coverTask.digging())
-                    || (player.onGround() && CornerWallTask.diggable(mod, mod.getWorld(), player.blockPosition())));
+                    || (player.onGround() && CornerWallTask.diggable(mod, mod.getWorld(), player.blockPosition()))
+                    || notchHere(mod, player, now));
             boolean lavaNear = asked && lavaAbout(mod, player);
             // (witch_cover: the witch's cover digs first whatever dig_first says: its line is no line a block on it would keep)
             _coverDig = (coverOn && SkelCover.digFirstOn()) || (overRuns && meleeWithin(foes, _seen, CombatCommit.FOE_RANGE))
@@ -1418,6 +1423,24 @@ final class CombatBrain {
             if (mounted.contains(foe.id())) best = Math.min(best, foe.distance());
         }
         return best;
+    }
+
+    // (Tuning cave_notch_cover, off) a notch in a cave wall within reach of the feet where the floor will not dig
+    // (CornerWallTask.notch), looked for again only when the feet move to another cell or after NOTCH_LOOK ticks
+    private static final long NOTCH_LOOK = 20;
+    private BlockPos _notchFeet;
+    private long _notchAt = Long.MIN_VALUE / 2;
+    private boolean _notchHere;
+
+    private boolean notchHere(AltoClef mod, LocalPlayer player, long now) {
+        if (!adris.altoclef.util.helpers.CaveNotch.on() || !player.onGround()) return false;
+        BlockPos feet = player.blockPosition();
+        if (!feet.equals(_notchFeet) || now - _notchAt >= NOTCH_LOOK || now < _notchAt) {
+            _notchFeet = feet;
+            _notchAt = now;
+            _notchHere = !CornerWallTask.diggable(mod, mod.getWorld(), feet) && CornerWallTask.notch(mod, mod.getWorld(), feet) != null;
+        }
+        return _notchHere;
     }
 
     // (skel_cover_over_runs) lava within a knock of the feet (GROUND_CLEAR), at the feet's level or under an open edge: a hit

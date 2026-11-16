@@ -568,6 +568,12 @@ public final class Tuning {
             // and the barter's junk (nether brick, soul sand, gravel) goes first (GarbageRules.netherKept, junkNether; the buddy's
             // own junk rule, ObtainSafe.junkSlot, the same)
             java.util.Map.entry("nether_keep_rack", 1.0),
+            // (off; an A/B's B arm turns it on, test grotdek) the cover in a cave: where the floor will not dig, a cell 1 wide and 2
+            // high dug into the nearest cave wall within 3, stepped into and its opening shut with a block at the head's height
+            // (the feet's too when needed), instead of the pillbox; a notch on offer counts as ground that digs for the cover in
+            // place of a run (CaveNotch, SkelCoverTask, CombatBrain.notchHere): 38 of 132 deaths before the iron tools were
+            // underground in M2.1, the pillbox "no ground to dig here" in 6 of 11 read, a low-hp run kept and cornered in 8 of 11
+            java.util.Map.entry("cave_notch_cover", 0.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

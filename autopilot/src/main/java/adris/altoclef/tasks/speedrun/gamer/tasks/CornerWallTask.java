@@ -455,6 +455,31 @@ public final class CornerWallTask extends Task {
         return level.getBlockState(floor).isFaceSturdy(level, floor, Direction.UP);
     }
 
+    // (cave_notch_cover) the notch in the nearest cave wall within CaveNotch.REACH of the feet, null with none (CaveNotch.pick)
+    public static adris.altoclef.util.helpers.CaveNotch.Notch notch(AltoClef mod, Level level, BlockPos feet) {
+        boolean pick = havePick(mod);
+        java.util.Map<Long, adris.altoclef.util.helpers.CaveNotch.Kind> seen = new java.util.HashMap<>();
+        return adris.altoclef.util.helpers.CaveNotch.pick((x, y, z) -> seen.computeIfAbsent(BlockPos.asLong(x, y, z),
+                k -> notchKind(level, new BlockPos(x, y, z), pick)), feet.getX(), feet.getY(), feet.getZ());
+    }
+
+    // (cave_notch_cover) what a cell is to the notch: a cell that digs is digCell's (no ore, no sand or gravel, hardness 3 or
+    // less, stone only with a pick in the bag)
+    static adris.altoclef.util.helpers.CaveNotch.Kind notchKind(Level level, BlockPos c, boolean pick) {
+        BlockState s = level.getBlockState(c);
+        if (!s.getFluidState().isEmpty()) return adris.altoclef.util.helpers.CaveNotch.Kind.FLUID;
+        if (s.getCollisionShape(level, c).isEmpty()) {
+            boolean harm = s.getBlock() instanceof net.minecraft.world.level.block.BaseFireBlock || s.is(Blocks.COBWEB) || s.is(Blocks.POWDER_SNOW)
+                    || s.is(Blocks.SWEET_BERRY_BUSH) || s.is(Blocks.WITHER_ROSE);
+            return harm ? adris.altoclef.util.helpers.CaveNotch.Kind.OTHER : adris.altoclef.util.helpers.CaveNotch.Kind.OPEN;
+        }
+        if (!s.isCollisionShapeFullBlock(level, c) || level.getBlockEntity(c) != null || s.is(Blocks.MAGMA_BLOCK)) {
+            return adris.altoclef.util.helpers.CaveNotch.Kind.OTHER;
+        }
+        if (s.getBlock() instanceof Fallable) return adris.altoclef.util.helpers.CaveNotch.Kind.LOOSE;
+        return digCell(level, c, pick) ? adris.altoclef.util.helpers.CaveNotch.Kind.DIG : adris.altoclef.util.helpers.CaveNotch.Kind.WALL;
+    }
+
     private static boolean digCell(Level level, BlockPos c, boolean pick) {
         BlockState s = level.getBlockState(c);
         if (s.getBlock() instanceof Fallable || level.getBlockEntity(c) != null || !s.isCollisionShapeFullBlock(level, c)) return false;
