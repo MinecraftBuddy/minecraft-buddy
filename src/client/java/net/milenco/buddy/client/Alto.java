@@ -1115,12 +1115,13 @@ final class Alto {
 		if (again != null) return again;
 		ObtainRoute.Bag bag = routeBag(p);
 		ObtainRoute.Piece pc = ObtainRoute.next(bag, routeSkipOn() ? now : Long.MIN_VALUE, Alto::routeSay);
-		// (gold_clock_fix) M3.4 passes its gold over once the gold is over: said once
+		// (gold_clock_fix, gold_keep_picks) M3.4 passes its gold over once the gold is over: said once
 		String passed = ObtainRoute.goldPassedOver(bag);
 		if (passed != null) {
 			int gold = ObtainRoute.goldCount(bag);
+			String key = ObtainRoute.PICKS_WORN.equals(passed) ? "gold_keep_picks" : "gold_clock_fix";
 			goldSay(ObtainRoute.GOLD_KEY_34, "route: piece " + ObtainRoute.GOLD_KEY_34 + " passed over (" + passed + "): the portal goes on with "
-				+ gold + " gold (gold_clock_fix)", "gold passed over", gold, ObtainRoute.goldSpent());
+				+ gold + " gold (" + key + ")", "gold passed over", gold, ObtainRoute.goldSpent());
 		}
 		return pc == null ? null : routePiece(p, bag, pc.name()).piece(pc.key());
 	}
@@ -1493,6 +1494,8 @@ final class Alto {
 		private String piece;
 		/** The autopilot's branch mine give-ups when the task began (mine_water_roof): a new one fails a piece of the kit. */
 		private int gaveUpsAtStart;
+		/** (gold_keep_picks) the gold mine's ends for worn pickaxes when the task began: a new one ends a gold try. */
+		private int picksWornAtStart;
 		/** (gold_runs_on) the most gold the bag held in this try, when it last rose, the run on past the time said, the try's time banked. */
 		private int goldMax = -1;
 		private long goldRiseAt;
@@ -1524,11 +1527,24 @@ final class Alto {
 			// night's hole) is asked again without one
 			if (piece != null && (r == ObtainSteps.Result.DONE || r == ObtainSteps.Result.FAIL)) ObtainRoute.tried(piece);
 			if (r == ObtainSteps.Result.DONE || r == ObtainSteps.Result.FAIL) {
+				goldTryOff();
 				// (gold_clock_fix) how the try ended tells M3.4 whether the gold still rose
 				if (goldPiece() && goldClockFixOn() && startedAt >= 0) ObtainRoute.goldTryEnded(goldNoRise, goldFirst >= 0 && goldMax > goldFirst);
 				bankGold(now);
 			}
 			return r;
+		}
+
+		/** (gold_keep_picks) a gold piece's try, M3.3's or M3.4's: its gold mine ends it for worn pickaxes. */
+		private boolean goldTry() { return ObtainRoute.goldPiece(piece, true); }
+
+		/** (gold_keep_picks) tells the autopilot's gold mine, a few seconds ahead, that a gold try of the route runs. */
+		private void goldTryOn() {
+			if (goldTry()) adris.altoclef.tasks.movement.BranchMineTask.goldTryUntil = System.currentTimeMillis() + 5000;
+		}
+
+		private void goldTryOff() {
+			if (goldTry()) adris.altoclef.tasks.movement.BranchMineTask.goldTryUntil = 0;
 		}
 
 		/** The piece is on the gold clock: M3.3's gold, and with gold_clock_fix M3.4's. */
@@ -1630,6 +1646,8 @@ final class Alto {
 				shutsAtStart = shuts;
 				goldOrder = ObtainRoute.goldOrder();
 				gaveUpsAtStart = adris.altoclef.tasks.movement.BranchMineTask.gaveUps;
+				picksWornAtStart = adris.altoclef.tasks.movement.BranchMineTask.picksWornStops;
+				goldTryOn();
 				Bari.yieldTo();
 				HeldKeys.releaseAll();
 				Object t = make.get();
@@ -1640,6 +1658,18 @@ final class Alto {
 				return ObtainSteps.Result.RUN;
 			}
 			if (delegating()) {
+				// (gold_keep_picks) the gold mine found no pickaxe for the ore but the kit's worn ones: the try ends and the piece is
+				// given up, the kit's kept; M3.4 mines no gold after it either (ObtainRoute.goldOver)
+				if (goldTry() && adris.altoclef.tasks.movement.BranchMineTask.picksWornStops != picksWornAtStart) {
+					cancel();
+					ObtainRoute.lastTry(piece);
+					ObtainRoute.goldPicksWorn();
+					int gold = ObtainRoute.goldCount(routeBag(p));
+					goldSay(piece, "route: piece " + piece + " ends after " + (now - startedAt) / 60_000 + " minutes, pickaxes worn, the kit's kept ("
+						+ gold + " in the bag) (gold_keep_picks)", "gold pickaxes worn", gold, now - startedAt);
+					return fail("pickaxes worn: no unworn pickaxe above wood left for the gold, the kit's kept");
+				}
+				goldTryOn();
 				if (gold()) {
 					// (gold_runs_on) on past the limit while the gold rises
 					String end = goldEnd(p, now);
@@ -1661,6 +1691,7 @@ final class Alto {
 		@Override
 		void stop() {
 			bankStopped();
+			goldTryOff();
 			cancel();
 		}
 

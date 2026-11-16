@@ -191,7 +191,7 @@ final class ObtainRoute {
 		TRIED.clear();
 		FAILED.clear();
 		goldSpent = 0;
-		goldStopped = goldPassSaid = false;
+		goldStopped = goldPassSaid = goldPicksWorn = false;
 		goldOrder++;
 	}
 
@@ -346,6 +346,8 @@ final class ObtainRoute {
 	private static long goldSpent;
 	/** (gold_clock_fix) the last gold try that ended did so with no rise in the gold; M3.4's message about it said. */
 	private static boolean goldStopped, goldPassSaid;
+	/** (gold_keep_picks) a gold try ended for worn pickaxes: no gold piece is asked again this order. */
+	private static boolean goldPicksWorn;
 	/** The order the gold's clock counts for: a try begun in an earlier order banks nothing into this one's. */
 	private static int goldOrder;
 
@@ -365,11 +367,19 @@ final class ObtainRoute {
 		else if (rose) goldStopped = false;
 	}
 
+	/** (gold_keep_picks) a gold try ended for worn pickaxes (BranchMineTask.picksWorn): the kit's are kept from here on. */
+	static void goldPicksWorn() { goldPicksWorn = true; }
+
+	/** Why the gold is over after {@link #goldPicksWorn}. */
+	static final String PICKS_WORN = "pickaxes worn";
+
 	/**
 	 * (gold_clock_fix) why the gold is over for this order, so that M3.4 does not mine it again and goes on with what the bag
-	 * holds; null while it is not, or without the fix. Its six game hours spent, or its last try ended with no rise.
+	 * holds; null while it is not, or without the fix. Its six game hours spent, or its last try ended with no rise; and
+	 * (gold_keep_picks, set only with that switch) a try ended for worn pickaxes.
 	 */
 	static String goldOver(Bag b) {
+		if (goldPicksWorn) return PICKS_WORN;
 		if (!b.goldClockFix()) return null;
 		if (goldSpent >= GOLD_ALL) return "the gold's " + GOLD_ALL / 3_600_000 + " game hours spent";
 		if (goldStopped) return "the gold stopped rising";

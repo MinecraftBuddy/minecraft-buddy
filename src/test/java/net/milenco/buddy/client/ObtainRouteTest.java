@@ -599,4 +599,26 @@ class ObtainRouteTest {
 		assertEquals(0, ObtainRoute.goldSpent());
 		assertNull(ObtainRoute.goldOver(g));
 	}
+
+	/**
+	 * (gold_keep_picks) a gold try ended for worn pickaxes: the piece given up, and M3.4 asks no gold after it, with or without
+	 * gold_clock_fix; the spare helmet only from the bag's gold.
+	 */
+	@Test
+	void noGoldIsAskedAfterTheKitsPickaxesWereKept() {
+		Kit g = from("m3.4").give("flint_and_steel").give("potion", 3);
+		g.kitAgain = true;
+		walk(g);
+		g.take("gold_ingot").give("gold_ingot", 40);
+		assertEquals("gold", next(g));
+		ObtainRoute.goldPicksWorn();
+		assertNull(next(g));
+		assertEquals("pickaxes worn", ObtainRoute.goldOver(g));
+		g.take("golden_helmet");
+		assertEquals("spare golden helmet", next(g));
+		g.take("gold_ingot").give("gold_ingot", 4);
+		assertNull(next(g));
+		ObtainRoute.reset(true);
+		assertNull(ObtainRoute.goldOver(g));
+	}
 }
