@@ -167,6 +167,11 @@ public class NightSleepTask extends Task {
         return outcome;
     }
 
+    // why a try that gave up did, "" for none (NightShelter.bedFailed)
+    public String why() {
+        return why;
+    }
+
     public boolean cleanupOnly() {
         return cleanup;
     }
@@ -881,7 +886,7 @@ public class NightSleepTask extends Task {
             setDebugState("Sleeping.", "Sleeping");
             if (leaving == null && asleepTicks > cfg.get().nightSleepSeconds * 20) {
                 // the night is not passing (somebody else is awake), no point lying here. the try ends once we are out of it
-                leaving = "the night did not pass";
+                leaving = NightSleep.NIGHT_DID_NOT_PASS;
                 getUp(player);
             } else if (leaving != null && asleepTicks % 40 == 0) {
                 // the first ask can get lost
@@ -909,7 +914,7 @@ public class NightSleepTask extends Task {
             } else {
                 // (if we got up ourselves because the night would not pass, that is the reason, the morning getting there first
                 // was the SLEPT case above)
-                fail(leaving != null ? leaving : "woken before the night passed", now);
+                fail(leaving != null ? leaving : NightSleep.WOKEN_EARLY, now);
             }
             return null;
         }

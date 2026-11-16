@@ -2,6 +2,7 @@ package adris.altoclef.tasks.speedrun.gamer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import adris.altoclef.tasks.speedrun.gamer.NightShelter.Column;
@@ -451,5 +452,89 @@ public class NightShelterTest {
         assertFalse(NightShelter.dark(false, 100, lead));
         // night past the window with a bright sky is the morning
         assertFalse(NightShelter.dark(false, NightSleep.DAY_LENGTH - 10, lead));
+    }
+
+    // (night_hole_bedless) a whole run: a bed in the bag that failed tonight, no death, full health. the key's bedless calls
+    // the hole where the death clause would not, and every other gate stays
+    private static Trigger bedFailedNight() {
+        return with(base(), b -> {
+            b.since = -1;
+            return b;
+        });
+    }
+
+    @Test
+    public void aBedlessNightHidesWithNoDeathWithTheKey() {
+        assertFalse(NightShelter.wanted(bedFailedNight()));
+        assertFalse(NightShelter.wanted(bedFailedNight(), false));
+        assertTrue(NightShelter.wanted(bedFailedNight(), true));
+        // the gates stay: armour at the line, under the ground, a fight, a bed still to sleep in, the day, used tonight
+        assertFalse(NightShelter.wanted(with(bedFailedNight(), b -> {
+            b.armor = NightShelter.ARMOR_LINE;
+            return b;
+        }), true));
+        assertFalse(NightShelter.wanted(with(bedFailedNight(), b -> {
+            b.depth = NightShelter.SURFACE_DEPTH + 1;
+            return b;
+        }), true));
+        assertFalse(NightShelter.wanted(with(bedFailedNight(), b -> {
+            b.fighting = true;
+            return b;
+        }), true));
+        assertFalse(NightShelter.wanted(with(bedFailedNight(), b -> {
+            b.noBed = false;
+            return b;
+        }), true));
+        assertFalse(NightShelter.wanted(with(bedFailedNight(), b -> {
+            b.window = false;
+            return b;
+        }), true));
+        assertFalse(NightShelter.wanted(with(bedFailedNight(), b -> {
+            b.used = true;
+            return b;
+        }), true));
+    }
+
+    // the two ways the bed is slept in for nothing on a shared server; any other give-up (the bed gone, no room) is not it
+    @Test
+    public void aBedFailedIsANightThatDidNotPassOrAnEarlyWake() {
+        assertTrue(NightShelter.bedFailed(true, NightSleep.NIGHT_DID_NOT_PASS));
+        assertTrue(NightShelter.bedFailed(true, NightSleep.WOKEN_EARLY));
+        assertTrue(NightShelter.bedFailed(true, "the night did not pass"));
+        assertFalse(NightShelter.bedFailed(false, NightSleep.NIGHT_DID_NOT_PASS));
+        assertFalse(NightShelter.bedFailed(true, "the bed is gone"));
+        assertFalse(NightShelter.bedFailed(true, ""));
+        assertFalse(NightShelter.bedFailed(true, null));
+    }
+
+    @Test
+    public void tonightsBedIsGoneWhenItFailedOrItsTriesAreSpent() {
+        assertNull(NightShelter.bedGone(false, NightSleep.NIGHT_DID_NOT_PASS, true));
+        assertEquals("tonight's bed failed (the night did not pass)", NightShelter.bedGone(true, NightSleep.NIGHT_DID_NOT_PASS, false));
+        assertEquals("tonight's bed failed (woken before the night passed)", NightShelter.bedGone(true, NightSleep.WOKEN_EARLY, true));
+        assertEquals("tonight's bed tries are spent", NightShelter.bedGone(true, null, true));
+        assertNull(NightShelter.bedGone(true, null, false));
+    }
+
+    @Test
+    public void bedlessIsABedGoneOrNoneInTheBagAndOnlyWithTheKey() {
+        assertTrue(NightShelter.bedless(true, "tonight's bed tries are spent", true));
+        assertTrue(NightShelter.bedless(true, null, false));
+        assertFalse(NightShelter.bedless(true, null, true));
+        assertFalse(NightShelter.bedless(false, "tonight's bed tries are spent", false));
+        assertFalse(NightShelter.bedless(false, null, false));
+    }
+
+    // a night slept is no spent bed for the hole: the budget says so apart
+    @Test
+    public void theBudgetSaysTheNightWasSlept() {
+        NightSleep.Budget b = new NightSleep.Budget();
+        b.roll(3);
+        assertFalse(b.slept());
+        b.sleptOk(3);
+        assertTrue(b.slept());
+        assertTrue(b.spent(3, 300));
+        b.roll(4);
+        assertFalse(b.slept());
     }
 }

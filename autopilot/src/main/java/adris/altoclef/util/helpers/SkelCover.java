@@ -50,6 +50,16 @@ public final class SkelCover {
         return Tuning.get("cover_night_hold", 0) > 0;
     }
 
+    // (Tuning night_hole_bedless, off; an A/B's B arm turns it on) a cover taken on the surface at night is held until dawn
+    // (Hold.nightHoleFacts): the hp exits, the far exit and the stall's exits wait for the day, and only the cover's own
+    // give-up (an arrow in the shut hole and the like) or a run or a fight taking over (hurt in there by what got in) lets go
+    // before it. the cover let go at 18 hp after 5 s with no line in the dark ("out of cover: hp 18.3, no line for 5 s"), and
+    // the buddy with no armour was shot or swarmed out there ("RUN from 3 zombies, 2 skeletons (hp 4)"): about 51 of 132
+    // deaths before the iron tools in whole runs were on the surface at night with no shelter
+    public static boolean nightHoleOn() {
+        return Tuning.get("night_hole_bedless", 0) > 0;
+    }
+
     // (Tuning cover_low_dig, a fix of 14 Nov 2026, on) at LOW_DIG_HP or less the cover's give-up for an arrow in the shut hole,
     // arrows in the finished pillbox or a pillbox with no block in digs two down where the buddy stands and shuts the top, once a
     // cover, in place of the give-up and the run after it: since heel-17 the cover gave up in 4 of 23 runs (1 of 48 before) and
@@ -309,6 +319,12 @@ public final class SkelCover {
         // and whether that was said this stretch
         private boolean nightHold;
         private boolean nightSaid;
+        // (Tuning night_hole_bedless, off) the key and the night by the clock, and the buddy on the surface, before each step; the
+        // surface as it was when the cover was taken (the hole is under it after); whether the hold till dawn was said this stretch
+        private boolean dawnKey;
+        private boolean surfaceNow;
+        private boolean surfaceTaken;
+        private boolean dawnSaid;
 
         public boolean on() {
             return on;
@@ -317,6 +333,18 @@ public final class SkelCover {
         // (cover_night_hold) the key and the night (the game's isBrightOutside false), before each step
         public void nightFacts(boolean on, boolean night) {
             nightHold = on && night;
+        }
+
+        // (night_hole_bedless) the key, the night by the clock (NightShelter.dark: the time of day, a storm by day is no night) and
+        // the buddy on the surface (as close to the open sky as the night hole asks), before each step
+        public void nightHoleFacts(boolean on, boolean night, boolean surface) {
+            dawnKey = on && night;
+            surfaceNow = surface;
+        }
+
+        // (night_hole_bedless) a cover taken on the surface held till dawn: on, the key on, night now and the surface when taken
+        public boolean tillDawn() {
+            return on && dawnKey && surfaceTaken;
         }
 
         // (skel_cover_hold) the key, handed in before each step; off in a bare hold
@@ -391,6 +419,8 @@ public final class SkelCover {
                 lastHp = hp;
                 farSince = -1;
                 nightSaid = false;
+                surfaceTaken = surfaceNow;
+                dawnSaid = false;
                 lineAt = now;
                 stallSaid = false;
                 witch = witchWanted;
@@ -424,15 +454,15 @@ public final class SkelCover {
             witchClear &= !mountOn || now - mountAt >= LINE_GONE_TICKS;
             if (holdRules) {
                 if (hp >= FULL_HP && witchClear) {
-                    leave(now, String.format(Locale.ROOT, "hp %.1f", hp) + witchSaid(), 0);
+                    away(now, String.format(Locale.ROOT, "hp %.1f", hp) + witchSaid(), 0, hp, failed);
                     return;
                 }
                 if (hp >= hpLine && lineGone && witchClear) {
-                    leave(now, String.format(Locale.ROOT, "hp %.1f, no line for %d s", hp, LINE_GONE_TICKS / 20) + witchSaid(), 0);
+                    away(now, String.format(Locale.ROOT, "hp %.1f, no line for %d s", hp, LINE_GONE_TICKS / 20) + witchSaid(), 0, hp, failed);
                     return;
                 }
             } else if (hp >= hpLine && witchClear) {
-                leave(now, String.format(Locale.ROOT, "hp %.1f", hp) + witchSaid(), 0);
+                away(now, String.format(Locale.ROOT, "hp %.1f", hp) + witchSaid(), 0, hp, failed);
                 return;
             }
             if (failed != null) {
@@ -453,7 +483,7 @@ public final class SkelCover {
             } else if (near > LEAVE_RANGE && !meleeNear && !poisoned) {
                 if (farSince < 0 || now < farSince) farSince = now;
                 if (now - farSince >= LEAVE_TICKS) {
-                    leave(now, "no skeleton " + (witchOn ? "or witch " : "") + (mountOn ? "or mounted mob " : "") + "within " + Math.round(LEAVE_RANGE) + " for " + LEAVE_TICKS / 20 + " s", 0);
+                    away(now, "no skeleton " + (witchOn ? "or witch " : "") + (mountOn ? "or mounted mob " : "") + "within " + Math.round(LEAVE_RANGE) + " for " + LEAVE_TICKS / 20 + " s", 0, hp, null);
                     return;
                 }
             } else {
@@ -462,17 +492,17 @@ public final class SkelCover {
             if (now - gainAt < STALL_TICKS) return;
             String stall = "no hp back in " + STALL_TICKS / 20 + " s" + (hasFood ? "" : ", no food");
             if (!holdRules) {
-                leave(now, "no hp back in " + STALL_TICKS / 20 + " s", RETRY_STALL_TICKS);
+                away(now, "no hp back in " + STALL_TICKS / 20 + " s", RETRY_STALL_TICKS, hp, null);
                 return;
             }
             // (skel_cover_hold) out only into no line: none for LINE_GONE_TICKS and no skeleton within RANGE to step into
             // (witch_cover: nor a witch's)
             if (lineGone && witchLineGone && near > RANGE) {
-                leave(now, stall + ", no skeleton " + (witchOn ? "or witch " : "") + (mountOn ? "or mounted mob " : "") + "within " + Math.round(RANGE), RETRY_STALL_TICKS);
+                away(now, stall + ", no skeleton " + (witchOn ? "or witch " : "") + (mountOn ? "or mounted mob " : "") + "within " + Math.round(RANGE), RETRY_STALL_TICKS, hp, null);
                 return;
             }
             if (now - gainAt >= STALL_TICKS + STALL_CAP_TICKS) {
-                leave(now, stall + ", a skeleton about for " + (STALL_TICKS + STALL_CAP_TICKS) / 1200 + " min", RETRY_STALL_TICKS);
+                away(now, stall + ", a skeleton about for " + (STALL_TICKS + STALL_CAP_TICKS) / 1200 + " min", RETRY_STALL_TICKS, hp, null);
                 return;
             }
             if (!stallSaid) {
@@ -496,6 +526,8 @@ public final class SkelCover {
             farSince = -1;
             blockedUntil = Long.MIN_VALUE / 2;
             blockedFrom = Long.MIN_VALUE / 2;
+            surfaceTaken = false;
+            dawnSaid = false;
             note = null;
         }
 
@@ -503,6 +535,20 @@ public final class SkelCover {
         private String witchSaid() {
             if (mount) return ", no mounted mob within " + Math.round(RANGE) + " for " + LINE_GONE_TICKS / 20 + " s";
             return witch ? ", no poison, no witch's line for " + LINE_GONE_TICKS / 20 + " s" : "";
+        }
+
+        // an exit the buddy takes of its own (the hp back, no skeleton near, the stall): (night_hole_bedless) a cover taken on the
+        // surface stays shut till dawn instead, said once a stretch; a cover task that gave up (failed) goes as its give-up
+        private void away(long now, String why, long retry, float hp, String failed) {
+            if (!tillDawn()) {
+                leave(now, why, retry);
+            } else if (failed != null) {
+                leave(now, "no cover here (" + failed + ")", RETRY_FAILED_TICKS);
+            } else if (!dawnSaid) {
+                dawnSaid = true;
+                note = String.format(Locale.ROOT, "%s: %s, but night on the surface at %.1f hp: the cover is held until dawn (night_hole_bedless)",
+                        name(), why, hp);
+            }
         }
 
         private void leave(long now, String why, long retry) {

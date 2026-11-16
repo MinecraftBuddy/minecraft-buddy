@@ -190,6 +190,9 @@ public class GamerTask extends Task {
     private long shelterFailedNight = Long.MIN_VALUE;
     // halved so the subtraction in shelterTick can't wrap around into the negatives and look like "just looked" forever
     private long shelterLookAt = Long.MIN_VALUE / 2;
+    // (night_hole_bedless) the night a try of the bed ended slept in for nothing (NightShelter.bedFailed), and why
+    private long bedFailedNight = Long.MIN_VALUE;
+    private String bedFailedWhy;
 
     // what the user had before we changed it for the run, to hand back on stop
     private Boolean userBlastFurnace;
@@ -1397,6 +1400,11 @@ public class GamerTask extends Task {
         nightBudget.roll(NightSleep.nightOf(mod.getWorld().getOverworldClockTime()));
         if (nightTrip != null) {
             if (nightTrip.isFinished(mod) || facts.dimension() != Dimension.OVERWORLD) {
+                // (night_hole_bedless) a try slept in for nothing is kept for tonight: the hole's trigger reads it
+                if (nightTrip.isFinished(mod) && NightShelter.bedFailed(nightTrip.outcome() == NightSleepTask.Outcome.GAVE_UP, nightTrip.why())) {
+                    bedFailedNight = NightSleep.nightOf(mod.getWorld().getOverworldClockTime());
+                    bedFailedWhy = nightTrip.why();
+                }
                 // (the bed a dead or dropped trip left is picked up by a cleanup trip)
                 if (NightSleep.droppedByDimension(nightTrip.isFinished(mod), facts.dimension() == Dimension.OVERWORLD)) {
                     nightBudget.failed(seconds, cfg.overworld.nightCooldownSeconds);
@@ -1512,18 +1520,25 @@ public class GamerTask extends Task {
         boolean inFight = mod.getMobDefenseChain().combatMode() != CombatCommit.Mode.NONE;
         // a nether or eyes leg home for food has no bed it may use: no armor or death needed, the hole is the answer
         boolean tripNight = state.phase == GamerPhase.NETHER || state.phase == GamerPhase.EYES;
-        NightShelter.Trigger t = new NightShelter.Trigger(dusk, true, facts.armorPoints(), !leftover && (tripNight || facts.count(ItemHelper.BED) == 0),
+        // (Tuning night_hole_bedless, off) tonight's bed spent with no sleep or slept in for nothing, or no bed in the bag, calls the
+        // hole as a death does; a bed that is out for tonight counts as no bed here and in the bed check below
+        boolean bedlessKey = NightShelter.bedlessOn();
+        int bedsInBag = facts.count(ItemHelper.BED);
+        String bedGone = NightShelter.bedGone(bedlessKey, bedFailedNight == night ? bedFailedWhy : null,
+                nightBudget.spent(cfg.overworld.nightAttempts, cfg.overworld.nightSeconds) && !nightBudget.slept());
+        boolean bedless = NightShelter.bedless(bedlessKey, bedGone, bedsInBag > 0);
+        NightShelter.Trigger t = new NightShelter.Trigger(dusk, true, facts.armorPoints(), !leftover && (tripNight || bedsInBag == 0 || bedGone != null),
                 SmeltSurface.depthBelowSky(mod), recover != null, inFight, busy != NightSleep.Busy.NONE || WorldHelper.isStandingInPortal(mod),
                 shelterOnce.used(night), sinceDeath, tripNight, mod.getPlayer().getHealth(), mod.getPlayer().getFoodData().getFoodLevel(),
                 mod.getFoodChain().hasHealFood());
-        if (!NightShelter.wanted(t) || gameTime - shelterLookAt < 20) {
+        if (!NightShelter.wanted(t, bedless) || gameTime - shelterLookAt < 20) {
             return null;
         }
         shelterLookAt = gameTime;
         NightSleep.BedSource source = NightSleep.bedSource(findNightBed(mod) != null, facts.count(ItemHelper.BED), BedCraft.bestWoolStack(mod),
                 BedCraft.usableWood(mod));
-        // a bed that keepsSpawnBed would not let it use is no bed for tonight
-        boolean noBed = NightShelter.noBedTonight(state.phase, source, spawnBedHeld(mod));
+        // a bed that keepsSpawnBed would not let it use is no bed for tonight (night_hole_bedless: nor one that is out tonight)
+        boolean noBed = NightShelter.noBedTonight(state.phase, source, spawnBedHeld(mod)) || bedGone != null;
         BlockPos skipSpot = shelterFailedNight == night ? shelterFailedSpot : null;
         BlockPos spot = noBed ? ShelterTask.pick(mod, skipSpot) : null;
         if (spot == null) {
@@ -1541,6 +1556,11 @@ public class GamerTask extends Task {
         shelterOnce.mark(night);
         nightPrep.drop();
         nightPrepDone(mod);
+        // (night_hole_bedless) a hole the key called (a bed out tonight, or no bed with no death or hurt to call it): said, with why
+        if (bedless && (bedGone != null || !NightShelter.wanted(t))) {
+            Debug.logInternal("night: the hole for the night at " + spot.toShortString() + ", "
+                    + (bedGone != null ? bedGone : "no bed in the bag and none to be had") + ", armour " + facts.armorPoints() + " (night_hole_bedless)");
+        }
         shelter = new ShelterTask(spot, night);
         return shelter;
     }

@@ -1125,6 +1125,12 @@ final class CombatBrain {
                 _cover.mountFacts(coverOn && mountOn, mountWanted, nearestMountedDistance(foes, mountedIds));
                 // (cover_night_hold: at night the far exit waits for full hp)
                 _cover.nightFacts(SkelCover.nightHoldOn(), !mod.getWorld().isBrightOutside());
+                // (night_hole_bedless, off: a cover taken on the surface at night is held until dawn; the night by the clock, the
+                // surface as the night hole has it)
+                boolean dawnKey = SkelCover.nightHoleOn();
+                _cover.nightHoleFacts(dawnKey, dawnKey && adris.altoclef.tasks.speedrun.gamer.NightShelter.dark(!mod.getWorld().isBrightOutside(),
+                        mod.getWorld().getOverworldClockTime(), 0), dawnKey && adris.altoclef.tasks.speedrun.gamer.SmeltSurface.depthBelowSky(mod)
+                        <= adris.altoclef.tasks.speedrun.gamer.NightShelter.SURFACE_DEPTH);
                 _cover.step(now, coverWanted, coverOffered, player.getHealth(), SkelCover.hpLine(), lines, _seen.lineDist(), _seen.nearest(),
                         mod.getFoodChain().isTryingToEat(), _coverTask == null ? null : _coverTask.failed(), mod.getFoodChain().hasFood(),
                         overRuns && meleeWithin(foes, _seen, CombatCommit.LOW_HP_RANGE));

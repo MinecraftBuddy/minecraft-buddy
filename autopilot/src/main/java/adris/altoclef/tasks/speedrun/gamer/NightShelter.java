@@ -40,16 +40,54 @@ public final class NightShelter {
 
     // everything the branch can see. tripNight = a nether or eyes leg that is home in the overworld (the nether phase only lets a food trip through, NetherPhase.nightHold): the trip has no bed to use and
     // was not just killed, so a recent death is not asked. armor still is: a kitted trip walks through the night, a naked one hides. note what is not here: low health and a spent bed trip. a sealed hole is the safest place
-    // to regen, and the bed trip's tries have nothing to do with this
+    // to regen, and the bed trip's tries have nothing to do with this (with night_hole_bedless they do: wanted(t, bedless))
     public record Trigger(boolean windowOpen, boolean overworld, int armorPoints, boolean noBed, int depthBelowSky, boolean recoveryActive,
                           boolean fighting, boolean busy, boolean usedThisNight, long ticksSinceDeath, boolean tripNight,
                           float health, int hunger, boolean healFood) {
     }
 
     public static boolean wanted(Trigger t) {
+        return wanted(t, false);
+    }
+
+    // (night_hole_bedless) bedless: tonight has no bed to sleep in (bedless below), which stands in for the trip night, the
+    // recent death or the hurt; every other gate stays (the night, armour under the line, no bed, on the surface, no fight)
+    public static boolean wanted(Trigger t, boolean bedless) {
         return t.windowOpen() && t.overworld() && t.armorPoints() < ARMOR_LINE && t.noBed() && t.depthBelowSky() <= SURFACE_DEPTH
                 && !t.recoveryActive() && !t.fighting() && !t.busy() && !t.usedThisNight()
-                && (t.tripNight() || recentDeath(t.ticksSinceDeath()) || hurtNoHeal(t.health(), t.hunger(), t.healFood()));
+                && (bedless || t.tripNight() || recentDeath(t.ticksSinceDeath()) || hurtNoHeal(t.health(), t.hunger(), t.healFood()));
+    }
+
+    // (the buddy's fork, Tuning night_hole_bedless, off; an A/B's B arm turns it on) the night hole when the bed fails. on the
+    // rig's shared servers the bed almost never passes the night (6 of 146 nights slept on one lane: "the night did not pass",
+    // "woken before the night passed"), and the buddy worked on in the open with no armour, shot or swarmed: of 132 deaths
+    // before the iron tools in whole runs about 51 were on the surface at night with no shelter, and the hole was never dug
+    // (a bed in the bag after about five minutes, and no death or hurt to call it). with the key, tonight's bed spent or
+    // failed, or no bed at all, calls the hole as a death did, and a bed in the bag that failed tonight counts as none
+    public static boolean bedlessOn() {
+        return adris.altoclef.util.helpers.Tuning.get("night_hole_bedless", 0) > 0;
+    }
+
+    // (night_hole_bedless) a try of the bed that ended with the night still on after lying down: the night did not pass
+    // (somebody else awake) or a wake before it passed. those come back every try on a shared server
+    public static boolean bedFailed(boolean gaveUp, String why) {
+        return gaveUp && (NightSleep.NIGHT_DID_NOT_PASS.equals(why) || NightSleep.WOKEN_EARLY.equals(why));
+    }
+
+    // (night_hole_bedless) why tonight's bed is out for the hole's sake, null while it may still be slept in (or the key is
+    // off): failedWhy, a try tonight that bedFailed (null for none); spent, the bed's tries or seconds for tonight used up
+    // with no sleep. either counts over a bed in the bag and one that can be made or found
+    public static String bedGone(boolean on, String failedWhy, boolean spent) {
+        if (!on) return null;
+        if (failedWhy != null) return "tonight's bed failed (" + failedWhy + ")";
+        if (spent) return "tonight's bed tries are spent";
+        return null;
+    }
+
+    // (night_hole_bedless) tonight has no bed: it is out (bedGone), or there is none in the bag (one that can be made or found
+    // still goes first: the hole's own bed check, noBedTonight)
+    public static boolean bedless(boolean on, String bedGone, boolean bedInBag) {
+        return on && (bedGone != null || !bedInBag);
     }
 
     // really hurt, no armor, and nothing to heal with (an empty belly does not regen): a night outside like that is a second

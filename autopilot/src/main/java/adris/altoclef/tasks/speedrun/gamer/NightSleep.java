@@ -475,6 +475,11 @@ public final class NightSleep {
 
     // ---- the budget of a night
 
+    // the two ways a try ends with the bed slept in and the night still on (NightSleepTask.sleep): lying there longer than
+    // nightSleepSeconds (somebody else awake), or a wake before the night passed. NightShelter.bedFailed reads them
+    public static final String NIGHT_DID_NOT_PASS = "the night did not pass";
+    public static final String WOKEN_EARLY = "woken before the night passed";
+
     public static final class Budget {
         private long night = Long.MIN_VALUE;
         private int attempts;
@@ -519,6 +524,11 @@ public final class NightSleep {
 
         public double seconds() {
             return seconds;
+        }
+
+        // (night_hole_bedless) tonight was slept in
+        public boolean slept() {
+            return slept;
         }
 
         // done for tonight: it worked, or it ran out of tries or time

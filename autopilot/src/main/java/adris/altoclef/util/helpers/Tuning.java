@@ -544,6 +544,12 @@ public final class Tuning {
             // (ConstructNetherPortalObsidianTask.siteGivenUp): the click banned its block, wandered and came back to the same cell
             // 47 to 84 times over 30 to 74 minutes, 7 stalls of heel-27/28
             java.util.Map.entry("frame_new_site", 1.0),
+            // (off; an A/B's B arm turns it on, test nachtgat) the night hole when the bed fails: tonight's bed spent, or slept in
+            // for nothing ("the night did not pass", "woken before the night passed"), or no bed at all calls the hole as a death
+            // did (NightShelter.bedless, GamerTask.shelterTick), and a cover taken on the surface at night is held until dawn
+            // (SkelCover.Hold.tillDawn): about 51 of 132 deaths before the iron tools in whole runs were on the surface at night
+            // with no shelter, the bed slept 6 of 146 nights on one lane of the shared servers, and the hole was never dug
+            java.util.Map.entry("night_hole_bedless", 0.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),
