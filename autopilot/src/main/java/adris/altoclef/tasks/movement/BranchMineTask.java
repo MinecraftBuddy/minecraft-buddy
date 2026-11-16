@@ -249,6 +249,8 @@ public class BranchMineTask extends Task {
     // a second step back in a row for the place watch's block on the next tick, and where
     private final TunnelFlip _flip = new TunnelFlip();
     private boolean _flipStall;
+    // (tunnel_shuttle_guard) a second half turn against water, facing back, within a game minute: a fire on the next tick
+    private boolean _shuttleStall;
     private int _flipX, _flipZ;
     // the rock goes to a cheap pick and the iron one is kept for the ore. an iron pickaxe is through in 250 blocks and a staircase
     // to the diamonds takes three a step: the iron one wore out on the way down while a stone one lay in the bag, and it climbed
@@ -411,7 +413,10 @@ public class BranchMineTask extends Task {
         boolean wetLoop = _wetStall;
         _wetStall = false;
         // (tunnel_flip_guard) the tunnel's step back into the cell just left twice in a row counts as a fire too
-        boolean flipLoop = _flipStall;
+        // (tunnel_shuttle_guard) and so does a shuttle between two waters; in the tunnel of its own its first fire gives the depth up
+        boolean shuttle = _shuttleStall;
+        _shuttleStall = false;
+        boolean flipLoop = _flipStall || shuttle;
         _flipStall = false;
         if (watch || stall || wetLoop || flipLoop) {
             int fx = watch ? place().x() : stall ? _downFails.x() : wetLoop ? _wetX : _flipX;
@@ -436,6 +441,9 @@ public class BranchMineTask extends Task {
             // tunnel two more game minutes of the loop
             if (flipGuardOn() && watch && _ownTunnelAt != null) {
                 return giveUpHere(mod, now, y, fx, fz, Math.max(1, fires().last()), ", in the tunnel of its own, tunnel_flip_guard");
+            }
+            if (shuttle && _ownTunnelAt != null) {
+                return giveUpHere(mod, now, y, fx, fz, Math.max(1, fires().last()), ", in the tunnel of its own, tunnel_shuttle_guard");
             }
             // (mine_leave_given_up) a walk along under way goes on, way and all: zeroing it here stopped one at 25 blocks to
             // go, and the mine started again in the place the walk was leaving
@@ -1038,6 +1046,10 @@ public class BranchMineTask extends Task {
 
     static boolean flipGuardOn() {
         return adris.altoclef.util.helpers.Tuning.get("tunnel_flip_guard", 0) > 0;
+    }
+
+    static boolean shuttleGuardOn() {
+        return adris.altoclef.util.helpers.Tuning.get("tunnel_shuttle_guard", 0) > 0;
     }
 
     static boolean landHoldOn() {
@@ -2066,7 +2078,14 @@ public class BranchMineTask extends Task {
         boolean[] nearRefused = wayNever(feet, _dx, _dz, down, flips ? _flip.refused(now) : null);
         int pick = pickWay(rank, flips ? TunnelFlip.either(never, nearRefused) : never);
         boolean refuses = flips && TunnelFlip.refusesWater(rank, pick);
-        if (refuses) _flip.refuse(feet.offset(_dx, down, _dz), now);
+        if (refuses && _flip.refuse(feet.offset(_dx, down, _dz), _dx, _dz, now) && shuttleGuardOn()) {
+            _shuttleStall = true;
+            _flipX = feet.getX();
+            _flipZ = feet.getZ();
+            adris.altoclef.Debug.logInternal("branch mine: the step from " + feet.toShortString() + " refused against water, and a step"
+                    + " facing back was refused against water within a game minute: the tunnel shuttles between two waters, a fire of"
+                    + " the place watch here (tunnel_shuttle_guard)");
+        }
         int old = 0;
         for (int i = 0; i < 4; i++) {
             if (rank[i] == WAY_CLOSED) {

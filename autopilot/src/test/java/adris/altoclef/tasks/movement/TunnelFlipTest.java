@@ -135,4 +135,22 @@ public class TunnelFlipTest {
         assertFalse(flip.step(A, B, true));
         assertTrue(flip.step(B, A, true));
     }
+
+    @Test
+    public void shuttleBetweenTwoWaters() {
+        TunnelFlip flip = new TunnelFlip();
+        // the east end: the step east refused against water
+        assertFalse(flip.refuse(new BlockPos(50200, 44, 5571), 1, 0, 1000));
+        // the west end, 13 cells on, facing back west within a game minute: a shuttle
+        assertTrue(flip.refuse(new BlockPos(50186, 44, 5571), -1, 0, 1054));
+        // the same way again at another cell: no shuttle
+        assertFalse(flip.refuse(new BlockPos(50180, 44, 5571), -1, 0, 1100));
+        // facing back but at the cell next to the last: a turn by one water, no shuttle
+        assertFalse(flip.refuse(new BlockPos(50181, 44, 5571), 1, 0, 1110));
+        // facing back after the game minute: no shuttle
+        assertFalse(flip.refuse(new BlockPos(50190, 44, 5571), -1, 0, 1110 + TunnelFlip.KEEP + 1));
+        // a refusal without its way (the old call) never counts as one facing back
+        flip.refuse(new BlockPos(50200, 44, 5571), 5000);
+        assertFalse(flip.refuse(new BlockPos(50186, 44, 5571), -1, 0, 5010));
+    }
 }

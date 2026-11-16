@@ -19,6 +19,7 @@ final class TunnelFlip {
 
     private int[] refused;
     private long refusedAt = Long.MIN_VALUE;
+    private int refusedDx, refusedDz;
     private BlockPos from;
     private boolean back;
 
@@ -31,6 +32,23 @@ final class TunnelFlip {
     void refuse(BlockPos step, long now) {
         refused = new int[]{step.getX(), step.getY(), step.getZ()};
         refusedAt = now;
+        refusedDx = 0;
+        refusedDz = 0;
+    }
+
+    // (Tuning tunnel_shuttle_guard, a fix of 16 Nov 2026, on) the step refused at now, with the way it faced (dx, dz); true
+    // when a step refused in the last game minute faced the opposite way at another cell: the tunnel shuttles between two
+    // waters. cascade t1, a tunnel of its own at y 44 with water past both ends 13 cells apart: 65 half turns in 3 minutes,
+    // one each 2.7 s, never two steps back in a row (step's A to B to A), ended only when the place watch's anchor happened
+    // to fall 10 from one end
+    boolean refuse(BlockPos step, int dx, int dz, long now) {
+        int[] before = refused(now);
+        boolean shuttle = before != null && (dx != 0 || dz != 0) && dx == -refusedDx && dz == -refusedDz
+                && Math.abs(before[0] - step.getX()) + Math.abs(before[2] - step.getZ()) > 1;
+        refuse(step, now);
+        refusedDx = dx;
+        refusedDz = dz;
+        return shuttle;
     }
 
     // the step refused ({x, y, z}) while it is kept, else null

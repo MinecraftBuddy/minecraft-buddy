@@ -572,6 +572,11 @@ public final class Tuning {
             // give-up, one wart held 10 minutes) the wart held stays in reach to the reach + 16, and the same wart picked again
             // keeps its clocks (RouteRules.wartHeldInReach, CollectBlazeRodsTask.wartFetch)
             java.util.Map.entry("wart_hold_reach", 1.0),
+            // (a fix of 16 Nov 2026, cascade t1: a tunnel of its own shuttled 3 minutes between two waters 13 cells apart, one
+            // half turn each 2.7 s, which the A to B to A check never sees) a half turn against water facing back at another cell
+            // within a game minute of the last is a fire of the place watch; in the tunnel of its own the depth is given up
+            // (TunnelFlip.refuse, BranchMineTask)
+            java.util.Map.entry("tunnel_shuttle_guard", 1.0),
             // (off; an A/B's B arm turns it on, test grotdek) the cover in a cave: where the floor will not dig, a cell 1 wide and 2
             // high dug into the nearest cave wall within 3, stepped into and its opening shut with a block at the head's height
             // (the feet's too when needed), instead of the pillbox; a notch on offer counts as ground that digs for the cover in
