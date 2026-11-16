@@ -784,21 +784,23 @@ final class Alto {
 		return present() && adris.altoclef.util.helpers.Tuning.get("kit_failed_skip", 0) > 0;
 	}
 
-	/** A new order: every piece may be asked again. */
-	static void kitReset() { KIT_FAILED.clear(); goldSpent = 0; }
-
-	/** (gold_runs_on) the game ms the gold piece's earlier tries of this order ran. */
-	private static long goldSpent;
+	/** A new order: every piece may be asked again (the gold's clock is reset by ObtainRoute.reset). */
+	static void kitReset() { KIT_FAILED.clear(); }
 
 	/** The autopilot's gold_runs_on switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
 	static boolean goldRunsOn() {
 		return present() && adris.altoclef.util.helpers.Tuning.get("gold_runs_on", 0) > 0;
 	}
 
-	/** A line of the gold piece's clock, in the autopilot's log and the events. */
-	private static void goldSay(String line, String action, int gold, long ranMs) {
+	/** The autopilot's gold_clock_fix switch (a fix of 16 Nov 2026, on by default); off without the autopilot. */
+	static boolean goldClockFixOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("gold_clock_fix", 0) > 0;
+	}
+
+	/** A line of a gold piece's clock, in the autopilot's log and the events. */
+	private static void goldSay(String piece, String line, String action, int gold, long ranMs) {
 		if (present()) adris.altoclef.Debug.logInternal(line);
-		Exchange.emit("obtain", "action", action, "piece", ObtainRoute.GOLD_KEY, "gold", gold, "min", ranMs / 60_000);
+		Exchange.emit("obtain", "action", action, "piece", piece, "gold", gold, "min", ranMs / 60_000);
 	}
 
 	/** How far the order under way goes (Obtain.deepOrder): the deep at least, for the kit. */
@@ -1088,6 +1090,8 @@ final class Alto {
 			public boolean restMissing() { return !routeRest(p, new java.util.ArrayList<>()).isEmpty(); }
 
 			public boolean kitAgain() { return kitAgainOn(); }
+
+			public boolean goldClockFix() { return goldClockFixOn(); }
 		};
 	}
 
@@ -1111,6 +1115,13 @@ final class Alto {
 		if (again != null) return again;
 		ObtainRoute.Bag bag = routeBag(p);
 		ObtainRoute.Piece pc = ObtainRoute.next(bag, routeSkipOn() ? now : Long.MIN_VALUE, Alto::routeSay);
+		// (gold_clock_fix) M3.4 passes its gold over once the gold is over: said once
+		String passed = ObtainRoute.goldPassedOver(bag);
+		if (passed != null) {
+			int gold = ObtainRoute.goldCount(bag);
+			goldSay(ObtainRoute.GOLD_KEY_34, "route: piece " + ObtainRoute.GOLD_KEY_34 + " passed over (" + passed + "): the portal goes on with "
+				+ gold + " gold (gold_clock_fix)", "gold passed over", gold, ObtainRoute.goldSpent());
+		}
 		return pc == null ? null : routePiece(p, bag, pc.name()).piece(pc.key());
 	}
 
@@ -1486,6 +1497,12 @@ final class Alto {
 		private int goldMax = -1;
 		private long goldRiseAt;
 		private boolean goldOnSaid, goldBanked;
+		/** (gold_clock_fix) the gold at the try's first look, whether it ended for no rise, the order its clock is of. */
+		private int goldFirst = -1;
+		private boolean goldNoRise;
+		private int goldOrder;
+		/** The clock of the last tick (game ms): a try stopped from outside banks up to it. */
+		private long lastNow = Long.MIN_VALUE;
 
 		Run(String what, long limit, java.util.function.Supplier<Object> make) { this.what = what; this.limit = limit; this.make = make; }
 
@@ -1501,22 +1518,54 @@ final class Alto {
 
 		@Override
 		ObtainSteps.Result tick(net.minecraft.client.Minecraft mc, net.minecraft.client.player.LocalPlayer p, long now) {
+			lastNow = now;
 			ObtainSteps.Result r = run(mc, p, now);
 			// a piece of the route counts a try when its task ends by itself, done or not: one the order stops (for food, the
 			// night's hole) is asked again without one
 			if (piece != null && (r == ObtainSteps.Result.DONE || r == ObtainSteps.Result.FAIL)) ObtainRoute.tried(piece);
-			if (r == ObtainSteps.Result.DONE || r == ObtainSteps.Result.FAIL) bankGold(now);
+			if (r == ObtainSteps.Result.DONE || r == ObtainSteps.Result.FAIL) {
+				// (gold_clock_fix) how the try ended tells M3.4 whether the gold still rose
+				if (goldPiece() && goldClockFixOn() && startedAt >= 0) ObtainRoute.goldTryEnded(goldNoRise, goldFirst >= 0 && goldMax > goldFirst);
+				bankGold(now);
+			}
 			return r;
 		}
 
-		/** The gold piece's try, under gold_runs_on. */
-		private boolean gold() { return ObtainRoute.GOLD_KEY.equals(piece) && goldRunsOn(); }
+		/** The piece is on the gold clock: M3.3's gold, and with gold_clock_fix M3.4's. */
+		private boolean goldPiece() { return ObtainRoute.goldPiece(piece, goldClockFixOn()); }
 
-		/** (gold_runs_on) this try's time into the piece's sum, once. */
+		/** The gold piece's try, under gold_runs_on. */
+		private boolean gold() { return goldPiece() && goldRunsOn(); }
+
+		/** (gold_runs_on) this try's time into the pieces' sum, once. */
 		private void bankGold(long now) {
-			if (goldBanked || startedAt < 0 || !ObtainRoute.GOLD_KEY.equals(piece)) return;
+			if (goldBanked || startedAt < 0 || !goldPiece()) return;
 			goldBanked = true;
-			if (now > startedAt) goldSpent += now - startedAt;
+			if (now > startedAt) ObtainRoute.goldBank(now - startedAt);
+		}
+
+		/**
+		 * (gold_clock_fix) a gold try stopped from outside (food, the night's hole, a piece that gives way) banks its time up to
+		 * its last tick, on the game clock its start was taken on, and only into the order it began in. Without the fix stop()
+		 * banked up to the wall clock (System.currentTimeMillis, about 1.8e12 ms) against a start in game ms (game time x 50,
+		 * some 1e7): the first stop put decades into the six hours, and the next try ended at its first tick "6 game hours
+		 * over all its tries", a median 52 minutes into M3.3 (53 such lines, 14 to 16 Nov 2026).
+		 */
+		private void bankStopped() {
+			if (!goldClockFixOn()) {
+				bankGold(System.currentTimeMillis());
+				return;
+			}
+			if (goldBanked || startedAt < 0 || !goldPiece() || lastNow < startedAt) return;
+			if (goldOrder != ObtainRoute.goldOrder()) {
+				goldBanked = true;
+				return;
+			}
+			bankGold(lastNow);
+			int gold = Math.max(goldMax, 0);
+			goldSay(piece, "route: piece " + piece + " stopped after " + (lastNow - startedAt) / 60_000 + " minutes, its game time banked: "
+				+ ObtainRoute.goldSpent() / 60_000 + " of " + ObtainRoute.GOLD_ALL / 60_000 + " minutes spent (gold_clock_fix)", "gold banked", gold,
+				lastNow - startedAt);
 		}
 
 		/**
@@ -1525,28 +1574,30 @@ final class Alto {
 		 */
 		private String goldEnd(net.minecraft.client.player.LocalPlayer p, long now) {
 			int gold = ObtainRoute.goldCount(routeBag(p));
+			if (goldFirst < 0) goldFirst = gold;
 			if (gold > goldMax) {
 				goldMax = gold;
 				goldRiseAt = now;
 			}
 			long ran = now - startedAt;
-			switch (ObtainRoute.goldClock(ran, now - goldRiseAt, goldSpent, limit)) {
+			switch (ObtainRoute.goldClock(ran, now - goldRiseAt, ObtainRoute.goldSpent(), limit)) {
 				case EXTENDED -> {
 					if (!goldOnSaid) {
 						goldOnSaid = true;
-						goldSay("route: piece " + piece + " runs on past its " + limit / 60_000 + " minutes, the gold rose "
+						goldSay(piece, "route: piece " + piece + " runs on past its " + limit / 60_000 + " minutes, the gold rose "
 							+ (now - goldRiseAt) / 60_000 + " minutes ago (" + gold + " in the bag) (gold_runs_on)", "gold runs on", gold, ran);
 					}
 					return null;
 				}
 				case NO_RISE -> {
-					goldSay("route: piece " + piece + " ends after " + ran / 60_000 + " minutes, no rise in the gold in "
+					goldNoRise = true;
+					goldSay(piece, "route: piece " + piece + " ends after " + ran / 60_000 + " minutes, no rise in the gold in "
 						+ ObtainRoute.GOLD_NO_RISE / 60_000 + " minutes (" + gold + " in the bag) (gold_runs_on)", "gold no rise", gold, ran);
 					return "no rise in the gold for " + ObtainRoute.GOLD_NO_RISE / 60_000 + " minutes after " + ran / 60_000 + " minutes";
 				}
 				case ALL_TIME -> {
 					ObtainRoute.lastTry(piece);
-					goldSay("route: piece " + piece + " ends, " + ObtainRoute.GOLD_ALL / 3_600_000 + " game hours over all its tries ("
+					goldSay(piece, "route: piece " + piece + " ends, " + ObtainRoute.GOLD_ALL / 3_600_000 + " game hours over all its tries ("
 						+ gold + " in the bag) (gold_runs_on)", "gold all time", gold, ran);
 					return "the gold's " + ObtainRoute.GOLD_ALL / 3_600_000 + " game hours over all its tries";
 				}
@@ -1577,6 +1628,7 @@ final class Alto {
 				}
 				startedAt = now;
 				shutsAtStart = shuts;
+				goldOrder = ObtainRoute.goldOrder();
 				gaveUpsAtStart = adris.altoclef.tasks.movement.BranchMineTask.gaveUps;
 				Bari.yieldTo();
 				HeldKeys.releaseAll();
@@ -1608,7 +1660,7 @@ final class Alto {
 
 		@Override
 		void stop() {
-			bankGold(System.currentTimeMillis());
+			bankStopped();
 			cancel();
 		}
 

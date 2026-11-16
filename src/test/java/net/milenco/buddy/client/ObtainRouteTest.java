@@ -24,7 +24,7 @@ class ObtainRouteTest {
 	static final class Kit implements ObtainRoute.Bag {
 		final Map<String, Integer> items = new HashMap<>();
 		final Map<String, String> worn = new HashMap<>();
-		boolean bedNear, rest, slimeNear, kitAgain;
+		boolean bedNear, rest, slimeNear, kitAgain, goldClockFix;
 
 		Kit give(String item, int n) { items.merge(item, n, Integer::sum); return this; }
 
@@ -51,6 +51,8 @@ class ObtainRouteTest {
 		public boolean restMissing() { return rest; }
 
 		public boolean kitAgain() { return kitAgain; }
+
+		public boolean goldClockFix() { return goldClockFix; }
 	}
 
 	private final List<String> said = new ArrayList<>();
@@ -533,5 +535,68 @@ class ObtainRouteTest {
 		ObtainRoute.lastTry(ObtainRoute.GOLD_KEY);
 		ObtainRoute.tried(ObtainRoute.GOLD_KEY);
 		assertEquals(ObtainRoute.TRIES, ObtainRoute.tries(ObtainRoute.GOLD_KEY));
+	}
+
+	/**
+	 * (gold_clock_fix) M3.4's gold on M3.3's clock and budget: asked while the six game hours last, passed over once they are
+	 * spent, said once; the spare helmet then only from the bag's gold. Without the fix the gold is asked as before.
+	 */
+	@Test
+	void thePortalsGoldIsOnTheGoldsClock() {
+		assertTrue(ObtainRoute.goldPiece("m3.3/gold", false));
+		assertFalse(ObtainRoute.goldPiece("m3.4/gold", false));
+		assertTrue(ObtainRoute.goldPiece("m3.4/gold", true));
+		assertFalse(ObtainRoute.goldPiece("m3.4/spare golden helmet", true));
+		Kit g = from("m3.4").give("flint_and_steel").give("potion", 3);
+		g.kitAgain = true;
+		g.goldClockFix = true;
+		walk(g);
+		g.take("gold_ingot").give("gold_ingot", 40);
+		// five of the six hours spent in M3.3: M3.4's gold is asked
+		ObtainRoute.goldBank(300 * 60_000L);
+		assertEquals("gold", next(g));
+		assertNull(ObtainRoute.goldPassedOver(g));
+		// the six hours spent: passed over (the spare helmet is in the bag), said once
+		ObtainRoute.goldBank(60 * 60_000L);
+		assertNull(next(g));
+		assertEquals("the gold's 6 game hours spent", ObtainRoute.goldPassedOver(g));
+		assertNull(ObtainRoute.goldPassedOver(g));
+		// the spare from the bag's gold only
+		g.take("golden_helmet");
+		assertEquals("spare golden helmet", next(g));
+		g.take("gold_ingot").give("gold_ingot", 3);
+		assertNull(next(g));
+		// without the fix: the gold asked as before
+		g.goldClockFix = false;
+		assertEquals("gold", next(g));
+		assertNull(ObtainRoute.goldOver(g));
+	}
+
+	/**
+	 * (gold_clock_fix) the gold stopped rising: the last gold try that ended did so with no rise in its last 20 minutes. A later
+	 * try in which the gold rose and that ended otherwise undoes it; one with no rise in it changes nothing. A new order starts
+	 * the clock anew.
+	 */
+	@Test
+	void thePortalsGoldIsPassedOverOnceTheGoldStoppedRising() {
+		Kit g = from("m3.4").give("flint_and_steel").give("potion", 3);
+		g.kitAgain = true;
+		g.goldClockFix = true;
+		walk(g);
+		g.take("gold_ingot").give("gold_ingot", 40);
+		ObtainRoute.goldTryEnded(true, true);
+		assertNull(next(g));
+		assertEquals("the gold stopped rising", ObtainRoute.goldPassedOver(g));
+		ObtainRoute.goldTryEnded(false, true);
+		assertEquals("gold", next(g));
+		ObtainRoute.goldTryEnded(true, false);
+		ObtainRoute.goldTryEnded(false, false);
+		assertNull(next(g));
+		ObtainRoute.goldBank(120 * 60_000L);
+		int order = ObtainRoute.goldOrder();
+		ObtainRoute.reset(true);
+		assertEquals(order + 1, ObtainRoute.goldOrder());
+		assertEquals(0, ObtainRoute.goldSpent());
+		assertNull(ObtainRoute.goldOver(g));
 	}
 }

@@ -529,6 +529,11 @@ public final class Tuning {
             // digs two down and shuts the top instead, once a cover (SkelCover.lowDig, SkelCoverTask): since heel-17 the cover
             // gave up in 4 of 23 runs and the buddy ran in the open at 6 to 7 hp and died
             java.util.Map.entry("cover_low_dig", 1.0),
+            // (the buddy's route, Alto.Run, ObtainRoute.goldOver) a gold try stopped from outside banks its time on the game clock,
+            // not the wall clock, and M3.4's gold runs on M3.3's clock and budget, not mined again once its six game hours are
+            // spent or its last try ended with no rise: the six hours fired a median 52 minutes into M3.3, and M3.4 then asked
+            // the gold as three plain 40-minute tries, 31 of the 65 runs lost in M3.4
+            java.util.Map.entry("gold_clock_fix", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

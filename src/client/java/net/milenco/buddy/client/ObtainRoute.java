@@ -74,6 +74,9 @@ final class ObtainRoute {
 
 		/** The autopilot's m34_kit_again switch: before the portal a crafting table, and the M3 kit asked again. */
 		default boolean kitAgain() { return false; }
+
+		/** The autopilot's gold_clock_fix switch: M3.4's gold on M3.3's clock and budget, and not mined again once over. */
+		default boolean goldClockFix() { return false; }
 	}
 
 	/** A piece of a phase: its name (the kit's step), how often it is asked, and whether the bag still lacks it. */
@@ -170,10 +173,12 @@ final class ObtainRoute {
 			piece(M3_4, "redstone", b -> b.kitAgain() && b.inv("redstone") < 1),
 			piece(M3_4, "obsidian", b -> b.kitAgain() && b.inv("obsidian") < 10),
 			// (the helmet worn from the bag's gold first, as M3.3's "golden helmet again"; then the gold, then the spare)
+			// (gold_clock_fix: once the gold is over, goldOver, no more gold is mined; the spare is made only from the bag's)
 			piece(M3_4, "golden helmet", b -> b.kitAgain() && !"golden_helmet".equals(b.wornIn("helmet"))
 				&& (b.inv("golden_helmet") > 0 || b.inv("gold_ingot") >= 5)),
-			piece(M3_4, "gold", b -> b.kitAgain() && b.inv("gold_ingot") < goldNeed(b)),
-			piece(M3_4, "spare golden helmet", b -> b.kitAgain() && b.inv("golden_helmet") < 1),
+			piece(M3_4, "gold", b -> b.kitAgain() && b.inv("gold_ingot") < goldNeed(b) && goldOver(b) == null),
+			piece(M3_4, "spare golden helmet", b -> b.kitAgain() && b.inv("golden_helmet") < 1
+				&& (goldOver(b) == null || b.inv("gold_ingot") >= 5)),
 			piece(M3_4, "water bottles", b -> b.inv("potion") < 3)));
 
 	private static Piece piece(int phase, String name, Predicate<Bag> wanted) { return new Piece(phase, name, TRIES, wanted); }
@@ -185,6 +190,9 @@ final class ObtainRoute {
 		phase = M1_1;
 		TRIED.clear();
 		FAILED.clear();
+		goldSpent = 0;
+		goldStopped = goldPassSaid = false;
+		goldOrder++;
 	}
 
 	/** The order walks the route (its way goes into the nether, and it began in the overworld). */
@@ -323,6 +331,61 @@ final class ObtainRoute {
 
 	/** The gold piece's key (only M3.3's: the slime ball and the helmets keep their own time). */
 	static final String GOLD_KEY = PHASES.get(M3_3) + "/gold";
+
+	/** M3.4's gold piece: the M3 kit's gold asked again before the portal (m34_kit_again). */
+	static final String GOLD_KEY_34 = PHASES.get(M3_4) + "/gold";
+
+	/**
+	 * A piece on the gold clock: M3.3's gold, and with gold_clock_fix M3.4's as well, on the same budget. (a fix of 16 Nov 2026,
+	 * on: in 164 of 166 runs of the test heel that began M3.4, M3.3's gold was given up as M3.4 began, and M3.4 asked the gold
+	 * again as three plain 40-minute tries; 31 of the 65 runs lost in M3.4 were lost in that second gold mine)
+	 */
+	static boolean goldPiece(String key, boolean fix) { return GOLD_KEY.equals(key) || fix && GOLD_KEY_34.equals(key); }
+
+	/** The game ms the gold pieces' tries of this order ran, all of them together (gold_runs_on's six hours). */
+	private static long goldSpent;
+	/** (gold_clock_fix) the last gold try that ended did so with no rise in the gold; M3.4's message about it said. */
+	private static boolean goldStopped, goldPassSaid;
+	/** The order the gold's clock counts for: a try begun in an earlier order banks nothing into this one's. */
+	private static int goldOrder;
+
+	static long goldSpent() { return goldSpent; }
+
+	static int goldOrder() { return goldOrder; }
+
+	/** A try of a gold piece ran this long (game ms): into the budget. */
+	static void goldBank(long ms) { if (ms > 0) goldSpent += ms; }
+
+	/**
+	 * (gold_clock_fix) a try of a gold piece ended (done or failed, not stopped from outside): with no rise in the gold, it has
+	 * stopped rising; a try in which it rose and that ended otherwise says it has not.
+	 */
+	static void goldTryEnded(boolean noRise, boolean rose) {
+		if (noRise) goldStopped = true;
+		else if (rose) goldStopped = false;
+	}
+
+	/**
+	 * (gold_clock_fix) why the gold is over for this order, so that M3.4 does not mine it again and goes on with what the bag
+	 * holds; null while it is not, or without the fix. Its six game hours spent, or its last try ended with no rise.
+	 */
+	static String goldOver(Bag b) {
+		if (!b.goldClockFix()) return null;
+		if (goldSpent >= GOLD_ALL) return "the gold's " + GOLD_ALL / 3_600_000 + " game hours spent";
+		if (goldStopped) return "the gold stopped rising";
+		return null;
+	}
+
+	/**
+	 * (gold_clock_fix) once an order: why M3.4 passes its gold over while the bag is short of it, for the line; else null.
+	 */
+	static String goldPassedOver(Bag b) {
+		if (goldPassSaid || !walking() || phase != M3_4 || !b.kitAgain() || b.inv("gold_ingot") >= goldNeed(b)) return null;
+		String why = goldOver(b);
+		if (why == null || tries(GOLD_KEY_34) >= TRIES) return null;
+		goldPassSaid = true;
+		return why;
+	}
 
 	/** Where a try of the gold piece stands. */
 	enum GoldClock { ON, EXTENDED, NO_RISE, ALL_TIME }
