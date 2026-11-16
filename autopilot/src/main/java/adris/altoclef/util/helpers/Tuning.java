@@ -534,6 +534,11 @@ public final class Tuning {
             // spent or its last try ended with no rise: the six hours fired a median 52 minutes into M3.3, and M3.4 then asked
             // the gold as three plain 40-minute tries, 31 of the 65 runs lost in M3.4
             java.util.Map.entry("gold_clock_fix", 1.0),
+            // the buddy's gold try (M3.3's or M3.4's gold piece) in a gold mine with no unworn pickaxe above wood left and none of
+            // iron or diamond to make from the bag ends as "pickaxes worn", the kit's worn iron and diamond pickaxes kept
+            // (BranchMineTask.picksWorn): a stone one was made and the kit's wore through on the ore, then M3.4 asked them again
+            // under the ground with no wood, 6 stalls of heel-27/28
+            java.util.Map.entry("gold_keep_picks", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

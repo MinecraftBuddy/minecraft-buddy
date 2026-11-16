@@ -160,6 +160,16 @@ public class BranchMineTask extends Task {
     // with the one at its start and fails over to its next piece
     public static volatile int gaveUps;
     public static volatile String gaveUpLine = "";
+    // (Tuning gold_keep_picks, a fix of 16 Nov 2026, on) the buddy's route sets goldTryUntil (wall ms) a few seconds ahead on every
+    // tick of its gold piece (M3.3's or M3.4's): a gold mine under it with no unworn pickaxe above wood left, and no iron or diamond
+    // one to make from the bag, ends the try instead of making a stone one, which cannot take gold ore, while the kit's worn iron
+    // and diamond pickaxes go on wearing through on it. picksWornStops counts those ends and picksWornLine says the last; the
+    // buddy compares the count with the one at its try's start. in M3.4 the gold mine went on that way, the kit's pickaxes broke,
+    // and M3.4 asked iron and diamond pickaxes again under the ground with no wood: 6 stalls of heel-27/28
+    public static volatile long goldTryUntil;
+    public static volatile int picksWornStops;
+    public static volatile String picksWornLine = "";
+    private boolean _picksWorn;
     // (Tuning mine_leave_given_up, a fix of 13 Nov 2026, on) a branch mine that starts or runs within MineLeave.NEAR blocks of a
     // spot where a mine gave its depth up in the last 30 game minutes first leaves it, MineLeave.FAR blocks off by baritone's
     // normal goal path, which digs and climbs; a way with no headway in LEAVE_STALL ticks is passed for another, and after
@@ -328,6 +338,13 @@ public class BranchMineTask extends Task {
             else if (goldCore() && !inBand(_mineY)) _mineY = _y;
         }
         BlockPos feet = mod.getPlayer().blockPosition();
+        // (gold_keep_picks) the buddy's gold try with no pickaxe left for the ore but the kit's worn ones: the try ends here, before
+        // anything of this mine digs on with them
+        Task worn = picksWorn(mod);
+        if (worn != null) {
+            stopMine(mod);
+            return worn;
+        }
         // (mine_no_path_tunnel) baritone's mine stopped itself for no path since this mine started it
         if (_mining && noPathOn() && baritone.process.MineProcess.noPathStops != _noPathSeen) {
             _noPathSeen = baritone.process.MineProcess.noPathStops;
@@ -1462,6 +1479,65 @@ public class BranchMineTask extends Task {
         }
         setDebugState("A stone pickaxe for the rock, the iron one is for the ore");
         return _cheapCraft;
+    }
+
+    static boolean keepPicksOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_keep_picks", 0) > 0;
+    }
+
+    // (gold_keep_picks) a gold try ends for worn pickaxes: none above wood left unworn, and the next pickaxe the mine would make
+    // (StickReserve.nextPick, as pickAhead asks it) is not one of iron or diamond from the bag, which takes the ore and spares the
+    // kit's; with stick_reserve off no pickaxe is made at all
+    static boolean picksWornEnds(int goodAboveWood, adris.altoclef.util.helpers.StickReserve.Next next, boolean reserveOn) {
+        if (goodAboveWood > 0) return false;
+        return !reserveOn || next != adris.altoclef.util.helpers.StickReserve.Next.IRON && next != adris.altoclef.util.helpers.StickReserve.Next.DIAMOND;
+    }
+
+    // (gold_keep_picks) the mine stands, with a line once, and the buddy's gold try ends on it; null while the try goes on
+    private Task picksWorn(AltoClef mod) {
+        if (_picksWorn && System.currentTimeMillis() < goldTryUntil) {
+            setDebugState("Pickaxes worn: the gold try ends, the kit's kept");
+            return new IdleTask();
+        }
+        _picksWorn = false;
+        if (!keepPicksOn() || !gold(_blocks) || System.currentTimeMillis() >= goldTryUntil) return null;
+        int good = goodAboveWood(mod);
+        if (good > 0) return null;
+        var bag = mod.getItemStorage();
+        int sticks = bag.getItemCount(Items.STICK);
+        int planks = bag.getItemCount(ItemHelper.PLANKS);
+        int logs = bag.getItemCount(ItemHelper.LOG);
+        boolean table = bag.getItemCount(Items.CRAFTING_TABLE) > 0;
+        int stone = bag.getItemCount(Items.COBBLESTONE, Items.COBBLED_DEEPSLATE, Items.BLACKSTONE);
+        int iron = bag.getItemCount(Items.IRON_INGOT), diamonds = bag.getItemCount(Items.DIAMOND);
+        adris.altoclef.util.helpers.StickReserve.Next next = adris.altoclef.util.helpers.StickReserve.nextPick(good, iron, stone, sticks,
+                planks, logs, table, !needsBetterThanStone(_blocks), diamonds, adris.altoclef.util.helpers.StickReserve.moreOn());
+        if (!picksWornEnds(good, next, adris.altoclef.util.helpers.StickReserve.on())) return null;
+        _picksWorn = true;
+        picksWornLine = "branch mine: no unworn pickaxe above wood left in the bag (" + picksInBag(mod) + "; " + iron + " iron ingots, "
+                + diamonds + " diamonds, " + sticks + " sticks, " + planks + " planks, " + logs + " logs), the gold try ends: pickaxes worn, "
+                + "the kit's iron and diamond ones kept (gold_keep_picks)";
+        adris.altoclef.Debug.logInternal(picksWornLine);
+        picksWornStops++;
+        setDebugState("Pickaxes worn: the gold try ends, the kit's kept");
+        return new IdleTask();
+    }
+
+    // (gold_keep_picks) the bag's pickaxes above wood by kind, all worn here: "2 iron, 1 diamond", or "none"
+    private static String picksInBag(AltoClef mod) {
+        java.util.Map<String, Integer> kinds = new java.util.TreeMap<>();
+        var inv = mod.getPlayer().getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack st = inv.getItem(i);
+            if (st.isEmpty() || st.is(Items.WOODEN_PICKAXE) || st.is(Items.GOLDEN_PICKAXE) || !"pickaxe".equals(ItemHelper.toolKind(st.getItem()))) {
+                continue;
+            }
+            kinds.merge(BuiltInRegistries.ITEM.getKey(st.getItem()).getPath().replace("_pickaxe", ""), st.getCount(), Integer::sum);
+        }
+        if (kinds.isEmpty()) return "none";
+        java.util.List<String> out = new java.util.ArrayList<>();
+        kinds.forEach((k, n) -> out.add(n + " " + k));
+        return String.join(", ", out) + ", worn";
     }
 
     // (stick_reserve) sticks made now, the next pickaxe made now, or the table for it out of four planks, or null
