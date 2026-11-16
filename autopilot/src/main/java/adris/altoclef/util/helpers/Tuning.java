@@ -558,6 +558,11 @@ public final class Tuning {
             java.util.Map.entry("ice_same_land", 1.0),
             java.util.Map.entry("ice_pick_at_column", 1.0),
             java.util.Map.entry("ice_berg_not_land", 1.0),
+            // (a fix of 16 Nov 2026, box 1 lane t1: the brew's pillbox planned for 15 blocks with 9 in the bag starved, 15 s a wall
+            // block, till the potion ran out and the blazes killed the buddy) the brew's box by the spawner is refused when it needs
+            // more blocks than the bag holds, the box of its own then (CollectBlazeRodsTask.routeBrewBox); and a pillbox with no
+            // block in the bag a click may place gives up at once (BlazePillboxTask)
+            java.util.Map.entry("brew_box_bag_check", 1.0),
             // (his word, steering 182, 13 Nov 2026: the trade goes on to a second fire resistance potion before the fortress)
             java.util.Map.entry("route_trade_potions", 2.0),
             java.util.Map.entry("route_trade_hoglin_buddy", 0.0),

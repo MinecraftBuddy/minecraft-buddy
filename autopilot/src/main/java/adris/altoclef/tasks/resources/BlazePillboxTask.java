@@ -383,6 +383,15 @@ public final class BlazePillboxTask extends Task {
         }
         int[] nb = plan.blocks().get(next);
         BlockPos pos = new BlockPos(nb[0], nb[1], nb[2]);
+        // (Tuning brew_box_bag_check, a fix of 16 Nov 2026, on: no block in the bag that a click may place is a box that starves:
+        // given up at once, not left out block by block. the brew's box of 15 with 9 in the bag spent 15 s on each of walls 10 to
+        // 15 and 3 roof tries on "Nothing to place" while the potion ran out, box 1 lane t1)
+        if (adris.altoclef.util.helpers.Tuning.get("brew_box_bag_check", 0) > 0 && buildingBlocks(mod) <= 0) {
+            gaveUp = true;
+            Debug.logInternal("pillbox: no block in the bag for block " + (next + 1) + " of " + plan.blocks().size() + " at " + pos.toShortString()
+                    + ", " + openBlocks(mod) + " open, given up (brew_box_bag_check)");
+            return null;
+        }
         // (Tuning pillbox_no_face, on by default, route jar 3: a block with no solid block beside, under or over it has nothing
         // for a click to go against, and no click puts it in: left out at once. a bent box's front roof after the back roof
         // was left out took the clicks and the steps to the cell's middle under fireballs till the buddy died in the box,

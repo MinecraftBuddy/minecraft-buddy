@@ -2068,6 +2068,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Debug.logInternal("brew: no pillbox fits by the spawner " + _foundBlazeSpawner.toShortString() + ", the brew in a box of its own");
             return null;
         }
+        // (Tuning brew_box_bag_check, a fix of 16 Nov 2026, on: pickCampSpot's pillbox_bag_check for the brew's box. a box of 15
+        // blocks was planned with 9 in the bag (brew_keep_stone kept 3 of 12 cobblestone, the netherrack thrown away), and walls
+        // 10 to 15 and the roof took 15 s each of "Nothing to place" until the potion ran out and the blazes killed the buddy,
+        // box 1 lane t1, 16 Nov 2026. a box bigger than the bag is no box: the "no pillbox fits" way, the box of its own, which
+        // asks the bag itself, BrewBoxTask's "no blocks")
+        int bag = BlazePillboxTask.blocksInBag(mod);
+        if (adris.altoclef.util.helpers.Tuning.get("brew_box_bag_check", 0) > 0 && plan.blocks().size() > bag) {
+            _routeBoxFailedFor = _foundBlazeSpawner;
+            Debug.logInternal("brew: the pillbox by the spawner " + _foundBlazeSpawner.toShortString() + " needs " + plan.blocks().size()
+                    + " blocks and the bag holds " + bag + ", the brew in a box of its own (brew_box_bag_check)");
+            return null;
+        }
         // (as pickCampSpot's pillbox: the camp is the box's cell, picked for this spawner now, so the pick does not drop it)
         _campSpotFor = _foundBlazeSpawner;
         _campBrewBox = true;
