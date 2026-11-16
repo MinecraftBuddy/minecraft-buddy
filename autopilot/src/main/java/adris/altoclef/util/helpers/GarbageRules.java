@@ -256,8 +256,9 @@ public final class GarbageRules {
     // phase 3 (box 1 lane t1) threw 113 netherrack away in the piglin trade (the buddy's own junk rule) and 25 basalt a few
     // minutes later (this one's junk-first tier, basalt as wide junk), and the brew's pillbox by the spawner starved with 9
     // blocks in the bag for 15, the buddy dead at 27 game minutes with 2 rods. the standing rule: netherrack is topped up in the
-    // nether, never thrown there
-    public static final int NETHER_KEEP = 96;
+    // nether, never all of it thrown there. at most one stack in all (his word, 16 Nov 2026: a bag that never throws netherrack
+    // fills up fast): above NETHER_KEEP it is junk as before
+    public static final int NETHER_KEEP = 64;
 
     public static boolean netherKeepOn() {
         return Tuning.get("nether_keep_rack", 0) > 0;
@@ -273,8 +274,8 @@ public final class GarbageRules {
     }
 
     // which stacks of the bag the nether keeps: netherrack's first, the biggest stack first, then blackstone's and basalt's,
-    // each while the total kept before it is under NETHER_KEEP (so 96 at least whenever the bag holds them, and a stack more
-    // at most). the rest of them are junk as before
+    // each while the total with it stays within NETHER_KEEP (the first stack always: so one stack at most). the rest of them
+    // are junk as before
     public static boolean[] netherKept(List<ItemStack> bag) {
         boolean[] kept = new boolean[bag.size()];
         List<Integer> order = new ArrayList<>();
@@ -290,9 +291,10 @@ public final class GarbageRules {
         });
         int total = 0;
         for (int i : order) {
-            if (total >= NETHER_KEEP) break;
+            int c = bag.get(i).getCount();
+            if (total > 0 && total + c > NETHER_KEEP) continue;
             kept[i] = true;
-            total += bag.get(i).getCount();
+            total += c;
         }
         return kept;
     }

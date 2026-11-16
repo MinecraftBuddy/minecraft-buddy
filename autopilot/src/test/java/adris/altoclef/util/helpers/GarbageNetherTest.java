@@ -28,22 +28,24 @@ public class GarbageNetherTest {
     }
 
     @Test
-    public void theTradesTwoStacksOfNetherrackAreKept() {
-        // 64 and 49: the second is kept too (64 kept before it, under 96); the basalt after them is not
-        assertArrayEquals(new boolean[]{true, true, false}, GarbageRules.netherKept(bag(Items.NETHERRACK, 64, Items.NETHERRACK, 49, Items.BASALT, 25)));
-        // a third stack of netherrack is past the keep
-        assertArrayEquals(new boolean[]{true, true, false}, GarbageRules.netherKept(bag(Items.NETHERRACK, 64, Items.NETHERRACK, 64, Items.NETHERRACK, 10)));
+    public void oneStackOfNetherrackIsKept() {
+        // 64 and 49: one stack at most, so the second goes as junk; the basalt after them too
+        assertArrayEquals(new boolean[]{true, false, false}, GarbageRules.netherKept(bag(Items.NETHERRACK, 64, Items.NETHERRACK, 49, Items.BASALT, 25)));
+        // a second stack of netherrack is past the keep
+        assertArrayEquals(new boolean[]{true, false, false}, GarbageRules.netherKept(bag(Items.NETHERRACK, 64, Items.NETHERRACK, 64, Items.NETHERRACK, 10)));
     }
 
     @Test
     public void netherrackIsKeptFirstWhereverItSits() {
         // basalt and blackstone first in the bag: netherrack is counted first, then blackstone, then basalt
         boolean[] kept = GarbageRules.netherKept(bag(Items.BASALT, 40, Items.BLACKSTONE, 40, Items.NETHERRACK, 64, Items.COBBLESTONE, 12));
-        assertArrayEquals(new boolean[]{false, true, true, false}, kept);
+        assertArrayEquals(new boolean[]{false, false, true, false}, kept);
         // little netherrack: the basalt makes the rest up
         assertArrayEquals(new boolean[]{true, true}, GarbageRules.netherKept(bag(Items.BASALT, 25, Items.NETHERRACK, 20)));
         // the biggest stack of a kind first
-        assertArrayEquals(new boolean[]{false, true, true}, GarbageRules.netherKept(bag(Items.NETHERRACK, 5, Items.NETHERRACK, 64, Items.NETHERRACK, 40)));
+        assertArrayEquals(new boolean[]{false, true, false}, GarbageRules.netherKept(bag(Items.NETHERRACK, 5, Items.NETHERRACK, 64, Items.NETHERRACK, 40)));
+        // smaller stacks fill the stack up: 40 and 20 of netherrack, then 4 basalt
+        assertArrayEquals(new boolean[]{true, true, true}, GarbageRules.netherKept(bag(Items.NETHERRACK, 40, Items.NETHERRACK, 20, Items.BASALT, 4)));
     }
 
     @Test
@@ -72,10 +74,13 @@ public class GarbageNetherTest {
         java.util.function.ToIntFunction<Item> nether = item -> GarbageRules.junkNether(GarbageRules::junkAllRank, item);
         // the soul sand, not the basalt the wide tier ranks ahead of it elsewhere
         assertEquals(3, GarbageRules.nextPick(entries, 64, true, 0, 0, nether, GarbageRules::kitItem));
-        // the soul sand gone: the basalt past the keep, never the netherrack
+        // the soul sand gone: the second stack of netherrack, past the one stack kept
         entries.set(3, new GarbageRules.Entry(ItemStack.EMPTY, true, -1));
+        assertEquals(1, GarbageRules.nextPick(entries, 64, true, 0, 0, nether, GarbageRules::kitItem));
+        // that gone: the basalt past the keep, never the kept stack
+        entries.set(1, new GarbageRules.Entry(ItemStack.EMPTY, true, -1));
         assertEquals(2, GarbageRules.nextPick(entries, 64, true, 0, 0, nether, GarbageRules::kitItem));
-        // the basalt gone too: the netherrack stays, the old pick went for it (past the reserve of 64)
+        // the basalt gone too: the kept stack stays, the old pick went for it (past the reserve of 64)
         entries.set(2, new GarbageRules.Entry(ItemStack.EMPTY, true, -1));
         List<GarbageRules.Entry> old = new ArrayList<>();
         for (int i = 0; i < stacks.size(); i++) old.add(new GarbageRules.Entry(i == 2 || i == 3 ? ItemStack.EMPTY : stacks.get(i), true,
