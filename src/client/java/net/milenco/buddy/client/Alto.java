@@ -661,7 +661,42 @@ final class Alto {
 	 */
 	static boolean wantsHome(net.minecraft.client.player.LocalPlayer p) {
 		return on() && p.level().dimension().equals(net.minecraft.world.level.Level.NETHER)
-			&& (foodScore(false) < NETHER_FOOD_RESERVE || wantsFood(p) || !goldOn(p) && ObtainSteps.count(p, "golden_helmet") == 0);
+			&& (foodScore(false) < netherFoodReserve(p) || wantsFood(p) || !goldOn(p) && ObtainSteps.count(p, "golden_helmet") == 0);
+	}
+
+	/**
+	 * The nether's food reserve with the autopilot's fireproof_food_reserve (off by default): FIREPROOF_FOOD_RESERVE while an
+	 * order of blaze rods is fire-proof (the effect on, or a fire resistance potion in the bag), else NETHER_FOOD_RESERVE. The
+	 * route's rods under the brewed potions went home for food at 36 points in 10 of 59 whole runs, 9 of them lost: the trip
+	 * left the blazes with the potions running and came back, if at all, a quarter of an hour later. Under 12 the hungry rule
+	 * (wantsFood) still sends the buddy home.
+	 */
+	static int netherFoodReserve(net.minecraft.client.player.LocalPlayer p) {
+		if (!fireproofReserve()) return NETHER_FOOD_RESERVE;
+		String it = Obtain.item() == null ? "" : Obtain.item();
+		if (it.startsWith("minecraft:")) it = it.substring("minecraft:".length());
+		return ObtainSafe.netherFoodReserve(true, "blaze_rod".equals(it), p.hasEffect(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE), fireResPotions(p));
+	}
+
+	/** The reserve while fire-proof in the rods: the hungry rule's own line, so only hunger sends the buddy home. */
+	static final int FIREPROOF_FOOD_RESERVE = 12;
+
+	/** The autopilot's fireproof_food_reserve switch (off by default); off without the autopilot. */
+	static boolean fireproofReserve() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("fireproof_food_reserve", 0) > 0;
+	}
+
+	/** Fire resistance potions in the bag that go down by drinking (AfkHelperClient.potionKind), short or long. */
+	static int fireResPotions(net.minecraft.client.player.LocalPlayer p) {
+		int n = 0;
+		var inv = p.getInventory();
+		for (int i = 0; i < inv.getContainerSize(); i++) {
+			var st = inv.getItem(i);
+			if (st.isEmpty() || !"potion".equals(AfkHelperClient.itemId(st))) continue;
+			String kind = AfkHelperClient.potionKind(st);
+			if (kind != null && kind.endsWith("fire_resistance")) n += st.getCount();
+		}
+		return n;
 	}
 
 	/** In the nether with nothing golden worn and the spare helmet in the bag: that one on, at once (wantsHome otherwise). */

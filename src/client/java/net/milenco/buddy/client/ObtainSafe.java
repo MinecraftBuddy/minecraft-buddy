@@ -883,6 +883,15 @@ final class ObtainSafe {
 	}
 
 	/**
+	 * The nether's food reserve under fireproof_food_reserve as a rule (Alto.netherFoodReserve): the switch, an order of blaze
+	 * rods, fire resistance on, fire resistance potions in the bag. Fire-proof in the rods, Alto.FIREPROOF_FOOD_RESERVE; else
+	 * Alto.NETHER_FOOD_RESERVE.
+	 */
+	static int netherFoodReserve(boolean on, boolean rods, boolean fireRes, int potions) {
+		return on && rods && (fireRes || potions > 0) ? Alto.FIREPROOF_FOOD_RESERVE : Alto.NETHER_FOOD_RESERVE;
+	}
+
+	/**
 	 * Which slots the nether keeps: netherrack's stacks first, the biggest first, then blackstone's and basalt's, each while the
 	 * total with it stays within NETHER_KEEP (the first stack always: one stack at most).
 	 */
