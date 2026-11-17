@@ -512,6 +512,27 @@ public final class SkelCover {
             }
         }
 
+        // (flee_arrow_dig, CombatCommit.arrowDug) a run ended for a skeleton's arrow where the ground digs: the cover is taken
+        // now, wanted this tick or not (the skeleton out of sight a moment) and whatever retry a cover before it waits for; with
+        // dig first its way is the dug-in hole. its exits are the step's, as for any cover
+        public void force(long now, float hp) {
+            if (on) return;
+            on = true;
+            gainAt = now;
+            lastHp = hp;
+            farSince = -1;
+            nightSaid = false;
+            surfaceTaken = surfaceNow;
+            dawnSaid = false;
+            lineAt = now;
+            stallSaid = false;
+            witch = false;
+            witchLineAt = Long.MIN_VALUE / 2;
+            mount = false;
+            mountAt = Long.MIN_VALUE / 2;
+            note = String.format(Locale.ROOT, "skeleton cover: an arrow in the run at %.1f hp, taking cover where the buddy stands (flee_arrow_dig)", hp);
+        }
+
         // a run or a fight took the wheel: out of cover, the next stretch with nothing committed asks again
         public void interrupt(long now, String why) {
             if (on) leave(now, why, 0);

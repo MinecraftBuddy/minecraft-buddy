@@ -550,6 +550,21 @@ public final class Tuning {
             // (SkelCover.Hold.tillDawn): about 51 of 132 deaths before the iron tools in whole runs were on the surface at night
             // with no shelter, the bed slept 6 of 146 nights on one lane of the shared servers, and the hole was never dug
             java.util.Map.entry("night_hole_bedless", 0.0),
+            // (off; an A/B's B arm turns the three on together, test vlucht, 17 Nov 2026) the overworld's flee: 126 of 476 whole runs
+            // from a bare start died before the iron tools, about 110 of 340 overworld deaths during a run.
+            // one_melee_fight: exactly one plain melee mob on the buddy, at most one skeleton with a line, no creeper within 8, a
+            // sword or an axe in the bag, on the ground, hp at max(4, 2.5 x its worst hit) or more: its fight in place of the low hp
+            // run, the fight's bail, the run's no-turn when hurt and the cap's new run (CombatCommit.meleeHold)
+            java.util.Map.entry("one_melee_fight", 0.0),
+            // cover_keep: the skeleton cover under way is not left for a low hp, shot or crowd run while the threat is arrows alone
+            // (no melee mob within 4 or on the buddy, no creeper within 6): 30 of 98 deaths in a run ran straight out of an
+            // unfinished or broken cover (CombatCommit.coverKept)
+            java.util.Map.entry("cover_keep", 0.0),
+            // flee_arrow_dig: a run under the cover's hp line that took a skeleton's arrow digs in where the ground digs, with the
+            // threat arrows alone, the cover taken whatever its retry waits for, the arrow counted for 1 s (its knock lifts the
+            // buddy off the ground the 5 ticks the old rule gave it): arrows killed about 45 of 98 that died in a run
+            // (CombatCommit.arrowEndsRun, SkelCover.Hold.force)
+            java.util.Map.entry("flee_arrow_dig", 0.0),
             // (fixes of 16 Nov 2026, a frozen-ocean start: 31 minutes of loops in M3.3's gold, no gold) the open water's land
             // search rules ice out as the ice rule's does and both ask the same search, the sea ice no dry ground for the walk out
             // of the water (BranchMineTask, ice_same_land); the ice rule picks its land again only in the land's column or after

@@ -1078,7 +1078,11 @@ final class CombatBrain {
             // key, or with a melee mob about)
             boolean overRuns = coverOn && SkelCover.overRunsOn();
             // (witch_cover: asked for the witch's cover too, the run stays where lava is near or the ground will not dig)
-            boolean asked = (overRuns || witchCover) && (coverWanted || _cover.on());
+            // (flee_arrow_dig) and in a run that took an arrow lately: the dig-in it may end in asks the ground, the skeleton in
+            // sight this tick or not
+            boolean arrowAsk = overRuns && CombatCommit.fleeArrowDigOn() && _commit.mode() == Mode.RUN
+                    && now - _shotTick <= CombatCommit.ARROW_DIG_TICKS;
+            boolean asked = ((overRuns || witchCover) && (coverWanted || _cover.on())) || arrowAsk;
             // (cave_notch_cover: or a notch in a cave wall within reach, where the floor will not dig: the cover then holds against
             // melee mobs as the dug-in hole does, in place of the run that ended cornered in 8 of 11 underground deaths read)
             boolean digHere = asked && ((_coverTask != null && _coverTask.digging())
@@ -1096,6 +1100,12 @@ final class CombatBrain {
             _commit.skelFacts(coverOn || closeOn ? new CombatCommit.Skel(_seen.kinds(), _seen.lineIds(), closeOn,
                     closeOn && lines > 0 && hasSword(mod), closeOn && lines > 0 ? armourPieces(player) : 0, coverTakes,
                     SkelCover.closeHp(), SkelCover.range(), digHere, lavaNear, overRuns, witchCover ? _seen.witchIds() : Set.of(), _shutIn) : null);
+            // (the flee fixes of 17 Nov 2026, test vlucht: one_melee_fight, cover_keep, flee_arrow_dig, all off) on the ground (the
+            // overworld only: the other dimensions keep their own fights), a sword or an axe in the bag (asked only with
+            // one_melee_fight on and a melee mob within the low hp range), the cover under way on the last step, its hp line
+            _commit.fleeFacts(overworld && player.onGround(),
+                    overworld && CombatCommit.oneMeleeFightOn() && meleeWithinRange(foes, CombatCommit.LOW_HP_RANGE) && hasBlade(mod),
+                    _cover.on(), SkelCover.hpLine());
             // (Tuning witch_melee_reach, a fix of 14 Nov 2026, on: a witch within reach is a melee foe with a sword or an axe at hand
             // and no other shooter's line; the bag is asked only with a witch in reach)
             boolean witchReach = WitchRules.meleeReachOn();
@@ -1136,6 +1146,8 @@ final class CombatBrain {
                 _cover.nightHoleFacts(dawnKey, dawnKey && adris.altoclef.tasks.speedrun.gamer.NightShelter.dark(!mod.getWorld().isBrightOutside(),
                         mod.getWorld().getOverworldClockTime(), 0), dawnKey && adris.altoclef.tasks.speedrun.gamer.SmeltSurface.depthBelowSky(mod)
                         <= adris.altoclef.tasks.speedrun.gamer.NightShelter.SURFACE_DEPTH);
+                // (flee_arrow_dig) the run just ended for an arrow in a dig-in the cover had not taken the buddy for: taken now
+                if (_commit.arrowDug()) _cover.force(now, player.getHealth());
                 _cover.step(now, coverWanted, coverOffered, player.getHealth(), SkelCover.hpLine(), lines, _seen.lineDist(), _seen.nearest(),
                         mod.getFoodChain().isTryingToEat(), _coverTask == null ? null : _coverTask.failed(), mod.getFoodChain().hasFood(),
                         overRuns && meleeWithin(foes, _seen, CombatCommit.LOW_HP_RANGE));
@@ -1383,6 +1395,14 @@ final class CombatBrain {
     private static boolean lavaClose(AltoClef mod, LocalPlayer player, List<Foe> foes, Foe target) {
         if (mod.getClientBaritone().bsi == null || !CombatRules.cubeAbout(foes, target)) return false;
         return LavaShore.lavaDeepNear(CliffAvoidance.of(mod.getClientBaritone().bsi), player.getX(), player.getY(), player.getZ(), LavaShore.GROUND_CLEAR);
+    }
+
+    // (one_melee_fight) any melee mob among the foes within range: only then is the bag asked for a blade
+    private static boolean meleeWithinRange(List<Foe> foes, double range) {
+        for (Foe foe : foes) {
+            if (foe.melee() && foe.distance() <= range) return true;
+        }
+        return false;
     }
 
     // (skel_cover_over_runs) a plain melee mob among the foes within range (no skeleton kind, creeper, witch, heavy hitter or

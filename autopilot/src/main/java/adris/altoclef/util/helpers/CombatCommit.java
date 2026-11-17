@@ -1185,7 +1185,7 @@ public final class CombatCommit {
     // (skel_cover) the cover takes the buddy and every shooter with a line that hit us lately is a skeleton kind: no run from
     // their arrows, the cover is the answer
     private boolean coverForShots(Tick t) {
-        if (skel == null || !skel.cover()) return false;
+        if (!coverTakes(t)) return false;
         for (Foe foe : t.foes()) {
             if (foe.ranged() && !foe.creeper() && foe.shooting() && !skel.coverKind(foe.id())) return false;
         }
@@ -1244,7 +1244,7 @@ public final class CombatCommit {
     // (pillbox_hold_melee) or where the buddy stands shut in already: test heel, a shut pillbox was left at once for a fight with a
     // spider, and skeletons and a zombie killed the buddy outside it
     private boolean coverHolds(Tick t) {
-        if (skel == null || !skel.cover() || skel.lavaNear()) return false;
+        if (!coverTakes(t) || skel.lavaNear()) return false;
         if (!coverForShots(t) || endermanAbout(t) != null || t.creeperRepeat()) return false;
         boolean melee = false;
         for (Foe foe : t.foes()) {
@@ -1265,12 +1265,23 @@ public final class CombatCommit {
     private boolean arrowEndsRun(Tick t) {
         if (skel == null || !skel.overRuns() || !skel.dig() || walling) return false;
         if (why != Why.SHOT && why != Why.LOW_HP && why != Why.CROWD && why != Why.UNARMED) return false;
+        // (flee_arrow_dig) the arrow counts for ARROW_DIG_TICKS, not FRESH: its knock lifts the buddy off the ground for about
+        // half a second, and the ground is asked only on the ground, so a 5 tick window was mostly spent in the air
+        boolean digKey = fleeArrowDigOn() && meter == null;
+        long window = digKey ? ARROW_DIG_TICKS : FRESH;
         boolean arrow = false;
         for (Foe foe : t.foes()) {
-            if (!foe.ranged() || foe.creeper() || !skel.kinds().contains(foe.id()) || foe.sinceHit() > FRESH) continue;
+            if (!foe.ranged() || foe.creeper() || !skel.kinds().contains(foe.id()) || foe.sinceHit() > window) continue;
             if (t.now() - foe.sinceHit() - clockSkew > startTick) arrow = true;
         }
-        return arrow && coverOverRun(t, why);
+        if (!arrow) return false;
+        if (coverOverRun(t, why)) return true;
+        if (!digKey || !arrowDigHolds(t)) return false;
+        // (flee_arrow_dig) the cover did not take the buddy this tick (a retry waited for, the skeleton out of sight a moment):
+        // the brain takes it on the step it hears of this (arrowDug), and until then the machine counts it as taken
+        arrowDugAt = t.now();
+        arrowDugNow = true;
+        return true;
     }
 
     // (skel_close_rule) why a walk up to this skeleton is off, null when it may go or the rule has no say (not the overworld, the
@@ -1595,6 +1606,14 @@ public final class CombatCommit {
         wallFailedAt = Long.MIN_VALUE / 2;
         wallState = WallState.NONE;
         wallOffered = false;
+        meleeWorst.clear();
+        meleeHeldId = -1;
+        arrowDugAt = Long.MIN_VALUE / 2;
+        arrowDugNow = false;
+        fleeGround = false;
+        fleeBlade = false;
+        coverHeld = false;
+        coverLine = SkelCover.HP_LINE;
         recover.reset();
     }
 
@@ -1637,6 +1656,8 @@ public final class CombatCommit {
         // those), so the clock just stands still instead of wiping a live run and every "since" going negative
         clockSkew = lastTick != Long.MIN_VALUE && t.now() < lastTick ? lastTick - t.now() : 0;
         if (clockSkew > 0) t = t.withNow(lastTick);
+        // (one_melee_fight) the drop since the last step, read before watchHits moves lastHp on
+        noteMeleeHit(t, lastTick != Long.MIN_VALUE && t.now() - lastTick <= HIT_WATCH_GAP ? lastHp - t.health() : 0);
         t = t.withNextHit(watchHits(t));
         stepFoes = t.foes();
         if (mode != Mode.NONE) {
@@ -1650,6 +1671,7 @@ public final class CombatCommit {
         }
         lastTick = t.now();
         endedFirst = Event.NONE;
+        arrowDugNow = false;
         recover.update(t.now(), t.health(), mode != Mode.NONE, t.body());
         tickLatch(t);
         Mode before = mode;
@@ -1824,6 +1846,212 @@ public final class CombatCommit {
     private boolean lowChase(Tick t) {
         float memory = overlapsChase(nearMelee(t)) ? runMaxHit : 0;
         return t.health() - Math.max(t.nextHit(), memory) <= FLEE_HP;
+    }
+
+    // ---- the flee fixes of 17 Nov 2026 (test vlucht): each its own Tuning key, off; an A/B's B arm turns them on together.
+    // in whole runs from a bare start 126 of 476 died before the iron tools, about 110 of 340 overworld deaths during a run:
+    // a melee mob on the buddy that the run never shook off, arrows in the run (about 45 of 98 read), a run straight out of an
+    // unfinished or broken skeleton cover (30 of 98)
+
+    // the world's side, handed in by the brain before each step (fleeFacts). ground: the buddy stands on the ground; blade: a
+    // sword or an axe in the bag (asked only with one_melee_fight on and a melee mob within LOW_HP_RANGE); coverHeld: the
+    // skeleton cover was under way on the last step (SkelCover.Hold on); coverLine: the cover's hp line (SkelCover.hpLine). a
+    // bare machine has no ground, no blade and no cover, so the rules below have nothing to act on there
+    private boolean fleeGround;
+    private boolean fleeBlade;
+    private boolean coverHeld;
+    private float coverLine = SkelCover.HP_LINE;
+
+    public void fleeFacts(boolean ground, boolean blade, boolean coverHeld, float coverLine) {
+        fleeGround = ground;
+        fleeBlade = blade;
+        this.coverHeld = coverHeld;
+        this.coverLine = coverLine;
+    }
+
+    // (Tuning one_melee_fight, off) exactly one plain melee mob on the buddy is fought where it stands, not run from: the run
+    // from one zombie at 8 to 11 hp with a sword in the bag was a jog with it hitting the buddy's back (7 of 16 deaths read with
+    // a melee mob on the buddy, never shaken off). holdMelee, the fight's bail, hitThrough and capped ask meleeHold
+    public static boolean oneMeleeFightOn() {
+        return Tuning.get("one_melee_fight", 0) > 0;
+    }
+
+    // (Tuning cover_keep, off) the skeleton cover under way is not left for a run while the threat is arrows alone (coverKept)
+    static boolean coverKeepOn() {
+        return Tuning.get("cover_keep", 0) > 0;
+    }
+
+    // (Tuning flee_arrow_dig, off) a run under the cover's hp line that took a skeleton's arrow digs in where the buddy stands
+    // when the ground digs, with no melee mob within KEEP_MELEE_RANGE, whether or not the cover took the buddy that tick
+    // (arrowEndsRun, arrowDigHolds); the brain takes the cover on hearing it (arrowDug, SkelCover.Hold.force)
+    public static boolean fleeArrowDigOn() {
+        return Tuning.get("flee_arrow_dig", 0) > 0;
+    }
+
+    // (one_melee_fight) the hold's hp line: at least MELEE_HOLD_MIN_HP, and MELEE_HOLD_HITS of the mob's worst hit
+    static final float MELEE_HOLD_MIN_HP = 4;
+    static final float MELEE_HOLD_HITS = 2.5f;
+    // (one_melee_fight) an hp drop with exactly one melee mob whose hit is this fresh is that mob's hit
+    static final long HIT_OWNER_TICKS = 2;
+    // (cover_keep, flee_arrow_dig) a melee mob this close is no longer "arrows alone"
+    static final double KEEP_MELEE_RANGE = 4;
+    // (flee_arrow_dig) how long an arrow in the run counts for the dig-in (1 s)
+    public static final long ARROW_DIG_TICKS = 20;
+
+    // (one_melee_fight) the biggest hit each melee mob landed, by its id; thinned to the foes about when it grows
+    private final Map<Integer, Float> meleeWorst = new HashMap<>();
+    // (one_melee_fight) the fight target the hold was said for, so the fight says it once
+    private int meleeHeldId = -1;
+    // (flee_arrow_dig) the step a run ended in a dig-in the cover had not taken the buddy for, and whether that was this step
+    private long arrowDugAt = Long.MIN_VALUE / 2;
+    private boolean arrowDugNow;
+
+    private void noteMeleeHit(Tick t, float drop) {
+        if (drop <= 0.01f) return;
+        Foe owner = null;
+        for (Foe foe : t.foes()) {
+            if (!foe.melee() || foe.sinceHit() > HIT_OWNER_TICKS) continue;
+            // (two hit at once: whose hit it was is not known)
+            if (owner != null) return;
+            owner = foe;
+        }
+        if (owner == null) return;
+        if (meleeWorst.size() > 32) {
+            Set<Integer> about = new HashSet<>();
+            for (Foe foe : t.foes()) about.add(foe.id());
+            meleeWorst.keySet().retainAll(about);
+        }
+        meleeWorst.merge(owner.id(), drop, Math::max);
+    }
+
+    // (one_melee_fight) the biggest hit this mob has landed (0 for none seen)
+    float worstHit(int id) {
+        return meleeWorst.getOrDefault(id, 0f);
+    }
+
+    // (one_melee_fight) the one plain melee mob whose fight is held in place of the hp run, null when the shape is not this one:
+    // exactly one melee mob within LOW_HP_RANGE and it on the buddy (engaged), a plain one (no cube that splits, no wither
+    // skeleton, not in the water), no creeper within LOW_HP_RANGE, nothing we only run from close (danger), at most one skeleton
+    // with a line (lines: the cover's count by sight; the foes' own lines counted too) and no other shooter landing, a sword or an
+    // axe in the bag, on the ground, nothing ticking on the buddy, and the hp at max(MELEE_HOLD_MIN_HP, MELEE_HOLD_HITS x its
+    // worst hit) or more. its worst hit: the biggest it landed (worstHits), or the next hit the hp says (nextHit), the bigger
+    static Foe meleeHold(List<Foe> foes, float health, float nextHit, Map<Integer, Float> worstHits, int lines, boolean blade,
+                         boolean ground, boolean lingering) {
+        if (!blade || !ground || lingering) return null;
+        float guard = guardHealth(health, nextHit);
+        Foe one = null;
+        int bows = 0;
+        for (Foe foe : foes) {
+            if (foe.danger(guard)) return null;
+            if (foe.creeper()) {
+                if (foe.distance() <= LOW_HP_RANGE) return null;
+                continue;
+            }
+            if (foe.ranged()) {
+                if (foe.bow()) {
+                    if ((foe.sight() || foe.shooting()) && foe.distance() <= FOE_RANGE) bows++;
+                } else if (foe.shooting()) {
+                    // a witch or a blaze landing its throws is not this shape
+                    return null;
+                }
+                continue;
+            }
+            if (foe.distance() > LOW_HP_RANGE) continue;
+            if (one != null) return null;
+            one = foe;
+        }
+        if (one == null || !engaged(one, false) || one.kind() != Kind.NORMAL || one.wither() || one.wet() || one.splitType() != null) return null;
+        if (Math.max(bows, lines) > 1) return null;
+        return health >= meleeHoldLine(Math.max(nextHit, worstHits.getOrDefault(one.id(), 0f))) ? one : null;
+    }
+
+    static float meleeHoldLine(float worst) {
+        return Math.max(MELEE_HOLD_MIN_HP, MELEE_HOLD_HITS * worst);
+    }
+
+    // (one_melee_fight) the hold with the key on, as the machine sees it now: not boxed in or with a fast mob on us (those keep
+    // their cornered fight, which never bails), no enderman about, not the meter's call, not one we wrote off
+    private Foe meleeHold(Tick t) {
+        if (!oneMeleeFightOn() || meter != null || t.boxed() || fastTarget(t) != null || endermanAbout(t) != null) return null;
+        Foe one = meleeHold(t.foes(), t.health(), t.nextHit(), meleeWorst, skel == null ? 0 : skel.lines().size(), fleeBlade, fleeGround,
+                t.lingering());
+        if (one == null || stillIgnored(one, t.now())) return null;
+        return one;
+    }
+
+    private Event holdMelee(Tick t, Foe one) {
+        idleNote = meleeHoldNote(t, one, "the fight, not the run");
+        Event event = startFight(t, one, Why.HIT, Event.FIGHT_START, false);
+        meleeHeldId = one.id();
+        return event;
+    }
+
+    private String meleeHoldNote(Tick t, Foe one, String what) {
+        float worst = Math.max(t.nextHit(), worstHit(one.id()));
+        return String.format(java.util.Locale.ROOT, "one_melee_fight: foe #%d on the buddy %.1f blocks off, hp %.1f, its worst hit %.1f"
+                + " (line %.1f): %s", one.id(), one.distance(), t.health(), worst, meleeHoldLine(worst), what);
+    }
+
+    // (cover_keep, flee_arrow_dig) the threat is arrows alone: nothing we only run from close, no creeper within
+    // SkelCover.CREEPER_RANGE, and no melee mob within KEEP_MELEE_RANGE or on the buddy (one that hit it lately within the swarm
+    // range: knocked back, it is still on the buddy)
+    static boolean arrowsAlone(List<Foe> foes, float guard) {
+        for (Foe foe : foes) {
+            if (foe.danger(guard)) return false;
+            if (foe.creeper()) {
+                if (foe.distance() <= SkelCover.CREEPER_RANGE) return false;
+                continue;
+            }
+            if (foe.melee() && (foe.distance() <= KEEP_MELEE_RANGE || engaged(foe, false))) return false;
+        }
+        return true;
+    }
+
+    // (Tuning cover_keep, off) a run for low hp, a shot or a crowd with the skeleton cover under way (taken on an earlier step
+    // and still on: the hole or the pillbox going up, or one with a block short) is no run while the threat is arrows alone:
+    // the cover goes on, is finished, or digs in (its own task's ways), and the run into the open does not start. the rest of
+    // the old gate stays: every shooter with a line a kind the cover acts on, no lava near, no enderman, no creeper that keeps
+    // coming back, not the meter's call. 30 of 98 deaths in a run read ran straight out of an unfinished or broken skeleton
+    // cover; a run from it ended the cover (CombatBrain, "a run took over") with zombies 5 to 8 off or the ground not digging
+    private boolean coverKept(Tick t, Why reason) {
+        if (!coverKeepOn() || !coverHeld || meter != null || !coverTakes(t) || skel.lavaNear()) return false;
+        if (reason != Why.SHOT && reason != Why.LOW_HP && reason != Why.CROWD) return false;
+        if (!coverForShots(t) || endermanAbout(t) != null || t.creeperRepeat()) return false;
+        if (!arrowsAlone(t.foes(), t.guardHealth())) return false;
+        skelNote(t, coverName(t) + " kept: arrows alone, no melee mob within " + (int) KEEP_MELEE_RANGE + " [" + reason + "] (cover_keep)");
+        return true;
+    }
+
+    // the cover takes the buddy this tick: the brain says so (SkelCover.Hold.takes), or (flee_arrow_dig) a run ended this step
+    // or the last in a dig-in the cover had not taken the buddy for, which the brain takes on hearing it
+    private boolean coverTakes(Tick t) {
+        return skel != null && (skel.cover() || (t.now() >= arrowDugAt && t.now() - arrowDugAt <= 1));
+    }
+
+    // (flee_arrow_dig) the run that took an arrow ends in the dug-in cover without the cover's own say: under the cover's hp line,
+    // no lava near, no enderman, no creeper that keeps coming back, every shooter with a line a kind the cover acts on, the
+    // threat arrows alone, and every other foe about a plain melee mob or a creeper out of SkelCover.CREEPER_RANGE (the kinds
+    // the dug-in cover holds against, as coverHolds asks them). the ground digging is the caller's (Skel.dig)
+    private boolean arrowDigHolds(Tick t) {
+        if (t.health() > coverLine || skel.lavaNear() || endermanAbout(t) != null || t.creeperRepeat()) return false;
+        if (!arrowDigShape(t.foes(), t.guardHealth(), skel)) return false;
+        return true;
+    }
+
+    static boolean arrowDigShape(List<Foe> foes, float guard, Skel skel) {
+        if (!arrowsAlone(foes, guard)) return false;
+        for (Foe foe : foes) {
+            if (skel.coverKind(foe.id())) continue;
+            if (foe.creeper()) continue;
+            if (foe.ranged() && foe.shooting()) return false;
+            if (!foe.melee() || foe.kind() != Kind.NORMAL || foe.wither()) return false;
+        }
+        return true;
+    }
+
+    // (flee_arrow_dig) the last step ended a run in a dig-in the cover had not taken the buddy for: the brain takes the cover now
+    public boolean arrowDug() {
+        return arrowDugNow;
     }
 
     // ---- PERCH
@@ -2078,9 +2306,14 @@ public final class CombatCommit {
             if (coverOverRun(t, run)) return Event.NONE;
             run = Why.NONE;
         }
+        // (cover_keep) the cover under way is not left for a run from arrows alone
+        if (coverKept(t, run)) return Event.NONE;
         if (run != Why.NONE) {
             // (mounted_no_run) a mounted melee mob about: the cover, no run on foot
             if (mountInstead(t, run)) return Event.NONE;
+            // (one_melee_fight) one plain melee mob on the buddy: its fight, not the run
+            Foe one = run == Why.LOW_HP ? meleeHold(t) : null;
+            if (one != null) return holdMelee(t, one);
             return runOrBox(t, run);
         }
         // cooldown or not: it is not something hitting us again, it is the creeper step going round in circles. a committed
@@ -2106,9 +2339,14 @@ public final class CombatCommit {
                 if (coverOverRun(t, again)) return Event.NONE;
                 again = Why.NONE;
             }
+            // (cover_keep) the same in the heal hold
+            if (coverKept(t, again)) return Event.NONE;
             if (again != Why.NONE) {
                 // (mounted_no_run) the same in the heal hold
                 if (mountInstead(t, again)) return Event.NONE;
+                // (one_melee_fight) the same in the heal hold
+                Foe one = again == Why.LOW_HP ? meleeHold(t) : null;
+                if (one != null) return holdMelee(t, one);
                 return runOrBox(t, again);
             }
         }
@@ -2750,6 +2988,17 @@ public final class CombatCommit {
             if ((bail == Why.LOW_HP || bail == Why.SHOT) && t.health() > FLEE_HP) bail = runReason(withoutFoe(t, targetId), false, t.nextHit(), true);
             if (bail == Why.NONE && t.health() <= FLEE_HP) bail = Why.LOW_HP;
         }
+        // (one_melee_fight) the low hp bail from the one plain melee mob we are fighting waits for the hold's own line
+        if (bail == Why.LOW_HP && held == null && target != null && meter == null) {
+            Foe one = meleeHold(t);
+            if (one != null && one.id() == target.id()) {
+                if (meleeHeldId != target.id()) {
+                    meleeHeldId = target.id();
+                    idleNote = meleeHoldNote(t, one, "the fight goes on");
+                }
+                bail = Why.NONE;
+            }
+        }
         // the latch is about melee on us, so a run under the hp line with only the blaze left would never get past it, and the
         // hp line is the one thing the pick promised to keep
         boolean blazeHpLine = lobberPick && meter == null && target != null && target.kind() == Kind.FLYER && t.health() <= FLEE_HP;
@@ -3096,6 +3345,7 @@ public final class CombatCommit {
         }
         contacted = false;
         lobberPick = false;
+        meleeHeldId = -1;
         atRange = foe.kind() == Kind.LOBBER || reason == Why.PINNED;
         walling = false;
         mode = Mode.FIGHT;
@@ -3441,7 +3691,13 @@ public final class CombatCommit {
         // gave up on (the run just ends, the cooldown waits for one of them to get on us or hit us)
         // and with danger about a fight would only bail again on the next step, so it is the next run straight away
         if (chaser == null || anyDanger(t) || creeperHolds(t)) return end(t, Event.RUN_CAP);
-        if (lowChase(t) && !t.boxed() && fastTarget(t) == null) return startRun(t, Why.LOW_HP, Event.RUN_START);
+        if (lowChase(t) && !t.boxed() && fastTarget(t) == null) {
+            // (one_melee_fight) the one plain melee mob on the buddy at the cap, the hp at its line: turned on, not a new run
+            Foe one = meleeHold(t);
+            if (one == null) return startRun(t, Why.LOW_HP, Event.RUN_START);
+            idleNote = meleeHoldNote(t, one, "on the buddy at the run's cap, turning on it");
+            chaser = one;
+        }
         // (unarmed_no_chase_fight) unarmed: a wall instead, the fight only with nothing to wall with
         if (wallInstead(t, chaser, true)) return Event.NONE;
         return startFight(t, chaser, Why.CHASED, Event.RUN_CHASED_FIGHT, true);
@@ -3468,8 +3724,11 @@ public final class CombatCommit {
         // hurt, turning round is the fight that ends us. the run keeps going, boxed in the corner rules still fight
         // (the worst hit of the chase counts, not just the last two seconds of them; with the meter deciding there is no such
         // line: the fight holds)
-        if (meter == null && lowChase(t)) return Event.NONE;
-        Foe pick = hitPick(t);
+        // (one_melee_fight: not when it is the one plain melee mob on the buddy and the hp holds its line)
+        Foe one = meter == null && lowChase(t) ? meleeHold(t) : null;
+        if (meter == null && lowChase(t) && one == null) return Event.NONE;
+        if (one != null) idleNote = meleeHoldNote(t, one, "it hit through the run, turning on it");
+        Foe pick = one != null ? one : hitPick(t);
         if (pick == null) return Event.NONE;
         return hold(startFight(t, pick, Why.CHASED, Event.RUN_CHASED_FIGHT, true), pick);
     }
