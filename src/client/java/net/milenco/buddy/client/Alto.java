@@ -864,15 +864,23 @@ final class Alto {
 	/**
 	 * The kit's spare shield, while the one in the off hand is at its last uses and no other is in the bag; or null. Outside the
 	 * overworld only with the makings in the bag: with no iron in the nether, Soprano's bill for the shield built a portal of its
-	 * own, went home for iron ore and came back, six game minutes out of a blaze run (8 Nov 2026).
+	 * own, went home for iron ore and came back, six game minutes out of a blaze run (8 Nov 2026). On the route's deep stretch
+	 * the same with the autopilot's spare_shield_deep (off by default): the bill climbed to the surface for wood, in M3.1 and
+	 * M3.2 of whole runs, and one such climb ended drowned at y 70.
 	 */
 	private static Run spareShield(net.minecraft.client.player.LocalPlayer p, java.util.function.Predicate<String> skip) {
 		var off = p.getOffhandItem();
 		if (!off.is(net.minecraft.world.item.Items.SHIELD) || !adris.altoclef.util.helpers.ToolWear.wornOut(off.getDamageValue(), off.getMaxDamage())
 				|| ObtainSteps.count(p, "shield") >= 2 || skip.test("kit a spare shield")) return null;
-		if (!p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD) && !shieldMakings(p)) return null;
+		boolean bagOnly = ObtainSafe.spareShieldBagOnly(spareShieldDeep(), p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD), routeDeep(p));
+		if (bagOnly && !shieldMakings(p)) return null;
 		return new Run("kit a spare shield", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
 			new adris.altoclef.util.ItemTarget("shield", 2))));
+	}
+
+	/** The autopilot's spare_shield_deep switch (off by default); off without the autopilot. */
+	static boolean spareShieldDeep() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("spare_shield_deep", 0) > 0;
 	}
 
 	/**
@@ -1473,12 +1481,30 @@ final class Alto {
 		boolean open = p.level().canSeeSky(p.blockPosition().above()) || nether && atNetherPortal();
 		// (on the route's deep stretch, by day: under DEEP_FOOD_FLOOR the food comes from the surface (deepFood) while some is
 		// left; at 12 in the deep the food run hunted through caves at low health, and both deaths of gold smoke 2 followed)
-		if (routeDeep(p) && !open && score < DEEP_FOOD_FLOOR && !Obtain.dark(p)) return true;
+		if (routeDeep(p) && !open && score < deepFoodFloor() && !Obtain.dark(p)) return true;
 		return score < 12 || score < sky && open || hungryNow;
 	}
 
 	/** The bag's food points under which the route's deep stretch goes up for food by day: five steaks. */
 	static final int DEEP_FOOD_FLOOR = 40;
+
+	/** The same in M3.2 with deep_food_late: two steaks. */
+	static final int DEEP_FOOD_LATE = 16;
+
+	/**
+	 * The deep stretch's daytime floor for a food trip to the surface: DEEP_FOOD_LATE in M3.2 with the autopilot's
+	 * deep_food_late (off by default), else DEEP_FOOD_FLOOR. A trip in the middle of the obsidian took 10 to 17 game minutes,
+	 * nearly always into the night, and the cast was built again where the trip ended, at the surface or halfway up: 17 of 28
+	 * logged M3.2 losses of whole runs had one. Hungry now and under 12 points still send the buddy up.
+	 */
+	static int deepFoodFloor() {
+		return ObtainSafe.deepFoodFloor(deepFoodLate(), ObtainRoute.phase());
+	}
+
+	/** The autopilot's deep_food_late switch (off by default); off without the autopilot. */
+	static boolean deepFoodLate() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("deep_food_late", 0) > 0;
+	}
 
 	/** The route's deep stretch in the overworld: from the diamonds (M3.1) to the slime ball (M3.3b), before the portal's phase. */
 	static boolean routeDeep(net.minecraft.client.player.LocalPlayer p) {

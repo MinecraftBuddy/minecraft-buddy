@@ -892,6 +892,22 @@ final class ObtainSafe {
 	}
 
 	/**
+	 * The deep stretch's daytime floor for a food trip to the surface under deep_food_late as a rule (Alto.deepFoodFloor): the
+	 * switch and the route's phase. In M3.2 with the switch, Alto.DEEP_FOOD_LATE; else Alto.DEEP_FOOD_FLOOR.
+	 */
+	static int deepFoodFloor(boolean on, int phase) {
+		return on && phase == ObtainRoute.M3_2 ? Alto.DEEP_FOOD_LATE : Alto.DEEP_FOOD_FLOOR;
+	}
+
+	/**
+	 * Whether the spare shield is made only from the makings in the bag (Alto.spareShield): outside the overworld always, on
+	 * the route's deep stretch with spare_shield_deep.
+	 */
+	static boolean spareShieldBagOnly(boolean on, boolean overworld, boolean deep) {
+		return !overworld || on && deep;
+	}
+
+	/**
 	 * Which slots the nether keeps: netherrack's stacks first, the biggest first, then blackstone's and basalt's, each while the
 	 * total with it stays within NETHER_KEEP (the first stack always: one stack at most).
 	 */
