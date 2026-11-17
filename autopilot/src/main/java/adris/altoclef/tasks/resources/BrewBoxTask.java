@@ -11,6 +11,7 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.BlazeCover;
 import adris.altoclef.util.helpers.BlazeShelter;
+import adris.altoclef.util.helpers.BoxCrowd;
 import adris.altoclef.util.helpers.BrewBox;
 import adris.altoclef.util.helpers.EntityHelper;
 import adris.altoclef.util.helpers.FireRes;
@@ -292,6 +293,49 @@ final class BrewBoxTask extends Task {
         return holdsWas;
     }
 
+    // Tuning box_crowd_hold (BoxCrowd): when the hold began (MIN_VALUE before), whether it has run, and the blazes it last counted
+    private long crowdSince = Long.MIN_VALUE;
+    private boolean crowdHeld;
+    private boolean crowdDone;
+    private int crowdClose;
+
+    // whether the shut box stays shut this tick for the crowd at its walls: BoxCrowd.holds, said when the hold begins and ends
+    private boolean crowdHolds(AltoClef mod, net.minecraft.world.entity.LivingEntity me, long now) {
+        if (crowdDone || !BoxCrowd.on()) return false;
+        int close = crowdClose;
+        try {
+            int n = 0;
+            for (net.minecraft.world.entity.monster.Blaze b : mod.getEntityTracker().getTrackedEntities(net.minecraft.world.entity.monster.Blaze.class)) {
+                if (b.isAlive() && b.distanceTo(me) <= BoxCrowd.CROWD_RADIUS) n++;
+            }
+            close = n;
+        } catch (java.util.ConcurrentModificationException ignored) {
+            // the tracker rebuilds on another thread sometimes: the last count
+        }
+        crowdClose = close;
+        int effect = BlazeFight.fireResTicks(me);
+        if (crowdSince == Long.MIN_VALUE || now < crowdSince) {
+            if (!BoxCrowd.holds(true, effect, close, 0)) {
+                crowdDone = true;
+                return false;
+            }
+            crowdSince = now;
+            crowdHeld = true;
+            Debug.logInternal(what() + ": shut while " + close + " blazes are within " + (int) BoxCrowd.CROWD_RADIUS
+                    + " of the buddy, " + BlazeFight.effectLeft(me) + " of fire resistance (box_crowd_hold)");
+            return true;
+        }
+        long held = now - crowdSince;
+        if (BoxCrowd.holds(true, effect, close, held)) return true;
+        if (crowdHeld) {
+            crowdHeld = false;
+            Debug.logInternal(what() + ": opening after " + held / 20 + " s shut, " + BoxCrowd.endWhy(effect, close, held) + " (box_crowd_hold)");
+        }
+        // (once per box: a crowd back at the walls after the hold ended opens the box all the same)
+        crowdDone = true;
+        return false;
+    }
+
     // a hit taken inside the box, every tick the rods task runs: the game hands a fresh source object per hit
     void noteHits(AltoClef mod) {
         var me = mod.getPlayer();
@@ -481,6 +525,12 @@ final class BrewBoxTask extends Task {
             case DRINK -> {
                 var me = mod.getPlayer();
                 if (me.hasEffect(MobEffects.FIRE_RESISTANCE) || (BrewFireResistanceTask.fireRes(mod) == 0 && !me.isUsingItem())) {
+                    // (Tuning box_crowd_hold, off by default: not opened into a crowd of blazes at the walls, BoxCrowd. the stage
+                    // stays DRINK, so the box still holds and the fight sits out)
+                    if (me.hasEffect(MobEffects.FIRE_RESISTANCE) && crowdHolds(mod, me, now)) {
+                        setDebugState("Shut in the box while the blazes crowd it");
+                        return null;
+                    }
                     stage = Stage.OPEN;
                     return null;
                 }

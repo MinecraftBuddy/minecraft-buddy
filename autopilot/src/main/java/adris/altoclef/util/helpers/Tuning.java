@@ -565,6 +565,18 @@ public final class Tuning {
             // buddy off the ground the 5 ticks the old rule gave it): arrows killed about 45 of 98 that died in a run
             // (CombatCommit.arrowEndsRun, SkelCover.Hold.force)
             java.util.Map.entry("flee_arrow_dig", 0.0),
+            // (off; an A/B's B arm turns the three on together, test staven, 17 Nov 2026) the route's phase 6, the other rods under
+            // the brewed potions: whole runs passed it 39 of 62 times, the drill with the same fortresses 56 of 63.
+            // fireproof_food_reserve (read by the buddy, Alto.wantsHome): with fire resistance on or a fire resistance potion in the
+            // bag, an order of blaze rods in the nether goes home for food under 12 points, not 36; under 12 the hungry rule still
+            // sends it. 10 of 59 whole runs went home for food in the middle of the rods (9 lost), the drill's 48 steaks never did
+            java.util.Map.entry("fireproof_food_reserve", 0.0),
+            // box_crowd_hold: the brew box stays shut under fire resistance while 3 or more blazes are within 4 of the buddy, at
+            // most a minute (BoxCrowd): 5 of 23 phase-6 losses opened the box into a crowd and died to bites within 1.5 minutes
+            java.util.Map.entry("box_crowd_hold", 0.0),
+            // camp_step_in: three game minutes at the fire-proof camp of the pillbox's open side with no rod and no blaze gone
+            // after, a stand within 4 of the spawner (CampStepIn): 2 of 23 losses waited there 15 minutes with no blaze in reach
+            java.util.Map.entry("camp_step_in", 0.0),
             // (fixes of 16 Nov 2026, a frozen-ocean start: 31 minutes of loops in M3.3's gold, no gold) the open water's land
             // search rules ice out as the ice rule's does and both ask the same search, the sea ice no dry ground for the walk out
             // of the water (BranchMineTask, ice_same_land); the ice rule picks its land again only in the land's column or after

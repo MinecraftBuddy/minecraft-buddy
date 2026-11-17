@@ -1065,6 +1065,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 setDebugState("Luring the blazes round the corner");
                 return _lure;
             }
+            // (the buddy's fork, Tuning camp_step_in, off by default: minutes at the fire-proof camp of the open side with no
+            // blaze in reach, a stand by the spawner, campStepIn; the walk to it from the next tick)
+            campStepIn(mod);
             setDebugState(_fight.around() > 0 ? "Waiting for the blazes to come in reach" : "Waiting near blaze spawner for blazes to spawn");
             return null;
         }
@@ -3747,6 +3750,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_rushStands == null || !_campFireproof || _foundBlazeSpawner == null || !_foundBlazeSpawner.equals(_campSpotFor)) return false;
         if (++_rushWalkTicks < FightOpenRules.RUSH_WALK_TICKS) return false;
         _rushWalkTicks = 0;
+        // (Tuning camp_step_in: its stands walked as the rush's; the last one not reached either, back to the open side)
+        if (stepInCamp()) {
+            BlockPos was = rushStandPos();
+            if (_rushStand + 1 >= _rushStands.size() || _fireproofSpot == null) {
+                _rushStands = null;
+                _campSpot = _fireproofSpot;
+                Debug.logInternal("camp step in: the stand at " + was.toShortString() + " not reached in " + FightOpenRules.RUSH_WALK_TICKS / 20
+                        + " s, no other stand by the spawner, back to the open side" + (_campSpot != null ? " " + _campSpot.toShortString() : ""));
+                return true;
+            }
+            _rushStand++;
+            _campSpot = rushStandPos();
+            Debug.logInternal("camp step in: the stand at " + was.toShortString() + " not reached in " + FightOpenRules.RUSH_WALK_TICKS / 20 + " s, at "
+                    + rushStandPos().toShortString() + " next (stand " + (_rushStand + 1) + " of " + _rushStands.size() + ")");
+            return true;
+        }
         if (_rushStand + 1 >= _rushStands.size()) {
             Debug.logInternal("rush: the stand at " + rushStandPos().toShortString() + " not reached in " + FightOpenRules.RUSH_WALK_TICKS / 20
                     + " s, no other stand by the spawner, the walk goes on");
@@ -3758,6 +3777,49 @@ public class CollectBlazeRodsTask extends ResourceTask {
         Debug.logInternal("rush: the stand at " + was.toShortString() + " not reached in " + FightOpenRules.RUSH_WALK_TICKS / 20 + " s, at "
                 + rushStandPos().toShortString() + " next (stand " + (_rushStand + 1) + " of " + _rushStands.size() + ")");
         return true;
+    }
+
+    // ---- the buddy's fork, Tuning camp_step_in (CampStepIn, off by default, 17 Nov 2026): the fire-proof camp steps in
+
+    // the camp pick (its _campPickedAt) whose camp stepped in, once a camp, and the stands it took (the rush's fields hold them)
+    private long _stepInPick = Long.MIN_VALUE;
+    private List<int[]> _stepInStands;
+
+    // the stands taken are camp_step_in's, not the rush's
+    private boolean stepInCamp() {
+        return _rushStands != null && _rushStands == _stepInStands;
+    }
+
+    // at the camp with no blaze in reach this tick (the wait): after CampStepIn.DRY_TICKS at the fire-proof camp of the open side
+    // with no rod, no blaze gone after and no new camp, the camp is a stand by the spawner (CampStepIn.stands), walked to and
+    // given up for the next as the rush's stands are (rushWalk)
+    private void campStepIn(AltoClef mod) {
+        if (!adris.altoclef.util.helpers.CampStepIn.on() || _foundBlazeSpawner == null || !_foundBlazeSpawner.equals(_campSpotFor)
+                || _rushStands != null || _campPickedAt < 0) return;
+        var me = mod.getPlayer();
+        if (me == null || mod.getWorld() == null || mod.getClientBaritone().getPlayerContext() == null) return;
+        long now = mod.getWorld().getGameTime();
+        long since = Math.max(Math.max(_lastRodAt, _campPickedAt), _fight.killAt());
+        long dry = now < since ? 0 : now - since;
+        boolean openSide = _campFireproof && _campSpot != null && _campSpot.equals(_fireproofSpot);
+        if (!adris.altoclef.util.helpers.CampStepIn.due(true, openSide, true, _stepInPick == _campPickedAt, BlazeFight.fireResTicks(me), dry)) return;
+        _stepInPick = _campPickedAt;
+        Cells cells = CliffAvoidance.of(new baritone.utils.BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
+        List<int[]> stands = adris.altoclef.util.helpers.CampStepIn.stands(cells, _foundBlazeSpawner.getX(), _foundBlazeSpawner.getY(),
+                _foundBlazeSpawner.getZ(), _campSpot.getX(), _campSpot.getY(), _campSpot.getZ());
+        String why = "no blaze in reach at the open side " + _campSpot.toShortString() + " for " + dry / 20 + " s with " + _fight.around()
+                + " about, " + BlazeFight.effectLeft(me) + " of fire resistance";
+        if (stands.isEmpty()) {
+            Debug.logInternal("camp step in: " + why + "; no stand by the spawner " + _foundBlazeSpawner.toShortString() + " fits, the camp stays");
+            return;
+        }
+        _rushStands = stands;
+        _stepInStands = stands;
+        _rushStand = 0;
+        _rushWalkTicks = 0;
+        _campSpot = rushStandPos();
+        Debug.logInternal("camp step in: " + why + "; the stand at " + _campSpot.toShortString() + " by the spawner "
+                + _foundBlazeSpawner.toShortString() + " (stand 1 of " + stands.size() + ")");
     }
 
     // ---- the buddy's fork, Tuning box_home (BoxHomeRules): the box as home
