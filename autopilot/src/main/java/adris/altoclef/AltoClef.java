@@ -178,6 +178,8 @@ public class AltoClef {
     // same spot the old Minecraft.tick HEAD mixin ran from.
     public void onClientTick() {
         runEnqueuedPostInits();
+        // (dig_lava_check) the switch for the break avoider, read here on the main thread
+        adris.altoclef.util.helpers.LavaBreak.refresh();
 
         // The idle gate (altoRunsWhenIdle, read every tick so a #set takes effect at once): with it on we always run,
         // with it off we only run while a user task is going. Turning it off while idle disables the runner here, and
@@ -298,6 +300,9 @@ public class AltoClef {
         // the pop in TaskRunner#disable takes them back out of the global AltoClefSettings.
         _botBehaviour.avoidBlockBreaking(AltoSettings::isPositionExplicitlyProtected);
         _botBehaviour.avoidBlockPlacing(AltoSettings::isPositionExplicitlyProtected);
+        // (Tuning dig_lava_check, off: the avoider says no to nothing) no block broken in the overworld that lets lava into its
+        // cell (LavaBreak), whichever task or chain digs
+        _botBehaviour.avoidBlockBreaking(WorldHelper::lavaBreakRefused);
     }
 
     // the way out. every step has its own try, because this is the thing that has to work when something else just

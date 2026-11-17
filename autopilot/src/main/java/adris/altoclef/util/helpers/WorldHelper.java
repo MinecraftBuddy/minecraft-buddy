@@ -266,6 +266,45 @@ public interface WorldHelper {
         return bag;
     }
 
+    // (Tuning dig_lava_check, off) whether breaking this block lets lava into its cell (LavaBreak.refuse), in the overworld
+    // only. AltoClef's break avoider: baritone's path thread asks it too, reading the client's level as CollectBucketLiquidTask's
+    // avoider does
+    public static boolean lavaBreakRefused(BlockPos pos) {
+        if (!LavaBreak.on()) return false;
+        Minecraft mc = Minecraft.getInstance();
+        ClientLevel level = mc.level;
+        if (level == null || !level.dimension().equals(Level.OVERWORLD)) return false;
+        Player player = mc.player;
+        boolean body = player != null && player.getBoundingBox().intersects(new AABB(pos));
+        return lavaBreakRefused(level, pos, body);
+    }
+
+    // the same with the switch and the dimension left to the caller (GetDownColumnTask: the block under the feet)
+    public static boolean lavaBreakRefused(Level level, BlockPos pos) {
+        return lavaBreakRefused(level, pos, false);
+    }
+
+    private static boolean lavaBreakRefused(Level level, BlockPos pos, boolean body) {
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        return LavaBreak.refuse(new LavaBreak.Cells() {
+            @Override
+            public boolean lava(int x, int y, int z) {
+                return level.getFluidState(at.set(x, y, z)).is(FluidTags.LAVA);
+            }
+
+            @Override
+            public boolean solid(int x, int y, int z) {
+                return !level.getBlockState(at.set(x, y, z)).getCollisionShape(level, at).isEmpty();
+            }
+
+            @Override
+            public boolean open(int x, int y, int z) {
+                BlockState state = level.getBlockState(at.set(x, y, z));
+                return state.getFluidState().isEmpty() && state.getCollisionShape(level, at).isEmpty();
+            }
+        }, pos.getX(), pos.getY(), pos.getZ(), body);
+    }
+
     static boolean canBreak(AltoClef mod, BlockPos pos) {
         // cheap rejects go first. the context is cached per tick now but plausibleToBreak and the ocean check in canReach
         // still cost something, and most callers are asking about 25 blocks that mostly fail one of these

@@ -109,6 +109,9 @@ public class PlaceObsidianBucketTask extends Task {
     private static final int BAND_ONLY_TICKS = 20 * 60;
     private int _bandSince = Integer.MIN_VALUE;
     private int _bandPy;
+    // (Tuning cast_band_here, off) the band centred on the buddy's own height (LavaHunt.inBand): only the obsidian task asks
+    // for it, the bucket portal's cast keeps the surface band
+    private boolean _bandHere;
 
     public PlaceObsidianBucketTask(BlockPos pos) {
         this(pos, List.of());
@@ -194,9 +197,21 @@ public class PlaceObsidianBucketTask extends Task {
         return CastLava.scoopOff(cell, _pos, _footprint, _earlierCells);
     }
 
+    // (cast_band_here) the lava fetch's band centred on where the buddy stands; the caller reads the switch
+    public PlaceObsidianBucketTask bandHere(boolean here) {
+        _bandHere = here;
+        return this;
+    }
+
     // the cast's own lava fetch, same rule as the parent's: not the cells we are casting in
     private Task ownFetch() {
-        if (_bandSince == Integer.MIN_VALUE) _bandSince = WorldHelper.getTicks();
+        if (_bandSince == Integer.MIN_VALUE) {
+            _bandSince = WorldHelper.getTicks();
+            if (_bandHere && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD) {
+                Debug.logInternal("obsidian cast: the lava fetch keeps to y " + (_bandPy - LavaHunt.BAND) + " to " + (_bandPy + LavaHunt.BAND)
+                        + " for " + BAND_ONLY_TICKS / 20 + " s, the band on the buddy's height (cast_band_here)");
+            }
+        }
         if (_fetch == null) {
             _fetch = new CollectBucketLiquidTask.CollectLavaBucketTask(1).leaveAlone(p -> scoopOff(p) || offBand(p));
         }
@@ -212,7 +227,7 @@ public class PlaceObsidianBucketTask extends Task {
     // overworld only, the nether has lava everywhere and no band to speak of
     public boolean offBand(BlockPos p) {
         return _bandSince != Integer.MIN_VALUE && GameClock.since(_bandSince, WorldHelper.getTicks()) < BAND_ONLY_TICKS
-                && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD && !LavaHunt.inBand(p.getY(), _bandPy);
+                && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD && !LavaHunt.inBand(p.getY(), _bandPy, _bandHere);
     }
 
     // our lava just went out, or some of it is loose around the cast. either way it's ours to sort out, and a parent

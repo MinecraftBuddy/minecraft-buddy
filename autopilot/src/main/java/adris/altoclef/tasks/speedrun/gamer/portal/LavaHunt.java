@@ -80,6 +80,18 @@ public final class LavaHunt {
         return Math.abs(y - bandCentre(py)) <= BAND;
     }
 
+    // (Tuning cast_band_here, off) the obsidian task's cast centres the band on the buddy's own height, not on max(y, 60): deep
+    // down the surface band ignored every pool near the cast for the first minute of each lava fetch, and the clock starts
+    // again with each new cast, so the fetch wandered with lava all around ("tracker knows 25 positions, 0 passed", 528 times
+    // in 150 game logs of whole runs). here false is the band as it was; the bucket portal keeps that one
+    public static int bandCentre(int py, boolean here) {
+        return here ? py : bandCentre(py);
+    }
+
+    public static boolean inBand(int y, int py, boolean here) {
+        return Math.abs(y - bandCentre(py, here)) <= BAND;
+    }
+
     // the nearest lake the cast could flood from, any verdict: the pool turned every one down, but the cast does not need a
     // shore like the pool does, only a flood of sources. lakeSources floods from a seed and says how many it found (a seed in a
     // lake it already counted says 0, that is lakeSize's own explored set)

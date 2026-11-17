@@ -52,6 +52,31 @@ public class LavaHuntTest {
         assertEquals(90, LavaHunt.bandCentre(90));
     }
 
+    // (cast_band_here) the obsidian task's cast centres the band on the buddy's own height: deep down the pools near it count
+    @Test
+    public void theObsidianCastsBandIsCentredOnTheBuddysHeight() {
+        assertEquals(-44, LavaHunt.bandCentre(-44, true));
+        assertEquals(90, LavaHunt.bandCentre(90, true));
+        // a pool at y -50 seen from y -44: out of the surface band, in the band here
+        assertFalse(LavaHunt.inBand(-50, -44, false));
+        assertTrue(LavaHunt.inBand(-50, -44, true));
+        assertTrue(LavaHunt.inBand(-44 - LavaHunt.BAND, -44, true));
+        assertFalse(LavaHunt.inBand(-44 - LavaHunt.BAND - 1, -44, true));
+        // surface lava from deep down is out of the band here
+        assertFalse(LavaHunt.inBand(62, -44, true));
+    }
+
+    // the bucket portal's band, here false: as it was
+    @Test
+    public void theBandNotHereIsTheSurfaceBand() {
+        assertEquals(LavaHunt.bandCentre(2), LavaHunt.bandCentre(2, false));
+        assertEquals(LavaHunt.SURFACE_Y, LavaHunt.bandCentre(-44, false));
+        for (int y = -64; y <= 120; y += 7) {
+            assertEquals(LavaHunt.inBand(y, -44), LavaHunt.inBand(y, -44, false));
+            assertEquals(LavaHunt.inBand(y, 75), LavaHunt.inBand(y, 75, false));
+        }
+    }
+
     @Test
     public void chunkCapLetsThreeThroughPerChunk() {
         LavaHunt.ChunkCap cap = new LavaHunt.ChunkCap();
