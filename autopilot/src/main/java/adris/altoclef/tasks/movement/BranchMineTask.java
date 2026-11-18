@@ -1581,8 +1581,25 @@ public class BranchMineTask extends Task {
     // (StickReserve.nextPick, as pickAhead asks it) is not one of iron or diamond from the bag, which takes the ore and spares the
     // kit's; with stick_reserve off no pickaxe is made at all
     static boolean picksWornEnds(int goodAboveWood, adris.altoclef.util.helpers.StickReserve.Next next, boolean reserveOn) {
+        return picksWornEnds(goodAboveWood, next, reserveOn, false);
+    }
+
+    // (gold_pick_from_bag) with a diamond pickaxe's diamonds in the bag the trip up for its wood goes on too
+    static boolean picksWornEnds(int goodAboveWood, adris.altoclef.util.helpers.StickReserve.Next next, boolean reserveOn, boolean diamondsWait) {
         if (goodAboveWood > 0) return false;
+        if (reserveOn && diamondsWait && next == adris.altoclef.util.helpers.StickReserve.Next.LOGS) return false;
         return !reserveOn || next != adris.altoclef.util.helpers.StickReserve.Next.IRON && next != adris.altoclef.util.helpers.StickReserve.Next.DIAMOND;
+    }
+
+    // (gold_pick_from_bag, a fix of 18 Nov 2026, on) for gold, with a diamond pickaxe's diamonds in the bag, the bag's stone
+    // makes no next pickaxe: a stone one takes no gold ore, and the try ended on it or on the wood. at 71 gold give-ups since
+    // 15 Nov both iron pickaxes were broken and the kit's diamond one worn; 29 had 3 or more diamonds, 64 lacked the wood
+    static boolean goldPickFromBagOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_pick_from_bag", 0) > 0;
+    }
+
+    static int stoneForPick(boolean gold, int stone, int diamonds) {
+        return goldPickFromBagOn() && gold && diamonds >= adris.altoclef.util.helpers.StickReserve.DIAMONDS ? 0 : stone;
     }
 
     // (gold_keep_picks) the mine stands, with a line once, and the buddy's gold try ends on it; null while the try goes on
@@ -1602,9 +1619,11 @@ public class BranchMineTask extends Task {
         boolean table = bag.getItemCount(Items.CRAFTING_TABLE) > 0;
         int stone = bag.getItemCount(Items.COBBLESTONE, Items.COBBLED_DEEPSLATE, Items.BLACKSTONE);
         int iron = bag.getItemCount(Items.IRON_INGOT), diamonds = bag.getItemCount(Items.DIAMOND);
-        adris.altoclef.util.helpers.StickReserve.Next next = adris.altoclef.util.helpers.StickReserve.nextPick(good, iron, stone, sticks,
-                planks, logs, table, !needsBetterThanStone(_blocks), diamonds, adris.altoclef.util.helpers.StickReserve.moreOn());
-        if (!picksWornEnds(good, next, adris.altoclef.util.helpers.StickReserve.on())) return null;
+        adris.altoclef.util.helpers.StickReserve.Next next = adris.altoclef.util.helpers.StickReserve.nextPick(good, iron,
+                stoneForPick(true, stone, diamonds), sticks, planks, logs, table, !needsBetterThanStone(_blocks), diamonds,
+                adris.altoclef.util.helpers.StickReserve.moreOn());
+        if (!picksWornEnds(good, next, adris.altoclef.util.helpers.StickReserve.on(),
+                goldPickFromBagOn() && diamonds >= adris.altoclef.util.helpers.StickReserve.DIAMONDS)) return null;
         _picksWorn = true;
         picksWornLine = "branch mine: no unworn pickaxe above wood left in the bag (" + picksInBag(mod) + "; " + iron + " iron ingots, "
                 + diamonds + " diamonds, " + sticks + " sticks, " + planks + " planks, " + logs + " logs), the gold try ends: pickaxes worn, "
@@ -1688,15 +1707,17 @@ public class BranchMineTask extends Task {
         boolean table = bag.getItemCount(Items.CRAFTING_TABLE) > 0;
         int stone = bag.getItemCount(Items.COBBLESTONE, Items.COBBLED_DEEPSLATE, Items.BLACKSTONE);
         int good = goodAboveWood(mod);
+        // (gold_pick_from_bag) for gold with a diamond pickaxe's diamonds in the bag, no stone one next
+        int stoneFor = stoneForPick(gold(_blocks), stone, bag.getItemCount(Items.DIAMOND));
         adris.altoclef.util.helpers.StickReserve.Next next = adris.altoclef.util.helpers.StickReserve.nextPick(good,
-                bag.getItemCount(Items.IRON_INGOT), stone, sticks, planks, logs, table, !needsBetterThanStone(_blocks),
+                bag.getItemCount(Items.IRON_INGOT), stoneFor, sticks, planks, logs, table, !needsBetterThanStone(_blocks),
                 bag.getItemCount(Items.DIAMOND), adris.altoclef.util.helpers.StickReserve.moreOn());
         // (pickless_way_out) the trip up for logs with no pickaxe above wood, where the table was what the wood lacked: a table
         // standing within the bench's reach does for it, the craft walks there
         boolean tableNear = false;
         if (next == adris.altoclef.util.helpers.StickReserve.Next.LOGS && !table && wayOutOn() && !anyAboveWood(mod) && tableNear(mod, now)) {
             adris.altoclef.util.helpers.StickReserve.Next atTable = adris.altoclef.util.helpers.StickReserve.nextPick(good,
-                    bag.getItemCount(Items.IRON_INGOT), stone, sticks, planks, logs, false, !needsBetterThanStone(_blocks),
+                    bag.getItemCount(Items.IRON_INGOT), stoneFor, sticks, planks, logs, false, !needsBetterThanStone(_blocks),
                     bag.getItemCount(Items.DIAMOND), true, true);
             if (atTable != adris.altoclef.util.helpers.StickReserve.Next.LOGS && atTable != adris.altoclef.util.helpers.StickReserve.Next.NONE) {
                 next = atTable;

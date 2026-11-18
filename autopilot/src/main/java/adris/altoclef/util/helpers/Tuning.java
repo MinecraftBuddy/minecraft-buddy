@@ -699,7 +699,11 @@ public final class Tuning {
             java.util.Map.entry("down_way_keep", 1.0),
             // a take-along of blocks that ends "done" with nothing got bans what is left, as a timeout does: a cluster seen
             // through water began again every 7 s with no pickup, TakeAlongChain (look 115)
-            java.util.Map.entry("take_along_done_ban", 1.0));
+            java.util.Map.entry("take_along_done_ban", 1.0),
+            // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
+            // none: a stone one takes no gold ore) and the gold try waits for the wood trip it needs instead of ending:
+            // at 71 give-ups both iron pickaxes were broken, 29 held 3+ diamonds, 64 lacked the wood, BranchMineTask
+            java.util.Map.entry("gold_pick_from_bag", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

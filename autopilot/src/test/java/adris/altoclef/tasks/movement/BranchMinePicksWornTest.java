@@ -1,5 +1,6 @@
 package adris.altoclef.tasks.movement;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -51,5 +52,28 @@ public class BranchMinePicksWornTest {
         // the next pick as the mine asks it for gold (stone will not do): iron from three ingots, else stone
         assertTrue(StickReserve.nextPick(0, 3, 9, 2, 8, 0, true, false) == StickReserve.Next.IRON);
         assertTrue(StickReserve.nextPick(0, 2, 9, 2, 8, 0, true, false) == StickReserve.Next.STONE);
+    }
+
+    // (gold_pick_from_bag) the give-ups of 15-18 Nov: no pickaxe left above wood, cobble and diamonds in the bag
+    @Test
+    public void goldWithDiamondsInTheBagMakesADiamondOneNotAStoneOne() {
+        assertTrue(BranchMineTask.goldPickFromBagOn());
+        int stone = BranchMineTask.stoneForPick(true, 43, 4);
+        assertEquals(0, stone);
+        // wood for it: a diamond pickaxe, which goes on
+        StickReserve.Next withWood = StickReserve.nextPick(0, 0, stone, 2, 8, 0, true, false, 4, true);
+        assertEquals(StickReserve.Next.DIAMOND, withWood);
+        assertFalse(BranchMineTask.picksWornEnds(0, withWood, true, true));
+        // no wood: the trip up for logs, which goes on too, and ends as before without the diamonds
+        StickReserve.Next noWood = StickReserve.nextPick(0, 0, stone, 1, 0, 0, true, false, 4, true);
+        assertEquals(StickReserve.Next.LOGS, noWood);
+        assertFalse(BranchMineTask.picksWornEnds(0, noWood, true, true));
+        assertTrue(BranchMineTask.picksWornEnds(0, noWood, true, false));
+    }
+
+    @Test
+    public void goldWithTooFewDiamondsOrNotGoldKeepsTheStone() {
+        assertEquals(43, BranchMineTask.stoneForPick(true, 43, 2));
+        assertEquals(43, BranchMineTask.stoneForPick(false, 43, 7));
     }
 }
