@@ -37,6 +37,11 @@ public class BranchMineTask extends Task {
     private int _dx, _dz;
     private BlockPos _step;
     private long _stepSince;
+    // (down_way_keep) baritone's way down once "nothing under any step" chose it, when and from which height
+    private Task _downWay;
+    private long _downSince;
+    private int _downFromY;
+    static final long DOWN_KEEP = 600;
     private boolean _mining;
     // baritone's mine stopping as fast as it starts (no branch it can dig from here) is no loop to stay in: five starts in
     // thirty game seconds and it digs a tunnel of its own for a game minute, then tries again
@@ -855,9 +860,27 @@ public class BranchMineTask extends Task {
             // nothing under a step any way it turns (a bridge over a ravine, the middle of a cave): no stair can be cut there, and
             // baritone's way down through the open is the one there is (it takes no fall that hurts). on its own bridge over a
             // ravine thirty deep it stood for minutes, every step down a drop (the runner, 3 Nov 2026, attempt 108)
+            // (down_way_keep, a fix of 18 Nov 2026, on) once chosen, baritone's way down is kept till it ends, the feet are two
+            // lower or DOWN_KEEP has passed: on a rim or a two-cell floor the feet read "nothing under any step" on one cell
+            // and "a step" on the next, each task's first move crossed it, and the way down and the staircase took turns
+            // every second for 5 minutes (looks 117, 119; the line in 498 records since 15 Nov)
+            if (_downWay != null) {
+                boolean done = _downWay.stopped() || _downWay.isFinished(mod);
+                if (!done && feet.getY() > _downFromY - 2 && tick - _downSince < DOWN_KEEP) {
+                    setDebugState("Nothing under any step here: baritone's way down to y " + _mineY + ", kept");
+                    return _downWay;
+                }
+                _downWay = null;
+            }
             if (noFloorAnyWay(mod, feet)) {
                 setDebugState("Nothing under any step here: baritone's way down to y " + _mineY);
-                return leaveOn() ? new DownTask(_mineY) : new adris.altoclef.tasks.movement.GetToYTask(_mineY);
+                Task down = leaveOn() ? new DownTask(_mineY) : new adris.altoclef.tasks.movement.GetToYTask(_mineY);
+                if (downKeepOn()) {
+                    _downWay = down;
+                    _downSince = tick;
+                    _downFromY = feet.getY();
+                }
+                return down;
             }
             if (_step == null || feet.equals(_step) || feet.getY() < _step.getY()) {
                 closedWay(mod, feet, -1);
@@ -1042,6 +1065,10 @@ public class BranchMineTask extends Task {
 
     static boolean leaveOn() {
         return adris.altoclef.util.helpers.Tuning.get("mine_leave_given_up", 0) > 0;
+    }
+
+    static boolean downKeepOn() {
+        return adris.altoclef.util.helpers.Tuning.get("down_way_keep", 0) > 0;
     }
 
     static boolean waterStreakOn() {

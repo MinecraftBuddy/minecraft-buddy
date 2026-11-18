@@ -692,7 +692,11 @@ public final class Tuning {
             java.util.Map.entry("water_roof_column", 1.0),
             // the obsidian cast's frame and pour read only from loaded chunks, else the walk to its stand: from an unloaded
             // chunk the frame read air, and build and walk took turns on a chunk line, PlaceObsidianBucketTask (look 122)
-            java.util.Map.entry("cast_chunk_wait", 1.0));
+            java.util.Map.entry("cast_chunk_wait", 1.0),
+            // the branch mine's way down through the open, once "nothing under any step" chose it, is kept till it ends, the
+            // feet are two lower or 30 s have passed: on a rim it and the staircase took turns every second for minutes,
+            // BranchMineTask (looks 117, 119)
+            java.util.Map.entry("down_way_keep", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
