@@ -486,6 +486,7 @@ public class MobDefenseChain extends SingleTaskChain {
                 if (drawer != null && !fighting) LookHelper.lookAt(mod, drawer.getEyePosition());
                 // without this nobody can tell whether the shield came up in time or at all
                 if (!_shielding) Debug.logInternal(ProjectileHelper.shieldLine(_impactType, _impactTicks, _impactDist));
+                if (ballShield) clearHandForBall(mod);
                 startShielding(mod, !fighting);
             }
         } else {
@@ -626,6 +627,38 @@ public class MobDefenseChain extends SingleTaskChain {
         return adris.altoclef.util.helpers.Tuning.get("ghast_ball_plan", 0) > 0;
     }
 
+    // (ghast_ball_plan) a ball the shield takes, this tick or the last: the bow's draw waits for it (ForcedBowTask)
+    public boolean ballShieldNow(AltoClef mod) {
+        if (!ballPlanOn() || mod.getWorld() == null) return false;
+        long now = mod.getWorld().getGameTime();
+        return now >= _ballShieldAt && now - _ballShieldAt <= 1;
+    }
+
+    // (ghast_ball_plan) a bow, or anything else with a use of its own, in the main hand takes the held key before the off
+    // hand's shield, and ShieldRaise never raises it then: in the check of 18 Nov two of the first five balls the shield was
+    // chosen for hit the buddy with the bow in hand. for such a ball the hand goes to a sword, else a pickaxe, else an
+    // empty slot, as a player picks a hotbar slot (food has its own way in startShielding)
+    private static void clearHandForBall(AltoClef mod) {
+        LocalPlayer p = mod.getPlayer();
+        ItemStack main = p.getMainHandItem();
+        if (main.isEmpty() || main.getUseAnimation() == net.minecraft.world.item.ItemUseAnimation.NONE
+                || main.getItem().components().has(DataComponents.FOOD)) return;
+        var inventory = p.getInventory();
+        int[] kinds = new int[9];
+        for (int i = 0; i < 9; i++) {
+            ItemStack s = inventory.getItem(i);
+            kinds[i] = s.isEmpty() ? adris.altoclef.util.helpers.SnowballAim.KIND_EMPTY
+                    : s.is(net.minecraft.tags.ItemTags.SWORDS) ? adris.altoclef.util.helpers.SnowballAim.KIND_SWORD
+                    : s.is(net.minecraft.tags.ItemTags.PICKAXES) ? adris.altoclef.util.helpers.SnowballAim.KIND_PICKAXE
+                    : adris.altoclef.util.helpers.SnowballAim.KIND_OTHER;
+        }
+        int slot = adris.altoclef.util.helpers.SnowballAim.shieldSlot(kinds);
+        if (slot < 0 || slot == inventory.getSelectedSlot()) return;
+        inventory.setSelectedSlot(slot);
+        Debug.logInternal("slot: " + BuiltInRegistries.ITEM.getKey(main.getItem()).getPath() + " out of the hand for the shield, slot "
+                + (slot + 1) + " for a ghast's ball");
+    }
+
     // (ghast_ball_plan) a ghast's ball within PUNCH_WATCH coming at us: the meal's stand down waits for it, as no bite
     // outlasts a ball, and while it stands down neither the punch nor the shield runs
     private static boolean ghastBallComing(AltoClef mod) {
@@ -695,7 +728,7 @@ public class MobDefenseChain extends SingleTaskChain {
                 // the window's top: the arm's reach, or where the server's ball, lead ticks ahead, is in the punch's reach
                 double top = Math.min(armReach, PUNCH_REACH + lead * speed);
                 if (!_ballShield.containsKey(ball.getId()) && adris.altoclef.util.helpers.GhastBallPlan.shield(gap, closing, speed,
-                        punchMin, top, adris.altoclef.util.helpers.GhastBallPlan.SHIELD_RAISE_TICKS + lead + 2)) {
+                        punchMin, top, adris.altoclef.util.helpers.GhastBallPlan.SHIELD_RAISE_TICKS + lead + 3)) {
                     _ballShield.put(ball.getId(), now);
                     Debug.logInternal("combat: a ghast's ball at " + String.format("%.1f", gap) + ", "
                             + adris.altoclef.util.helpers.GhastBallPlan.ticksToHit(gap, closing, speed)

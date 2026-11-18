@@ -70,7 +70,8 @@ public final class GhastBallPlan {
 
     /**
      * The shield for this ball, now: it is coming, expected to hit within leadTicks, and no tick of its way is a sure
-     * punch. leadTicks is the shield's five plus how far the server's ball is ahead of ours, plus room for a tick.
+     * punch. leadTicks is the shield's five plus how far the server's ball is ahead of ours, plus room for the tick the hand takes to leave a bow and for the
+     * first tick inside the lead to come late.
      */
     public static boolean shield(double gap, double closing, double speed, double min, double reach, double leadTicks) {
         if (closing < MIN_CLOSING) return false;

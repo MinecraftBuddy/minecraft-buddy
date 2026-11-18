@@ -150,6 +150,13 @@ public class ForcedBowTask extends Task {
         LocalPlayer player = mod.getPlayer();
         // (the target gone: nothing loosed; the chain picks the next one)
         if (player == null || !_target.isAlive()) return null;
+        // (Tuning ghast_ball_plan) a ghast's ball the shield takes: the bow out of the hand and no draw till it is past, else
+        // the held key draws the bow and the shield never comes up (MobDefenseChain.clearHandForBall)
+        if (mod.getMobDefenseChain().ballShieldNow(mod)) {
+            _wasDrawing = false;
+            setDebugState("the shield for a ghast's ball");
+            return null;
+        }
         long now = mod.getWorld().getGameTime();
         if (!mod.getSlotHandler().forceEquipItem(Items.BOW)) {
             setDebugState("bow to hand");
