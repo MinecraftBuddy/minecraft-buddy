@@ -147,6 +147,11 @@ public final class StickReserve {
         return Tuning.get("gold_wood_deep", 0) > 0;
     }
 
+    // (Tuning gold_wood_resume, a fix of 18 Nov 2026, on) a deep fetch begun and cut off goes on in the next mine
+    public static boolean goldWoodResume() {
+        return Tuning.get("gold_wood_resume", 0) > 0;
+    }
+
     public static Ready surfaceReady(int picksBesidesKit, int sticks, int planks, int logs, boolean tableInBag) {
         return surfaceReady(picksBesidesKit, sticks, planks, logs, tableInBag, 0);
     }

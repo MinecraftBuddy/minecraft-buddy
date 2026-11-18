@@ -313,6 +313,14 @@ public class BranchMineTask extends Task {
     static final long SURFACE_OFF = 36000;
     // (gold_wood_deep) when a gold mine began its fetch of the kit underground, for every mine of the order
     private static long deepBegunAt = Long.MIN_VALUE;
+    // (gold_wood_resume) that fetch begun and neither ready nor out of its time: a mine made anew within SURFACE_CAP of its
+    // begin goes on with it
+    private static boolean deepOpen;
+    // (Tuning poke_fallback_straight, a fix of 18 Nov 2026, on) when the last poke fallback tunnel began and its heading, for
+    // every mine of the order: a fallback within FALLBACK_SPELL of it keeps that heading out of the cave ground
+    private static long fallbackAt = Long.MIN_VALUE;
+    private static int fallbackDx, fallbackDz;
+    static final long FALLBACK_SPELL = 3600;
     // (Tuning pickless_way_out) a crafting table standing within the bench's reach, looked for at most every TABLE_LOOK ticks
     private long _tableLookAt = Long.MIN_VALUE;
     private boolean _tableNear;
@@ -906,9 +914,21 @@ public class BranchMineTask extends Task {
             stopMine(mod);
             if (_poke == null || _poke.y() != _mineY) _poke = new PokeMineTask(_blocks, _mineY);
             if (_poke.takeFallback()) {
-                int t = _dx;
-                _dx = -_dz;
-                _dz = t;
+                boolean keep = adris.altoclef.util.helpers.Tuning.get("poke_fallback_straight", 0) > 0
+                        && fallbackAt != Long.MIN_VALUE && now >= fallbackAt && now - fallbackAt <= FALLBACK_SPELL;
+                if (keep) {
+                    _dx = fallbackDx;
+                    _dz = fallbackDz;
+                    adris.altoclef.Debug.logInternal("branch mine: poke fallback again " + (now - fallbackAt) / 20 + " s after the last, keeps its heading "
+                            + _dx + "," + _dz + " out of the cave ground (poke_fallback_straight)");
+                } else {
+                    int t = _dx;
+                    _dx = -_dz;
+                    _dz = t;
+                }
+                fallbackAt = now;
+                fallbackDx = _dx;
+                fallbackDz = _dz;
                 _tunnelUntil = now + 1200;
                 _tunnel = null;
                 setDebugState("Poke holes found no way into the rock here, a tunnel of its own");
@@ -1785,8 +1805,13 @@ public class BranchMineTask extends Task {
         // (gold_wood_deep, a fix of 18 Nov 2026, on) also when the gold mine begins underground, with the pickaxes still whole:
         // heel-34 run 3 began its gold in a cave at y -1, got no wood at all and gave the gold up with 13 of 96 for want of
         // sticks; one such fetch in SURFACE_OFF over every mine of the order (a mine made anew would begin another)
+        // (gold_wood_resume, a fix of 18 Nov 2026, on) a fetch begun by an earlier mine and cut off (a crafting table picked up
+        // two seconds in) is not one that ran: it goes on here, its time counted from its begin. without this the new mine read
+        // it as the order's one fetch and went without wood for SURFACE_OFF, twice in heel-38-mc2 run 5 (look 132)
+        boolean resume = adris.altoclef.util.helpers.StickReserve.goldWoodResume() && deepOpen && deepBegunAt != Long.MIN_VALUE
+                && now >= deepBegunAt && now - deepBegunAt <= SURFACE_CAP;
         boolean deep = !surface && adris.altoclef.util.helpers.StickReserve.goldWoodDeep()
-                && (_surfaceSince != Long.MIN_VALUE || deepBegunAt == Long.MIN_VALUE || now < deepBegunAt || now - deepBegunAt > SURFACE_OFF);
+                && (_surfaceSince != Long.MIN_VALUE || resume || deepBegunAt == Long.MIN_VALUE || now < deepBegunAt || now - deepBegunAt > SURFACE_OFF);
         if (!(surface || deep) || off) {
             return null;
         }
@@ -1802,6 +1827,7 @@ public class BranchMineTask extends Task {
                 + logs + " logs, " + (table ? "a table" : "no table");
         if (ready == adris.altoclef.util.helpers.StickReserve.Ready.READY) {
             _surfaceDone = true;
+            deepOpen = false;
             if (_surfaceSince != Long.MIN_VALUE) {
                 adris.altoclef.Debug.logInternal("branch mine: ready to go down for the gold: " + bagLine + " (mine_kit_surface)");
             }
@@ -1809,12 +1835,22 @@ public class BranchMineTask extends Task {
             return null;
         }
         if (_surfaceSince == Long.MIN_VALUE || now < _surfaceSince) {
-            _surfaceSince = now;
-            if (!surface) deepBegunAt = now;
+            if (!surface && resume) {
+                _surfaceSince = deepBegunAt;
+                adris.altoclef.Debug.logInternal("branch mine: the wood fetch begun " + (now - deepBegunAt) / 20 + " s ago and cut off goes on ("
+                        + bagLine + ") (gold_wood_resume)");
+            } else {
+                _surfaceSince = now;
+                if (!surface) {
+                    deepBegunAt = now;
+                    deepOpen = true;
+                }
+            }
         }
         String where = surface ? "here on the surface" : "up from down here (gold_wood_deep)";
         if (now - _surfaceSince > SURFACE_CAP) {
             _surfaceDone = true;
+            deepOpen = false;
             _surfaceTask = null;
             surfaceOffUntil = now + SURFACE_OFF;
             adris.altoclef.Debug.logInternal("branch mine: the pickaxes and the wood not ready in " + SURFACE_CAP / 1200 + " game minutes " + (surface ? "on the surface" : "from down here") + " ("

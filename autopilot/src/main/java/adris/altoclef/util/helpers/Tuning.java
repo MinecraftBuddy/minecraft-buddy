@@ -745,7 +745,15 @@ public final class Tuning {
             java.util.Map.entry("portal_frame_clear", 1.0),
             // a block on the ground beside a portal column before its third block, the stand a step up onto it: baritone's pillar
             // there never came and 9 of 15 sites were dropped in 34 minutes, ConstructNetherPortalObsidianTask (look 131)
-            java.util.Map.entry("portal_frame_step", 1.0));
+            java.util.Map.entry("portal_frame_step", 1.0),
+            // a deep wood fetch begun and cut off (a pickup, a fight) goes on in the next gold mine within SURFACE_CAP of its
+            // begin: a fetch begun counted as done, so a pickup two seconds in left the gold mine without wood for 30 game
+            // minutes, twice in one run, and the kit's diamond pickaxe dug the rock until it broke, BranchMineTask (look 132)
+            java.util.Map.entry("gold_wood_resume", 1.0),
+            // a poke mine's fallback tunnel within FALLBACK_SPELL of the last one keeps that one's heading: each fallback turned a
+            // quarter the same way, so seven in a row walked a closed square in the same cave ground, 7 game minutes with no
+            // gold, BranchMineTask (look 132)
+            java.util.Map.entry("poke_fallback_straight", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
