@@ -717,7 +717,14 @@ public class TakeAlongChain extends SingleTaskChain {
         if (kind.column() && ResourceDetour.underTallColumn(mod, pos)) {
             return false;
         }
-        return seen(mod, pos, cfg.sightRange);
+        // (Tuning take_along_miner_takes, a fix of 18 Nov 2026, on) only a block the miner itself would go for: below 15 armour
+        // under legitMine it takes an ore within 5 blocks only, so a take-along on raw iron 9 to 28 off found no target, fell
+        // back to the miner's wander, a branch mine down to y 16, and ended "out of sight with nothing got" (7 of 11 during
+        // one obsidian cast, one dug a staircase 8 down; look 128). after the sight test: for far cave gold with 15 armour the
+        // miner's rule looks for sculk round the ore, a costlier scan than the sight
+        if (!seen(mod, pos, cfg.sightRange)) return false;
+        return adris.altoclef.util.helpers.Tuning.get("take_along_miner_takes", 0) <= 0
+                || adris.altoclef.tasks.resources.MineAndCollectTask.minerTakes(mod, pos, kind.blocks());
     }
 
     private boolean seen(AltoClef mod, BlockPos pos, double range) {

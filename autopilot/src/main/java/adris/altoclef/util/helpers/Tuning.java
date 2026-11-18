@@ -719,7 +719,10 @@ public final class Tuning {
             // a branch mine made one or two off the poke holes' fresh run goes on at that run's height: one made on the old
             // legs' head row after a pickup's climb turned in its own dug cells for 14 game minutes, BranchMineTask,
             // PokeMineTask (look 125)
-            java.util.Map.entry("poke_level_keep", 1.0));
+            java.util.Map.entry("poke_level_keep", 1.0),
+            // a take-along starts only on a block the miner would go for (below 15 armour an ore within 5): on raw iron farther
+            // off it found no target, branch mined down and ended with nothing, TakeAlongChain (look 128)
+            java.util.Map.entry("take_along_miner_takes", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

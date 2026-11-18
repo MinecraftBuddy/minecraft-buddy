@@ -121,6 +121,12 @@ public class MineAndCollectTask extends ResourceTask {
         }
     }
 
+    // whether the miner would go for this block at all (MineOrCollectTask.nearUnarmoured: under legitMine and below 15
+    // armour only an ore within 5 blocks), for a caller that picks targets for one (the take-along)
+    public static boolean minerTakes(AltoClef mod, BlockPos pos, Block[] blocks) {
+        return MineOrCollectTask.nearUnarmoured(mod, pos, blocks);
+    }
+
     // several catalogue ores as one task that always goes for the nearest block of whichever ores are still short. one
     // at a time walked right past the diamonds on the way to the iron, then all the way back for them
     public static MineAndCollectTask together(List<MineAndCollectTask> ores) {
@@ -1850,7 +1856,7 @@ public class MineAndCollectTask extends ResourceTask {
         // (by what is looked for, not by the block in the world: an ore the tracker knows 200 blocks off lies in a chunk the
         // client has unloaded, where the world says air, and the rule let it through; it walked to coal 200 blocks off
         // through the caves without armour, for its shield's smelting, the runner, 2 Nov 2026, attempt 87)
-        private static boolean nearUnarmoured(AltoClef mod, BlockPos pos, Block[] blocks) {
+        static boolean nearUnarmoured(AltoClef mod, BlockPos pos, Block[] blocks) {
             if (!Baritone.settings().legitMine.value || mod.getPlayer() == null) return true;
             boolean ore = false, gold = false;
             for (Block b : blocks) {
