@@ -273,6 +273,8 @@ public class CollectFoodTask extends Task {
     }
 
     private static final Block[] GLOW_BERRY_VINES = {Blocks.CAVE_VINES, Blocks.CAVE_VINES_PLANT};
+    // (Tuning glow_berries_level) the most a glow berry vine may lie above or below the feet
+    private static final int BERRY_DY = 8;
     private static final Block[] KELP = {Blocks.KELP, Blocks.KELP_PLANT};
     // kelp falls in water: picking items up out of water is allowed while it is gathered, and put back after
     private Boolean _waterPickupWas;
@@ -524,9 +526,14 @@ public class CollectFoodTask extends Task {
                 return _currentResourceTask;
             }
 
-            // glow berries on a lush cave's vines (only a vine that carries them)
-            Task glow = pickupBlockTaskOrNull(mod, Blocks.CAVE_VINES_PLANT, Items.GLOW_BERRIES, pos -> berries(mod, pos), 64);
-            if (glow == null) glow = pickupBlockTaskOrNull(mod, Blocks.CAVE_VINES, Items.GLOW_BERRIES, pos -> berries(mod, pos), 64);
+            // glow berries on a lush cave's vines (only a vine that carries them; with glow_berries_level only one within
+            // BERRY_DY of the feet' height: the berries took an unarmoured buddy with a stone sword from y 60 down to y -28 for
+            // 6 to 11 minutes, and two heel runs died there to the cave's mobs, 18 Nov 2026)
+            int feetY = mod.getPlayer().blockPosition().getY();
+            boolean level = adris.altoclef.util.helpers.Tuning.get("glow_berries_level", 0) > 0;
+            java.util.function.Predicate<BlockPos> vine = pos -> berries(mod, pos) && (!level || Math.abs(pos.getY() - feetY) <= BERRY_DY);
+            Task glow = pickupBlockTaskOrNull(mod, Blocks.CAVE_VINES_PLANT, Items.GLOW_BERRIES, vine, 64);
+            if (glow == null) glow = pickupBlockTaskOrNull(mod, Blocks.CAVE_VINES, Items.GLOW_BERRIES, vine, 64);
             if (glow != null) {
                 setDebugState("Getting glow berries");
                 _currentResourceTask = glow;

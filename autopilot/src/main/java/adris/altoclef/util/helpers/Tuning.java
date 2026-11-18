@@ -753,7 +753,13 @@ public final class Tuning {
             // a poke mine's fallback tunnel within FALLBACK_SPELL of the last one keeps that one's heading: each fallback turned a
             // quarter the same way, so seven in a row walked a closed square in the same cave ground, 7 game minutes with no
             // gold, BranchMineTask (look 132)
-            java.util.Map.entry("poke_fallback_straight", 1.0));
+            java.util.Map.entry("poke_fallback_straight", 1.0),
+            // glow berries only on a vine within 8 blocks of the feet' height: the food step took an unarmoured buddy from y 60
+            // to y -28 for them, two heel deaths in one evening, CollectFoodTask (read of 18 Nov 2026)
+            java.util.Map.entry("glow_berries_level", 1.0),
+            // a bed in the world taken only within 8 blocks of the feet' height, else one is crafted: a bed at y -16 had the
+            // buddy dig down from y 77 into a cave, CollectBedTask (read of 18 Nov 2026)
+            java.util.Map.entry("world_bed_level", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

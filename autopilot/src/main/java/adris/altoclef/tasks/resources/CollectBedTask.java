@@ -24,6 +24,8 @@ public class CollectBedTask extends CraftWithMatchingWoolTask {
 
     // beds in the world further than this are left alone and one is crafted (the buddy's fork)
     private static final double BED_REACH = 64;
+    // (Tuning world_bed_level) the most a bed in the world may lie above or below the feet to be taken
+    private static final double BED_DY = 8;
 
     private final ItemTarget _visualBedTarget;
 
@@ -72,7 +74,11 @@ public class CollectBedTask extends CraftWithMatchingWoolTask {
         // (the buddy's fork: and only a bed within BED_REACH. one 190 blocks off at y -22 had the task go after it and after the
         // wool in turn, every second for the eight game minutes of the kit step, and no bed came, the runner, 2 Nov 2026, attempt 60)
         var me = mod.getPlayer().position();
-        Predicate<BlockPos> notSpawn = pos -> !Respawn.isSpawnBed(pos.getX(), pos.getY(), pos.getZ()) && pos.closerToCenterThan(me, BED_REACH);
+        // (Tuning world_bed_level, a fix of 18 Nov 2026, on) and only one within BED_DY of the feet' height: a bed at y -16 had an
+        // unarmoured buddy dig straight down from y 77 into a cave, where a creeper killed it 8 minutes into a heel run
+        boolean level = adris.altoclef.util.helpers.Tuning.get("world_bed_level", 0) > 0;
+        Predicate<BlockPos> notSpawn = pos -> !Respawn.isSpawnBed(pos.getX(), pos.getY(), pos.getZ()) && pos.closerToCenterThan(me, BED_REACH)
+                && (!level || Math.abs(pos.getY() - me.y) <= BED_DY);
         Optional<BlockPos> nearestBed = mod.getBlockTracker().getNearestTracking(notSpawn, BEDS);
         if (nearestBed.isPresent() && WorldHelper.canBreak(mod, nearestBed.get())) {
             for (Block CopperBlock : copperBlocks) {
