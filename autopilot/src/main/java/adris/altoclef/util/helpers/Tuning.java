@@ -706,7 +706,11 @@ public final class Tuning {
             java.util.Map.entry("gold_pick_from_bag", 1.0),
             // the slime hunt keeps one branch mine for the whole hunt: a new one after each chase forgot the tunnel it was
             // in and began a new mine in the same cave about once a second, KillAndLootTask (look 118)
-            java.util.Map.entry("slime_dig_keep", 1.0));
+            java.util.Map.entry("slime_dig_keep", 1.0),
+            // a ghast's ball that no tick of its way brings into the punch's window gets the shield while the shield still
+            // has time to come up, not two ticks from the hit; a meal waits for a ball coming at the buddy: eight balls took
+            // a run from 20 hp to 0 with the shield never in time, MobDefenseChain, GhastBallPlan (look 123)
+            java.util.Map.entry("ghast_ball_plan", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

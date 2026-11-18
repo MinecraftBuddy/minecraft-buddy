@@ -333,7 +333,10 @@ public class MobDefenseChain extends SingleTaskChain {
         // hold: the meal is half of what it is holding for)
         boolean committed = _brain.mode() != CombatCommit.Mode.NONE || _creeperStep.active() || _brain.recovering() || _brain.covering();
         // (in lava with a fire resistance drink to go down, as for a meal: the shields come down, FoodChain.drinkInLava)
-        if ((!committed && mod.getFoodChain().needsToEat()) || mod.getFoodChain().drinkInLava(mod) || mod.getMLGBucketChain().isFallingOhNo(mod) ||
+        // (Tuning ghast_ball_plan: not for a meal while a ghast's ball comes at us, look 123: eating on open ground, no punch
+        // and no shield went out for the balls that took the last hp; the bite gives way to the shield by BiteRules)
+        boolean mealWaits = ballPlanOn() && ghastBallComing(mod);
+        if ((!committed && mod.getFoodChain().needsToEat() && !mealWaits) || mod.getFoodChain().drinkInLava(mod) || mod.getMLGBucketChain().isFallingOhNo(mod) ||
                 !mod.getMLGBucketChain().doneMLG() || mod.getMLGBucketChain().isChorusFruiting()) {
             _killAura.stopShielding(mod);
             stopShielding(mod);
@@ -456,10 +459,17 @@ public class MobDefenseChain extends SingleTaskChain {
         // (route jar 2, Tuning ghast_punch_min: a ghast's ball inside the punch's minimum, not punched, gets the shield after all)
         long nowTick = mod.getWorld().getGameTime();
         boolean ballInside = nowTick >= _ballInsideAt && nowTick - _ballInsideAt <= 2;
+        // (ghast_ball_plan) a ball punchGhastBall gave the shield this tick: up, whatever the closest-approach test of the
+        // projectile list says, and on its own clock for the bite rule
+        boolean ballShield = mayShield && mode != CombatCommit.Mode.RUN && _ballShieldAt == nowTick;
         boolean arrowClose = mayShield && mode != CombatCommit.Mode.RUN
                 && isProjectileClose(mod) && (!_closeFireball || ballInside);
         Mob drawer = mayShield ? drawingShooter(mod, mode, player) : null;
         double impact = arrowClose ? _impactTicks : Double.POSITIVE_INFINITY;
+        if (ballShield) {
+            impact = Math.min(impact, _ballShieldTicks);
+            arrowClose = true;
+        }
         if (drawer != null) impact = Math.min(impact, _drawImpactTicks);
         if (creeperShield) {
             // the creeper's shield is up, leave it be
@@ -532,7 +542,8 @@ public class MobDefenseChain extends SingleTaskChain {
                         }
                     } else if (entity instanceof LargeFireball ball) {
                         // Ghast ball (not inside Tuning ghast_punch_min: a blind swing there bursts it on us, see punchGhastBall)
-                        shouldForce = !insidePunchMin(mod, ball);
+                        // (nor one the shield takes, ghast_ball_plan: a swing with the shield up is a hit while blocking)
+                        shouldForce = !insidePunchMin(mod, ball) && !_ballShield.containsKey(ball.getId());
                     } else if (entity instanceof Player player && mod.getBehaviour().shouldForceFieldPlayers()) {
                         if (!player.equals(mod.getPlayer())) {
                             String name = player.getName().getString();
@@ -605,6 +616,30 @@ public class MobDefenseChain extends SingleTaskChain {
     private int _punchLoggedId = -1;
     private int _punchSkipLoggedId = -1;
     private long _ballInsideAt = Long.MIN_VALUE / 2;
+    // (Tuning ghast_ball_plan) the balls the shield takes instead of the punch, by id, with the tick each was chosen; and
+    // the nearest one's ticks to its hit, for the shield's bite rule
+    private final java.util.Map<Integer, Long> _ballShield = new java.util.HashMap<>();
+    private double _ballShieldTicks = Double.POSITIVE_INFINITY;
+    private long _ballShieldAt = Long.MIN_VALUE / 2;
+
+    private static boolean ballPlanOn() {
+        return adris.altoclef.util.helpers.Tuning.get("ghast_ball_plan", 0) > 0;
+    }
+
+    // (ghast_ball_plan) a ghast's ball within PUNCH_WATCH coming at us: the meal's stand down waits for it, as no bite
+    // outlasts a ball, and while it stands down neither the punch nor the shield runs
+    private static boolean ghastBallComing(AltoClef mod) {
+        Vec3 eye = mod.getPlayer().getEyePosition();
+        for (LargeFireball ball : mod.getEntityTracker().getTrackedEntities(LargeFireball.class)) {
+            if (!ball.isAlive()) continue;
+            Vec3 moved = ball.position().subtract(ball.xo, ball.yo, ball.zo);
+            if (moved.lengthSqr() < 1e-6) moved = ball.getDeltaMovement();
+            AABB box = ball.getBoundingBox();
+            if (moved.dot(eye.subtract(box.getCenter())) <= 0) continue;
+            if (ReachRules.gap(eye.x, eye.y, eye.z, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ) <= PUNCH_WATCH) return true;
+        }
+        return false;
+    }
 
     // a ghast's ball nearer our eye than Tuning ghast_punch_min (0: no such line)
     private static boolean insidePunchMin(AltoClef mod, LargeFireball ball) {
@@ -629,9 +664,20 @@ public class MobDefenseChain extends SingleTaskChain {
         LocalPlayer player = mod.getPlayer();
         long now = mod.getWorld().getGameTime();
         _punched.values().removeIf(t -> now - t > 40);
+        _ballShield.values().removeIf(t -> now - t > 40);
         Vec3 eye = player.getEyePosition();
-        LargeFireball best = null;
-        double bestGap = Double.POSITIVE_INFINITY, bestSpeed = 0;
+        double rate = Math.max(1, mod.getWorld().tickRateManager().tickrate());
+        double lead = PUNCH_LEAD_TICKS * Math.max(1, rate / 20) + pingMs(mod) / 2.0 * rate / 1000;
+        // (Tuning ghast_ball_plan, a fix of 18 Nov 2026, on) punch or shield is chosen per ball while the shield still has time
+        // to come up, see GhastBallPlan; only where the shield can go up at all (a run keeps its feet, as commitPriority's arrow
+        // shield does, and with no shield the punch is all there is)
+        boolean plan = ballPlanOn() && _brain.mode() != CombatCommit.Mode.RUN && hasShield(mod);
+        double punchMin = adris.altoclef.util.helpers.Tuning.get("ghast_punch_min", 0);
+        double armReach = Baritone.settings().altoEntityReachRange.value;
+        Vec3 me = player.position().subtract(player.xo, player.yo, player.zo);
+        LargeFireball best = null, shieldBall = null;
+        double bestGap = Double.POSITIVE_INFINITY, bestSpeed = 0, shieldGap = Double.POSITIVE_INFINITY;
+        int shieldTicks = Integer.MAX_VALUE;
         for (LargeFireball ball : mod.getEntityTracker().getTrackedEntities(LargeFireball.class)) {
             Long punchedAt = _punched.get(ball.getId());
             if (!ball.isAlive() || punchedAt != null && now - punchedAt < PUNCH_AGAIN_TICKS) continue;
@@ -642,11 +688,41 @@ public class MobDefenseChain extends SingleTaskChain {
             if (moved.lengthSqr() < 1e-6) moved = ball.getDeltaMovement();
             if (moved.dot(eye.subtract(box.getCenter())) <= 0) continue;
             double gap = ReachRules.gap(eye.x, eye.y, eye.z, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ);
+            if (plan && gap <= PUNCH_WATCH && punchedAt == null) {
+                double speed = moved.length();
+                // how fast the gap closes: the ball's way and ours, along the line between
+                double closing = moved.subtract(me).dot(eye.subtract(box.getCenter()).normalize());
+                // the window's top: the arm's reach, or where the server's ball, lead ticks ahead, is in the punch's reach
+                double top = Math.min(armReach, PUNCH_REACH + lead * speed);
+                if (!_ballShield.containsKey(ball.getId()) && adris.altoclef.util.helpers.GhastBallPlan.shield(gap, closing, speed,
+                        punchMin, top, adris.altoclef.util.helpers.GhastBallPlan.SHIELD_RAISE_TICKS + lead + 2)) {
+                    _ballShield.put(ball.getId(), now);
+                    Debug.logInternal("combat: a ghast's ball at " + String.format("%.1f", gap) + ", "
+                            + adris.altoclef.util.helpers.GhastBallPlan.ticksToHit(gap, closing, speed)
+                            + " ticks out, no tick in the punch's reach on its way: the shield");
+                }
+                if (_ballShield.containsKey(ball.getId()) && gap < shieldGap) {
+                    shieldBall = ball;
+                    shieldGap = gap;
+                    shieldTicks = adris.altoclef.util.helpers.GhastBallPlan.ticksToHit(gap, closing, speed);
+                }
+            }
             if (gap < bestGap) {
                 best = ball;
                 bestGap = gap;
                 bestSpeed = moved.length();
             }
+        }
+        // (ghast_ball_plan) a ball the shield takes: the shield goes up (commitPriority reads _ballInsideAt), the look on its
+        // ghast so the shield faces the blast, and no punch at any ball while it is up: a punch with the shield up is a hit
+        // while blocking
+        if (shieldBall != null) {
+            _ballInsideAt = now;
+            _ballShieldAt = now;
+            _ballShieldTicks = shieldTicks;
+            Entity owner = shieldBall.getOwner();
+            mod.getControllerExtras().aimAtOverPath(owner != null && owner.isAlive() && owner.distanceTo(player) < 64 ? owner : shieldBall);
+            return;
         }
         if (best == null || bestGap > PUNCH_WATCH) return;
         // (Tuning ghast_punch_min, 3.3 by default, route jar 2: a ball closer than that is not punched, the shield is raised for
@@ -710,8 +786,6 @@ public class MobDefenseChain extends SingleTaskChain {
         mod.getControllerExtras().aimAtOverPath(atShooter ? shooter : best);
         // (again only with the look on its ghast: with the look on the ball itself a second punch sends it into the floor)
         if (_punched.containsKey(best.getId()) && !atShooter) return;
-        double rate = Math.max(1, mod.getWorld().tickRateManager().tickrate());
-        double lead = PUNCH_LEAD_TICKS * Math.max(1, rate / 20) + pingMs(mod) / 2.0 * rate / 1000;
         double serverGap = bestGap - lead * bestSpeed;
         // the look is on the ball (its box out to where we see it), the reach is the server's ball: the look test at arm's
         // length went true at a ball we see at 3.4 and the server has at 1.7, which left one tick for the punch, and a tick
