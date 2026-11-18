@@ -26,6 +26,9 @@ public class CollectObsidianTask extends ResourceTask {
     private final MovementProgressChecker _lavaTimeout = new MovementProgressChecker();
     private final int _count;
     private Task _forceCompleteTask = null;
+    // (obsidian_seen_hold) when obsidian was last found, and how long that still counts as found (10 s)
+    private long _seenAt = Long.MIN_VALUE;
+    private static final long SEEN_HOLD = 200;
 
     private PlaceObsidianBucketTask _placeObsidianTask;
 
@@ -94,7 +97,18 @@ public class CollectObsidianTask extends ResourceTask {
             }
         }
          */
-        if (/*obsidianNearby || */mod.getBlockTracker().anyFound(goodObsidian, Blocks.OBSIDIAN) || mod.getEntityTracker().itemDropped(Items.OBSIDIAN)) {
+        // (Tuning obsidian_seen_hold, a fix of 18 Nov 2026, on) obsidian found in the last SEEN_HOLD ticks still counts as found:
+        // a natural block 120 off and 122 down came and went from the tracker about once a second, and every change switched
+        // between walking to it and a cast with no lava, each cancelling the other's path, for six minutes (look 130)
+        boolean found = mod.getBlockTracker().anyFound(goodObsidian, Blocks.OBSIDIAN) || mod.getEntityTracker().itemDropped(Items.OBSIDIAN);
+        long tick = mod.getWorld().getGameTime();
+        if (found) {
+            _seenAt = tick;
+        } else if (adris.altoclef.util.helpers.Tuning.get("obsidian_seen_hold", 0) > 0 && _seenAt != Long.MIN_VALUE
+                && tick >= _seenAt && tick - _seenAt <= SEEN_HOLD) {
+            found = true;
+        }
+        if (/*obsidianNearby || */found) {
             /*
             // Clear nearby water
             BlockPos nearestObby = mod.getBlockTracker().getNearestTracking(mod.getPlayer().getPos(), Blocks.OBSIDIAN);

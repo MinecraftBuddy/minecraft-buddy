@@ -736,7 +736,10 @@ public final class Tuning {
             // a movement whose block still breaks more each tick is not timed out (600 ticks more at most): in water off the
             // ground a break takes 25 times the estimate and every cancel began it afresh, 132 cancels in 11 minutes in a water
             // pocket, PathExecutor (look 130, S171.9)
-            java.util.Map.entry("dig_timeout_progress", 1.0));
+            java.util.Map.entry("dig_timeout_progress", 1.0),
+            // obsidian found in the last 10 s still counts as found: a far natural block came and went about once a second and
+            // each change switched between walking to it and a cast with no lava, six minutes, CollectObsidianTask (look 130)
+            java.util.Map.entry("obsidian_seen_hold", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
