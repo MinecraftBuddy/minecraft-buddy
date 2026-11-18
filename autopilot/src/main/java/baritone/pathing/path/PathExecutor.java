@@ -84,6 +84,9 @@ public class PathExecutor implements IPathExecutor, Helper {
     private int pathPosition;
     private int ticksAway;
     private int ticksOnCurrent;
+    // (dig_timeout_progress) the break's progress last tick, and how far past the limit a break that still goes on may run
+    private float lastDigProgress;
+    private static final int DIG_GRACE = 600;
     // the furthest we've got on this path and how long ago, see HighWater
     private HighWater highWater = new HighWater();
     private Double currentMovementOriginalCostEstimate;
@@ -485,7 +488,20 @@ public class PathExecutor implements IPathExecutor, Helper {
                 ctx.player().setSprinting(false); // letting go of control doesn't make you stop sprinting actually
             }
             ticksOnCurrent++;
-            if (ticksOnCurrent > currentMovementOriginalCostEstimate + Baritone.settings().movementTimeoutTicks.value) {
+            // (Tuning dig_timeout_progress, a fix of 18 Nov 2026, on) a movement whose block still breaks a bit more each tick is
+            // not cancelled, up to DIG_GRACE ticks past the limit: in water and off the ground a break takes 25 times what the
+            // estimate counts (deepslate with a diamond pickaxe some 280 ticks against a limit of 143), and each cancel began the
+            // break afresh, so the block never broke: 132 cancels in 11 minutes in a water pocket (look 130), 87 at one stone
+            // with a stone pickaxe (12 Nov)
+            boolean digGoing = false;
+            if (adris.altoclef.util.helpers.Tuning.get("dig_timeout_progress", 0) > 0
+                    && ctx.minecraft().gameMode instanceof baritone.utils.accessor.IClientBlockBreak gm) {
+                float dig = gm.getCurrentBreakingProgress();
+                digGoing = dig > 0 && dig > lastDigProgress;
+                lastDigProgress = dig;
+            }
+            if (ticksOnCurrent > currentMovementOriginalCostEstimate + Baritone.settings().movementTimeoutTicks.value
+                    && !(digGoing && ticksOnCurrent <= currentMovementOriginalCostEstimate + Baritone.settings().movementTimeoutTicks.value + DIG_GRACE)) {
                 // only cancel if the total time has exceeded the initial estimate
                 // as you break the blocks required, the remaining cost goes down, to the point where
                 // ticksOnCurrent is greater than recalculateCost + 100

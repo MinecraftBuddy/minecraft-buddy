@@ -732,7 +732,11 @@ public final class Tuning {
             java.util.Map.entry("gold_wood_planks", 24.0),
             // that wood fetched also when the gold phase begins underground (a cave at y -1 in heel-34 run 3, so no surface kit
             // at all), at most SURFACE_CAP and once an order as on the surface, BranchMineTask
-            java.util.Map.entry("gold_wood_deep", 1.0));
+            java.util.Map.entry("gold_wood_deep", 1.0),
+            // a movement whose block still breaks more each tick is not timed out (600 ticks more at most): in water off the
+            // ground a break takes 25 times the estimate and every cancel began it afresh, 132 cancels in 11 minutes in a water
+            // pocket, PathExecutor (look 130, S171.9)
+            java.util.Map.entry("dig_timeout_progress", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
