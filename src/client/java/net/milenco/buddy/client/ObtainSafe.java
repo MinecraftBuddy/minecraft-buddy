@@ -1717,16 +1717,28 @@ final class ObtainSafe {
 				// (the autopilot's shelter_jump_top, a fix of 13 Nov 2026, on) shut in on the spot, the walls up, the top with nothing to
 				// go against and no going down (snow and no shovel): a block on top of a wall from the top of a jump, as a player puts
 				// it there, and the top against its side. test heel's night on a snowy slope: no top, and a skeleton shot in
-				if (r == ObtainSteps.Result.FAIL && noDig && c.equals(f.above(2)) && wallsUp(level, f) && jumpTopOn()) {
+				// Only with a block in the bag, and past a cell beside the top that is solid already: there the jump is done before it
+				// begins, and that DONE was read as progress, so with only gravel in the bag the buddy stood eight minutes in a pit
+				// with walls and no top, every tick "jumping", and the walled wait, the stuck clock and "cannot shut" never ran
+				// (18 Nov 2026, test heel).
+				if (r == ObtainSteps.Result.FAIL && noDig && c.equals(f.above(2)) && wallsUp(level, f) && jumpTopOn() && placer.has(p)) {
 					for (Direction d : Direction.Plane.HORIZONTAL) {
-						ObtainSteps.Result u = placer.jumpTick(mc, p, c.relative(d), now);
+						BlockPos n = c.relative(d);
+						if (solid(level, n)) { placer.letGo(mc); placer.jumping = false; continue; }
+						ObtainSteps.Result u = placer.jumpTick(mc, p, n, now);
 						if (u == ObtainSteps.Result.FAIL) continue;
-						if (u == ObtainSteps.Result.RUN) phase = "jumps to put a block on " + c.relative(d).below().toShortString();
+						if (u == ObtainSteps.Result.RUN) phase = "jumps to put a block on " + n.below().toShortString();
 						return ObtainSteps.Result.RUN;
 					}
 				}
 				// (shelter_dig_clock) the walls up and no top to be had: the walls hold off what walks, better than a walk elsewhere
-				if (r == ObtainSteps.Result.FAIL && (duck || noDig && wallsUp(level, f)) && c.equals(f.above(2))) continue;
+				if (r == ObtainSteps.Result.FAIL && (duck || noDig && wallsUp(level, f)) && c.equals(f.above(2))) {
+					if (now - noted > 30_000) {
+						noted = now;
+						Exchange.emit("obtain", "action", "shelter", "what", "walled, no top: waits", "x", c.getX(), "y", c.getY(), "z", c.getZ(), "blocks", shelterBlocks(p));
+					}
+					continue;
+				}
 				// the roof of a night shelter on open ground touches nothing: down after all, where the ground will be dug (not after
 				// the dig's clock ran out: that was the loop between digging and shutting)
 				// (the autopilot's shelter_place_face, a fix of 13 Nov 2026, on: only where the dig below runs, open ground or dug in
