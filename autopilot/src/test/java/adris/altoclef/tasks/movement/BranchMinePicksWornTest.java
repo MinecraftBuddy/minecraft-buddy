@@ -63,12 +63,11 @@ public class BranchMinePicksWornTest {
         // wood for it: a diamond pickaxe, which goes on
         StickReserve.Next withWood = StickReserve.nextPick(0, 0, stone, 2, 8, 0, true, false, 4, true);
         assertEquals(StickReserve.Next.DIAMOND, withWood);
-        assertFalse(BranchMineTask.picksWornEnds(0, withWood, true, true));
-        // no wood: the trip up for logs, which goes on too, and ends as before without the diamonds
+        assertFalse(BranchMineTask.picksWornEnds(0, withWood, true));
+        // no wood: no trip up for logs from the deep with a worn pickaxe (look 127): the try ends, the pickaxes kept
         StickReserve.Next noWood = StickReserve.nextPick(0, 0, stone, 1, 0, 0, true, false, 4, true);
         assertEquals(StickReserve.Next.LOGS, noWood);
-        assertFalse(BranchMineTask.picksWornEnds(0, noWood, true, true));
-        assertTrue(BranchMineTask.picksWornEnds(0, noWood, true, false));
+        assertTrue(BranchMineTask.picksWornEnds(0, noWood, true));
     }
 
     @Test

@@ -1588,14 +1588,11 @@ public class BranchMineTask extends Task {
     // (gold_keep_picks) a gold try ends for worn pickaxes: none above wood left unworn, and the next pickaxe the mine would make
     // (StickReserve.nextPick, as pickAhead asks it) is not one of iron or diamond from the bag, which takes the ore and spares the
     // kit's; with stick_reserve off no pickaxe is made at all
+    // (gold_pick_from_bag) no trip up for the wood of a diamond pickaxe: the try waited for it 82 blocks down with only the
+    // kit's worn diamond pickaxe, which gold ore on the way and the climb wore out under the sea, and the buddy stood there
+    // with no pickaxe at all for an hour (look 127). with no wood in the bag the try ends as before, the pickaxes kept
     static boolean picksWornEnds(int goodAboveWood, adris.altoclef.util.helpers.StickReserve.Next next, boolean reserveOn) {
-        return picksWornEnds(goodAboveWood, next, reserveOn, false);
-    }
-
-    // (gold_pick_from_bag) with a diamond pickaxe's diamonds in the bag the trip up for its wood goes on too
-    static boolean picksWornEnds(int goodAboveWood, adris.altoclef.util.helpers.StickReserve.Next next, boolean reserveOn, boolean diamondsWait) {
         if (goodAboveWood > 0) return false;
-        if (reserveOn && diamondsWait && next == adris.altoclef.util.helpers.StickReserve.Next.LOGS) return false;
         return !reserveOn || next != adris.altoclef.util.helpers.StickReserve.Next.IRON && next != adris.altoclef.util.helpers.StickReserve.Next.DIAMOND;
     }
 
@@ -1630,8 +1627,7 @@ public class BranchMineTask extends Task {
         adris.altoclef.util.helpers.StickReserve.Next next = adris.altoclef.util.helpers.StickReserve.nextPick(good, iron,
                 stoneForPick(true, stone, diamonds), sticks, planks, logs, table, !needsBetterThanStone(_blocks), diamonds,
                 adris.altoclef.util.helpers.StickReserve.moreOn());
-        if (!picksWornEnds(good, next, adris.altoclef.util.helpers.StickReserve.on(),
-                goldPickFromBagOn() && diamonds >= adris.altoclef.util.helpers.StickReserve.DIAMONDS)) return null;
+        if (!picksWornEnds(good, next, adris.altoclef.util.helpers.StickReserve.on())) return null;
         _picksWorn = true;
         picksWornLine = "branch mine: no unworn pickaxe above wood left in the bag (" + picksInBag(mod) + "; " + iron + " iron ingots, "
                 + diamonds + " diamonds, " + sticks + " sticks, " + planks + " planks, " + logs + " logs), the gold try ends: pickaxes worn, "

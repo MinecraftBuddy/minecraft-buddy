@@ -701,7 +701,8 @@ public final class Tuning {
             // through water began again every 7 s with no pickup, TakeAlongChain (look 115)
             java.util.Map.entry("take_along_done_ban", 1.0),
             // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
-            // none: a stone one takes no gold ore) and the gold try waits for the wood trip it needs instead of ending:
+            // none: a stone one takes no gold ore); with no wood in the bag the try ends as before (no trip up from the deep
+            // with a worn pickaxe, look 127):
             // at 71 give-ups both iron pickaxes were broken, 29 held 3+ diamonds, 64 lacked the wood, BranchMineTask
             java.util.Map.entry("gold_pick_from_bag", 1.0),
             // the slime hunt keeps one branch mine for the whole hunt: a new one after each chase forgot the tunnel it was
