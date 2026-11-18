@@ -480,8 +480,19 @@ public class ConstructNetherPortalObsidianTask extends Task {
         var level = mod.getWorld();
         if (level == null || mod.getPlayer() == null || !level.getBlockState(cell).canBeReplaced()
                 || mod.getPlayer().getBoundingBox().intersects(new AABB(cell))) return null;
+        // (Tuning portal_frame_clear, a fix of 18 Nov 2026, on) short grass, leaf litter or a snow layer in the cell first, by hand:
+        // the click aims at the face under it, the ray stops on the plant's outline, and the click waited for a look it never
+        // got until the move checker gave up; 5 of the 15 sites one run dropped in 34 minutes on a forest floor (look 131)
+        BlockState inCell = level.getBlockState(cell);
+        if (!inCell.isAir() && inCell.getFluidState().isEmpty() && !inCell.getShape(level, cell).isEmpty()
+                && adris.altoclef.util.helpers.Tuning.get("portal_frame_clear", 0) > 0) {
+            setDebugState("Placing frame... clearing " + net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(inCell.getBlock()).getPath() + " out of a frame cell first");
+            return new adris.altoclef.tasks.construction.DestroyBlockTask(cell);
+        }
         BlockPos below = cell.below();
         if (level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)) {
+            Task step = stepUp(mod, cell);
+            if (step != null) return step;
             return standing(mod, new InteractWithBlockTask(new ItemTarget(Items.OBSIDIAN, 1), Direction.UP, below, false), cell, Direction.UP);
         }
         // the frame runs along z: a top cell's faces are its neighbours along it, the other top cell or a corner
@@ -503,6 +514,47 @@ public class ConstructNetherPortalObsidianTask extends Task {
             }
         }
         return null;
+    }
+
+    // (Tuning portal_frame_step, a fix of 18 Nov 2026, on) a column's third block is clicked from one block up, and baritone was
+    // to pillar there: in one run it never did (no path, "couldn't get more than 0 blocks", even a goal straight above the
+    // feet), and 9 of 15 sites were dropped in 34 minutes (look 131). so, as a player does, a block goes on the ground beside
+    // the column first, outside the portal's space and best not in front of its opening, and the stand is a step up onto it.
+    // null when a stand one up already has its floor, when the stand is on the ground or two up, or with no block to spare
+    private Task stepUp(AltoClef mod, BlockPos cell) {
+        if (adris.altoclef.util.helpers.Tuning.get("portal_frame_step", 0) <= 0) return null;
+        var level = mod.getWorld();
+        List<Vec3i> cells = standCells(cell.subtract(_origin), Direction.UP, true);
+        if (cells.isEmpty() || cells.get(0).getY() != 1) return null;
+        for (Vec3i c : cells) {
+            BlockPos feet = _origin.offset(c), floor = feet.below();
+            if (level.getBlockState(floor).isFaceSturdy(level, floor, Direction.UP) && level.getBlockState(feet).canBeReplaced()
+                    && level.getBlockState(feet.above()).canBeReplaced()) return null;
+        }
+        Item block = null;
+        for (Item b : CORNER_BLOCKS) {
+            if (mod.getItemStorage().hasItem(b)) { block = b; break; }
+        }
+        if (block == null) return null;
+        BlockPos pick = null;
+        for (int pass = 0; pass < 2 && pick == null; pass++) {
+            for (Vec3i c : cells) {
+                // the first pass only beside the frame, the second also in front of the opening
+                boolean front = isIn(new Vec3i(0, c.getY(), c.getZ()), PORTAL_INTERIOR);
+                if (pass == 0 && front) continue;
+                BlockPos feet = _origin.offset(c), floor = feet.below(), ground = floor.below();
+                if (!level.getBlockState(floor).canBeReplaced() || !level.getFluidState(floor).isEmpty()) continue;
+                if (!level.getBlockState(ground).isFaceSturdy(level, ground, Direction.UP)) continue;
+                if (!level.getBlockState(feet).canBeReplaced() || !level.getBlockState(feet.above()).canBeReplaced()) continue;
+                if (mod.getPlayer().getBoundingBox().intersects(new AABB(floor))) continue;
+                pick = ground;
+                break;
+            }
+        }
+        if (pick == null) return null;
+        setDebugState("Placing frame... a step beside the column first");
+        // (through standing: InteractWithBlockTask's own goal for a top face is met by no cell, see standing)
+        return standing(mod, new InteractWithBlockTask(new ItemTarget(block, 1), Direction.UP, pick, false), pick.above(), Direction.UP);
     }
 
     // (the buddy's fork: where to stand for a click into the frame. InteractWithBlockTask's own goal for a click on a top

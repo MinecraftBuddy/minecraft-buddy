@@ -739,7 +739,13 @@ public final class Tuning {
             java.util.Map.entry("dig_timeout_progress", 1.0),
             // obsidian found in the last 10 s still counts as found: a far natural block came and went about once a second and
             // each change switched between walking to it and a cast with no lava, six minutes, CollectObsidianTask (look 130)
-            java.util.Map.entry("obsidian_seen_hold", 1.0));
+            java.util.Map.entry("obsidian_seen_hold", 1.0),
+            // a plant or snow layer in a portal frame cell is broken by hand before the click: the ray stopped on its outline and
+            // the click never went in; 5 of 15 dropped sites in one run's 34 minutes on a forest floor, ConstructNetherPortalObsidianTask (look 131)
+            java.util.Map.entry("portal_frame_clear", 1.0),
+            // a block on the ground beside a portal column before its third block, the stand a step up onto it: baritone's pillar
+            // there never came and 9 of 15 sites were dropped in 34 minutes, ConstructNetherPortalObsidianTask (look 131)
+            java.util.Map.entry("portal_frame_step", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
