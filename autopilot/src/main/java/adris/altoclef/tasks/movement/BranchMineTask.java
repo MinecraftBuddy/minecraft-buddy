@@ -311,6 +311,8 @@ public class BranchMineTask extends Task {
     private static long surfaceOffUntil = Long.MIN_VALUE;
     static final long SURFACE_CAP = 12000;
     static final long SURFACE_OFF = 36000;
+    // (gold_wood_deep) when a gold mine began its fetch of the kit underground, for every mine of the order
+    private static long deepBegunAt = Long.MIN_VALUE;
     // (Tuning pickless_way_out) a crafting table standing within the bench's reach, looked for at most every TABLE_LOOK ticks
     private long _tableLookAt = Long.MIN_VALUE;
     private boolean _tableNear;
@@ -1769,7 +1771,8 @@ public class BranchMineTask extends Task {
         return _aheadCraft;
     }
 
-    // (mine_kit_surface) the pickaxes and the wood before the mine goes down from the surface, or null: not the gold mine or the
+    // (mine_kit_surface) the pickaxes and the wood before the mine goes down from the surface (with gold_wood_deep also from
+    // underground, once in SURFACE_OFF), or null: not the gold mine or the
     // slime dig, done for this task, not on the surface (more than LogReach.ROOF under the sky's height) or within 8 of the
     // mine's height, or a fetch of the order ran out of its time less than SURFACE_OFF ago
     private Task surfaceKit(AltoClef mod, BlockPos feet, int y, long now) {
@@ -1778,16 +1781,23 @@ public class BranchMineTask extends Task {
         }
         int depth = mod.getWorld().getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, feet.getX(), feet.getZ()) - y;
         boolean off = surfaceOffUntil != Long.MIN_VALUE && now < surfaceOffUntil && surfaceOffUntil - now <= SURFACE_OFF;
-        if (y - _mineY <= 8 || depth > adris.altoclef.util.helpers.LogReach.ROOF || off) {
+        boolean surface = y - _mineY > 8 && depth <= adris.altoclef.util.helpers.LogReach.ROOF;
+        // (gold_wood_deep, a fix of 18 Nov 2026, on) also when the gold mine begins underground, with the pickaxes still whole:
+        // heel-34 run 3 began its gold in a cave at y -1, got no wood at all and gave the gold up with 13 of 96 for want of
+        // sticks; one such fetch in SURFACE_OFF over every mine of the order (a mine made anew would begin another)
+        boolean deep = !surface && adris.altoclef.util.helpers.StickReserve.goldWoodDeep()
+                && (_surfaceSince != Long.MIN_VALUE || deepBegunAt == Long.MIN_VALUE || now < deepBegunAt || now - deepBegunAt > SURFACE_OFF);
+        if (!(surface || deep) || off) {
             return null;
         }
+        int extra = adris.altoclef.util.helpers.StickReserve.goldWoodPlanks();
         var bag = mod.getItemStorage();
         int picks = picksBesidesKit(mod);
         int sticks = bag.getItemCount(Items.STICK);
         int planks = bag.getItemCount(ItemHelper.PLANKS);
         int logs = bag.getItemCount(ItemHelper.LOG);
         boolean table = bag.getItemCount(Items.CRAFTING_TABLE) > 0;
-        adris.altoclef.util.helpers.StickReserve.Ready ready = adris.altoclef.util.helpers.StickReserve.surfaceReady(picks, sticks, planks, logs, table);
+        adris.altoclef.util.helpers.StickReserve.Ready ready = adris.altoclef.util.helpers.StickReserve.surfaceReady(picks, sticks, planks, logs, table, extra);
         String bagLine = picks + " pickaxes above wood besides the kit's diamond one, " + sticks + " sticks, " + planks + " planks, "
                 + logs + " logs, " + (table ? "a table" : "no table");
         if (ready == adris.altoclef.util.helpers.StickReserve.Ready.READY) {
@@ -1798,12 +1808,16 @@ public class BranchMineTask extends Task {
             _surfaceTask = null;
             return null;
         }
-        if (_surfaceSince == Long.MIN_VALUE || now < _surfaceSince) _surfaceSince = now;
+        if (_surfaceSince == Long.MIN_VALUE || now < _surfaceSince) {
+            _surfaceSince = now;
+            if (!surface) deepBegunAt = now;
+        }
+        String where = surface ? "here on the surface" : "up from down here (gold_wood_deep)";
         if (now - _surfaceSince > SURFACE_CAP) {
             _surfaceDone = true;
             _surfaceTask = null;
             surfaceOffUntil = now + SURFACE_OFF;
-            adris.altoclef.Debug.logInternal("branch mine: the pickaxes and the wood not ready in " + SURFACE_CAP / 1200 + " game minutes on the surface ("
+            adris.altoclef.Debug.logInternal("branch mine: the pickaxes and the wood not ready in " + SURFACE_CAP / 1200 + " game minutes " + (surface ? "on the surface" : "from down here") + " ("
                     + bagLine + "), down anyway (mine_kit_surface)");
             return null;
         }
@@ -1815,13 +1829,13 @@ public class BranchMineTask extends Task {
             int want = bag.getItemCount(Items.STONE_PICKAXE) + adris.altoclef.util.helpers.StickReserve.SURFACE_PICKS - picks;
             _surfaceTask = adris.altoclef.TaskCatalogue.getItemTask("stone_pickaxe", want);
             adris.altoclef.Debug.logInternal("branch mine: before going down for the gold, " + bagLine + ": "
-                    + (adris.altoclef.util.helpers.StickReserve.SURFACE_PICKS - picks) + " stone pickaxes made here on the surface (mine_kit_surface)");
+                    + (adris.altoclef.util.helpers.StickReserve.SURFACE_PICKS - picks) + " stone pickaxes made " + where + " (mine_kit_surface)");
             setDebugState("Pickaxes before going down, made on the surface");
         } else {
-            int want = adris.altoclef.util.helpers.StickReserve.surfaceLogs(sticks, planks, logs, table);
+            int want = adris.altoclef.util.helpers.StickReserve.surfaceLogs(sticks, planks, logs, table, extra);
             _surfaceTask = adris.altoclef.TaskCatalogue.getItemTask("log", want);
             adris.altoclef.Debug.logInternal("branch mine: before going down for the gold, " + bagLine + ": " + (want - logs)
-                    + " logs here on the surface, the wood for one more pickaxe (mine_kit_surface)");
+                    + " logs " + where + ", the wood for one more pickaxe and " + extra + " planks more for the gold (mine_kit_surface, gold_wood_planks)");
             setDebugState("Wood for one more pickaxe before going down, from the surface");
         }
         return _surfaceTask;

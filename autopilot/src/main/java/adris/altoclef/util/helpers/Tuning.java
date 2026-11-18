@@ -725,7 +725,14 @@ public final class Tuning {
             java.util.Map.entry("take_along_miner_takes", 1.0),
             // the fight due on a creeper after a run from it got nowhere sees the creeper: a swelling creeper is off the
             // hostile list, so the fallback never fired and the same run began 18 times in 7 minutes, CombatBrain (look 129)
-            java.util.Map.entry("creeper_fight_sees", 1.0));
+            java.util.Map.entry("creeper_fight_sees", 1.0),
+            // the gold mine's kit takes this much more wood, in planks, than one more pickaxe and the reserve (a stone pickaxe is a
+            // plank's two sticks, about 130 blocks of rock): every gold try of heel-34 ended with no wood for sticks, 2 of 2 (64
+            // of 71 give-ups before), the bag full of stone and diamonds, BranchMineTask, StickReserve
+            java.util.Map.entry("gold_wood_planks", 24.0),
+            // that wood fetched also when the gold phase begins underground (a cave at y -1 in heel-34 run 3, so no surface kit
+            // at all), at most SURFACE_CAP and once an order as on the surface, BranchMineTask
+            java.util.Map.entry("gold_wood_deep", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

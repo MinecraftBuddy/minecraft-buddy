@@ -133,6 +133,17 @@ public class StickReserveTest {
         assertEquals(2, StickReserve.surfaceLogs(2, 3, 2, true));
     }
 
+    // (Tuning gold_wood_planks) the gold mine's kit wants that much more wood: both gold tries of heel-34 ended with no sticks
+    @Test
+    public void theGoldMineTakesMoreWood() {
+        assertEquals(StickReserve.Ready.READY, StickReserve.surfaceReady(2, 2, 3, 0, true, 0));
+        assertEquals(StickReserve.Ready.WOOD, StickReserve.surfaceReady(2, 2, 3, 0, true, 24));
+        assertEquals(StickReserve.Ready.READY, StickReserve.surfaceReady(2, 2, 3, 6, true, 24));
+        // 24 planks lacking: six logs and one more
+        assertEquals(7, StickReserve.surfaceLogs(2, 3, 0, true, 24));
+        assertEquals(StickReserve.Ready.PICKS, StickReserve.surfaceReady(1, 2, 3, 9, true, 24));
+    }
+
     // (Tuning pickless_way_out) a table standing within the bench's reach counts as one in the bag for the next pickaxe
     @Test
     public void aTableNearDoesForTheTableInTheBag() {

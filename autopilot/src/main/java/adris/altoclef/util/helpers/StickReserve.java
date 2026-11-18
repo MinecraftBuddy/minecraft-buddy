@@ -136,11 +136,27 @@ public final class StickReserve {
         return Tuning.get("mine_kit_surface", 0) > 0;
     }
 
+    // (Tuning gold_wood_planks, a fix of 18 Nov 2026, 24) the wood, in planks, the gold mine's kit takes beyond one more pickaxe
+    // and the reserve: both gold tries of heel-34 ended with no wood for sticks while the bag held stone (and in one 4 diamonds)
+    public static int goldWoodPlanks() {
+        return Math.max(0, (int) Tuning.get("gold_wood_planks", 0));
+    }
+
+    // (Tuning gold_wood_deep, a fix of 18 Nov 2026, on) the gold mine's kit fetched also when the mine begins underground
+    public static boolean goldWoodDeep() {
+        return Tuning.get("gold_wood_deep", 0) > 0;
+    }
+
     public static Ready surfaceReady(int picksBesidesKit, int sticks, int planks, int logs, boolean tableInBag) {
+        return surfaceReady(picksBesidesKit, sticks, planks, logs, tableInBag, 0);
+    }
+
+    // extraPlanks: the wood wanted beyond one more pickaxe and the reserve (goldWoodPlanks)
+    public static Ready surfaceReady(int picksBesidesKit, int sticks, int planks, int logs, boolean tableInBag, int extraPlanks) {
         if (picksBesidesKit < SURFACE_PICKS) {
             return Ready.PICKS;
         }
-        return wood(planks, logs) >= surfaceWood(sticks, tableInBag) ? Ready.READY : Ready.WOOD;
+        return wood(planks, logs) >= surfaceWood(sticks, tableInBag) + Math.max(0, extraPlanks) ? Ready.READY : Ready.WOOD;
     }
 
     // the wood, in planks, one more pickaxe and the reserve take
@@ -150,7 +166,11 @@ public final class StickReserve {
 
     // the logs the bag should hold after the trip for that wood: what it holds, what covers the shortfall, and one more
     public static int surfaceLogs(int sticks, int planks, int logs, boolean tableInBag) {
-        int lack = surfaceWood(sticks, tableInBag) - wood(planks, logs);
+        return surfaceLogs(sticks, planks, logs, tableInBag, 0);
+    }
+
+    public static int surfaceLogs(int sticks, int planks, int logs, boolean tableInBag, int extraPlanks) {
+        int lack = surfaceWood(sticks, tableInBag) + Math.max(0, extraPlanks) - wood(planks, logs);
         return lack <= 0 ? logs : logs + (lack + LOG_PLANKS - 1) / LOG_PLANKS + 1;
     }
 }
