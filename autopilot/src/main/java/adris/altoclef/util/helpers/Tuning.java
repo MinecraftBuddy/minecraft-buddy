@@ -722,7 +722,10 @@ public final class Tuning {
             java.util.Map.entry("poke_level_keep", 1.0),
             // a take-along starts only on a block the miner would go for (below 15 armour an ore within 5): on raw iron farther
             // off it found no target, branch mined down and ended with nothing, TakeAlongChain (look 128)
-            java.util.Map.entry("take_along_miner_takes", 1.0));
+            java.util.Map.entry("take_along_miner_takes", 1.0),
+            // the fight due on a creeper after a run from it got nowhere sees the creeper: a swelling creeper is off the
+            // hostile list, so the fallback never fired and the same run began 18 times in 7 minutes, CombatBrain (look 129)
+            java.util.Map.entry("creeper_fight_sees", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

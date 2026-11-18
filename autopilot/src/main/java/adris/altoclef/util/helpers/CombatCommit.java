@@ -867,6 +867,12 @@ public final class CombatCommit {
     static final double CREEPER_RUN_NOWHERE = 3;
     static final long CREEPER_FIGHT_AFTER = 600;
 
+    // a run from a creeper that keeps coming back got nowhere a little ago: the next repeat is fought (the idle decision's
+    // creeperRepeat branch), so the brain's foe list must carry the creeper then
+    public boolean creeperFightDue(long now) {
+        return creeperRunNowhereAt >= 0 && now - creeperRunNowhereAt < CREEPER_FIGHT_AFTER;
+    }
+
     private static Foe nearestCreeper(Tick t) {
         Foe best = null;
         for (Foe foe : t.foes()) {

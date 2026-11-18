@@ -968,7 +968,13 @@ final class CombatBrain {
         if (inFight) addBlazesThatHitUs(mod, dimension, book, now, player, mobs, foes);
         // a swelling creeper stops being angry at us (the fuse goal pushes the chase aside), so the hostile list drops it right when
         // the run away from it needs to see it
-        if (_commit.mode() == Mode.RUN && _commit.why() == CombatCommit.Why.REPEAT_CREEPER) addNearCreepers(mod, player, mobs, foes);
+        // (Tuning creeper_fight_sees, a fix of 18 Nov 2026, on) and when the next repeat is decided after a run from it that got
+        // nowhere: the fight it is due then needs the creeper in the list, and without it the same run began again "from
+        // nothing in sight", 18 times in 7 minutes beside one creeper held at 2.8 in a pit (look 129, S171.10)
+        boolean creeperRun = _commit.mode() == Mode.RUN && _commit.why() == CombatCommit.Why.REPEAT_CREEPER;
+        boolean creeperFight = creeperRepeat && _commit.creeperFightDue(now)
+                && adris.altoclef.util.helpers.Tuning.get("creeper_fight_sees", 0) > 0;
+        if (creeperRun || creeperFight) addNearCreepers(mod, player, mobs, foes);
         // (S137, the repair after smoke9, Tuning risk_blaze_bite, on under risk_flee) during a run a blaze in its bite is a melee
         // chaser, the rods task's own included: the hits it lands turn the run on it, and so does a flee whose own path costs
         // the hp left. smoke9 r4: two blazes bit 3.1 a second through a run that fled 1 to 2 blocks, 13.9 hp to 0 in 4 s, no foe
