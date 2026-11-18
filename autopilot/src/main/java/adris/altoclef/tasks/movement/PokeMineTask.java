@@ -149,6 +149,19 @@ public class PokeMineTask extends Task {
         return m == null || m.run == null ? null : new int[]{m.run.dx(), m.run.dz()};
     }
 
+    // (Tuning poke_level_keep, a fix of 18 Nov 2026, on) the height of the run under way when a new mine would start one or
+    // two off it, near its cell and fresh; else null. a pickup's climb of one or two blocks restarted the mine at the feet,
+    // on the old legs' head row: every step there was "not taken: no floor" over the buddy's own dug cells, and the legs and
+    // connectors turned in the strip between the old legs for 14 game minutes with no gold (look 125)
+    public static Integer runHeightNear(Object level, BlockPos feet, int y, long now) {
+        if (adris.altoclef.util.helpers.Tuning.get("poke_level_keep", 0) <= 0) return null;
+        Memory m = MEM;
+        if (m == null || m.run == null || m.level != level) return null;
+        int d = Math.abs(y - m.run.y());
+        if (d == 0 || d > 2 || now < m.last || now - m.last > FRESH || horizontal(feet, m.run.x(), m.run.z()) > RESUME) return null;
+        return m.run.y();
+    }
+
     // true once: runs kept finding nothing to turn to, and the branch mine digs its old tunnel for a while
     public boolean takeFallback() {
         boolean f = _fallback;

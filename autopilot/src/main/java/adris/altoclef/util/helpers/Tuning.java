@@ -714,7 +714,11 @@ public final class Tuning {
             // no take-along from the bed, and a night trip stopped with the buddy in bed gets up: a take-along a second after
             // "Sleeping." left the buddy in bed, every move cancelled, for five minutes till dawn, TakeAlongChain,
             // NightSleepTask (look 124)
-            java.util.Map.entry("sleep_guard", 1.0));
+            java.util.Map.entry("sleep_guard", 1.0),
+            // a branch mine made one or two off the poke holes' fresh run goes on at that run's height: one made on the old
+            // legs' head row after a pickup's climb turned in its own dug cells for 14 game minutes, BranchMineTask,
+            // PokeMineTask (look 125)
+            java.util.Map.entry("poke_level_keep", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

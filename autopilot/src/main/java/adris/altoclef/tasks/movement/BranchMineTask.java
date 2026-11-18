@@ -375,6 +375,14 @@ public class BranchMineTask extends Task {
             if (wideBand() && inBand(y)) _mineY = y;
             // (gold_band_core) a start a little under the mine's height but out of gold's band mines at the height
             else if (goldCore() && !inBand(_mineY)) _mineY = _y;
+            // (poke_level_keep) one or two off the poke holes' run under way: on with that run's height, not a level on its own
+            // old head row
+            Integer kept = PokeMineTask.runHeightNear(mod.getWorld(), mod.getPlayer().blockPosition(), _mineY, now);
+            if (kept != null && inBand(kept)) {
+                adris.altoclef.Debug.logInternal("branch mine: made at y " + _mineY + ", " + Math.abs(_mineY - kept)
+                        + " off the poke holes' run under way: on at its y " + kept + " (poke_level_keep)");
+                _mineY = kept;
+            }
         }
         BlockPos feet = mod.getPlayer().blockPosition();
         // (gold_keep_picks) the buddy's gold try with no pickaxe left for the ore but the kit's worn ones: the try ends here, before
