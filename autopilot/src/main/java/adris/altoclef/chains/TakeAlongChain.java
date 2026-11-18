@@ -218,6 +218,14 @@ public class TakeAlongChain extends SingleTaskChain {
                         : " blocks") + " banned for a while");
                 return Float.NEGATIVE_INFINITY;
             case DONE:
+                // (take_along_done_ban, a fix of 18 Nov 2026, on) a cluster done with nothing got is banned as a timeout is: one
+                // seen through water that the miner could not target went out of sight after 20 ticks, ended "done" with
+                // nothing, banned nothing, and began again every 7 s, 26 times in 3 minutes (look 115)
+                if (doneBanOn() && gotNothing(mod)) {
+                    int none = ban(mod, cfg, "done-empty", now);
+                    end(mod, now, "done", "out of sight with nothing got, " + none + " blocks banned for a while");
+                    return Float.NEGATIVE_INFINITY;
+                }
                 end(mod, now, "done", "the cluster is mined or the bag holds what it came for");
                 return Float.NEGATIVE_INFINITY;
             case CAPPED:
@@ -997,6 +1005,24 @@ public class TakeAlongChain extends SingleTaskChain {
     // (take_along_falling_ban, a fix of 14 Nov 2026, on) the key; off without it, as before
     private static boolean fallingBanOn() {
         return adris.altoclef.util.helpers.Tuning.get("take_along_falling_ban", 0) > 0;
+    }
+
+    private static boolean doneBanOn() {
+        return adris.altoclef.util.helpers.Tuning.get("take_along_done_ban", 0) > 0;
+    }
+
+    // (take_along_done_ban) a block detour whose targets are none of them more in the bag than at its start
+    private boolean gotNothing(AltoClef mod) {
+        Detour d = _detour;
+        if (d == null || d.drops != null || d.animals != null) {
+            return false;
+        }
+        for (Map.Entry<Kind, Integer> e : d.target.entrySet()) {
+            if (count(mod, e.getKey()) > d.heldAtStart.getOrDefault(e.getKey(), 0)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // (take_along_falling_ban) a detour for a falling kind that ends out of time, led too far, or capped with none of the kind

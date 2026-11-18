@@ -696,7 +696,10 @@ public final class Tuning {
             // the branch mine's way down through the open, once "nothing under any step" chose it, is kept till it ends, the
             // feet are two lower or 30 s have passed: on a rim it and the staircase took turns every second for minutes,
             // BranchMineTask (looks 117, 119)
-            java.util.Map.entry("down_way_keep", 1.0));
+            java.util.Map.entry("down_way_keep", 1.0),
+            // a take-along of blocks that ends "done" with nothing got bans what is left, as a timeout does: a cluster seen
+            // through water began again every 7 s with no pickup, TakeAlongChain (look 115)
+            java.util.Map.entry("take_along_done_ban", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
