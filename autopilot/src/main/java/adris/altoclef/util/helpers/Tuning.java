@@ -703,7 +703,10 @@ public final class Tuning {
             // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
             // none: a stone one takes no gold ore) and the gold try waits for the wood trip it needs instead of ending:
             // at 71 give-ups both iron pickaxes were broken, 29 held 3+ diamonds, 64 lacked the wood, BranchMineTask
-            java.util.Map.entry("gold_pick_from_bag", 1.0));
+            java.util.Map.entry("gold_pick_from_bag", 1.0),
+            // the slime hunt keeps one branch mine for the whole hunt: a new one after each chase forgot the tunnel it was
+            // in and began a new mine in the same cave about once a second, KillAndLootTask (look 118)
+            java.util.Map.entry("slime_dig_keep", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

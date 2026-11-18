@@ -172,13 +172,28 @@ public class KillAndLootTask extends ResourceTask {
                 WorldHelper.getCurrentDimension() == baritone.api.utils.Dimension.OVERWORLD)) {
             return null;
         }
+        // (slime_dig_keep, a fix of 18 Nov 2026, on) one mine for the whole hunt, not a new one after each chase: an
+        // unreachable slime flipped the chase and the mine about once a second, and each new mine forgot the tunnel it was
+        // in (BranchMineTask's _tunnelUntil) and began "a new mine" in the same cave, 23-46 starts a minute (look 118). a
+        // stopped task starts again with its own state (Task.tick calls onStart anew)
+        if (_slimeMine != null && slimeDigKeepOn()) {
+            return _slimeMine;
+        }
         // (built here, not as a static field: the blocks need the game's registries, which a unit test of this class has not)
         // (at the gold phase's own height, Tuning gold_mine_y, since 12 Nov 2026: the gold and the slime ball are fetched in
         // one stretch under the ground at the end of M3, so the slime dig goes on in the gold mine's level instead of
         // climbing to 8 for a mine of its own; the gold mine's sculk guards hold there as well)
-        return new adris.altoclef.tasks.movement.BranchMineTask(new net.minecraft.world.level.block.Block[]{
+        _slimeMine = new adris.altoclef.tasks.movement.BranchMineTask(new net.minecraft.world.level.block.Block[]{
                 net.minecraft.world.level.block.Blocks.GOLD_ORE, net.minecraft.world.level.block.Blocks.DEEPSLATE_GOLD_ORE},
                 slimeDigY(adris.altoclef.util.helpers.Tuning.get("gold_mine_y", SLIME_DIG_Y)), true);
+        return _slimeMine;
+    }
+
+    // (slime_dig_keep) the hunt's one mine, made at its first dig
+    private adris.altoclef.tasks.movement.BranchMineTask _slimeMine;
+
+    static boolean slimeDigKeepOn() {
+        return adris.altoclef.util.helpers.Tuning.get("slime_dig_keep", 0) > 0;
     }
 
     // the slime dig's height: the gold mine's, rounded to a block
