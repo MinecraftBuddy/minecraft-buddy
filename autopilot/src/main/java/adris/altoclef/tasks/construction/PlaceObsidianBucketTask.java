@@ -203,6 +203,19 @@ public class PlaceObsidianBucketTask extends Task {
         return this;
     }
 
+    // (cast_chunk_wait) the cast's cell and every frame cell in a chunk the client has
+    static boolean castChunkWait() {
+        return adris.altoclef.util.helpers.Tuning.get("cast_chunk_wait", 0) > 0;
+    }
+
+    private boolean castChunksLoaded(AltoClef mod) {
+        if (!mod.getChunkTracker().isChunkLoaded(_pos)) return false;
+        for (Vec3i rel : CAST_FRAME) {
+            if (!mod.getChunkTracker().isChunkLoaded(_pos.offset(rel))) return false;
+        }
+        return true;
+    }
+
     // the cast's own lava fetch, same rule as the parent's: not the cells we are casting in
     private Task ownFetch() {
         if (_bandSince == Integer.MIN_VALUE) {
@@ -352,6 +365,17 @@ public class PlaceObsidianBucketTask extends Task {
             mod.getBlockTracker().requestBlockUnreachable(_pos);
             _progressChecker.reset();
             return new TimeoutWanderTask(5);
+        }
+
+        // (cast_chunk_wait, a fix of 18 Nov 2026, on) the frame and the pour are read only from a loaded chunk: from a chunk
+        // that is not, every cell reads air, so the frame looked unbuilt from one side of a chunk line and built from the
+        // other, and the build and the walk to the stand took turns on that line about 28 times a minute for 11 minutes, 150
+        // blocks from the cast after a far lava fetch (look 122). till the cast's chunks are in, the walk to the stand
+        if (castChunkWait() && !castChunksLoaded(mod)) {
+            setDebugState("Walking back to the cast till its chunk is loaded");
+            _currentCastTarget = null;
+            _currentDestroyTarget = null;
+            return new GetToBlockTask(_pos.offset(-1, 1, 0), false);
         }
 
         // Build cast frame if not already built

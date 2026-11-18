@@ -150,6 +150,11 @@ public class CollectBucketLiquidTask extends ResourceTask {
         return adris.altoclef.util.helpers.Tuning.get("bottle_in_water_fix", 0) > 0;
     }
 
+    // (bucket_in_source_only) the fill where the buddy stands only when that cell is a source
+    static boolean inSourceOnly() {
+        return adris.altoclef.util.helpers.Tuning.get("bucket_in_source_only", 0) > 0;
+    }
+
     // how many full ones the bag holds. a bucket is its item; a water bottle is a potion, and so is every other drink
     protected int filledCount(AltoClef mod) {
         return mod.getItemStorage().getItemCount(_target);
@@ -224,7 +229,11 @@ public class CollectBucketLiquidTask extends ResourceTask {
         if (_tryImmediatePickupTimer.elapsed() && (_empty != Items.BUCKET || !mod.getItemStorage().hasItem(Items.WATER_BUCKET))
                 && (!bottleInWaterFix() || mod.getItemStorage().hasItem(_empty))) {
             Block standingInside = mod.getWorld().getBlockState(mod.getPlayer().blockPosition()).getBlock();
-            if (standingInside == _toCollect) {
+            // (bucket_in_source_only, a fix of 18 Nov 2026, on) only in a source: flowing water fills nothing, and the branch's
+            // null every 3 s killed the dig of the lid over the real source below, whose first move needed longer (look 121:
+            // 25 minutes in a cave stream with three empty bottles, 488 digs begun)
+            if (standingInside == _toCollect && (!inSourceOnly()
+                    || mod.getWorld().getFluidState(mod.getPlayer().blockPosition()).isSource())) {
                 setDebugState("Trying to collect (we are in it)");
                 mod.getInputControls().forceLook(0, 90);
                 //mod.getClientBaritone().getLookBehavior().updateTarget(new Rotation(0, 90), true);

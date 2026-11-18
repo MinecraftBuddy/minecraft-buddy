@@ -484,9 +484,13 @@ public class BranchMineTask extends Task {
         // not dig by the water ("No path found", a wander of five blocks), the feet bobbed between y 56 and 57 and the tunnel
         // at y 48 and the staircase took turns for 45 minutes
         boolean water = mod.getPlayer().isInWater();
-        boolean roofed = water && adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0 && !mod.getWorld().canSeeSky(feet.above());
+        // (water_roof_column, a fix of 18 Nov 2026, on) the sky is read over the top of the water column: water over the head
+        // dims the sky, so a buddy bobbing in a 1x1 pit read "under a roof" with the feet a cell down and "open" a cell up,
+        // and the two walks out took turns every second for 26 minutes (look 120)
+        BlockPos skyAt = overWater(mod, feet);
+        boolean roofed = water && adris.altoclef.util.helpers.Tuning.get("mine_water_roof", 0) > 0 && !mod.getWorld().canSeeSky(skyAt);
         // (open_water_land_hold) in water with the sky over the feet, and out of it less than LAND_HOLD ago
-        boolean open = water && mod.getWorld().canSeeSky(feet.above());
+        boolean open = water && mod.getWorld().canSeeSky(skyAt);
         boolean landHold = landHoldOn();
         if (open && landHold) _openWetAt = now;
         boolean openLately = landHold && adris.altoclef.util.helpers.Recent.within(now, _openWetAt, LAND_HOLD);
@@ -1054,6 +1058,17 @@ public class BranchMineTask extends Task {
 
     static boolean landHoldOn() {
         return adris.altoclef.util.helpers.Tuning.get("open_water_land_hold", 0) > 0;
+    }
+
+    // (water_roof_column) the first cell over the feet with no fluid in it, at most WATER_COLUMN up; the cell over the head
+    // with the switch off
+    static final int WATER_COLUMN = 8;
+
+    static BlockPos overWater(AltoClef mod, BlockPos feet) {
+        BlockPos at = feet.above();
+        if (adris.altoclef.util.helpers.Tuning.get("water_roof_column", 0) <= 0) return at;
+        for (int i = 0; i < WATER_COLUMN && !mod.getWorld().getFluidState(at).isEmpty(); i++) at = at.above();
+        return at;
     }
 
     // (open_water_land_hold) what the walk from open water does this tick: LAND_OFF nothing (or the walk is over), LAND_STAND

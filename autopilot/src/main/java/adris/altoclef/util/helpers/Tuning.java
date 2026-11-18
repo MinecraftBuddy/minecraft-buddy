@@ -682,7 +682,17 @@ public final class Tuning {
             java.util.Map.entry("run_bite_wither", 14.0),
             java.util.Map.entry("run_shelter_wither", 1.0),
             java.util.Map.entry("run_turn_fight", 1.0),
-            java.util.Map.entry("spawner_wait_cap", 90.0));
+            java.util.Map.entry("spawner_wait_cap", 90.0),
+            // (fixes of 18 Nov 2026, three live looks at the newest build: stalls of 11 to 40 minutes at full health)
+            // the fill where the buddy stands only in a source: in a cave stream the click every 3 s filled nothing and cut the
+            // dig of the lid over the source below, CollectBucketLiquidTask (look 121)
+            java.util.Map.entry("bucket_in_source_only", 1.0),
+            // in water the sky is read over the top of the water column, not over the head: in a 1x1 pit "under a roof" and
+            // "open water" took turns every second, BranchMineTask.overWater (look 120)
+            java.util.Map.entry("water_roof_column", 1.0),
+            // the obsidian cast's frame and pour read only from loaded chunks, else the walk to its stand: from an unloaded
+            // chunk the frame read air, and build and walk took turns on a chunk line, PlaceObsidianBucketTask (look 122)
+            java.util.Map.entry("cast_chunk_wait", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
