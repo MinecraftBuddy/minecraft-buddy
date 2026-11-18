@@ -606,6 +606,10 @@ public class MobDefenseChain extends SingleTaskChain {
     // our copy still comes at us until the server's new heading arrives, and every punch sends it along wherever we look then
     static final double PUNCH_REACH = ReachRules.MELEE_REACH;
     static final double PUNCH_WATCH = 12;
+    // (ghast_ball_plan) how far out a ball is judged for the shield: at PUNCH_WATCH a ball is only about 8 ticks from the hit,
+    // while the shield needs 5 on the server, a tick to leave a bow and the server's lead; in the check of 18 Nov a shield
+    // raised at 11.4 blocks, 8 ticks out, still let the ball through. the plan itself waits till the hit is within its lead
+    static final double PLAN_WATCH = 24;
     // how many of its own ticks our copy of the ball is behind the server's, at twenty ticks a second and no ping. it is time
     // more than ticks: at a hundred ticks a second the same delay was five times the ticks, and punches sent at 3.2 and 3.6
     // found the server's balls already burst against us (the practice server at five times speed, 3 Nov 2026)
@@ -659,7 +663,7 @@ public class MobDefenseChain extends SingleTaskChain {
                 + (slot + 1) + " for a ghast's ball");
     }
 
-    // (ghast_ball_plan) a ghast's ball within PUNCH_WATCH coming at us: the meal's stand down waits for it, as no bite
+    // (ghast_ball_plan) a ghast's ball within PLAN_WATCH coming at us: the meal's stand down waits for it, as no bite
     // outlasts a ball, and while it stands down neither the punch nor the shield runs
     private static boolean ghastBallComing(AltoClef mod) {
         Vec3 eye = mod.getPlayer().getEyePosition();
@@ -669,7 +673,7 @@ public class MobDefenseChain extends SingleTaskChain {
             if (moved.lengthSqr() < 1e-6) moved = ball.getDeltaMovement();
             AABB box = ball.getBoundingBox();
             if (moved.dot(eye.subtract(box.getCenter())) <= 0) continue;
-            if (ReachRules.gap(eye.x, eye.y, eye.z, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ) <= PUNCH_WATCH) return true;
+            if (ReachRules.gap(eye.x, eye.y, eye.z, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ) <= PLAN_WATCH) return true;
         }
         return false;
     }
@@ -721,14 +725,14 @@ public class MobDefenseChain extends SingleTaskChain {
             if (moved.lengthSqr() < 1e-6) moved = ball.getDeltaMovement();
             if (moved.dot(eye.subtract(box.getCenter())) <= 0) continue;
             double gap = ReachRules.gap(eye.x, eye.y, eye.z, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ);
-            if (plan && gap <= PUNCH_WATCH && punchedAt == null) {
+            if (plan && gap <= PLAN_WATCH && punchedAt == null) {
                 double speed = moved.length();
                 // how fast the gap closes: the ball's way and ours, along the line between
                 double closing = moved.subtract(me).dot(eye.subtract(box.getCenter()).normalize());
                 // the window's top: the arm's reach, or where the server's ball, lead ticks ahead, is in the punch's reach
                 double top = Math.min(armReach, PUNCH_REACH + lead * speed);
                 if (!_ballShield.containsKey(ball.getId()) && adris.altoclef.util.helpers.GhastBallPlan.shield(gap, closing, speed,
-                        punchMin, top, adris.altoclef.util.helpers.GhastBallPlan.SHIELD_RAISE_TICKS + lead + 3)) {
+                        punchMin, top, adris.altoclef.util.helpers.GhastBallPlan.SHIELD_RAISE_TICKS + lead + 4)) {
                     _ballShield.put(ball.getId(), now);
                     Debug.logInternal("combat: a ghast's ball at " + String.format("%.1f", gap) + ", "
                             + adris.altoclef.util.helpers.GhastBallPlan.ticksToHit(gap, closing, speed)
