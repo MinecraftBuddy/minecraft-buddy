@@ -710,7 +710,11 @@ public final class Tuning {
             // a ghast's ball that no tick of its way brings into the punch's window gets the shield while the shield still
             // has time to come up, not two ticks from the hit; a meal waits for a ball coming at the buddy: eight balls took
             // a run from 20 hp to 0 with the shield never in time, MobDefenseChain, GhastBallPlan (look 123)
-            java.util.Map.entry("ghast_ball_plan", 1.0));
+            java.util.Map.entry("ghast_ball_plan", 1.0),
+            // no take-along from the bed, and a night trip stopped with the buddy in bed gets up: a take-along a second after
+            // "Sleeping." left the buddy in bed, every move cancelled, for five minutes till dawn, TakeAlongChain,
+            // NightSleepTask (look 124)
+            java.util.Map.entry("sleep_guard", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

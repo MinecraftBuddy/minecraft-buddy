@@ -192,6 +192,12 @@ public class NightSleepTask extends Task {
         }
         // (the keys themselves go with the task's own claims when it stops)
         stepping = false;
+        // (Tuning sleep_guard, a fix of 18 Nov 2026, on) stopped with the buddy in bed, by a chain above or the task's parent:
+        // out of it. nothing else gets up, and in bed every move is cancelled (look 124: five minutes till dawn)
+        LocalPlayer player = mod.getPlayer();
+        if (player != null && player.isSleeping() && adris.altoclef.util.helpers.Tuning.get("sleep_guard", 0) > 0) {
+            getUp(player);
+        }
     }
 
     @Override

@@ -178,6 +178,12 @@ public class TakeAlongChain extends SingleTaskChain {
             }
             return Float.NEGATIVE_INFINITY;
         }
+        // (Tuning sleep_guard, a fix of 18 Nov 2026, on) nothing is taken along from the bed: a take-along that began a second
+        // after "Sleeping." stopped the night trip, nothing got the buddy up, and every move after it was cancelled in bed
+        // for five minutes till dawn (look 124)
+        if (player.isSleeping() && adris.altoclef.util.helpers.Tuning.get("sleep_guard", 0) > 0) {
+            return Float.NEGATIVE_INFINITY;
+        }
         long now = level.getGameTime();
         // asked for the wheel and a chain above had it instead: that ends the detour as onInterrupt would have. the tick it
         // started on is not counted, the runner had not picked yet
