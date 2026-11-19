@@ -187,8 +187,14 @@ final class TradeGold {
         // picked up after the break; with none, the search walks and the clock of no ore runs
         refreshOres(mod, now);
         BlockPos feet = player.blockPosition();
+        // (Tuning gold_target_keep, a fix of 19 Nov 2026, on) the piglins round the ore are asked again only once the feet are
+        // within PIGLIN_CLEAR of it: asked from afar, every piglin that wandered near a target 50 to 90 blocks off dropped it,
+        // and the buddy turned to another ore every few seconds, twelve trips in two minutes and none reached (heel-54, the
+        // live watch). at the ore a piglin in the anger box still holds the break (guard)
+        boolean piglinsAsked = !goldTargetKeepOn() || _target == null
+                || _target.distSqr(feet) <= TradeGoldRules.PIGLIN_CLEAR * TradeGoldRules.PIGLIN_CLEAR;
         if (_target != null && (!mod.getWorld().getBlockState(_target).is(Blocks.NETHER_GOLD_ORE)
-                || !TradeGoldRules.clearOfPiglins(_target, _piglins))) {
+                || (piglinsAsked && !TradeGoldRules.clearOfPiglins(_target, _piglins)))) {
             if (!mod.getWorld().getBlockState(_target).is(Blocks.NETHER_GOLD_ORE)) {
                 _broken++;
                 _pickupSince = now;
@@ -231,6 +237,10 @@ final class TradeGold {
         BlockPos at = _target;
         return step(mod, "ore " + at.toShortString(), 0, () -> new adris.altoclef.tasks.construction.DestroyBlockTask(at),
                 "Digging gold for the piglins");
+    }
+
+    static boolean goldTargetKeepOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_target_keep", 0) > 0;
     }
 
     // the step's own look for ore, every ORE_SCAN_TICKS and at once after a break (the vein's next ore shows once the broken

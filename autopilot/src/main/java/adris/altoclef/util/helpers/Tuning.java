@@ -822,7 +822,10 @@ public final class Tuning {
             java.util.Map.entry("cover_in_column", 1.0),
             // a run from a crowd with a trident drowned, under the open sky, goes inland along the driest ray: the rerun from the
             // same shore origin went back along the water, CommittedRunTask (19 Nov 2026, F3)
-            java.util.Map.entry("trident_run_inland", 1.0));
+            java.util.Map.entry("trident_run_inland", 1.0),
+            // the trade's gold step keeps its ore while the buddy is more than 24 blocks from it, whatever piglins wander near it
+            // meanwhile: asked from afar, the target changed every few seconds and no trip arrived, TradeGold (19 Nov 2026)
+            java.util.Map.entry("gold_target_keep", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
