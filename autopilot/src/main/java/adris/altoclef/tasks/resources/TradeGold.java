@@ -48,6 +48,7 @@ final class TradeGold {
     static final long ORE_GIVE_UP = 60 * 20;
     // the nuggets of a break are picked up from within this many blocks for at most this long (game ticks)
     static final double PICKUP_BLOCKS = 8;
+    static final double PICKUP_DY = 3;
     static final long PICKUP_TICKS = 10 * 20;
     // an ore further off than this is a trip, said in a line
     static final double TRIP_BLOCKS = 16;
@@ -237,7 +238,7 @@ final class TradeGold {
     private void refreshOres(AltoClef mod, long now) {
         if (_scannedAt != Long.MIN_VALUE && now >= _scannedAt && now - _scannedAt < ORE_SCAN_TICKS) return;
         _scannedAt = now;
-        _ores = scanOres(mod.getWorld(), mod.getPlayer().blockPosition());
+        _ores = scanOres(mod.getWorld(), mod.getPlayer().blockPosition(), _anchor0().getY());
     }
 
     // the nearest scanned ore still there, clear of piglins and the spawner, not given up on
@@ -261,12 +262,15 @@ final class TradeGold {
     // the nether is sent as a random one of its hidden list, so the 25 were fakes in the walls and real ore was known only a
     // block or two off: 0 or 1 gold in five to nine minutes, four runs of four.) the nether gold ore with an open face (air or
     // a fluid next to it, which such a server always sends as it is) in the loaded chunks within SCAN_CHUNKS of the feet, and
-    // TradeGoldRules.ANCHOR_DY up or down
-    static List<BlockPos> scanOres(net.minecraft.client.multiplayer.ClientLevel level, BlockPos feet) {
+    // the band TradeGoldRules.bandLow/bandHigh round the step's start height (bandY), never down to the lava sea. (the third
+    // smoke, 19 Nov 2026: a band round the feet went with them, up a cliff to y 93 and a fall of 32 blocks, and down from a
+    // start at y 84 to ore at y 23, under the lava sea's top, and into it; both runs died in the step.) ore with lava within
+    // LAVA_NEAR of it is left: a break by lava lets it in
+    static List<BlockPos> scanOres(net.minecraft.client.multiplayer.ClientLevel level, BlockPos feet, int bandY) {
         List<BlockPos> out = new ArrayList<>();
         int fcx = feet.getX() >> 4, fcz = feet.getZ() >> 4;
-        int minY = Math.max(level.getMinY(), feet.getY() - TradeGoldRules.ANCHOR_DY);
-        int maxY = Math.min(level.getMinY() + level.getHeight() - 1, feet.getY() + TradeGoldRules.ANCHOR_DY);
+        int minY = Math.max(level.getMinY(), TradeGoldRules.bandLow(bandY, level.getSeaLevel()));
+        int maxY = Math.min(level.getMinY() + level.getHeight() - 1, TradeGoldRules.bandHigh(bandY));
         java.util.function.Predicate<net.minecraft.world.level.block.state.BlockState> gold = st -> st.is(Blocks.NETHER_GOLD_ORE);
         BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
         for (int cx = fcx - SCAN_CHUNKS; cx <= fcx + SCAN_CHUNKS; cx++) {
@@ -286,7 +290,7 @@ final class TradeGold {
                         for (int z = 0; z < 16; z++) {
                             if (!sec.getBlockState(x, y & 15, z).is(Blocks.NETHER_GOLD_ORE)) continue;
                             at.set((cx << 4) + x, y, (cz << 4) + z);
-                            if (openFace(level, at)) out.add(at.immutable());
+                            if (openFace(level, at) && !lavaNear(level, at)) out.add(at.immutable());
                         }
                     }
                 }
@@ -304,10 +308,22 @@ final class TradeGold {
         return false;
     }
 
-    // gold nuggets lying within PICKUP_BLOCKS
+    // lava within LAVA_NEAR of the ore, any way
+    private static boolean lavaNear(net.minecraft.client.multiplayer.ClientLevel level, BlockPos ore) {
+        int r = TradeGoldRules.LAVA_NEAR;
+        for (BlockPos p : BlockPos.betweenClosed(ore.offset(-r, -r, -r), ore.offset(r, r, r))) {
+            if (level.getFluidState(p).is(net.minecraft.tags.FluidTags.LAVA)) return true;
+        }
+        return false;
+    }
+
+    // gold nuggets lying within PICKUP_BLOCKS sideways and PICKUP_DY up or down: one that fell down a cliff is left there (the
+    // pickup walked off a ledge once)
     private static int nuggetsNear(AltoClef mod) {
         int n = 0;
-        AABB box = mod.getPlayer().getBoundingBox().inflate(PICKUP_BLOCKS);
+        LocalPlayer p = mod.getPlayer();
+        AABB box = new AABB(p.getX() - PICKUP_BLOCKS, p.getY() - PICKUP_DY, p.getZ() - PICKUP_BLOCKS,
+                p.getX() + PICKUP_BLOCKS, p.getY() + PICKUP_DY + 2, p.getZ() + PICKUP_BLOCKS);
         for (net.minecraft.world.entity.item.ItemEntity e : mod.getWorld().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box,
                 e -> e.isAlive() && e.getItem().is(Items.GOLD_NUGGET))) {
             n += e.getItem().getCount();

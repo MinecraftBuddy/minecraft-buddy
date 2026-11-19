@@ -94,6 +94,22 @@ public final class TradeGoldRules {
         return Math.atan2(cz - spawner.getZ(), cx - spawner.getX());
     }
 
+    // the ore's band round the step's start height: BAND_DY up or down, and never lower than the lava sea's top and SEA_MARGIN
+    // (the nether's sea level is the lava sea's top). the start's height, not the feet's: a band that went with the feet took
+    // the buddy up a cliff and down under the lava sea in one smoke
+    public static final int BAND_DY = 8;
+    public static final int SEA_MARGIN = 4;
+    // lava this near an ore keeps the pick off it
+    public static final int LAVA_NEAR = 2;
+
+    public static int bandLow(int startY, int seaLevel) {
+        return Math.max(startY - BAND_DY, seaLevel + SEA_MARGIN);
+    }
+
+    public static int bandHigh(int startY) {
+        return startY + BAND_DY;
+    }
+
     // an ore may be the next anchor: within ANCHOR_BLOCKS sideways of the feet and ANCHOR_DY up or down
     public static boolean anchorOk(int ox, int oy, int oz, int fx, int fy, int fz) {
         double dx = ox - fx, dz = oz - fz;

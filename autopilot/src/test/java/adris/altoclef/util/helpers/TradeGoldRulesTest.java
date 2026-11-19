@@ -54,6 +54,15 @@ public class TradeGoldRulesTest {
         assertTrue(TradeGoldRules.overWhy(100, 0, 20 * 300, cap, dry).contains("no gold ore"));
     }
 
+    // the band stays round the start's height and above the lava sea
+    @Test
+    public void theBandRoundTheStartAboveTheLavaSea() {
+        assertEquals(76, TradeGoldRules.bandLow(84, 32));
+        assertEquals(92, TradeGoldRules.bandHigh(84));
+        assertEquals(36, TradeGoldRules.bandLow(40, 32));
+        assertEquals(36, TradeGoldRules.bandLow(20, 32));
+    }
+
     // the search and the ore keep 64 from a known spawner, and the rings start away from it
     @Test
     public void awayFromTheFortress() {
