@@ -1446,7 +1446,13 @@ public class BranchMineTask extends Task {
             _dry = null;
         }
         if (_dry == null || feet.equals(_dry)) {
-            _dry = dryCell(mod, feet, _dryTried.keySet());
+            // (Tuning mine_dry_not_feet, a fix of 19 Nov 2026, on) a dry cell reached while still in the water (the box touches
+            // water beside it) is passed over, and the feet's own cell is no dry cell: the feet's cell passed the dry test and
+            // was picked again every tick, 7118 times in 14 minutes, "out of the water first, to" where the buddy stood (box 2,
+            // heel-42-mc2 run 1)
+            boolean notFeet = adris.altoclef.util.helpers.Tuning.get("mine_dry_not_feet", 0) > 0;
+            if (notFeet && _dry != null) _dryTried.put(_dry, now);
+            _dry = dryCell(mod, feet, _dryTried.keySet(), notFeet);
             if (_dry == null && _lastDry != null && !_dryTried.containsKey(_lastDry) && _lastDry.closerThan(feet, DRY_BACK)) _dry = _lastDry;
             _drySince = now;
             if (_dry == null) return null;
@@ -1461,12 +1467,13 @@ public class BranchMineTask extends Task {
     // the nearest cell within DRY_REACH, four up or down, that the buddy can stand in out of the water: the cell and the one
     // over it free of blocks and fluid, a solid block under it with no fluid in it. by distance, a cell above counting as
     // farther than one level with it
-    private static BlockPos dryCell(AltoClef mod, BlockPos feet, java.util.Set<BlockPos> skip) {
+    private static BlockPos dryCell(AltoClef mod, BlockPos feet, java.util.Set<BlockPos> skip, boolean notFeet) {
         var level = mod.getWorld();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
         for (BlockPos pos : BlockPos.betweenClosed(feet.offset(-DRY_REACH, -4, -DRY_REACH), feet.offset(DRY_REACH, 4, DRY_REACH))) {
             int dx = pos.getX() - feet.getX(), dy = pos.getY() - feet.getY(), dz = pos.getZ() - feet.getZ();
+            if (notFeet && dx == 0 && dy == 0 && dz == 0) continue;
             double d = dx * dx + dz * dz + (dy > 0 ? 4.0 * dy * dy : dy * dy);
             if (d >= bestD) continue;
             if (!standable(level.getBlockState(pos.below()), level.getBlockState(pos), level.getBlockState(pos.above()))) continue;

@@ -780,7 +780,10 @@ public final class Tuning {
             java.util.Map.entry("food_climb_stuck", 1.0),
             // a step up out of water goes on while the feet bob one block under its start, jump held: each bob ended the one way out
             // of a four-deep pool under a stone roof, 12.6 game minutes at full health, MovementAscend (look 138)
-            java.util.Map.entry("ascend_from_water", 1.0));
+            java.util.Map.entry("ascend_from_water", 1.0),
+            // the branch mine's way out of water under a roof never picks the feet's own cell, and a dry cell reached while still in
+            // the water is passed over: the feet's cell was picked every tick, 7118 times in 14 minutes, BranchMineTask (19 Nov 2026)
+            java.util.Map.entry("mine_dry_not_feet", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
