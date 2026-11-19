@@ -806,7 +806,10 @@ public final class Tuning {
             java.util.Map.entry("station_stand_lava", 1.0),
             // an arrow in the skeleton cover's shut hole: its open side cells walled from the bag (the pillbox's walls) before
             // any give-up; the hole was taken with its top alone checked, SkelCoverTask (19 Nov 2026)
-            java.util.Map.entry("cover_side_wall", 1.0));
+            java.util.Map.entry("cover_side_wall", 1.0),
+            // the food climb's clock counts only the time the climb runs: five minutes in a skeleton's cover gave it up on its
+            // first tick back, with an empty bag, SurfaceFoodTask (look 140, 19 Nov 2026)
+            java.util.Map.entry("food_climb_pause", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

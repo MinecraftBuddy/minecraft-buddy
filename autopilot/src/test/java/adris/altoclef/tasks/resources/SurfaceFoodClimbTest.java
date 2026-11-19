@@ -3,6 +3,7 @@ package adris.altoclef.tasks.resources;
 import org.junit.After;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -31,5 +32,15 @@ public class SurfaceFoodClimbTest {
         assertTrue(SurfaceFoodTask.climbGivenUp(10_000 + SurfaceFoodTask.GIVEN_UP_HOLD - 1));
         assertFalse(SurfaceFoodTask.climbGivenUp(10_000 + SurfaceFoodTask.GIVEN_UP_HOLD));
         assertFalse("a clock that went back", SurfaceFoodTask.climbGivenUp(9_000));
+    }
+
+    // (food_climb_pause, look 140) a gap in the climb's ticks past PAUSE_GAP (a cover, a fight) moves its clock on by the gap
+    @Test
+    public void aPauseDoesNotCountAgainstTheClimb() {
+        assertEquals("the first tick", 1000, SurfaceFoodTask.pausedOn(1000, Long.MIN_VALUE, 2000));
+        assertEquals("ticks in a row", 1000, SurfaceFoodTask.pausedOn(1000, 1999, 2000));
+        assertEquals("a short gap", 1000, SurfaceFoodTask.pausedOn(1000, 2000 - SurfaceFoodTask.PAUSE_GAP, 2000));
+        assertEquals("five minutes in cover", 1000 + 6000, SurfaceFoodTask.pausedOn(1000, 2000, 8000));
+        assertEquals("a clock that went back", 1000, SurfaceFoodTask.pausedOn(1000, 9000, 8000));
     }
 }

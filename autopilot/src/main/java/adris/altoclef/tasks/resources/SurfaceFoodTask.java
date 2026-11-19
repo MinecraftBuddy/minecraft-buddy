@@ -34,6 +34,12 @@ public class SurfaceFoodTask extends Task {
     // kept through onStart: a fight that cut in does not start the climb's clock again
     private int _bestY = Integer.MIN_VALUE;
     private long _bestAt;
+    // (Tuning food_climb_pause, a fix of 19 Nov 2026, on) the climb's last tick: a gap past PAUSE_GAP (a fight, a cover) moves
+    // _bestAt on by the gap, so only the time the climb itself ran counts against CLIMB_STUCK. five minutes in a skeleton's
+    // cover with an empty bag spent the whole three, and the climb, the one step that could fill the bag, was given up on its
+    // first tick back and held off for 15 game minutes (look 140)
+    private long _climbTickAt = Long.MIN_VALUE;
+    static final long PAUSE_GAP = 40;
     private boolean _givenUp;
     // when a climb was last given up (the game clock), for the buddy's deep food rule
     private static volatile long _givenUpAt = Long.MIN_VALUE;
@@ -47,6 +53,13 @@ public class SurfaceFoodTask extends Task {
     static final long CLIMB_STUCK = 3 * 1200;
     /** How long after a climb given up the deep stretch's food rule sends no one up again (hunger and an empty bag still do). */
     static final long GIVEN_UP_HOLD = 15 * 1200;
+
+    /** (food_climb_pause) the climb's clock moved on by a gap since its last tick ({@code lastTick}) longer than PAUSE_GAP. */
+    static long pausedOn(long bestAt, long lastTick, long now) {
+        if (lastTick == Long.MIN_VALUE || now < lastTick) return bestAt;
+        long gap = now - lastTick;
+        return gap > PAUSE_GAP ? bestAt + gap : bestAt;
+    }
 
     /** The climb has got no higher since {@code bestAt}, now {@code now}, for longer than CLIMB_STUCK. */
     static boolean climbStuck(long bestAt, long now) {
@@ -118,6 +131,8 @@ public class SurfaceFoodTask extends Task {
         }
         // (food_climb_stuck) no higher in CLIMB_STUCK: given up, the order goes on with the bag's food
         long now = mod.getWorld().getGameTime();
+        if (adris.altoclef.util.helpers.Tuning.get("food_climb_pause", 0) > 0) _bestAt = pausedOn(_bestAt, _climbTickAt, now);
+        _climbTickAt = now;
         if (_bestY == Integer.MIN_VALUE || feet.getY() > _bestY || now < _bestAt) {
             _bestY = feet.getY();
             _bestAt = now;
