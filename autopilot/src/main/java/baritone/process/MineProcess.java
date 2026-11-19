@@ -68,6 +68,12 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
     private Map<BlockPos, Long> anticipatedDrops;
     private BlockPos branchPoint;
     private GoalRunAway branchPointRunaway;
+    // (the buddy's fork, Tuning mine_branch_memory, a fix of 19 Nov 2026, on) the branch points of the last few mines, so a mine
+    // begun again runs away from them too: each restart put its branch point where the feet stood, and the cheapest way away
+    // from there was back through the tunnel just dug, 400 blocks each way for 78 game minutes with no new rock (orescan-mc2)
+    private final Deque<BlockPos> pastBranchPoints = new ArrayDeque<>();
+    private static final int BRANCH_MEMORY = 4;
+    private static final double BRANCH_MEMORY_REACH = 160;
     private int desiredQuantity;
     private int tickCount;
     // (the buddy's fork, Tuning mine_no_path_tunnel) the mine's stops for no path, counted: the branch mine that started it reads
@@ -243,7 +249,17 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
         // TODO shaft mode, mine 1x1 shafts to either side
         // TODO also, see if the GoalRunAway with maintain Y at 11 works even from the surface
         if (branchPointRunaway == null) {
-            branchPointRunaway = new GoalRunAway(1, y, branchPoint) {
+            BlockPos[] from = new BlockPos[]{branchPoint};
+            if (adris.altoclef.util.helpers.Tuning.get("mine_branch_memory", 0) > 0) {
+                List<BlockPos> near = new ArrayList<>();
+                near.add(branchPoint);
+                for (BlockPos p : pastBranchPoints) {
+                    double dx = p.getX() - branchPoint.getX(), dz = p.getZ() - branchPoint.getZ();
+                    if (Math.sqrt(dx * dx + dz * dz) <= BRANCH_MEMORY_REACH && !p.equals(branchPoint)) near.add(p);
+                }
+                from = near.toArray(new BlockPos[0]);
+            }
+            branchPointRunaway = new GoalRunAway(1, y, from) {
                 @Override
                 public boolean isInGoal(int x, int y, int z) {
                     return false;
@@ -577,6 +593,11 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
         this.knownOreLocations = new ArrayList<>();
         this.blacklist = new ArrayList<>();
         this.fallsOnShaft = new HashSet<>();
+        // (mine_branch_memory) the last mine's branch point kept for the next mine's run-away; a mine in another world forgets them
+        if (this.branchPoint != null) {
+            pastBranchPoints.addFirst(this.branchPoint);
+            while (pastBranchPoints.size() > BRANCH_MEMORY) pastBranchPoints.removeLast();
+        }
         this.branchPoint = null;
         this.branchPointRunaway = null;
         this.anticipatedDrops = new HashMap<>();

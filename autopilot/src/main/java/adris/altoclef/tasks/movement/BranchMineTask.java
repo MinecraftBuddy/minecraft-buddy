@@ -853,6 +853,10 @@ public class BranchMineTask extends Task {
                 // up by a staircase of its own through the rock, as down: getting to y by baritone's cheapest way went up
                 // through the caves it had fallen into
                 if (_step != null && tick - _stepSince > 200 && !feet.equals(_step)) {
+                    // (Tuning stair_stuck_refuse, a fix of 19 Nov 2026, on) the step not reached is refused for a game minute
+                    // before the quarter turn: the way pick after the turn ranked that way "open to a cave" over a wet one and
+                    // turned three quarters back onto it, 22 times in 4.6 minutes (heel-59-mc1, live watch)
+                    if (flipGuardOn() && stairStuckRefuseOn()) _flip.refuse(_step, _dx, _dz, tick);
                     int t = _dx;
                     _dx = -_dz;
                     _dz = t;
@@ -2192,6 +2196,10 @@ public class BranchMineTask extends Task {
     // (tunnel_flip_guard) and a way whose step comes within a block of the step refused against water in the last game minute
     // likewise; a half turn round from a way into water refuses that step. every turn is said, against the way it went: the
     // line was said only against the old rule's pick, and the half turn back that the old rule also took said nothing
+    static boolean stairStuckRefuseOn() {
+        return adris.altoclef.util.helpers.Tuning.get("stair_stuck_refuse", 0) > 0;
+    }
+
     private void driestWay(AltoClef mod, BlockPos feet, int down) {
         var level = mod.getWorld();
         long now = level.getGameTime();

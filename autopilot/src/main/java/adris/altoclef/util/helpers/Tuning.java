@@ -837,7 +837,13 @@ public final class Tuning {
             java.util.Map.entry("gold_danger_hold", 1.0),
             // the trade's gold step digs no ore lower than 10 blocks over the lava sea's top (4 before): a fall from a ledge by an
             // ore 6 over the sea ended in it, TradeGoldRules.bandLow (19 Nov 2026)
-            java.util.Map.entry("gold_sea_margin", 10.0));
+            java.util.Map.entry("gold_sea_margin", 10.0),
+            // baritone's legit mine begun again runs away from the last few mines' branch points within 160 blocks, not only from
+            // where the feet stand: it went back and forth through its own tunnel for 78 game minutes, MineProcess (19 Nov 2026)
+            java.util.Map.entry("mine_branch_memory", 1.0),
+            // a staircase step not reached in 10 s is refused for a game minute before the turn: the way pick turned straight back
+            // onto it, 22 times in 4.6 minutes, BranchMineTask (19 Nov 2026)
+            java.util.Map.entry("stair_stuck_refuse", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
