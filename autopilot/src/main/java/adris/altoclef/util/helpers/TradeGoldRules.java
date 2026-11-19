@@ -16,8 +16,13 @@ public final class TradeGoldRules {
     public static final double CAP_S = 5400;
     // no new gold this long and the step is over (Tuning nether_gold_dry_s), the trade going on with the bag's
     public static final double DRY_S = 600;
-    // no gold ore known within reach this long and the step is over (game seconds)
-    public static final double NO_ORE_S = 60;
+    // no gold ore known within reach this long, the search for it walking meanwhile, and the step is over (game seconds). (the
+    // first smoke of 19 Nov 2026 gave up after 60 s with the tracker's first scan of the nether still to come, twice: no gold,
+    // so no trade at all)
+    public static final double NO_ORE_S = 300;
+    // the search for ore keeps this far from a known spawner, and ore this close to one is never taken: the fortress's blazes,
+    // and a trade that does not begin by the fortress (FireResTradeRules.FORTRESS_NEAR, and as much again)
+    public static final double SPAWNER_KEEP = 2 * FireResTradeRules.FORTRESS_NEAR;
     // nuggets folded into ingots once the bag holds this many: one stack less one, so the nuggets never take a second slot
     public static final int FOLD_AT = 63;
     public static final int NUGGETS_PER_INGOT = 9;
@@ -75,6 +80,18 @@ public final class TradeGoldRules {
             }
         }
         return true;
+    }
+
+    // an ore or a search point keeps SPAWNER_KEEP from the spawner (null: none known)
+    public static boolean awayFromSpawner(int x, int z, BlockPos spawner) {
+        return spawner == null || Math.hypot(x - spawner.getX(), z - spawner.getZ()) > SPAWNER_KEEP;
+    }
+
+    // the bearing the search's rings start on: from the spawner through the centre, away from the fortress; with none known, the
+    // way the buddy faces (any)
+    public static double searchFrom(double cx, double cz, BlockPos spawner, double fallback) {
+        if (spawner == null || Math.hypot(cx - spawner.getX(), cz - spawner.getZ()) < 1) return fallback;
+        return Math.atan2(cz - spawner.getZ(), cx - spawner.getX());
     }
 
     // an ore may be the next anchor: within ANCHOR_BLOCKS sideways of the feet and ANCHOR_DY up or down

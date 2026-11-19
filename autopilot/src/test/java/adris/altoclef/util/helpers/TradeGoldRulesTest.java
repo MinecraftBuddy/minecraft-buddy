@@ -48,10 +48,21 @@ public class TradeGoldRulesTest {
     @Test
     public void overByTheClocks() {
         long cap = 20 * 5400, dry = 20 * 600;
-        assertNull(TradeGoldRules.overWhy(cap - 1, dry - 1, 20 * 59, cap, dry));
+        assertNull(TradeGoldRules.overWhy(cap - 1, dry - 1, 20 * 299, cap, dry));
         assertTrue(TradeGoldRules.overWhy(cap, 0, 0, cap, dry).contains("cap"));
         assertTrue(TradeGoldRules.overWhy(100, dry, 0, cap, dry).contains("no new gold"));
-        assertTrue(TradeGoldRules.overWhy(100, 0, 20 * 60, cap, dry).contains("no gold ore"));
+        assertTrue(TradeGoldRules.overWhy(100, 0, 20 * 300, cap, dry).contains("no gold ore"));
+    }
+
+    // the search and the ore keep 64 from a known spawner, and the rings start away from it
+    @Test
+    public void awayFromTheFortress() {
+        BlockPos spawner = new BlockPos(100, 70, 0);
+        assertTrue(TradeGoldRules.awayFromSpawner(0, 0, null));
+        assertTrue(TradeGoldRules.awayFromSpawner(0, 0, spawner));
+        assertFalse(TradeGoldRules.awayFromSpawner(40, 0, spawner));
+        assertEquals(Math.PI, TradeGoldRules.searchFrom(0, 0, spawner, 1.0), 1e-9);
+        assertEquals(1.0, TradeGoldRules.searchFrom(0, 0, null, 1.0), 1e-9);
     }
 
     // a piglin within 24 on every axis keeps the ore off: the anger box is 16 round the player, who stands up to 4.5 off the ore

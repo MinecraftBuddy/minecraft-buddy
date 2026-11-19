@@ -9,6 +9,7 @@ import adris.altoclef.util.CraftingRecipe;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.MiningRequirement;
 import adris.altoclef.util.RecipeTarget;
+import adris.altoclef.util.helpers.FireResTradeRules;
 import adris.altoclef.util.helpers.TradeGoldRules;
 import adris.altoclef.util.helpers.Tuning;
 import adris.altoclef.util.helpers.WorldHelper;
@@ -66,6 +67,14 @@ final class TradeGold {
     private boolean _guarding;
     private int _guardHold;
     private List<BlockPos> _piglins = List.of();
+    // the search for ore while none is known: rings round where the step began, away from the spawner (FireResTradeRules'
+    // points); the point under way, since when, and its walk
+    private int _searchK = -1;
+    private long _pointSince;
+    private Task _searchWalk;
+    private double _searchFrom;
+    private BlockPos _spawner;
+    private BlockPos _start;
     private String _hud = "Digging gold for the piglins";
 
     static boolean on() {
@@ -96,10 +105,12 @@ final class TradeGold {
         return _hud;
     }
 
-    // the dig's step this tick, or null once there is nothing (more) to dig: the trade then goes on with the bag's gold.
-    // enough: the trade's target is in the bag already (a potion); atFortress: by the spawner or a blaze near
-    Task tick(AltoClef mod, boolean enough, boolean atFortress) {
+    // the dig's step this tick, or null: once there is nothing (more) to dig, the trade then going on with the bag's gold, or
+    // for this tick while a blaze is near (the rods' own fight has it; the step goes on after). enough: the trade's target is in
+    // the bag already (a potion); atFortress: by the spawner; spawner: the one known, or null
+    Task tick(AltoClef mod, boolean enough, boolean atFortress, boolean blazeNear, BlockPos spawner) {
         if (_over || !on()) return null;
+        _spawner = spawner;
         LocalPlayer player = mod.getPlayer();
         long now = mod.getWorld().getGameTime();
         int ingots = mod.getItemStorage().getItemCount(Items.GOLD_INGOT);
@@ -107,7 +118,7 @@ final class TradeGold {
         int target = target();
         if (!_begun) {
             if (WorldHelper.getCurrentDimension() != Dimension.NETHER) return null;
-            String why = TradeGoldRules.whyNot(ingots, nuggets, target, enough, atFortress,
+            String why = TradeGoldRules.whyNot(ingots, nuggets, target, enough, atFortress || blazeNear,
                     mod.getItemStorage().getItemCount(Items.BLAZE_ROD), tableOrWood(mod));
             if (why != null) {
                 Debug.logInternal("trade gold: not begun (" + why + ")");
@@ -118,6 +129,7 @@ final class TradeGold {
             _begunAt = now;
             _riseAt = now;
             _anchor = player.blockPosition();
+            _start = _anchor;
             _ninthsAtBegin = _bestNinths = TradeGoldRules.ninths(ingots, nuggets);
             mod.getBlockTracker().trackBlock(Blocks.NETHER_GOLD_ORE);
             Debug.logInternal(String.format(Locale.ROOT, "trade gold: begun, %d gold, target %d, %d nuggets, at %s; cap %s s, %s s with no new gold",
@@ -135,9 +147,15 @@ final class TradeGold {
                     ninths / 9, ingots, nuggets, seconds(now - _begunAt)));
         }
         guard(mod);
+        // a blaze near: the rods' own fight has the tick, the step goes on after it (an end said now would also find the trade
+        // with a blaze near, which never begins then)
+        if (blazeNear && !atFortress) {
+            _hud = "Digging gold for the piglins: a blaze near, the fight first";
+            return null;
+        }
         // the end: the target in ingots, the fortress (the walk there went on while no ore was known), or a clock; the last
         // nuggets folded first
-        String end = ingots >= target ? "the target reached" : atFortress ? "at the fortress or a blaze near"
+        String end = ingots >= target ? "the target reached" : atFortress ? "at the fortress"
                 : TradeGoldRules.overWhy(now - _begunAt, now - _riseAt, _noOreSince < 0 ? 0 : now - _noOreSince, capTicks(), dryTicks());
         boolean danger = dangerNear(mod);
         if (TradeGoldRules.fold(ingots, nuggets, target, end != null) && !danger) {
@@ -165,20 +183,22 @@ final class TradeGold {
             } else {
                 if (_noOreSince < 0) {
                     _noOreSince = now;
-                    Debug.logInternal("trade gold: no gold ore known within reach with no piglin near it");
+                    Debug.logInternal("trade gold: no gold ore known within reach with no piglin near it, searching");
                 }
                 _step = null;
                 _hud = "Looking for gold ore for the piglins";
-                return null;
+                return search(mod, now);
             }
         }
         _noOreSince = -1;
+        _searchWalk = null;
         int need = TradeGoldRules.nuggetsWanted(ingots, nuggets, target);
         BlockPos anchor = _anchor;
         Task mine = step(mod, "mine", need, () -> new MineAndCollectTask(new ItemTarget(Items.GOLD_NUGGET, need),
                 new Block[]{Blocks.NETHER_GOLD_ORE}, MiningRequirement.WOOD)
                 .onlyWhere(pos -> NetherGold.oreInReach(pos.getX(), pos.getY(), pos.getZ(), anchor.getX(), anchor.getY(), anchor.getZ())
-                        && TradeGoldRules.clearOfPiglins(pos, _piglins)), "Digging gold for the piglins");
+                        && TradeGoldRules.clearOfPiglins(pos, _piglins) && TradeGoldRules.awayFromSpawner(pos.getX(), pos.getZ(), _spawner)),
+                "Digging gold for the piglins");
         if (mine instanceof MineAndCollectTask m && m.wandering()) {
             if (_wanderSince < 0) _wanderSince = now;
             if (now - _wanderSince > WANDER_TICKS) {
@@ -201,6 +221,39 @@ final class TradeGold {
             _wanderSince = -1;
         }
         return mine;
+    }
+
+    // no ore known: on to the next point of the rings round where the step began (FireResTradeRules.searchPoint), the first
+    // ring's bearing away from the spawner, a point passed over near the spawner, one not reached in its time given up; the
+    // tracker sees more of the nether on the way, and the mine takes over as soon as it knows ore. null once all are walked
+    private Task search(AltoClef mod, long now) {
+        LocalPlayer player = mod.getPlayer();
+        if (_searchK < 0) {
+            _searchFrom = TradeGoldRules.searchFrom(_anchor0().getX(), _anchor0().getZ(), _spawner, Math.toRadians(player.getYRot() + 90));
+        }
+        boolean next = _searchWalk == null || _searchWalk.isFinished(mod) || now < _pointSince
+                || now - _pointSince > FireResTradeRules.POINT_TICKS;
+        if (next) {
+            FireResTradeRules.Spot point = null;
+            while (++_searchK < FireResTradeRules.RING_POINTS * FireResTradeRules.RINGS) {
+                FireResTradeRules.Spot s = FireResTradeRules.searchPoint(_searchK, _anchor0().getX(), _anchor0().getZ(), _searchFrom);
+                if (TradeGoldRules.awayFromSpawner(s.x(), s.z(), _spawner)) {
+                    point = s;
+                    break;
+                }
+            }
+            if (point == null) return null;
+            _pointSince = now;
+            _searchWalk = new adris.altoclef.tasks.movement.GetToXZTask(point.x(), point.z(), 4);
+            Debug.logInternal(String.format(Locale.ROOT, "trade gold: searching for ore, point %d at %d %d, %.0f blocks off",
+                    _searchK, point.x(), point.z(), point.distanceTo(player.getX(), player.getZ())));
+        }
+        return _searchWalk;
+    }
+
+    // where the step began (the first anchor), the search's centre
+    private BlockPos _anchor0() {
+        return _start != null ? _start : _anchor;
     }
 
     // a new task object only when its kind or target changes, or its pathing and crafting would start again every tick
@@ -235,7 +288,8 @@ final class TradeGold {
     private boolean oreHere(AltoClef mod) {
         for (BlockPos p : mod.getBlockTracker().getKnownLocations(Blocks.NETHER_GOLD_ORE)) {
             if (NetherGold.oreInReach(p.getX(), p.getY(), p.getZ(), _anchor.getX(), _anchor.getY(), _anchor.getZ())
-                    && !spent(p) && TradeGoldRules.clearOfPiglins(p, _piglins) && mod.getWorld().getBlockState(p).is(Blocks.NETHER_GOLD_ORE)) {
+                    && !spent(p) && TradeGoldRules.clearOfPiglins(p, _piglins) && TradeGoldRules.awayFromSpawner(p.getX(), p.getZ(), _spawner)
+                    && mod.getWorld().getBlockState(p).is(Blocks.NETHER_GOLD_ORE)) {
                 return true;
             }
         }
@@ -249,7 +303,8 @@ final class TradeGold {
         for (BlockPos p : mod.getBlockTracker().getKnownLocations(Blocks.NETHER_GOLD_ORE)) {
             if (!TradeGoldRules.anchorOk(p.getX(), p.getY(), p.getZ(), feet.getX(), feet.getY(), feet.getZ())) continue;
             if (spent(p)) continue;
-            if (!TradeGoldRules.clearOfPiglins(p, _piglins) || !mod.getWorld().getBlockState(p).is(Blocks.NETHER_GOLD_ORE)) continue;
+            if (!TradeGoldRules.clearOfPiglins(p, _piglins) || !TradeGoldRules.awayFromSpawner(p.getX(), p.getZ(), _spawner)
+                    || !mod.getWorld().getBlockState(p).is(Blocks.NETHER_GOLD_ORE)) continue;
             double d = p.distSqr(feet);
             if (d < bestD) {
                 bestD = d;

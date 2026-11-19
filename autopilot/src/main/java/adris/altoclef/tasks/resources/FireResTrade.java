@@ -315,7 +315,7 @@ public final class FireResTrade {
         if (_state == State.WAITING) {
             // (Tuning nether_gold, on by default, steering 200: the gold for the trade is dug here first, out of the
             // piglins' reach, TradeGold; the trade's first look waits for it)
-            Task dig = _gold.tick(mod, enough, atFortress || blazeNear);
+            Task dig = _gold.tick(mod, enough, atFortress, blazeNear, spawner);
             if (dig != null || _gold.running()) {
                 _firstLookAt = -1;
                 _hud = _gold.hud();
