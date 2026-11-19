@@ -11,10 +11,10 @@ import java.util.Set;
  * planner's prices; Alto hands the result to the fork, which turns the items into raw items with counts by Soprano's own
  * bill (so what is taken along is what Soprano would otherwise walk for) and puts the reserve on top.
  * <ul>
- * <li><b>now</b>: what the gate ahead lacks (armour, shield, the swords, the golden helmet and the diamond sword of the
+ * <li><b>now</b>: what the gate ahead lacks (armour, shield, the swords, the golden boots and the diamond sword of the
  * nether's kit), the table and planks the kit fetches first, the copper pieces it makes for empty slots meanwhile, and the
  * item of the buddy's own step under way;</li>
- * <li><b>later</b>: the kit's stocks (torches, a water bucket, flint and steel, a spare pickaxe and helmet) and the order.</li>
+ * <li><b>later</b>: the kit's stocks (torches, a water bucket, flint and steel, a spare pickaxe) and the order.</li>
  * </ul>
  * Food goes as points of its own (Alto.takeAlongFood); blocks, a bow and arrows are not taken along.
  */
@@ -30,7 +30,7 @@ final class ObtainWish {
 
 	/** The kit's needs that keep the buddy alive at the gate ahead: the now tier. The rest of the kit is later. */
 	static final Set<String> GEAR = Set.of("stone sword", "sword", "good sword", "helmet", "chestplate", "leggings", "boots", "shield",
-		"gold helmet", "nether sword");
+		"gold boots", "nether sword");
 
 	/** The table and planks the kit fetches before any iron (Alto.kit), as bag counts. */
 	static final Map<String, Integer> TABLE_AND_PLANKS = Map.of("crafting_table", 1, "planks", 20);
@@ -86,9 +86,8 @@ final class ObtainWish {
 			// a need of the nether's gate: two diamonds seen are worth a detour on the way there, the kit makes the sword
 			// as soon as they are in the bag
 			case "nether sword" -> Map.entry("diamond_sword", 1);
-			case "gold helmet" -> Map.entry("golden_helmet", 1);
-			// (Soprano counts the bag and not what is worn: the bag's count and the ones missing)
-			case "spare gold helmet" -> Map.entry("golden_helmet", h.inv("golden_helmet") + n.count());
+			// (steering 202 of 19 Nov 2026: golden boots, no golden helmet and no spare)
+			case "gold boots" -> Map.entry("golden_boots", 1);
 			case "crafting table" -> Map.entry("crafting_table", 1);
 			case "spare pickaxe" -> Map.entry("stone_pickaxe", h.inv("stone_pickaxe") + n.count());
 			case "torches" -> Map.entry("torch", h.inv("torch") + n.count());

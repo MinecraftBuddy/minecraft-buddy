@@ -31,7 +31,7 @@ final class Alto {
 	private static final net.minecraft.world.item.Item[] KEEP = {
 		net.minecraft.world.item.Items.NETHER_WART, net.minecraft.world.item.Items.MAGMA_CREAM, net.minecraft.world.item.Items.BLAZE_POWDER,
 		net.minecraft.world.item.Items.REDSTONE, net.minecraft.world.item.Items.POTION, net.minecraft.world.item.Items.OBSIDIAN,
-		net.minecraft.world.item.Items.FLINT_AND_STEEL, net.minecraft.world.item.Items.GOLDEN_HELMET, net.minecraft.world.item.Items.SHIELD,
+		net.minecraft.world.item.Items.FLINT_AND_STEEL, net.minecraft.world.item.Items.GOLDEN_HELMET, net.minecraft.world.item.Items.GOLDEN_BOOTS, net.minecraft.world.item.Items.SHIELD,
 		net.minecraft.world.item.Items.WATER_BUCKET, net.minecraft.world.item.Items.BLAZE_ROD, net.minecraft.world.item.Items.ENDER_PEARL,
 		net.minecraft.world.item.Items.GOLDEN_APPLE };
 
@@ -661,7 +661,7 @@ final class Alto {
 	 */
 	static boolean wantsHome(net.minecraft.client.player.LocalPlayer p) {
 		return on() && p.level().dimension().equals(net.minecraft.world.level.Level.NETHER)
-			&& (foodScore(false) < netherFoodReserve(p) || wantsFood(p) || !goldOn(p) && ObtainSteps.count(p, "golden_helmet") == 0);
+			&& (foodScore(false) < netherFoodReserve(p) || wantsFood(p) || !goldOn(p) && ObtainSteps.count(p, GOLD_PIECE) == 0);
 	}
 
 	/**
@@ -699,14 +699,17 @@ final class Alto {
 		return n;
 	}
 
-	/** In the nether with nothing golden worn and the spare helmet in the bag: that one on, at once (wantsHome otherwise). */
+	/** The piglins' piece (steering 202 of 19 Nov 2026, his word): one pair of golden boots, no golden helmet, no spare. */
+	static final String GOLD_PIECE = "golden_boots";
+
+	/** In the nether with nothing golden worn and the golden boots in the bag: those on, at once (wantsHome otherwise). */
 	static boolean wantsSpareGold(net.minecraft.client.player.LocalPlayer p) {
 		return on() && p.level().dimension().equals(net.minecraft.world.level.Level.NETHER) && !goldOn(p)
-			&& ObtainSteps.count(p, "golden_helmet") > 0;
+			&& ObtainSteps.count(p, GOLD_PIECE) > 0;
 	}
 
 	static Run spareGold() {
-		return new Run("equip golden_helmet", 60_000L, () -> new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget("golden_helmet", 1)));
+		return new Run("equip " + GOLD_PIECE, 60_000L, () -> new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget(GOLD_PIECE, 1)));
 	}
 
 	/** An item by AltoClef's catalogue, the way its #get takes: done when the bag holds {@code count}. */
@@ -955,11 +958,11 @@ final class Alto {
 				// the nether's, for an order that goes there and only in the overworld (kitDanger): the piglins leave the buddy be
 				// in a golden helmet, a wither skeleton is fewer blows with a diamond sword, a blaze over a fortress' floor wants a
 				// bow (ObtainKit's own reasons). its food is wantsFood's
-				case "gold helmet" -> armour.add("golden_helmet");
+				case "gold boots" -> armour.add(GOLD_PIECE);
 				// (Soprano counts the bag and not what is worn, so one in the bag is the spare)
 				// (Soprano counts the bag, not what is worn: the bag's count and the one missing. a bill for one, with one in the
 				// bag, was met at once and came back seven times in one order, attempt 167)
-				case "spare gold helmet" -> { rest.add(new adris.altoclef.util.ItemTarget("golden_helmet", ObtainSteps.count(p, "golden_helmet") + n.count())); names.add("a spare golden helmet"); }
+				// (no spare since steering 202: one pair of golden boots)
 				case "more blocks" -> blocks = Math.max(blocks, 48);
 				case "flint and steel" -> { rest.add(new adris.altoclef.util.ItemTarget("flint_and_steel", 1)); names.add("flint and steel"); }
 				// (the diamond sword only with its two diamonds in the bag, and no bow or arrows: Soprano's blaze task fights them
@@ -1058,9 +1061,10 @@ final class Alto {
 		// order waits for its gold: slow beats a piglin pack)
 		// (and one in the bag while nothing golden is worn goes on too: the kit counts it as the helmet, so the piece is not
 		// missing, and the order went on in an iron helmet; a bill for the spare had taken the worn one off, attempt 167)
-		boolean goldInBag = kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() && !goldOn(p) && ObtainSteps.count(p, "golden_helmet") > 0;
-		if ((armour.contains("golden_helmet") || goldInBag) && (!skip.test("equip golden_helmet") || !goldOn(p)))
-			return new Run("equip golden_helmet", (10 + 3 * 5) * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget("golden_helmet", 1))));
+		// (steering 202: the golden boots in place of the iron ones, four ingots)
+		boolean goldInBag = kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() && !goldOn(p) && ObtainSteps.count(p, GOLD_PIECE) > 0;
+		if ((armour.contains(GOLD_PIECE) || goldInBag) && (!skip.test("equip " + GOLD_PIECE) || !goldOn(p)))
+			return new Run("equip " + GOLD_PIECE, (10 + 3 * 4) * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget(GOLD_PIECE, 1))));
 		String what = "kit " + String.join(", ", names.stream().filter(n -> !armour.contains(n) && !armour.contains("iron_" + n)).toList());
 		if (!rest.isEmpty() && !skip.test(what))
 			return new Run(what, 20 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
@@ -1218,7 +1222,8 @@ final class Alto {
 			case "copper_chestplate", "copper_leggings", "copper_boots":
 				return new Run("equip " + name, (6 + 2 * ingots(name.substring("copper_".length()))) * 60_000L,
 					() -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget(name, 1))));
-			case "iron_chestplate", "iron_leggings", "iron_boots":
+			// (iron_helmet since steering 202: M2's armour has the helmet, the golden boots replace the iron ones later)
+			case "iron_chestplate", "iron_leggings", "iron_boots", "iron_helmet":
 				return new Run("equip " + name, pieceMinutes(name) * 60_000L,
 					() -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget(name, 1))));
 			case "water bucket":
@@ -1262,16 +1267,11 @@ final class Alto {
 				int to = Math.min(ObtainRoute.goldNeed(bag), ObtainSteps.count(p, "gold_ingot") + ObtainSteps.count(p, "raw_gold"));
 				return new Run("kit smelt raw gold", 10 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("gold_ingot", to)));
 			}
-			case "golden helmet":
-			case "golden helmet again":
-				return new Run("equip golden_helmet", (10 + 3 * 5) * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(
-					new adris.altoclef.util.ItemTarget("golden_helmet", 1))));
-			case "spare golden helmet": {
-				// (Soprano counts the bag, not what is worn: the bag's count and one more)
-				int helmets = ObtainSteps.count(p, "golden_helmet") + 1;
-				return new Run("kit a spare golden helmet", 10 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
-					new adris.altoclef.util.ItemTarget("golden_helmet", helmets))));
-			}
+			// (steering 202 of 19 Nov 2026: golden boots in place of the iron ones, no golden helmet, no spare)
+			case "golden boots":
+			case "golden boots again":
+				return new Run("equip " + GOLD_PIECE, (10 + 3 * 4) * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(
+					new adris.altoclef.util.ItemTarget(GOLD_PIECE, 1))));
 			case "slime ball":
 				// (the fetch as an order of one slime ball does it; bal on 9-10 Nov: 14 of 20, a median 9 game minutes)
 				return new Run("kit a slime ball", 40 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("slime_ball", 1)));
@@ -1299,7 +1299,7 @@ final class Alto {
 
 	/**
 	 * The rest of the nether's kit as the old kit bills it (a good sword, torches, blocks, the diamond sword with its two
-	 * diamonds in the bag), less what the route asks as pieces of their own: flint and steel and the spare golden helmet.
+	 * diamonds in the bag), less what the route asks as pieces of their own: flint and steel and the golden boots.
 	 */
 	private static java.util.List<adris.altoclef.util.ItemTarget> routeRest(net.minecraft.client.player.LocalPlayer p, java.util.List<String> names) {
 		java.util.List<adris.altoclef.util.ItemTarget> rest = new java.util.ArrayList<>();

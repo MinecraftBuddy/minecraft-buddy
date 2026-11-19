@@ -40,9 +40,9 @@ class ObtainWishTest {
 		ObtainPlanTest.World w = new ObtainPlanTest.World();
 		ObtainWish.Wishes x = ObtainWish.of(ObtainKit.missingAll(ObtainKit.Danger.NETHER, w), "blaze_rod", 7, null, 0, false, List.of(), w);
 		assertEquals(1, x.now().get("diamond_sword"));
-		assertEquals(1, x.now().get("golden_helmet"));
-		// the spare helmet is a stock: the bag count of two, taken as the larger of the two tiers by Soprano
-		assertEquals(2, x.later().get("golden_helmet"));
+		// (steering 202) the golden boots, no golden helmet and no spare
+		assertEquals(1, x.now().get("golden_boots"));
+		assertNull(x.later().get("golden_helmet"));
 		assertEquals(1, x.later().get("flint_and_steel"));
 	}
 

@@ -880,14 +880,14 @@ final class Obtain {
 			boatLook = now + 5000;
 			// in the nether with little to eat, or without gold: home first (Alto.wantsHome): a blaze fight is
 			// what eats it. one that did not get home is not asked again for three minutes, and the food search there is what is left
-			// the spare golden helmet on before anything else: the piglins turn on the buddy the moment nothing golden is worn
+			// the golden boots from the bag on before anything else: the piglins turn on the buddy the moment nothing golden is worn
 			if (now - goldTriedAt > 20_000 && Alto.wantsSpareGold(p)) {
 				goldTriedAt = now;
 				if (exec != null) exec.stop();
-				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:gold", 1, null, 0, List.of(), "the spare golden helmet");
+				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:gold", 1, null, 0, List.of(), "the golden boots");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
 				exec = Alto.spareGold();
-				Exchange.emit("obtain", "action", "step", "step", "the spare golden helmet on, the worn one broke", "way", "soprano:gold");
+				Exchange.emit("obtain", "action", "step", "step", "the golden boots on, nothing golden was worn", "way", "soprano:gold");
 				return true;
 			}
 			// for food (not for gold) it waits while foes are in sight or it burns, unless the bag is all but empty: begun at

@@ -71,22 +71,24 @@ class ObtainRouteTest {
 		if (to >= ObtainRoute.M1_2) k.give("wooden_pickaxe").give("crafting_table").give("oak_log", 16);
 		if (to >= ObtainRoute.M1_3) k.give("stone_pickaxe", 2).give("stone_sword").give("furnace").give("cobblestone", 16).give("stick", 4);
 		if (to >= ObtainRoute.M2_1) k.give("cooked_beef", 8).give("red_bed").give("sand", 3);
-		if (to >= ObtainRoute.M2_2) k.wear("chestplate", "iron_chestplate").wear("leggings", "iron_leggings").wear("boots", "iron_boots").give("shield");
+		if (to >= ObtainRoute.M2_2) k.wear("helmet", "iron_helmet").wear("chestplate", "iron_chestplate").wear("leggings", "iron_leggings")
+			.wear("boots", "iron_boots").give("shield");
 		if (to >= ObtainRoute.M3_1) k.give("iron_pickaxe", 2).give("iron_sword").give("water_bucket");
 		if (to >= ObtainRoute.M3_2) k.give("diamond_pickaxe").give("diamond_sword").give("redstone");
 		if (to >= ObtainRoute.M3_3) k.give("obsidian", 10);
-		if (to >= ObtainRoute.M3_3B) k.give("gold_ingot", 96).wear("helmet", "golden_helmet").give("golden_helmet");
+		// (steering 202: golden boots worn, the iron ones in the bag; no golden helmet, no spare)
+		if (to >= ObtainRoute.M3_3B) k.give("gold_ingot", 96).wear("boots", "golden_boots").give("iron_boots");
 		if (to >= ObtainRoute.M3_4) k.give("slime_ball");
 		return k;
 	}
 
 	/** The kit an M4START run is given in the overworld: everything for the nether but the trade's gold. */
 	static Kit m4start() {
-		Kit k = new Kit().wear("helmet", "golden_helmet").wear("chestplate", "iron_chestplate").wear("leggings", "iron_leggings")
-			.wear("boots", "iron_boots").give("shield");
+		Kit k = new Kit().wear("helmet", "iron_helmet").wear("chestplate", "iron_chestplate").wear("leggings", "iron_leggings")
+			.wear("boots", "golden_boots").give("iron_boots").give("shield");
 		k.give("iron_sword").give("diamond_pickaxe").give("iron_pickaxe").give("obsidian", 10).give("flint_and_steel").give("red_bed")
 			.give("oak_boat").give("cooked_beef", 48).give("cobblestone", 64).give("crafting_table").give("oak_planks", 20).give("stick", 12)
-			.give("water_bucket").give("torch", 16).give("golden_helmet").give("diamond_sword").give("bow").give("arrow", 32)
+			.give("water_bucket").give("torch", 16).give("diamond_sword").give("bow").give("arrow", 32)
 			.give("redstone").give("oak_log", 6).give("potion", 3);
 		return k;
 	}
@@ -143,9 +145,15 @@ class ObtainRouteTest {
 		assertEquals(Set.of("m1.3"), met(new Kit().give("beef", 5).give("bread", 3).give("white_bed"), false));
 		assertEquals(Set.of(), met(new Kit().give("beef", 7).give("white_bed"), false));
 		assertEquals(Set.of(), met(new Kit().give("cooked_beef", 8), false));
-		// three iron-or-better pieces worn and a shield; one in the bag is not worn, a golden one is not iron
-		Kit armour = new Kit().wear("helmet", "iron_helmet").wear("chestplate", "diamond_chestplate").wear("boots", "iron_boots").give("shield");
+		// four iron-or-better pieces worn (the helmet too since steering 202) and a shield; one in the bag is not worn, a golden
+		// helmet is not iron; golden boots count as the boots (they replace the iron ones in M3.3)
+		Kit armour = new Kit().wear("helmet", "iron_helmet").wear("chestplate", "diamond_chestplate").wear("leggings", "iron_leggings")
+			.wear("boots", "iron_boots").give("shield");
 		assertEquals(Set.of("m2.1"), met(armour, false));
+		assertEquals(Set.of("m2.1"), met(new Kit().wear("helmet", "iron_helmet").wear("chestplate", "iron_chestplate").wear("leggings", "iron_leggings")
+			.wear("boots", "golden_boots").give("shield"), false));
+		assertEquals(Set.of(), met(new Kit().wear("chestplate", "iron_chestplate").wear("leggings", "iron_leggings").wear("boots", "iron_boots")
+			.give("shield"), false));
 		assertEquals(Set.of(), met(new Kit().wear("helmet", "golden_helmet").wear("chestplate", "iron_chestplate").wear("boots", "iron_boots")
 			.give("shield"), false));
 		assertEquals(Set.of(), met(new Kit().wear("chestplate", "iron_chestplate").wear("boots", "iron_boots").give("iron_leggings").give("shield"), false));
@@ -160,30 +168,30 @@ class ObtainRouteTest {
 		// ten obsidian
 		assertEquals(Set.of("m3.2"), met(new Kit().give("obsidian", 10), false));
 		assertEquals(Set.of(), met(new Kit().give("obsidian", 9), false));
-		// 96 gold, a golden helmet worn and a spare: two in the bag alone is not one worn
-		assertEquals(Set.of("m3.3"), met(new Kit().give("gold_ingot", 96).wear("helmet", "golden_helmet").give("golden_helmet"), false));
-		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 96).give("golden_helmet", 2), false));
-		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 95).wear("helmet", "golden_helmet").give("golden_helmet"), false));
-		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 96).wear("helmet", "golden_helmet"), false));
+		// 96 gold (with nether_gold off) and golden boots worn (steering 202): boots in the bag alone are not worn
+		assertEquals(Set.of("m3.3"), met(new Kit().give("gold_ingot", 96).wear("boots", "golden_boots"), false));
+		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 96).give("golden_boots"), false));
+		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 95).wear("boots", "golden_boots"), false));
+		assertEquals(Set.of(), met(new Kit().give("gold_ingot", 96).wear("helmet", "golden_helmet").give("golden_helmet"), false));
 		// that and a slime ball; a ball alone is nothing
-		assertEquals(Set.of("m3.3", "m3.3b"), met(new Kit().give("gold_ingot", 96).wear("helmet", "golden_helmet").give("golden_helmet").give("slime_ball"), false));
+		assertEquals(Set.of("m3.3", "m3.3b"), met(new Kit().give("gold_ingot", 96).wear("boots", "golden_boots").give("slime_ball"), false));
 		assertEquals(Set.of(), met(new Kit().give("slime_ball"), false));
 		// the portal's phase is the nether, never the bag
 		assertFalse(met(m4start().give("gold_ingot", 64), true).contains("m3.4"));
 	}
 
-	/** Steering 200: with nether_gold the trade's gold is dug in the nether, so M3.3 asks only the two golden helmets. */
+	/** Steering 200 and 202: with nether_gold the trade's gold is dug in the nether, so M3.3 asks only the golden boots' four. */
 	@Test
-	void netherGoldLeavesTheOverworldTheHelmetsAlone() {
-		Kit helmets = new Kit().wear("helmet", "golden_helmet").give("golden_helmet");
-		helmets.netherGold = true;
-		assertEquals(Set.of("m3.3"), met(helmets, false));
-		assertEquals(0, ObtainRoute.tradeGold(helmets));
-		assertEquals(0, ObtainRoute.goldNeed(helmets));
+	void netherGoldLeavesTheOverworldTheBootsAlone() {
+		Kit boots = new Kit().wear("boots", "golden_boots");
+		boots.netherGold = true;
+		assertEquals(Set.of("m3.3"), met(boots, false));
+		assertEquals(0, ObtainRoute.tradeGold(boots));
+		assertEquals(0, ObtainRoute.goldNeed(boots));
 		Kit bare = new Kit();
 		bare.netherGold = true;
-		assertEquals(10, ObtainRoute.goldNeed(bare));
-		Kit before = new Kit().wear("helmet", "golden_helmet").give("golden_helmet");
+		assertEquals(4, ObtainRoute.goldNeed(bare));
+		Kit before = new Kit().wear("boots", "golden_boots");
 		assertEquals(Set.of(), met(before, false));
 		assertEquals(96, ObtainRoute.goldNeed(before));
 		// a table (or wood for one) asked once more, last before the portal: the trade's gold is folded at it in the nether
@@ -318,7 +326,7 @@ class ObtainRouteTest {
 	@Test
 	void everyPieceWaitingAsksTheOneThatFailedFirst() {
 		Kit k = from("m2.1").give("shield").give("iron_ingot", 8);
-		k.wear("chestplate", "iron_chestplate").wear("leggings", "iron_leggings");
+		k.wear("chestplate", "iron_chestplate").wear("leggings", "iron_leggings").wear("helmet", "iron_helmet");
 		walk(k);
 		long t0 = 5_000_000;
 		assertEquals("m2.1/iron_boots", ObtainRoute.next(k, t0, say).key());
@@ -351,12 +359,15 @@ class ObtainRouteTest {
 		iron.wear("chestplate", "copper_chestplate");
 		assertEquals("iron_chestplate", next(iron));
 		iron.wear("chestplate", "iron_chestplate").wear("leggings", "iron_leggings").wear("boots", "iron_boots");
+		// (steering 202) the iron helmet last of M2.1's armour
+		assertEquals("iron_helmet", next(iron));
+		iron.wear("helmet", "iron_helmet");
 		assertEquals("water bucket", next(iron));
 		assertEquals(List.of("route: phase m2.2 tools"), said);
-		// no piece of the route is an iron or copper helmet; the golden one is M3.3's
+		// the one helmet piece of the route is M2.1's iron one; the piglins' piece is M3.3's golden boots
 		for (List<ObtainRoute.Piece> phase : ObtainRoute.PIECES)
-			for (ObtainRoute.Piece p : phase) assertFalse(p.name().contains("helmet") && !p.name().contains("golden"), p.key());
-		assertTrue(ObtainRoute.PIECES.get(ObtainRoute.M3_3).stream().anyMatch(p -> p.name().equals("golden helmet")));
+			for (ObtainRoute.Piece p : phase) assertFalse(p.name().contains("helmet") && !p.key().equals("m2.1/iron_helmet"), p.key());
+		assertTrue(ObtainRoute.PIECES.get(ObtainRoute.M3_3).stream().anyMatch(p -> p.name().equals("golden boots")));
 	}
 
 	@Test
@@ -369,8 +380,8 @@ class ObtainRouteTest {
 		ObtainRoute.tried(obsidian.key());
 		assertEquals("obsidian", next(k));
 		ObtainRoute.tried(obsidian.key());
-		// the bucket is in the bag, nothing else of m3.2 to ask: short, and on to the golden helmet (the gold's first piece)
-		assertEquals("golden helmet", next(k));
+		// the bucket is in the bag, nothing else of m3.2 to ask: short, and on to the golden boots (the gold's first piece)
+		assertEquals("golden boots", next(k));
 		assertEquals(List.of("route: phase m3.2 short", "route: phase m3.3 gold"), said);
 		// the sand is one try, and a phase met without it is no short one
 		Kit s = from("m1.3");
@@ -383,20 +394,21 @@ class ObtainRouteTest {
 		assertEquals(List.of("route: phase m2.1 armour"), said);
 	}
 
-	// gold smoke 2 run 2: the helmet's three tries spent with no gold found; once the bag holds the gold for one, it is asked again
+	// gold smoke 2 run 2: the gold piece's three tries spent with no gold found; once the bag holds the gold for it, it is asked
+	// again (the golden boots since steering 202, four ingots)
 	@Test
-	void theGoldenHelmetComesBackOnceTheGoldIsThere() {
+	void theGoldenBootsComeBackOnceTheGoldIsThere() {
 		Kit k = from("m3.3");
 		walk(k);
-		ObtainRoute.Piece helmet = ObtainRoute.next(k, say);
-		assertEquals("m3.3/golden helmet", helmet.key());
-		for (int i = 0; i < ObtainRoute.TRIES; i++) ObtainRoute.tried(helmet.key());
+		ObtainRoute.Piece boots = ObtainRoute.next(k, say);
+		assertEquals("m3.3/golden boots", boots.key());
+		for (int i = 0; i < ObtainRoute.TRIES; i++) ObtainRoute.tried(boots.key());
 		assertEquals("gold", next(k));
-		k.give("gold_ingot", 4);
+		k.give("gold_ingot", 3);
 		assertEquals("gold", next(k));
 		k.give("gold_ingot", 1);
-		assertEquals("golden helmet again", next(k));
-		k.wear("helmet", "golden_helmet");
+		assertEquals("golden boots again", next(k));
+		k.wear("boots", "golden_boots");
 		assertEquals("gold", next(k));
 	}
 
@@ -405,15 +417,15 @@ class ObtainRouteTest {
 	void aSlimeMetInTheGoldPhaseIsTakenAlong() {
 		Kit k = from("m3.3");
 		walk(k);
-		assertEquals("golden helmet", next(k));
+		assertEquals("golden boots", next(k));
 		k.slimeNear = true;
 		assertEquals("slime ball", next(k));
 		assertEquals("m3.3/slime ball", ObtainRoute.next(k, say).key());
 		k.give("slime_ball");
-		assertEquals("golden helmet", next(k));
+		assertEquals("golden boots", next(k));
 		k.take("slime_ball");
 		k.slimeNear = false;
-		assertEquals("golden helmet", next(k));
+		assertEquals("golden boots", next(k));
 	}
 
 	@Test
@@ -465,11 +477,11 @@ class ObtainRouteTest {
 	}
 
 	@Test
-	void theGoldCoversTheHelmetsStillToMake() {
-		assertEquals(106, ObtainRoute.goldNeed(new Kit()));
-		assertEquals(101, ObtainRoute.goldNeed(new Kit().wear("helmet", "golden_helmet")));
-		assertEquals(96, ObtainRoute.goldNeed(new Kit().wear("helmet", "golden_helmet").give("golden_helmet")));
-		// the M4START kit has both helmets: 96 to mine
+	void theGoldCoversTheBootsStillToMake() {
+		assertEquals(100, ObtainRoute.goldNeed(new Kit()));
+		assertEquals(96, ObtainRoute.goldNeed(new Kit().wear("boots", "golden_boots")));
+		assertEquals(96, ObtainRoute.goldNeed(new Kit().give("golden_boots")));
+		// the M4START kit has the golden boots on: 96 to mine
 		walk(m4start());
 		assertEquals(ObtainRoute.M3_3, ObtainRoute.phase());
 		assertEquals("gold", next(m4start()));
@@ -482,11 +494,11 @@ class ObtainRouteTest {
 		for (List<ObtainRoute.Piece> phase : ObtainRoute.PIECES) for (ObtainRoute.Piece p : phase) names.add(p.key());
 		assertEquals(List.of("m1.1/wood", "m1.2/stone pickaxes", "m1.2/stone sword", "m1.2/furnace", "m1.3/food", "m1.3/bed", "m1.3/sand",
 			"m2.1/shield", "m2.1/copper_chestplate", "m2.1/copper_leggings", "m2.1/copper_boots", "m2.1/iron_chestplate",
-			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m3.1/diamonds",
-			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/slime ball", "m3.3/golden helmet", "m3.3/golden helmet again", "m3.3/gold", "m3.3/spare golden helmet", "m3.3b/slime ball",
+			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.1/iron_helmet", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m3.1/diamonds",
+			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/slime ball", "m3.3/golden boots", "m3.3/golden boots again", "m3.3/gold", "m3.3b/slime ball",
 			"m3.4/flint and steel", "m3.4/rest", "m3.4/crafting table", "m3.4/food", "m3.4/bed", "m3.4/water bucket",
-			"m3.4/iron pickaxes", "m3.4/diamonds", "m3.4/redstone", "m3.4/obsidian", "m3.4/raw gold", "m3.4/golden helmet", "m3.4/gold",
-			"m3.4/spare golden helmet", "m3.4/water bottles", "m3.4/crafting table last"), names);
+			"m3.4/iron pickaxes", "m3.4/diamonds", "m3.4/redstone", "m3.4/obsidian", "m3.4/raw gold", "m3.4/golden boots", "m3.4/gold",
+			"m3.4/water bottles", "m3.4/crafting table last"), names);
 		assertEquals(ObtainRoute.PHASES.size(), ObtainRoute.PIECES.size());
 	}
 
@@ -535,17 +547,16 @@ class ObtainRouteTest {
 		}
 		// given up after three: the portal (the whole order) then
 		assertNull(next(k));
-		// the gold short: the golden helmet worn from the bag's gold first, then the gold, then the spare
+		// the gold short: the golden boots worn from the bag's gold first, then the gold; no spare (steering 202)
 		Kit g = from("m3.4").give("flint_and_steel").give("potion", 3);
 		g.kitAgain = true;
 		walk(g);
-		g.worn.remove("helmet");
-		g.take("golden_helmet");
-		assertEquals("golden helmet", next(g));
-		g.wear("helmet", "golden_helmet").take("gold_ingot").give("gold_ingot", 40);
+		g.wear("boots", "iron_boots");
+		assertEquals("golden boots", next(g));
+		g.wear("boots", "golden_boots").take("gold_ingot").give("gold_ingot", 40);
 		assertEquals("gold", next(g));
 		g.take("gold_ingot").give("gold_ingot", 101);
-		assertEquals("spare golden helmet", next(g));
+		assertNotEquals("gold", next(g));
 	}
 
 	/** (gold_runs_on) the gold piece runs on past its 40 minutes while the gold rises; 20 minutes with no rise end it, six hours all its tries. */
@@ -561,10 +572,10 @@ class ObtainRouteTest {
 		assertEquals(ObtainRoute.GoldClock.ALL_TIME, ObtainRoute.goldClock(60 * min, 1 * min, 300 * min, limit));
 		assertEquals(ObtainRoute.GoldClock.ALL_TIME, ObtainRoute.goldClock(10 * min, 1 * min, 360 * min, limit));
 		assertEquals(ObtainRoute.GoldClock.ON, ObtainRoute.goldClock(10 * min, 1 * min, 349 * min, limit));
-		// the gold counted: ingots, raw gold and ore, a block as nine, five a helmet worn or carried
-		Kit k = new Kit().give("gold_ingot", 10).give("raw_gold", 4).give("deepslate_gold_ore", 2).give("gold_block").give("golden_helmet")
-			.wear("helmet", "golden_helmet");
-		assertEquals(10 + 4 + 2 + 9 + 5 + 5, ObtainRoute.goldCount(k));
+		// the gold counted: ingots, raw gold and ore, a block as nine, four golden boots worn or carried
+		Kit k = new Kit().give("gold_ingot", 10).give("raw_gold", 4).give("deepslate_gold_ore", 2).give("gold_block").give("golden_boots")
+			.wear("boots", "golden_boots");
+		assertEquals(10 + 4 + 2 + 9 + 4 + 4, ObtainRoute.goldCount(k));
 		assertEquals("m3.3/gold", ObtainRoute.GOLD_KEY);
 		// the six hours make the try under way the piece's last
 		ObtainRoute.reset(true);
@@ -582,7 +593,7 @@ class ObtainRouteTest {
 		assertTrue(ObtainRoute.goldPiece("m3.3/gold", false));
 		assertFalse(ObtainRoute.goldPiece("m3.4/gold", false));
 		assertTrue(ObtainRoute.goldPiece("m3.4/gold", true));
-		assertFalse(ObtainRoute.goldPiece("m3.4/spare golden helmet", true));
+		assertFalse(ObtainRoute.goldPiece("m3.4/golden boots", true));
 		Kit g = from("m3.4").give("flint_and_steel").give("potion", 3);
 		g.kitAgain = true;
 		g.goldClockFix = true;
@@ -592,14 +603,14 @@ class ObtainRouteTest {
 		ObtainRoute.goldBank(300 * 60_000L);
 		assertEquals("gold", next(g));
 		assertNull(ObtainRoute.goldPassedOver(g));
-		// the six hours spent: passed over (the spare helmet is in the bag), said once
+		// the six hours spent: passed over (the golden boots are worn), said once
 		ObtainRoute.goldBank(60 * 60_000L);
 		assertNull(next(g));
 		assertEquals("the gold's 6 game hours spent", ObtainRoute.goldPassedOver(g));
 		assertNull(ObtainRoute.goldPassedOver(g));
-		// the spare from the bag's gold only
-		g.take("golden_helmet");
-		assertEquals("spare golden helmet", next(g));
+		// the boots off: made again from the bag's gold only
+		g.wear("boots", "iron_boots");
+		assertEquals("golden boots", next(g));
 		g.take("gold_ingot").give("gold_ingot", 3);
 		assertNull(next(g));
 		// without the fix: the gold asked as before
@@ -676,9 +687,9 @@ class ObtainRouteTest {
 		ObtainRoute.goldPicksWorn();
 		assertNull(next(g));
 		assertEquals("pickaxes worn", ObtainRoute.goldOver(g));
-		g.take("golden_helmet");
-		assertEquals("spare golden helmet", next(g));
-		g.take("gold_ingot").give("gold_ingot", 4);
+		g.wear("boots", "iron_boots");
+		assertEquals("golden boots", next(g));
+		g.take("gold_ingot").give("gold_ingot", 3);
 		assertNull(next(g));
 		ObtainRoute.reset(true);
 		assertNull(ObtainRoute.goldOver(g));

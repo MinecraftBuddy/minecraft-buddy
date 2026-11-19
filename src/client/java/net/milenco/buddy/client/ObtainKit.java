@@ -82,7 +82,11 @@ final class ObtainKit {
 			k.add(new Need("helmet", helmets, 1));
 			k.add(new Need("chestplate", tiers("chestplate", IRON_UP), 1));
 			k.add(new Need("leggings", tiers("leggings", IRON_UP), 1));
-			k.add(new Need("boots", tiers("boots", IRON_UP), 1));
+			// (steering 202: golden boots are the piglins' piece, worn in place of iron ones: they count as the boots, or the kit
+			// would put the iron boots back on and turn every piglin on the buddy, as it once did with the golden helmet)
+			List<String> boots = tiers("boots", IRON_UP);
+			boots.add("golden_boots");
+			k.add(new Need("boots", boots, 1));
 			k.add(new Need("shield", List.of("shield"), 1));
 			k.add(new Need("torches", List.of("torch"), 16));
 			k.add(new Need("water bucket", List.of("water_bucket"), 1));
@@ -90,12 +94,9 @@ final class ObtainKit {
 		}
 		if (d.ordinal() >= Danger.NETHER.ordinal()) {
 			k.add(new Need("more food", FOOD, 16));
-			// a golden helmet: it protects as much as an iron one, so the armour stays 15 (golden boots made it 14, and under 15
-			// a blaze is a shooter to dig in from, never one to fight)
-			k.add(new Need("gold helmet", List.of("golden_helmet"), 1));
-			// and a spare in the bag: a golden helmet has 77 points of durability, and a nether order's fights wore one through
-			// twice, with every piglin on the buddy from then on; the spare goes on where the worn one breaks (Obtain)
-			k.add(new Need("spare gold helmet", List.of("golden_helmet"), 2));
+			// (steering 202 of 19 Nov 2026, his word) one pair of golden boots for the piglins, with the iron helmet: armour 14,
+			// no spare. before: a golden helmet (armour 15) and a spare in the bag
+			k.add(new Need("gold boots", List.of("golden_boots"), 1));
 			k.add(new Need("more blocks", List.of("cobblestone", "cobbled_deepslate"), 48));
 			k.add(new Need("flint and steel", List.of("flint_and_steel"), 1));
 			// a wither skeleton hits for eight through iron: a diamond sword ends it in fewer blows

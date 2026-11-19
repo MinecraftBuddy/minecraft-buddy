@@ -48,10 +48,13 @@ final class ObtainRoute {
 
 	/**
 	 * The trade's gold the M3 kit carries: {@link #GOLD}, or none with nether_gold on (steering 200 of 19 Nov 2026, the
-	 * maintainer's word: the trade's gold from nether gold ore, in the overworld only the two golden helmets' ten; the
+	 * maintainer's word: the trade's gold from nether gold ore, in the overworld only the golden boots' four (the two golden helmets' ten before steering 202); the
 	 * overworld mine took 10 to 20 gold a game hour, and 2 of 18 whole runs past the obsidian reached 96).
 	 */
 	static int tradeGold(Bag b) { return b.netherGold() ? 0 : GOLD; }
+
+	/** The golden boots' gold (steering 202 of 19 Nov 2026: the piglins' piece is one pair of golden boots). */
+	static final int BOOTS_GOLD = 4;
 
 	/** What the route reads of the buddy. */
 	interface Bag {
@@ -88,7 +91,7 @@ final class ObtainRoute {
 		/** The autopilot's gold_raw_smelt switch: M3.4 smelts the bag's raw gold once no more gold is mined. */
 		default boolean rawGoldSmelt() { return false; }
 
-		/** The autopilot's nether_gold switch: the trade's gold is dug in the nether, the overworld gets only the helmets'. */
+		/** The autopilot's nether_gold switch: the trade's gold is dug in the nether, the overworld gets only the golden boots'. */
 		default boolean netherGold() { return false; }
 	}
 
@@ -141,7 +144,10 @@ final class ObtainRoute {
 			piece(M2_1, "copper_boots", b -> copperWanted(b, "boots")),
 			piece(M2_1, "iron_chestplate", b -> !ironUp(b.wornIn("chestplate"))),
 			piece(M2_1, "iron_leggings", b -> !ironUp(b.wornIn("leggings"))),
-			piece(M2_1, "iron_boots", b -> !ironUp(b.wornIn("boots")))),
+			piece(M2_1, "iron_boots", b -> !ironUp(b.wornIn("boots")) && !goldBoots(b)),
+			// (steering 202 of 19 Nov 2026, his word: golden boots for the piglins and an iron helmet, so M2's armour has the
+			// helmet too; the golden boots that replace the iron ones in M3.3 count as boots here)
+			piece(M2_1, "iron_helmet", b -> !ironUp(b.wornIn("helmet")))),
 		// a water bucket (a fire put out, a fall caught), two iron pickaxes, an iron sword
 		List.of(piece(M2_2, "water bucket", b -> b.inv("water_bucket") < 1),
 			piece(M2_2, "iron pickaxes", b -> picksUp(b) < 2),
@@ -160,11 +166,10 @@ final class ObtainRoute {
 		// (12 Nov 2026: the gold and the slime ball are fetched in one stretch under the ground; a slime met in the gold mine
 		// is taken at once, its ball the next phase's, rather than looked for again in a dig of its own afterwards)
 		List.of(piece(M3_3, "slime ball", b -> b.inv("slime_ball") < 1 && b.slimeNear()),
-			piece(M3_3, "golden helmet", b -> !"golden_helmet".equals(b.wornIn("helmet"))),
-			piece(M3_3, "golden helmet again", b -> !"golden_helmet".equals(b.wornIn("helmet"))
-				&& (b.inv("golden_helmet") > 0 || b.inv("gold_ingot") >= 5)),
-			piece(M3_3, "gold", b -> b.inv("gold_ingot") < goldNeed(b)),
-			piece(M3_3, "spare golden helmet", b -> b.inv("golden_helmet") < 1)),
+			// (steering 202 of 19 Nov 2026, his word: one pair of golden boots, 4 gold, for the piglins; no golden helmet, no spare)
+			piece(M3_3, "golden boots", b -> !goldBoots(b)),
+			piece(M3_3, "golden boots again", b -> !goldBoots(b) && (b.inv("golden_boots") > 0 || b.inv("gold_ingot") >= BOOTS_GOLD)),
+			piece(M3_3, "gold", b -> b.inv("gold_ingot") < goldNeed(b))),
 		// a slime ball for the brew's cream: slimes deep under the ground in some chunks, the dig at the gold mine's height
 		List.of(piece(M3_3B, "slime ball", b -> b.inv("slime_ball") < 1)),
 		// up again: flint and steel, the rest of the nether's kit, the bottles filled; then the whole order builds the portal
@@ -189,13 +194,11 @@ final class ObtainRoute {
 			// only ingots, and goudsmoke3's run 4 went through the portal with 27 ingots and 12 raw gold from the slime dig
 			piece(M3_4, "raw gold", b -> b.kitAgain() && b.rawGoldSmelt() && b.inv("raw_gold") > 0
 				&& b.inv("gold_ingot") < goldNeed(b) && goldOver(b) != null),
-			// (the helmet worn from the bag's gold first, as M3.3's "golden helmet again"; then the gold, then the spare)
-			// (gold_clock_fix: once the gold is over, goldOver, no more gold is mined; the spare is made only from the bag's)
-			piece(M3_4, "golden helmet", b -> b.kitAgain() && !"golden_helmet".equals(b.wornIn("helmet"))
-				&& (b.inv("golden_helmet") > 0 || b.inv("gold_ingot") >= 5)),
+			// (the golden boots worn from the bag's gold first, as M3.3's "golden boots again"; then the gold; no spare since
+			// steering 202) (gold_clock_fix: once the gold is over, goldOver, no more gold is mined)
+			piece(M3_4, "golden boots", b -> b.kitAgain() && !goldBoots(b)
+				&& (b.inv("golden_boots") > 0 || b.inv("gold_ingot") >= BOOTS_GOLD)),
 			piece(M3_4, "gold", b -> b.kitAgain() && b.inv("gold_ingot") < goldNeed(b) && goldOver(b) == null),
-			piece(M3_4, "spare golden helmet", b -> b.kitAgain() && b.inv("golden_helmet") < 1
-				&& (goldOver(b) == null || b.inv("gold_ingot") >= 5)),
 			piece(M3_4, "water bottles", b -> b.inv("potion") < 3),
 			// (nether_gold, 19 Nov 2026) the trade's gold is folded from nuggets at a table in the nether: a table (or wood for
 			// one) once more, last before the portal. A whole run crafted its bed at the table after the first ask, the table's
@@ -317,11 +320,11 @@ final class ObtainRoute {
 			case M1_1 -> anyOf(b, "wooden_pickaxe", "stone_pickaxe", "iron_pickaxe", "golden_pickaxe", "diamond_pickaxe", "netherite_pickaxe");
 			case M1_2 -> anyOf(b, "stone_pickaxe", "iron_pickaxe", "diamond_pickaxe", "netherite_pickaxe") && furnaceHeld;
 			case M1_3 -> food(b) >= 8 && b.invEnding("_bed") > 0;
-			case M2_1 -> ironUpWorn(b) >= 3 && anyOf(b, "shield");
+			case M2_1 -> ironUpWorn(b) + (goldBoots(b) ? 1 : 0) >= 4 && anyOf(b, "shield");
 			case M2_2 -> picksUp(b) >= 2 && anyOf(b, "iron_sword", "diamond_sword", "netherite_sword") && anyOf(b, "water_bucket");
 			case M3_1 -> anyOf(b, "diamond_pickaxe", "netherite_pickaxe") && anyOf(b, "diamond_sword", "netherite_sword") && anyOf(b, "redstone");
 			case M3_2 -> all(b, "obsidian") >= 10;
-			case M3_3 -> all(b, "gold_ingot") >= tradeGold(b) && worn(b, "golden_helmet") > 0 && all(b, "golden_helmet") >= 2;
+			case M3_3 -> all(b, "gold_ingot") >= tradeGold(b) && goldBoots(b);
 			case M3_3B -> met(M3_3, b, furnaceHeld) && all(b, "slime_ball") >= 1;
 			default -> false;
 		};
@@ -432,11 +435,11 @@ final class ObtainRoute {
 		return sinceRise < GOLD_NO_RISE ? GoldClock.EXTENDED : GoldClock.NO_RISE;
 	}
 
-	/** The gold the gold piece counts: ingots, raw gold and gold ore, a block as nine, five a golden helmet worn or carried. */
+	/** The gold the gold piece counts: ingots, raw gold and gold ore, a block as nine, four golden boots worn or carried. */
 	static int goldCount(Bag b) {
 		return b.inv("gold_ingot") + b.inv("raw_gold") + b.inv("gold_ore") + b.inv("deepslate_gold_ore")
 			+ 9 * (b.inv("gold_block") + b.inv("raw_gold_block"))
-			+ 5 * (b.inv("golden_helmet") + ("golden_helmet".equals(b.wornIn("helmet")) ? 1 : 0));
+			+ BOOTS_GOLD * (b.inv("golden_boots") + (goldBoots(b) ? 1 : 0));
 	}
 
 	/** The try under way of this piece is its last (gold_runs_on's six hours): its end, counted by {@link #tried}, gives it up. */
@@ -446,10 +449,14 @@ final class ObtainRoute {
 		TRIED.put(key, Math.max(tries(key), tries - 1));
 	}
 
-	/** The gold M3.3 wants in the bag: the trade's ({@link #tradeGold}), and five for each golden helmet still to make. */
+	/** The gold M3.3 wants in the bag: the trade's ({@link #tradeGold}), and four for the golden boots while none are made. */
 	static int goldNeed(Bag b) {
-		return tradeGold(b) + ("golden_helmet".equals(b.wornIn("helmet")) ? 0 : 5) + (b.inv("golden_helmet") > 0 ? 0 : 5);
+		return tradeGold(b) + (goldBoots(b) || b.inv("golden_boots") > 0 ? 0 : BOOTS_GOLD);
 	}
+
+
+	/** Golden boots worn: the piglins leave the buddy be. */
+	static boolean goldBoots(Bag b) { return "golden_boots".equals(b.wornIn("boots")); }
 
 	// carried and worn together, as the rig's bag counts the armour slots too
 	private static int all(Bag b, String item) { return b.inv(item) + worn(b, item); }
