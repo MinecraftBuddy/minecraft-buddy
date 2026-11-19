@@ -46,6 +46,13 @@ final class ObtainRoute {
 	 * phase records count: 96 and 5 more for a golden helmet). */
 	static final int GOLD = 96;
 
+	/**
+	 * The trade's gold the M3 kit carries: {@link #GOLD}, or none with nether_gold on (steering 200 of 19 Nov 2026, the
+	 * maintainer's word: the trade's gold from nether gold ore, in the overworld only the two golden helmets' ten; the
+	 * overworld mine took 10 to 20 gold a game hour, and 2 of 18 whole runs past the obsidian reached 96).
+	 */
+	static int tradeGold(Bag b) { return b.netherGold() ? 0 : GOLD; }
+
 	/** What the route reads of the buddy. */
 	interface Bag {
 		/** Carried: the inventory and the off hand. */
@@ -80,6 +87,9 @@ final class ObtainRoute {
 
 		/** The autopilot's gold_raw_smelt switch: M3.4 smelts the bag's raw gold once no more gold is mined. */
 		default boolean rawGoldSmelt() { return false; }
+
+		/** The autopilot's nether_gold switch: the trade's gold is dug in the nether, the overworld gets only the helmets'. */
+		default boolean netherGold() { return false; }
 	}
 
 	/** A piece of a phase: its name (the kit's step), how often it is asked, and whether the bag still lacks it. */
@@ -307,7 +317,7 @@ final class ObtainRoute {
 			case M2_2 -> picksUp(b) >= 2 && anyOf(b, "iron_sword", "diamond_sword", "netherite_sword") && anyOf(b, "water_bucket");
 			case M3_1 -> anyOf(b, "diamond_pickaxe", "netherite_pickaxe") && anyOf(b, "diamond_sword", "netherite_sword") && anyOf(b, "redstone");
 			case M3_2 -> all(b, "obsidian") >= 10;
-			case M3_3 -> all(b, "gold_ingot") >= GOLD && worn(b, "golden_helmet") > 0 && all(b, "golden_helmet") >= 2;
+			case M3_3 -> all(b, "gold_ingot") >= tradeGold(b) && worn(b, "golden_helmet") > 0 && all(b, "golden_helmet") >= 2;
 			case M3_3B -> met(M3_3, b, furnaceHeld) && all(b, "slime_ball") >= 1;
 			default -> false;
 		};
@@ -432,9 +442,9 @@ final class ObtainRoute {
 		TRIED.put(key, Math.max(tries(key), tries - 1));
 	}
 
-	/** The gold M3.3 wants in the bag: the trade's, and five for each golden helmet still to make. */
+	/** The gold M3.3 wants in the bag: the trade's ({@link #tradeGold}), and five for each golden helmet still to make. */
 	static int goldNeed(Bag b) {
-		return GOLD + ("golden_helmet".equals(b.wornIn("helmet")) ? 0 : 5) + (b.inv("golden_helmet") > 0 ? 0 : 5);
+		return tradeGold(b) + ("golden_helmet".equals(b.wornIn("helmet")) ? 0 : 5) + (b.inv("golden_helmet") > 0 ? 0 : 5);
 	}
 
 	// carried and worn together, as the rig's bag counts the armour slots too

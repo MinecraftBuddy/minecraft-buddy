@@ -25,7 +25,7 @@ class ObtainRouteTest {
 	static final class Kit implements ObtainRoute.Bag {
 		final Map<String, Integer> items = new HashMap<>();
 		final Map<String, String> worn = new HashMap<>();
-		boolean bedNear, rest, slimeNear, kitAgain, goldClockFix, rawGoldSmelt;
+		boolean bedNear, rest, slimeNear, kitAgain, goldClockFix, rawGoldSmelt, netherGold;
 
 		Kit give(String item, int n) { items.merge(item, n, Integer::sum); return this; }
 
@@ -56,6 +56,8 @@ class ObtainRouteTest {
 		public boolean goldClockFix() { return goldClockFix; }
 
 		public boolean rawGoldSmelt() { return rawGoldSmelt; }
+
+		public boolean netherGold() { return netherGold; }
 	}
 
 	private final List<String> said = new ArrayList<>();
@@ -168,6 +170,26 @@ class ObtainRouteTest {
 		assertEquals(Set.of(), met(new Kit().give("slime_ball"), false));
 		// the portal's phase is the nether, never the bag
 		assertFalse(met(m4start().give("gold_ingot", 64), true).contains("m3.4"));
+	}
+
+	/** Steering 200: with nether_gold the trade's gold is dug in the nether, so M3.3 asks only the two golden helmets. */
+	@Test
+	void netherGoldLeavesTheOverworldTheHelmetsAlone() {
+		Kit helmets = new Kit().wear("helmet", "golden_helmet").give("golden_helmet");
+		helmets.netherGold = true;
+		assertEquals(Set.of("m3.3"), met(helmets, false));
+		assertEquals(0, ObtainRoute.tradeGold(helmets));
+		assertEquals(0, ObtainRoute.goldNeed(helmets));
+		Kit bare = new Kit();
+		bare.netherGold = true;
+		assertEquals(10, ObtainRoute.goldNeed(bare));
+		Kit before = new Kit().wear("helmet", "golden_helmet").give("golden_helmet");
+		assertEquals(Set.of(), met(before, false));
+		assertEquals(96, ObtainRoute.goldNeed(before));
+		// the M4START kit carries both helmets: with nether_gold the gold is no longer its first phase
+		Kit m4 = m4start();
+		m4.netherGold = true;
+		assertTrue(ObtainRoute.start(m4) > ObtainRoute.M3_3);
 	}
 
 	@Test

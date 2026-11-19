@@ -1099,8 +1099,9 @@ final class Alto {
 	private static void routeSay(int phase, String state) {
 		String line = ObtainRoute.BEGUN.equals(state) ? ObtainRoute.line(phase) : ObtainRoute.shortLine(phase);
 		if (present()) adris.altoclef.Debug.logInternal(line);
+		// (the trade's gold the M3 kit asks: 0 with nether_gold, so the rig's m3.3 asks the helmets alone, steering 200)
 		Exchange.emit("obtain", "action", "route phase", "phase", ObtainRoute.PHASES.get(phase), "word", ObtainRoute.WORDS.get(phase),
-			"state", state);
+			"state", state, "trade_gold", netherGoldOn() ? 0 : ObtainRoute.GOLD);
 	}
 
 	/** The bag as the route reads it: carried with the off hand (every wear), and what is worn. */
@@ -1137,7 +1138,14 @@ final class Alto {
 			public boolean goldClockFix() { return goldClockFixOn(); }
 
 			public boolean rawGoldSmelt() { return present() && adris.altoclef.util.helpers.Tuning.get("gold_raw_smelt", 0) > 0; }
+
+			public boolean netherGold() { return netherGoldOn(); }
 		};
+	}
+
+	/** The autopilot's nether_gold switch (steering 200, on by default): the trade's gold dug in the nether; off without the autopilot. */
+	static boolean netherGoldOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("nether_gold", 0) > 0;
 	}
 
 	/** The autopilot's m34_kit_again switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
