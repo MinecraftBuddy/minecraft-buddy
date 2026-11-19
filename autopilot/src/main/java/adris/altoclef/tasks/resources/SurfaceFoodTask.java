@@ -30,6 +30,40 @@ public class SurfaceFoodTask extends Task {
     private TrailBackTask _trail;
     private long _trailSince;
     private boolean _trailDone;
+    // (Tuning food_climb_stuck) the climb's highest feet and when they were reached; given up once it got no higher in CLIMB_STUCK.
+    // kept through onStart: a fight that cut in does not start the climb's clock again
+    private int _bestY = Integer.MIN_VALUE;
+    private long _bestAt;
+    private boolean _givenUp;
+    // when a climb was last given up (the game clock), for the buddy's deep food rule
+    private static volatile long _givenUpAt = Long.MIN_VALUE;
+
+    /**
+     * (Tuning food_climb_stuck, a fix of 19 Nov 2026, on) a climb that got no higher in this long is given up and the order goes
+     * on with the bag's food: one pillared a column to y 39 under a river, found no way on, and the wander fallback took it back
+     * down the shaft ten times in nine game minutes, the last into a cave with two skeletons and two zombies, dead with 38 food
+     * points in the bag and the climb begun at full hunger (look 137; L102, L127, obsidiaan 17.B the same kind)
+     */
+    static final long CLIMB_STUCK = 3 * 1200;
+    /** How long after a climb given up the deep stretch's food rule sends no one up again (hunger and an empty bag still do). */
+    static final long GIVEN_UP_HOLD = 15 * 1200;
+
+    /** The climb has got no higher since {@code bestAt}, now {@code now}, for longer than CLIMB_STUCK. */
+    static boolean climbStuck(long bestAt, long now) {
+        return now >= bestAt && now - bestAt > CLIMB_STUCK;
+    }
+
+    /** A climb was given up less than GIVEN_UP_HOLD before {@code now} (food_climb_stuck): the deep food rule waits. */
+    public static boolean climbGivenUp(long now) {
+        long at = _givenUpAt;
+        return adris.altoclef.util.helpers.Tuning.get("food_climb_stuck", 0) > 0 && at != Long.MIN_VALUE && now >= at
+                && now - at < GIVEN_UP_HOLD;
+    }
+
+    // tests
+    static void noteGivenUp(long at) {
+        _givenUpAt = at;
+    }
 
     public SurfaceFoodTask(double unitsNeeded) {
         _units = unitsNeeded;
@@ -82,6 +116,22 @@ public class SurfaceFoodTask extends Task {
                 return _food;
             }
         }
+        // (food_climb_stuck) no higher in CLIMB_STUCK: given up, the order goes on with the bag's food
+        long now = mod.getWorld().getGameTime();
+        if (_bestY == Integer.MIN_VALUE || feet.getY() > _bestY || now < _bestAt) {
+            _bestY = feet.getY();
+            _bestAt = now;
+        } else if (adris.altoclef.util.helpers.Tuning.get("food_climb_stuck", 0) > 0 && climbStuck(_bestAt, now)) {
+            if (!_givenUp) {
+                Debug.logInternal("food: the climb got no higher than y " + _bestY + " in " + CLIMB_STUCK / 1200
+                        + " game minutes (now y " + feet.getY() + "): given up, the order goes on with the bag's food, no deep food trip for "
+                        + GIVEN_UP_HOLD / 1200 + " game minutes (food_climb_stuck)");
+                _givenUpAt = now;
+            }
+            _givenUp = true;
+            setDebugState("The climb for food got no higher: given up");
+            return null;
+        }
         setDebugState("Up to the surface for food, to y " + _topY);
         return new GetToYTask(_topY);
     }
@@ -127,7 +177,7 @@ public class SurfaceFoodTask extends Task {
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return _up && _food.isFinished(mod);
+        return _givenUp || _up && _food.isFinished(mod);
     }
 
     @Override

@@ -773,7 +773,11 @@ public final class Tuning {
             java.util.Map.entry("portal_sea_hold", 1.0),
             // a snow layer or a plant in the portal step's cell cleared by hand first: the click's ray stopped on the snow and two
             // snowy sites were dropped with 5 of 10 placed, ConstructNetherPortalObsidianTask (look 136)
-            java.util.Map.entry("portal_step_clear", 1.0));
+            java.util.Map.entry("portal_step_clear", 1.0),
+            // a climb for food that got no higher in 3 game minutes is given up and the order goes on with the bag's food; the deep
+            // food rule waits 15 game minutes: one climb went back down its shaft ten times and into a cave, dead with 38 food
+            // points in the bag, SurfaceFoodTask (look 137)
+            java.util.Map.entry("food_climb_stuck", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
