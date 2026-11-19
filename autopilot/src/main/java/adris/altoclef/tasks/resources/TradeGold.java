@@ -7,7 +7,6 @@ import adris.altoclef.tasks.speedrun.gamer.NetherGold;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.CraftingRecipe;
 import adris.altoclef.util.ItemTarget;
-import adris.altoclef.util.MiningRequirement;
 import adris.altoclef.util.RecipeTarget;
 import adris.altoclef.util.helpers.FireResTradeRules;
 import adris.altoclef.util.helpers.TradeGoldRules;
@@ -42,8 +41,16 @@ final class TradeGold {
 
     // a line of how the dig goes every this many ingots (nuggets counted as ninths)
     static final int PROGRESS_EVERY = 8;
-    // nothing passes the mine's pick for this long, and the next ore is looked for further off (game ticks)
-    static final long WANDER_TICKS = 4 * 20;
+    // the step's scan for exposed ore: this many chunks round the feet' chunk, again every this many ticks
+    static final int SCAN_CHUNKS = 5;
+    static final long ORE_SCAN_TICKS = 100;
+    // an ore not broken in this long is given up for another (game ticks)
+    static final long ORE_GIVE_UP = 60 * 20;
+    // the nuggets of a break are picked up from within this many blocks for at most this long (game ticks)
+    static final double PICKUP_BLOCKS = 8;
+    static final long PICKUP_TICKS = 10 * 20;
+    // an ore further off than this is a trip, said in a line
+    static final double TRIP_BLOCKS = 16;
     // a piglin left the box this long ago and baritone may break gold ore again (a piglin on the box's edge would flip it)
     static final int GUARD_HOLD_TICKS = 20;
     private static final Block[] GUARDED = {Blocks.NETHER_GOLD_ORE, Blocks.GILDED_BLACKSTONE};
@@ -53,14 +60,20 @@ final class TradeGold {
     private long _begunAt;
     private long _riseAt;
     private long _noOreSince = -1;
-    private long _wanderSince = -1;
     private int _bestNinths;
     private int _ninthsAtBegin;
     private int _progressLogged;
     private int _anchors;
     private BlockPos _anchor;
-    // anchors whose ore the mine would not take (out of its reach, or given up): their reach is not an anchor again
-    private final List<BlockPos> _spent = new ArrayList<>();
+    // the step's own scan of exposed ore (scanOres), when it ran, the ore under way and since when, the ores given up, the
+    // ores broken, and when the last one broke (its nuggets' pickup)
+    private List<BlockPos> _ores = List.of();
+    private long _scannedAt = Long.MIN_VALUE;
+    private BlockPos _target;
+    private long _targetSince;
+    private final java.util.Set<BlockPos> _givenUp = new java.util.HashSet<>();
+    private int _broken;
+    private long _pickupSince = Long.MIN_VALUE;
     private Task _step;
     private String _stepKind;
     private int _stepTarget;
@@ -131,7 +144,6 @@ final class TradeGold {
             _anchor = player.blockPosition();
             _start = _anchor;
             _ninthsAtBegin = _bestNinths = TradeGoldRules.ninths(ingots, nuggets);
-            mod.getBlockTracker().trackBlock(Blocks.NETHER_GOLD_ORE);
             Debug.logInternal(String.format(Locale.ROOT, "trade gold: begun, %d gold, target %d, %d nuggets, at %s; cap %s s, %s s with no new gold",
                     ingots, target, nuggets, _anchor.toShortString(), (long) (capTicks() / 20), (long) (dryTicks() / 20)));
         }
@@ -170,57 +182,137 @@ final class TradeGold {
             over(mod, now, end, ingots, nuggets);
             return null;
         }
-        // the mine: known ore within reach of the anchor with no piglin near it; with none, the nearest known ore further off
-        // becomes the anchor; with none of that either, the clock of no ore runs
-        if (!oreHere(mod)) {
-            BlockPos next = nextAnchor(mod, player.blockPosition());
-            if (next != null) {
-                _anchors++;
-                Debug.logInternal(String.format(Locale.ROOT, "trade gold: on to ore at %s, %.0f blocks off (anchor %d)",
-                        next.toShortString(), Math.sqrt(next.distSqr(player.blockPosition())), _anchors));
-                _anchor = next;
-                _step = null;
-            } else {
-                if (_noOreSince < 0) {
-                    _noOreSince = now;
-                    Debug.logInternal("trade gold: no gold ore known within reach with no piglin near it, searching");
-                }
-                _step = null;
-                _hud = "Looking for gold ore for the piglins";
-                return search(mod, now);
+        // the mine: the nearest exposed gold ore of the step's own scan (scanOres), clear of piglins and the spawner; its nuggets
+        // picked up after the break; with none, the search walks and the clock of no ore runs
+        refreshOres(mod, now);
+        BlockPos feet = player.blockPosition();
+        if (_target != null && (!mod.getWorld().getBlockState(_target).is(Blocks.NETHER_GOLD_ORE)
+                || !TradeGoldRules.clearOfPiglins(_target, _piglins))) {
+            if (!mod.getWorld().getBlockState(_target).is(Blocks.NETHER_GOLD_ORE)) {
+                _broken++;
+                _pickupSince = now;
+                _scannedAt = Long.MIN_VALUE;
             }
+            _target = null;
+        }
+        if (_target != null && now >= _targetSince && now - _targetSince > ORE_GIVE_UP) {
+            Debug.logInternal("trade gold: the ore at " + _target.toShortString() + " not broken in " + ORE_GIVE_UP / 20 + " s, another");
+            _givenUp.add(_target);
+            _target = null;
+        }
+        // the nuggets of the last break first, while they lie near (never past PICKUP_TICKS: one in lava stays there)
+        int onGround = nuggetsNear(mod);
+        if (onGround > 0 && now >= _pickupSince && now - _pickupSince <= PICKUP_TICKS) {
+            int want = nuggets + onGround;
+            return step(mod, "pickup", want, () -> new adris.altoclef.tasks.movement.PickupDroppedItemTask(Items.GOLD_NUGGET, want),
+                    "Picking up gold nuggets for the piglins");
+        }
+        if (_target == null) {
+            _target = nearestOre(mod, feet);
+            _targetSince = now;
+            if (_target != null && Math.sqrt(_target.distSqr(feet)) > TRIP_BLOCKS) {
+                _anchors++;
+                Debug.logInternal(String.format(Locale.ROOT, "trade gold: on to ore at %s, %.0f blocks off (trip %d, %d exposed ore known)",
+                        _target.toShortString(), Math.sqrt(_target.distSqr(feet)), _anchors, _ores.size()));
+            }
+        }
+        if (_target == null) {
+            if (_noOreSince < 0) {
+                _noOreSince = now;
+                Debug.logInternal("trade gold: no exposed gold ore within reach with no piglin near it, searching");
+            }
+            _step = null;
+            _hud = "Looking for gold ore for the piglins";
+            return search(mod, now);
         }
         _noOreSince = -1;
         _searchWalk = null;
-        int need = TradeGoldRules.nuggetsWanted(ingots, nuggets, target);
-        BlockPos anchor = _anchor;
-        Task mine = step(mod, "mine", need, () -> new MineAndCollectTask(new ItemTarget(Items.GOLD_NUGGET, need),
-                new Block[]{Blocks.NETHER_GOLD_ORE}, MiningRequirement.WOOD)
-                .onlyWhere(pos -> NetherGold.oreInReach(pos.getX(), pos.getY(), pos.getZ(), anchor.getX(), anchor.getY(), anchor.getZ())
-                        && TradeGoldRules.clearOfPiglins(pos, _piglins) && TradeGoldRules.awayFromSpawner(pos.getX(), pos.getZ(), _spawner)),
+        BlockPos at = _target;
+        return step(mod, "ore " + at.toShortString(), 0, () -> new adris.altoclef.tasks.construction.DestroyBlockTask(at),
                 "Digging gold for the piglins");
-        if (mine instanceof MineAndCollectTask m && m.wandering()) {
-            if (_wanderSince < 0) _wanderSince = now;
-            if (now - _wanderSince > WANDER_TICKS) {
-                // nothing here passes the pick any more (a piglin came, or the tracker lists ore the mine gave up on): next anchor
-                _wanderSince = -1;
-                _spent.add(_anchor);
-                BlockPos next = nextAnchor(mod, player.blockPosition());
-                if (next != null) {
-                    _anchors++;
-                    Debug.logInternal(String.format(Locale.ROOT, "trade gold: the ore here is out of reach, on to ore at %s, %.0f blocks off (anchor %d)",
-                            next.toShortString(), Math.sqrt(next.distSqr(player.blockPosition())), _anchors));
-                    _anchor = next;
-                    _step = null;
-                } else if (_noOreSince < 0) {
-                    _noOreSince = now;
-                    Debug.logInternal("trade gold: the mine finds no ore it may take here");
+    }
+
+    // the step's own look for ore, every ORE_SCAN_TICKS and at once after a break (the vein's next ore shows once the broken
+    // one opens it up)
+    private void refreshOres(AltoClef mod, long now) {
+        if (_scannedAt != Long.MIN_VALUE && now >= _scannedAt && now - _scannedAt < ORE_SCAN_TICKS) return;
+        _scannedAt = now;
+        _ores = scanOres(mod.getWorld(), mod.getPlayer().blockPosition());
+    }
+
+    // the nearest scanned ore still there, clear of piglins and the spawner, not given up on
+    private BlockPos nearestOre(AltoClef mod, BlockPos feet) {
+        BlockPos best = null;
+        double bestD = Double.POSITIVE_INFINITY;
+        for (BlockPos p : _ores) {
+            if (_givenUp.contains(p) || !TradeGoldRules.clearOfPiglins(p, _piglins) || !TradeGoldRules.awayFromSpawner(p.getX(), p.getZ(), _spawner)
+                    || !mod.getWorld().getBlockState(p).is(Blocks.NETHER_GOLD_ORE)) continue;
+            double d = p.distSqr(feet);
+            if (d < bestD) {
+                bestD = d;
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    // (19 Nov 2026, the second smoke: the block tracker's scan takes the 25 nearest gold ores and only then drops the ones with
+    // no open face; with Paper's anti-xray in engine mode 2, as the rig's nether and Tweakcraft run it, every hidden block of
+    // the nether is sent as a random one of its hidden list, so the 25 were fakes in the walls and real ore was known only a
+    // block or two off: 0 or 1 gold in five to nine minutes, four runs of four.) the nether gold ore with an open face (air or
+    // a fluid next to it, which such a server always sends as it is) in the loaded chunks within SCAN_CHUNKS of the feet, and
+    // TradeGoldRules.ANCHOR_DY up or down
+    static List<BlockPos> scanOres(net.minecraft.client.multiplayer.ClientLevel level, BlockPos feet) {
+        List<BlockPos> out = new ArrayList<>();
+        int fcx = feet.getX() >> 4, fcz = feet.getZ() >> 4;
+        int minY = Math.max(level.getMinY(), feet.getY() - TradeGoldRules.ANCHOR_DY);
+        int maxY = Math.min(level.getMinY() + level.getHeight() - 1, feet.getY() + TradeGoldRules.ANCHOR_DY);
+        java.util.function.Predicate<net.minecraft.world.level.block.state.BlockState> gold = st -> st.is(Blocks.NETHER_GOLD_ORE);
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        for (int cx = fcx - SCAN_CHUNKS; cx <= fcx + SCAN_CHUNKS; cx++) {
+            for (int cz = fcz - SCAN_CHUNKS; cz <= fcz + SCAN_CHUNKS; cz++) {
+                if (!level.hasChunk(cx, cz)) continue;
+                net.minecraft.world.level.chunk.LevelChunk chunk = level.getChunk(cx, cz);
+                net.minecraft.world.level.chunk.LevelChunkSection[] sections = chunk.getSections();
+                for (int y = minY; y <= maxY; y++) {
+                    int si = (y - chunk.getMinY()) >> 4;
+                    if (si < 0 || si >= sections.length) continue;
+                    net.minecraft.world.level.chunk.LevelChunkSection sec = sections[si];
+                    if (sec == null || sec.hasOnlyAir() || !sec.maybeHas(gold)) {
+                        y |= 15;
+                        continue;
+                    }
+                    for (int x = 0; x < 16; x++) {
+                        for (int z = 0; z < 16; z++) {
+                            if (!sec.getBlockState(x, y & 15, z).is(Blocks.NETHER_GOLD_ORE)) continue;
+                            at.set((cx << 4) + x, y, (cz << 4) + z);
+                            if (openFace(level, at)) out.add(at.immutable());
+                        }
+                    }
                 }
             }
-        } else {
-            _wanderSince = -1;
         }
-        return mine;
+        return out;
+    }
+
+    // air or a fluid on a side: the server sends a block as it is then
+    private static boolean openFace(net.minecraft.client.multiplayer.ClientLevel level, BlockPos pos) {
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
+            net.minecraft.world.level.block.state.BlockState n = level.getBlockState(pos.relative(d));
+            if (n.isAir() || !n.getFluidState().isEmpty()) return true;
+        }
+        return false;
+    }
+
+    // gold nuggets lying within PICKUP_BLOCKS
+    private static int nuggetsNear(AltoClef mod) {
+        int n = 0;
+        AABB box = mod.getPlayer().getBoundingBox().inflate(PICKUP_BLOCKS);
+        for (net.minecraft.world.entity.item.ItemEntity e : mod.getWorld().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box,
+                e -> e.isAlive() && e.getItem().is(Items.GOLD_NUGGET))) {
+            n += e.getItem().getCount();
+        }
+        return n;
     }
 
     // no ore known: on to the next point of the rings round where the step began (FireResTradeRules.searchPoint), the first
@@ -270,55 +362,15 @@ final class TradeGold {
     private void over(AltoClef mod, long now, String why, int ingots, int nuggets) {
         _over = true;
         unguard();
-        mod.getBlockTracker().stopTracking(Blocks.NETHER_GOLD_ORE);
         int got = TradeGoldRules.ninths(ingots, nuggets) - _ninthsAtBegin;
         double hours = Math.max(1e-9, (now - _begunAt) / 72000.0);
-        Debug.logInternal(String.format(Locale.ROOT, "trade gold: over (%s), %d gold, %d nuggets left, %d gold dug in %s s (%.1f an hour), %d anchors",
-                why, ingots, nuggets, got / 9, seconds(now - _begunAt), got / 9.0 / hours, _anchors));
+        Debug.logInternal(String.format(Locale.ROOT, "trade gold: over (%s), %d gold, %d nuggets left, %d gold dug in %s s (%.1f an hour), %d trips, %d ores broken",
+                why, ingots, nuggets, got / 9, seconds(now - _begunAt), got / 9.0 / hours, _anchors, _broken));
     }
 
     // a died buddy, or an order dropped: the guard off and the tracker freed (the trade's own end does not ask it)
     void stop(AltoClef mod) {
-        if (_begun && !_over) {
-            unguard();
-            mod.getBlockTracker().stopTracking(Blocks.NETHER_GOLD_ORE);
-        }
-    }
-
-    private boolean oreHere(AltoClef mod) {
-        for (BlockPos p : mod.getBlockTracker().getKnownLocations(Blocks.NETHER_GOLD_ORE)) {
-            if (NetherGold.oreInReach(p.getX(), p.getY(), p.getZ(), _anchor.getX(), _anchor.getY(), _anchor.getZ())
-                    && !spent(p) && TradeGoldRules.clearOfPiglins(p, _piglins) && TradeGoldRules.awayFromSpawner(p.getX(), p.getZ(), _spawner)
-                    && mod.getWorld().getBlockState(p).is(Blocks.NETHER_GOLD_ORE)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // the nearest known gold ore off the anchor's reach, about the feet' height and clear of piglins, as the next anchor
-    private BlockPos nextAnchor(AltoClef mod, BlockPos feet) {
-        BlockPos best = null;
-        double bestD = Double.POSITIVE_INFINITY;
-        for (BlockPos p : mod.getBlockTracker().getKnownLocations(Blocks.NETHER_GOLD_ORE)) {
-            if (!TradeGoldRules.anchorOk(p.getX(), p.getY(), p.getZ(), feet.getX(), feet.getY(), feet.getZ())) continue;
-            if (spent(p)) continue;
-            if (!TradeGoldRules.clearOfPiglins(p, _piglins) || !TradeGoldRules.awayFromSpawner(p.getX(), p.getZ(), _spawner)
-                    || !mod.getWorld().getBlockState(p).is(Blocks.NETHER_GOLD_ORE)) continue;
-            double d = p.distSqr(feet);
-            if (d < bestD) {
-                bestD = d;
-                best = p.immutable();
-            }
-        }
-        return best;
-    }
-
-    private boolean spent(BlockPos p) {
-        for (BlockPos a : _spent) {
-            if (NetherGold.oreInReach(p.getX(), p.getY(), p.getZ(), a.getX(), a.getY(), a.getZ())) return true;
-        }
-        return false;
+        if (_begun && !_over) unguard();
     }
 
     // the piglins we can see of (the client's entity list) within the range the pick asks, and baritone kept off gold ore
