@@ -143,6 +143,10 @@ public class CalculationContext {
     public boolean cliffEdges;
     // outside the nether: price the nodes next to lava below, see CliffAvoidance.lavaNear. A* only, as cliffEdges
     public boolean lavaEdges;
+    // (Tuning flow_escape) water near where a search began with the feet in a current, walked through; see FlowEscape. both
+    // A* and calculateCost read it, or the executor's recheck would cancel the wade out. set by the search too (a context
+    // built before the note), never cleared on a context
+    public volatile FlowEscape.Box flowEscape;
     // rowing, when there's a boat to row. equal to waterWalkSpeed when there isn't so the min is a no-op
     public final double boatWaterSpeed;
     // BoatTrip won't get the boat out for a shorter row of water than this, so the planner doesn't price one either
@@ -312,7 +316,8 @@ public class CalculationContext {
         // read once here on the tick thread, never live from the cost code on the search thread
         long jumpsOffUntil = alto.jumpsOffUntilTick();
         long now = world == null ? 0 : world.getGameTime();
-        this.allowParkour = ExperimentalMovement.jumpMoveAllowed(nether, fastMode, Baritone.settings().allowParkour.value, jumpsOffUntil, now);
+        this.flowEscape = world != null && FlowEscape.on() ? FlowEscape.current(now) : null;
+        this.allowParkour =ExperimentalMovement.jumpMoveAllowed(nether, fastMode, Baritone.settings().allowParkour.value, jumpsOffUntil, now);
         this.allowParkourPlace = ExperimentalMovement.jumpMoveAllowed(nether, fastMode, Baritone.settings().allowParkourPlace.value, jumpsOffUntil, now);
         this.allowGodBridge = ExperimentalMovement.allowGodBridge();
         this.allowJumpAtBuildLimit = Baritone.settings().allowJumpAtBuildLimit.value;

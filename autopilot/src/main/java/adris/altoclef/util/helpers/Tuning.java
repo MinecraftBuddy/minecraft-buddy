@@ -759,7 +759,15 @@ public final class Tuning {
             java.util.Map.entry("glow_berries_level", 1.0),
             // a bed in the world taken only within 8 blocks of the feet' height, else one is crafted: a bed at y -16 had the
             // buddy dig down from y 77 into a cave, CollectBedTask (read of 18 Nov 2026)
-            java.util.Map.entry("world_bed_level", 1.0));
+            java.util.Map.entry("world_bed_level", 1.0),
+            // a search that starts with the feet in a current may walk through the water within 5 blocks for 30 s, and the
+            // executor wades through water instead of clicking at it: in a current with water on every side the search had no
+            // first move, 14 minutes beside lava on an obsidian floor and the run stalled, FlowEscape (look 135)
+            java.util.Map.entry("flow_escape", 1.0),
+            // (the buddy's route, ObtainRoute's M3.4 piece "raw gold") once no more gold is mined, the raw gold in the bag is
+            // smelted before the portal: a piglin trades only ingots, and a run went through with 27 ingots and 12 raw gold
+            // (goudsmoke3 run 4, 19 Nov 2026)
+            java.util.Map.entry("gold_raw_smelt", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

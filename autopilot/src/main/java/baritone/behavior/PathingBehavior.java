@@ -38,6 +38,8 @@ import baritone.pathing.movement.RiskCost;
 import baritone.pathing.path.RiskWatch;
 import baritone.pathing.movement.FailedMoves;
 import baritone.pathing.movement.SwimStalls;
+import baritone.pathing.movement.FlowEscape;
+import baritone.utils.BlockStateInterface;
 import baritone.pathing.path.PathExecutor;
 import baritone.pathing.path.SprintTelemetry;
 import baritone.pathing.sim.AscendHop;
@@ -942,6 +944,19 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
             calcFailures++;
             queuePathEvent(PathEvent.CALC_FAILED);
             return;
+        }
+        // (Tuning flow_escape, look 135) a search from the feet in a current may walk through the water around, see FlowEscape
+        if (FlowEscape.on() && ctx.world() != null) {
+            BlockStateInterface fbsi = new BlockStateInterface(ctx);
+            if (FlowEscape.inCurrent(fbsi, start.getX(), start.getY(), start.getZ())) {
+                long now = ctx.world().getGameTime();
+                if (FlowEscape.note(start.getX(), start.getY(), start.getZ(), now)) {
+                    adris.altoclef.Debug.logInternal("search: from " + start.getX() + "," + start.getY() + "," + start.getZ()
+                            + " in a current: the water within " + FlowEscape.RANGE + " is walked through for "
+                            + FlowEscape.HOLD_TICKS / 20 + " s (flow_escape)");
+                }
+                context.flowEscape = FlowEscape.current(now);
+            }
         }
         long primaryTimeout;
         long failureTimeout;

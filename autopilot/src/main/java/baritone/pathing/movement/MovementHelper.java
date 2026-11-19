@@ -245,6 +245,11 @@ public interface MovementHelper extends ActionCosts, Helper {
         if (context.altoActive && context.altoAvoidsWalkThrough(x, y, z)) {
             return false;
         }
+        // (Tuning flow_escape) the water around a start in a current, see FlowEscape
+        FlowEscape.Box flow = context.flowEscape;
+        if (flow != null && flow.passes(x, y, z, state)) {
+            return true;
+        }
         return context.precomputedData.canWalkThrough(context.bsi, x, y, z, state);
     }
 

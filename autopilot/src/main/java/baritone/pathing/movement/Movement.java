@@ -745,6 +745,10 @@ public abstract class Movement implements IMovement, MovementHelper {
             return false;
         }
         for (BetterBlockPos blockPos : positionsToBreak) {
+            // (Tuning flow_escape) water cannot be broken: with the feet in water, water in the way is waded, see FlowEscape
+            if (FlowEscape.on() && FlowEscape.wades(BlockStateInterface.get(ctx, ctx.playerFeet()), BlockStateInterface.get(ctx, blockPos))) {
+                continue;
+            }
             if (!MovementHelper.canWalkThrough(ctx, blockPos) && fallsOnUs(blockPos)) {
                 BetterBlockPos feet = ctx.playerFeet();
                 if (feet.x != blockPos.x || feet.z != blockPos.z) {
