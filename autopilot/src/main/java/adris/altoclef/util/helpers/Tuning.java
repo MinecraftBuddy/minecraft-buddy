@@ -846,7 +846,10 @@ public final class Tuning {
             java.util.Map.entry("stair_stuck_refuse", 1.0),
             // three minutes at a portal frame clearing its inside with no end drop the site: water left in a frame after a douse was
             // aimed at as a flowing cell the bucket never clicks, 20 minutes, ConstructNetherPortalObsidianTask (19 Nov 2026)
-            java.util.Map.entry("portal_clear_limit", 1.0));
+            java.util.Map.entry("portal_clear_limit", 1.0),
+            // a portal is never lit with a frame cell gone: lit so, it made fire in the frame, the douse filled it with water,
+            // ConstructNetherPortalObsidianTask (19 Nov 2026)
+            java.util.Map.entry("portal_light_whole", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

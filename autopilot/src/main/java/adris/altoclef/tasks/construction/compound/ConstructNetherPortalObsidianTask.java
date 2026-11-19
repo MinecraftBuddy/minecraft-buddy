@@ -405,21 +405,9 @@ public class ConstructNetherPortalObsidianTask extends Task {
             // (portal_clear_limit) a portal lit with a block still in it set the frame on fire, the douse left water in it, and
             // the bucket aimed at a flowing cell it never clicks: 20 minutes at one frame in two stretches (heel-57-mc3, live
             // watch; attempt 218 on 4 Nov the same). three minutes at the inside with no end drops the site
-            if (clearLimitOn()) {
-                if (!_origin.equals(_clearOrigin)) {
-                    _clearOrigin = _origin;
-                    _clearTicks = 0;
-                    _clearAt = Long.MIN_VALUE;
-                }
-                long gt = mod.getWorld().getGameTime();
-                _clearTicks += placingStep(_clearAt, gt);
-                _clearAt = gt;
-                if (_clearTicks >= CLEAR_MAX_TICKS) {
-                    dropNow(mod, "the inside not cleared in " + _clearTicks / 1200 + " minutes at the frame, " + next.toShortString()
-                            + " still " + net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(mod.getWorld().getBlockState(next).getBlock()).getPath(),
-                            obsidianIn(mod, _origin));
-                    return null;
-                }
+            if (clearClockOut(mod, next.toShortString() + " still "
+                    + net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(mod.getWorld().getBlockState(next).getBlock()).getPath())) {
+                return null;
             }
             if (!next.equals(_destroyTarget)) {
                 if (_destroyTarget != null && !mod.getBlockTracker().unreachable(_destroyTarget)) {
@@ -433,6 +421,19 @@ public class ConstructNetherPortalObsidianTask extends Task {
         if (++_airTicks < SETTLE_TICKS) {
             setDebugState("Interior clear, waiting a moment before lighting");
             return null;
+        }
+        // (Tuning portal_light_whole, a fix of 19 Nov 2026, on) never lit with a frame cell gone: a step down broke one of the
+        // bottom's a second before the flint, the light made fire in the frame instead of a portal, the douse filled it with
+        // water, and 20 minutes went at that frame (heel-57-mc3, live watch). the frame's own branch puts the cell back first
+        if (adris.altoclef.util.helpers.Tuning.get("portal_light_whole", 0) > 0) {
+            for (Vec3i f : PORTAL_FRAME) {
+                if (!mod.getWorld().getBlockState(_origin.offset(f)).is(Blocks.OBSIDIAN)) {
+                    _airTicks = 0;
+                    if (clearClockOut(mod, "the frame cell at " + _origin.offset(f).toShortString() + " gone")) return null;
+                    setDebugState("A frame cell gone at " + _origin.offset(f).toShortString() + ", not lighting yet");
+                    return null;
+                }
+            }
         }
         // Flint and steel
         return new InteractWithBlockTask(new ItemTarget(Items.FLINT_AND_STEEL, 1), Direction.UP, _origin.below(), true);
@@ -463,6 +464,22 @@ public class ConstructNetherPortalObsidianTask extends Task {
         String why = _tryFails >= DROP_FAILS ? _tryFails + " clicks given up on the frame cell at " + cell.toShortString()
                 : "no frame block put in for " + _placingTicks / 1200 + " minutes";
         dropNow(mod, why, placed);
+        return true;
+    }
+
+    // (portal_clear_limit) the clock of the time at the frame between a whole frame and the light; true once it dropped the site
+    private boolean clearClockOut(AltoClef mod, String what) {
+        if (!clearLimitOn()) return false;
+        if (!_origin.equals(_clearOrigin)) {
+            _clearOrigin = _origin;
+            _clearTicks = 0;
+            _clearAt = Long.MIN_VALUE;
+        }
+        long gt = mod.getWorld().getGameTime();
+        _clearTicks += placingStep(_clearAt, gt);
+        _clearAt = gt;
+        if (_clearTicks < CLEAR_MAX_TICKS) return false;
+        dropNow(mod, "not ready to light in " + _clearTicks / 1200 + " minutes at the frame, " + what, obsidianIn(mod, _origin));
         return true;
     }
 
