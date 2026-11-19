@@ -1135,6 +1135,8 @@ final class Alto {
 			public boolean kitAgain() { return kitAgainOn(); }
 
 			public boolean goldClockFix() { return goldClockFixOn(); }
+
+			public boolean rawGoldSmelt() { return present() && adris.altoclef.util.helpers.Tuning.get("gold_raw_smelt", 0) > 0; }
 		};
 	}
 
@@ -1246,6 +1248,11 @@ final class Alto {
 				// the trade's gold and the two helmets' ten, so that making the helmets leaves the trade's
 				int need = ObtainRoute.goldNeed(bag);
 				return new Run("kit gold", 40 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("gold_ingot", need)));
+			}
+			case "raw gold": {
+				// (gold_raw_smelt) the bag's raw gold into ingots, nothing mined: the ingots there are and the raw, up to the need
+				int to = Math.min(ObtainRoute.goldNeed(bag), ObtainSteps.count(p, "gold_ingot") + ObtainSteps.count(p, "raw_gold"));
+				return new Run("kit smelt raw gold", 10 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("gold_ingot", to)));
 			}
 			case "golden helmet":
 			case "golden helmet again":

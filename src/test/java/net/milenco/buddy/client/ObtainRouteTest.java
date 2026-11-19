@@ -2,6 +2,7 @@ package net.milenco.buddy.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -24,7 +25,7 @@ class ObtainRouteTest {
 	static final class Kit implements ObtainRoute.Bag {
 		final Map<String, Integer> items = new HashMap<>();
 		final Map<String, String> worn = new HashMap<>();
-		boolean bedNear, rest, slimeNear, kitAgain, goldClockFix;
+		boolean bedNear, rest, slimeNear, kitAgain, goldClockFix, rawGoldSmelt;
 
 		Kit give(String item, int n) { items.merge(item, n, Integer::sum); return this; }
 
@@ -53,6 +54,8 @@ class ObtainRouteTest {
 		public boolean kitAgain() { return kitAgain; }
 
 		public boolean goldClockFix() { return goldClockFix; }
+
+		public boolean rawGoldSmelt() { return rawGoldSmelt; }
 	}
 
 	private final List<String> said = new ArrayList<>();
@@ -449,7 +452,7 @@ class ObtainRouteTest {
 			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m3.1/diamonds",
 			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/slime ball", "m3.3/golden helmet", "m3.3/golden helmet again", "m3.3/gold", "m3.3/spare golden helmet", "m3.3b/slime ball",
 			"m3.4/flint and steel", "m3.4/rest", "m3.4/crafting table", "m3.4/food", "m3.4/bed", "m3.4/water bucket",
-			"m3.4/iron pickaxes", "m3.4/diamonds", "m3.4/redstone", "m3.4/obsidian", "m3.4/golden helmet", "m3.4/gold",
+			"m3.4/iron pickaxes", "m3.4/diamonds", "m3.4/redstone", "m3.4/obsidian", "m3.4/raw gold", "m3.4/golden helmet", "m3.4/gold",
 			"m3.4/spare golden helmet", "m3.4/water bottles"), names);
 		assertEquals(ObtainRoute.PHASES.size(), ObtainRoute.PIECES.size());
 	}
@@ -570,6 +573,32 @@ class ObtainRouteTest {
 		g.goldClockFix = false;
 		assertEquals("gold", next(g));
 		assertNull(ObtainRoute.goldOver(g));
+	}
+
+	/**
+	 * (gold_raw_smelt) once the gold is over, the bag's raw gold is smelted before the portal; not while the gold is still
+	 * mined (its task smelts as it goes), not with none raw, and not without the switch.
+	 */
+	@Test
+	void theRawGoldIsSmeltedOnceTheGoldIsOver() {
+		Kit g = from("m3.4").give("flint_and_steel").give("potion", 3);
+		g.kitAgain = true;
+		g.goldClockFix = true;
+		g.rawGoldSmelt = true;
+		walk(g);
+		g.take("gold_ingot").give("gold_ingot", 27).give("raw_gold", 12);
+		// the gold still mined: the gold piece, not the smelt
+		assertEquals("gold", next(g));
+		// the six hours spent: the raw gold smelted first
+		ObtainRoute.goldBank(360 * 60_000L);
+		assertEquals("raw gold", next(g));
+		// smelted: nothing raw left, the smelt not asked again
+		g.take("raw_gold").give("gold_ingot", 12);
+		assertNotEquals("raw gold", next(g));
+		// without the switch: never asked
+		g.give("raw_gold", 5);
+		g.rawGoldSmelt = false;
+		assertNotEquals("raw gold", next(g));
 	}
 
 	/**

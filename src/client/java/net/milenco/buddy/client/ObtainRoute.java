@@ -77,6 +77,9 @@ final class ObtainRoute {
 
 		/** The autopilot's gold_clock_fix switch: M3.4's gold on M3.3's clock and budget, and not mined again once over. */
 		default boolean goldClockFix() { return false; }
+
+		/** The autopilot's gold_raw_smelt switch: M3.4 smelts the bag's raw gold once no more gold is mined. */
+		default boolean rawGoldSmelt() { return false; }
 	}
 
 	/** A piece of a phase: its name (the kit's step), how often it is asked, and whether the bag still lacks it. */
@@ -172,6 +175,10 @@ final class ObtainRoute {
 				&& (!anyOf(b, "diamond_pickaxe", "netherite_pickaxe") || !anyOf(b, "diamond_sword", "netherite_sword"))),
 			piece(M3_4, "redstone", b -> b.kitAgain() && b.inv("redstone") < 1),
 			piece(M3_4, "obsidian", b -> b.kitAgain() && b.inv("obsidian") < 10),
+			// (gold_raw_smelt, a fix of 19 Nov 2026) once no more gold is mined, the raw gold in the bag smelted: a piglin trades
+			// only ingots, and goudsmoke3's run 4 went through the portal with 27 ingots and 12 raw gold from the slime dig
+			piece(M3_4, "raw gold", b -> b.kitAgain() && b.rawGoldSmelt() && b.inv("raw_gold") > 0
+				&& b.inv("gold_ingot") < goldNeed(b) && goldOver(b) != null),
 			// (the helmet worn from the bag's gold first, as M3.3's "golden helmet again"; then the gold, then the spare)
 			// (gold_clock_fix: once the gold is over, goldOver, no more gold is mined; the spare is made only from the bag's)
 			piece(M3_4, "golden helmet", b -> b.kitAgain() && !"golden_helmet".equals(b.wornIn("helmet"))
