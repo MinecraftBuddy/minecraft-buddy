@@ -32,6 +32,9 @@ public class DefaultGoToDimensionTask extends Task {
     private boolean _obsidianFrame;
     private GetToYTask _upForFrame;
     private int _upForFrameY;
+    // (portal_sea_hold) where and when the sea over us was last seen
+    private BlockPos _seaAt;
+    private long _seaSeen = Long.MIN_VALUE;
 
     public DefaultGoToDimensionTask(Dimension target) {
         _target = target;
@@ -154,6 +157,23 @@ public class DefaultGoToDimensionTask extends Task {
         BlockPos at = mod.getPlayer().blockPosition();
         boolean begun = _cachedNetherObsidianConstructionTask.begun(mod);
         int water = begun ? 0 : waterAbove(mod, at);
+        // (Tuning portal_sea_hold, a fix of 19 Nov 2026, on) the sea once seen holds within SEA_HOLD_RANGE for SEA_HOLD_TICKS: the
+        // water was counted over the feet's column alone, one cell of a cave counted 14 deep and the next under 6, and the choice
+        // flipped once a second between a climb to the surface and the frame in the rock, about 130 times in 5 minutes (look 136)
+        if (!begun && adris.altoclef.util.helpers.Tuning.get("portal_sea_hold", 0) > 0) {
+            long now = mod.getWorld().getGameTime();
+            if (water >= SEA_DEPTH) {
+                if (_seaAt == null || now < _seaSeen || now - _seaSeen > SEA_HOLD_TICKS) {
+                    adris.altoclef.Debug.logInternal("portal: the sea over " + at.toShortString() + " (" + water + " deep): the frame goes in the rock within "
+                            + SEA_HOLD_RANGE + " blocks for " + SEA_HOLD_TICKS / 1200 + " game minutes (portal_sea_hold)");
+                }
+                _seaAt = at;
+                _seaSeen = now;
+            } else if (_seaAt != null && now >= _seaSeen && now - _seaSeen <= SEA_HOLD_TICKS
+                    && Math.abs(at.getX() - _seaAt.getX()) <= SEA_HOLD_RANGE && Math.abs(at.getZ() - _seaAt.getZ()) <= SEA_HOLD_RANGE) {
+                water = SEA_DEPTH;
+            }
+        }
         if (!begun && water >= SEA_DEPTH) {
             setDebugState("The sea over us (" + water + " deep): the frame goes in the rock here");
         }
@@ -179,6 +199,10 @@ public class DefaultGoToDimensionTask extends Task {
     // climb from a mineshaft back to y 7, the frame went in the rock, the food rule never saw the sky, and the buddy went into
     // the nether with 19 points (attempt 180)
     static final int SEA_DEPTH = 6;
+    // (portal_sea_hold) how far and how long the sea seen holds: the frame's search for a place wanders, and a few blocks on the
+    // column over the feet changes
+    static final int SEA_HOLD_RANGE = 16;
+    static final long SEA_HOLD_TICKS = 6000;
 
     // the water in our column from over our head up to the surface, in blocks
     private static int waterAbove(AltoClef mod, BlockPos at) {

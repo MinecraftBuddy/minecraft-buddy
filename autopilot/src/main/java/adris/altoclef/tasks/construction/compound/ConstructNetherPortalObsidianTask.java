@@ -552,6 +552,15 @@ public class ConstructNetherPortalObsidianTask extends Task {
             }
         }
         if (pick == null) return null;
+        // (Tuning portal_step_clear, a fix of 19 Nov 2026, on) a snow layer or a plant in the step's cell first, by hand, as
+        // portal_frame_clear does for a frame cell: the ray to the ground's top face stopped on the snow's outline, the click
+        // answered "can't reach" five times from the goal itself, and two snowy sites were dropped with 5 of 10 placed (look 136)
+        BlockState inStep = level.getBlockState(pick.above());
+        if (!inStep.isAir() && inStep.getFluidState().isEmpty() && !inStep.getShape(level, pick.above()).isEmpty()
+                && adris.altoclef.util.helpers.Tuning.get("portal_step_clear", 0) > 0) {
+            setDebugState("Placing frame... clearing " + net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(inStep.getBlock()).getPath() + " out of the step's cell first");
+            return new adris.altoclef.tasks.construction.DestroyBlockTask(pick.above());
+        }
         setDebugState("Placing frame... a step beside the column first");
         // (through standing: InteractWithBlockTask's own goal for a top face is met by no cell, see standing)
         return standing(mod, new InteractWithBlockTask(new ItemTarget(block, 1), Direction.UP, pick, false), pick.above(), Direction.UP);

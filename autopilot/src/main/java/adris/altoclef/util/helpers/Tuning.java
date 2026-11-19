@@ -767,7 +767,13 @@ public final class Tuning {
             // (the buddy's route, ObtainRoute's M3.4 piece "raw gold") once no more gold is mined, the raw gold in the bag is
             // smelted before the portal: a piglin trades only ingots, and a run went through with 27 ingots and 12 raw gold
             // (goudsmoke3 run 4, 19 Nov 2026)
-            java.util.Map.entry("gold_raw_smelt", 1.0));
+            java.util.Map.entry("gold_raw_smelt", 1.0),
+            // the sea over us, once seen, holds within 16 blocks for 5 game minutes: the water was counted over the feet's column
+            // alone and the frame's choice flipped once a second between a climb and the rock, 5 minutes, DefaultGoToDimensionTask (look 136)
+            java.util.Map.entry("portal_sea_hold", 1.0),
+            // a snow layer or a plant in the portal step's cell cleared by hand first: the click's ray stopped on the snow and two
+            // snowy sites were dropped with 5 of 10 placed, ConstructNetherPortalObsidianTask (look 136)
+            java.util.Map.entry("portal_step_clear", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
