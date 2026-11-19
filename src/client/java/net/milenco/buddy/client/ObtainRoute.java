@@ -196,7 +196,11 @@ final class ObtainRoute {
 			piece(M3_4, "gold", b -> b.kitAgain() && b.inv("gold_ingot") < goldNeed(b) && goldOver(b) == null),
 			piece(M3_4, "spare golden helmet", b -> b.kitAgain() && b.inv("golden_helmet") < 1
 				&& (goldOver(b) == null || b.inv("gold_ingot") >= 5)),
-			piece(M3_4, "water bottles", b -> b.inv("potion") < 3)));
+			piece(M3_4, "water bottles", b -> b.inv("potion") < 3),
+			// (nether_gold, 19 Nov 2026) the trade's gold is folded from nuggets at a table in the nether: a table (or wood for
+			// one) once more, last before the portal. A whole run crafted its bed at the table after the first ask, the table's
+			// break was cut, and it went through with neither: no gold, no trade, the rods with no potion
+			piece(M3_4, "crafting table last", b -> b.kitAgain() && b.netherGold() && b.inv("crafting_table") < 1 && wood(b) < 4)));
 
 	private static Piece piece(int phase, String name, Predicate<Bag> wanted) { return new Piece(phase, name, TRIES, wanted); }
 

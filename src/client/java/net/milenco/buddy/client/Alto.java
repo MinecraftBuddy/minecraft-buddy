@@ -1287,7 +1287,9 @@ final class Alto {
 			case "water bottles":
 				return new Run("kit water bottles", 10 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("water_bottle", 3)));
 			case "crafting table":
-				// (m34_kit_again) the bottles' table and the nether's crafts: a table and four planks more
+			case "crafting table last":
+				// (m34_kit_again) the bottles' table and the nether's crafts: a table and four planks more. (nether_gold: once more,
+				// last before the portal, for the nuggets' fold in the nether)
 				return new Run("kit a crafting table", 8 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
 					new adris.altoclef.util.ItemTarget("crafting_table", 1), new adris.altoclef.util.ItemTarget("planks", 4))));
 			default:

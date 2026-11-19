@@ -186,6 +186,17 @@ class ObtainRouteTest {
 		Kit before = new Kit().wear("helmet", "golden_helmet").give("golden_helmet");
 		assertEquals(Set.of(), met(before, false));
 		assertEquals(96, ObtainRoute.goldNeed(before));
+		// a table (or wood for one) asked once more, last before the portal: the trade's gold is folded at it in the nether
+		ObtainRoute.Piece last = ObtainRoute.piece(ObtainRoute.PHASES.get(ObtainRoute.M3_4) + "/crafting table last");
+		Kit noTable = new Kit();
+		noTable.netherGold = true;
+		noTable.kitAgain = true;
+		assertTrue(last.wanted().test(noTable));
+		noTable.give("oak_log");
+		assertFalse(last.wanted().test(noTable));
+		Kit off = new Kit();
+		off.kitAgain = true;
+		assertFalse(last.wanted().test(off));
 		// the M4START kit carries both helmets: with nether_gold the gold is no longer its first phase
 		Kit m4 = m4start();
 		m4.netherGold = true;
@@ -475,7 +486,7 @@ class ObtainRouteTest {
 			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/slime ball", "m3.3/golden helmet", "m3.3/golden helmet again", "m3.3/gold", "m3.3/spare golden helmet", "m3.3b/slime ball",
 			"m3.4/flint and steel", "m3.4/rest", "m3.4/crafting table", "m3.4/food", "m3.4/bed", "m3.4/water bucket",
 			"m3.4/iron pickaxes", "m3.4/diamonds", "m3.4/redstone", "m3.4/obsidian", "m3.4/raw gold", "m3.4/golden helmet", "m3.4/gold",
-			"m3.4/spare golden helmet", "m3.4/water bottles"), names);
+			"m3.4/spare golden helmet", "m3.4/water bottles", "m3.4/crafting table last"), names);
 		assertEquals(ObtainRoute.PHASES.size(), ObtainRoute.PIECES.size());
 	}
 
