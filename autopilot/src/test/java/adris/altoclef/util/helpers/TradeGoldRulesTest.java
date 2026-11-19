@@ -59,8 +59,9 @@ public class TradeGoldRulesTest {
     public void theBandRoundTheStartAboveTheLavaSea() {
         assertEquals(76, TradeGoldRules.bandLow(84, 32));
         assertEquals(92, TradeGoldRules.bandHigh(84));
-        assertEquals(36, TradeGoldRules.bandLow(40, 32));
-        assertEquals(36, TradeGoldRules.bandLow(20, 32));
+        // (gold_sea_margin 10 by default since 19 Nov 2026: never lower than 10 over the lava sea's top)
+        assertEquals(42, TradeGoldRules.bandLow(40, 32));
+        assertEquals(42, TradeGoldRules.bandLow(20, 32));
     }
 
     // an ore with four open cells or more under it is left (a ledge over a drop)

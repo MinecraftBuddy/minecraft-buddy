@@ -108,8 +108,15 @@ public final class TradeGoldRules {
         return openUnder >= DROP_MAX;
     }
 
+    // (Tuning gold_sea_margin, a fix of 19 Nov 2026, 10 by default, 4 before) an ore 6 blocks over the lava sea in a basalt delta
+    // was broken, the next step had air under it and the fall ended in the sea (heel-55-mc3, live watch): his rule, never
+    // where a knock or a fall ends in lava
+    public static int seaMargin() {
+        return (int) Tuning.get("gold_sea_margin", SEA_MARGIN);
+    }
+
     public static int bandLow(int startY, int seaLevel) {
-        return Math.max(startY - BAND_DY, seaLevel + SEA_MARGIN);
+        return Math.max(startY - BAND_DY, seaLevel + seaMargin());
     }
 
     public static int bandHigh(int startY) {

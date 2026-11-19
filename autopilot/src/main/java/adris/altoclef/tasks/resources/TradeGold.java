@@ -61,6 +61,9 @@ final class TradeGold {
     private long _begunAt;
     private long _riseAt;
     private long _noOreSince = -1;
+    // (gold_danger_hold) when a hostile was last within DANGER_BLOCKS
+    private long _dangerAt = Long.MIN_VALUE / 2;
+    static final long DANGER_HOLD = 200;
     private int _bestNinths;
     private int _ninthsAtBegin;
     private int _progressLogged;
@@ -176,7 +179,14 @@ final class TradeGold {
         String end = ingots >= target ? "the target reached" : atFortress ? "at the fortress"
                 : picksLeft < PICK_KEEP ? "the pickaxes kept for the way on (" + picksLeft + " uses left)"
                 : TradeGoldRules.overWhy(now - _begunAt, now - _riseAt, _noOreSince < 0 ? 0 : now - _noOreSince, capTicks(), dryTicks());
+        // (Tuning gold_danger_hold, a fix of 19 Nov 2026, on) a hostile seen within DANGER_BLOCKS counts for DANGER_HOLD after: a mob
+        // on the edge of the box, in as the buddy walked to the table and out as the dig walked away, flipped the fold and the dig
+        // every second for three minutes, and neither the table nor the ore was reached (heel-55-mc3, live watch)
         boolean danger = dangerNear(mod);
+        if (goldDangerHoldOn()) {
+            if (danger || now < _dangerAt) _dangerAt = now;
+            danger = now - _dangerAt < DANGER_HOLD;
+        }
         if (TradeGoldRules.fold(ingots, nuggets, target, end != null) && !danger) {
             int to = Math.min(target, ingots + nuggets / NetherGold.NUGGETS_PER_INGOT);
             return step(mod, "fold", to, () -> {
@@ -264,6 +274,10 @@ final class TradeGold {
             }
         }
         return left;
+    }
+
+    static boolean goldDangerHoldOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_danger_hold", 0) > 0;
     }
 
     static boolean goldTargetKeepOn() {

@@ -831,7 +831,13 @@ public final class Tuning {
             java.util.Map.entry("witch_cover_hold_wanted", 1.0),
             // the trade's gold step ends with the pickaxes of iron or better down to 300 uses left in all: its trips through the
             // netherrack wore out every pickaxe, diamond included, and the run went on with none, TradeGold (19 Nov 2026)
-            java.util.Map.entry("gold_need_pick", 1.0));
+            java.util.Map.entry("gold_need_pick", 1.0),
+            // the trade's gold step: a hostile within 12 counts for 10 s after it was seen, so the fold and the dig no longer flip
+            // every second as a mob comes and goes at the box's edge, TradeGold (19 Nov 2026)
+            java.util.Map.entry("gold_danger_hold", 1.0),
+            // the trade's gold step digs no ore lower than 10 blocks over the lava sea's top (4 before): a fall from a ledge by an
+            // ore 6 over the sea ended in it, TradeGoldRules.bandLow (19 Nov 2026)
+            java.util.Map.entry("gold_sea_margin", 10.0));
 
     private static Path file;
     private static Properties props = new Properties();
