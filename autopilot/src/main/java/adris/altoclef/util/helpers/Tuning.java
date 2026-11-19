@@ -784,7 +784,11 @@ public final class Tuning {
             java.util.Map.entry("ascend_from_water", 1.0),
             // the branch mine's way out of water under a roof never picks the feet's own cell, and a dry cell reached while still in
             // the water is passed over: the feet's cell was picked every tick, 7118 times in 14 minutes, BranchMineTask (19 Nov 2026)
-            java.util.Map.entry("mine_dry_not_feet", 1.0));
+            java.util.Map.entry("mine_dry_not_feet", 1.0),
+            // (his word, steering 200 of 19 Nov 2026) the trade's gold dug in the nether from nether gold ore, out of every
+            // piglin's anger box, before the trade begins; the buddy's route then asks only the golden helmets' gold in the
+            // overworld, where the mine took 10 to 20 gold a game hour, TradeGold
+            java.util.Map.entry("nether_gold", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

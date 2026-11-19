@@ -124,6 +124,8 @@ public final class FireResTrade {
     private final Set<Integer> _dropsGivenUp = new HashSet<>();
     private int _bagPotionsBefore;
     private final GiveGoldTask _give = new GiveGoldTask();
+    // (Tuning nether_gold, on by default, steering 200: the trade's gold dug in the nether before the trade begins)
+    private final TradeGold _gold = new TradeGold();
     private PickupDroppedItemTask _pickup;
     // the pickup above takes ender pearls too (FireResTradeRules.takesPearls); built again when that changes
     private boolean _pickupPearls;
@@ -311,6 +313,14 @@ public final class FireResTrade {
         }
         int gold = mod.getItemStorage().getItemCount(Items.GOLD_INGOT);
         if (_state == State.WAITING) {
+            // (Tuning nether_gold, on by default, steering 200: the gold for the trade is dug here first, out of the
+            // piglins' reach, TradeGold; the trade's first look waits for it)
+            Task dig = _gold.tick(mod, enough, atFortress || blazeNear);
+            if (dig != null || _gold.running()) {
+                _firstLookAt = -1;
+                _hud = _gold.hud();
+                return dig;
+            }
             if (_firstLookAt < 0) _firstLookAt = now;
             String why = fireTarget > 0 && enough ? "fire resistance for " + adris.altoclef.util.helpers.RouteRules.clock(fire) + " in the bag already"
                     : FireResTradeRules.whyNot(gold, fireTarget > 0 ? false : enough, mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
