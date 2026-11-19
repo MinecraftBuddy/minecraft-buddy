@@ -80,7 +80,7 @@ public final class LavaHunt {
         return Math.abs(y - bandCentre(py)) <= BAND;
     }
 
-    // (Tuning cast_band_here, off) the obsidian task's cast centres the band on the buddy's own height, not on max(y, 60): deep
+    // (Tuning cast_band_here, on since 19 Nov 2026) the obsidian task's cast centres the band on the buddy's own height, not on max(y, 60): deep
     // down the surface band ignored every pool near the cast for the first minute of each lava fetch, and the clock starts
     // again with each new cast, so the fetch wandered with lava all around ("tracker knows 25 positions, 0 passed", 528 times
     // in 150 game logs of whole runs). here false is the band as it was; the bucket portal keeps that one

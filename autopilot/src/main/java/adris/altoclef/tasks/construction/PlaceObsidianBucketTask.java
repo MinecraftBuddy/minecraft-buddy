@@ -109,7 +109,7 @@ public class PlaceObsidianBucketTask extends Task {
     private static final int BAND_ONLY_TICKS = 20 * 60;
     private int _bandSince = Integer.MIN_VALUE;
     private int _bandPy;
-    // (Tuning cast_band_here, off) the band centred on the buddy's own height (LavaHunt.inBand): only the obsidian task asks
+    // (Tuning cast_band_here, on since 19 Nov 2026) the band centred on the buddy's own height (LavaHunt.inBand): only the obsidian task asks
     // for it, the bucket portal's cast keeps the surface band
     private boolean _bandHere;
 

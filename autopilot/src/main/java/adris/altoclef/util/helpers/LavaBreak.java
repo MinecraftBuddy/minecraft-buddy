@@ -1,6 +1,6 @@
 package adris.altoclef.util.helpers;
 
-// the buddy's fork, Tuning dig_lava_check (off by default, 17 Nov 2026, test obsidiaan): in the overworld no block is broken
+// the buddy's fork, Tuning dig_lava_check (on since 19 Nov 2026, confirmed by test obsidiaan): in the overworld no block is broken
 // that has lava beside it, over it or under it, nor one with an open cell beside it that has lava beside or over that cell.
 // baritone's own rule (MovementHelper.avoidBreaking) looks at the four sides and the top as its snapshot saw them, never under
 // the block, and never one cell further: a pool just scooped is an open cell for a lava tick (1.5 s in the overworld) and lava

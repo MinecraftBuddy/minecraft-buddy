@@ -146,7 +146,7 @@ public class CollectObsidianTask extends ResourceTask {
         if (_placeObsidianTask == null) {
             BlockPos goodPos = getGoodObsidianPosition(mod);
             if (goodPos != null && !mod.getBlockTracker().unreachable(goodPos)) {
-                // (Tuning cast_band_here, off) the cast's lava fetch looks within the band around the buddy's own height
+                // (Tuning cast_band_here, on since 19 Nov 2026) the cast's lava fetch looks within the band around the buddy's own height
                 _placeObsidianTask = new PlaceObsidianBucketTask(goodPos).bandHere(adris.altoclef.util.helpers.Tuning.get("cast_band_here", 0) > 0);
             } else {
                 setDebugState("Walking until we find a spot to place obsidian");

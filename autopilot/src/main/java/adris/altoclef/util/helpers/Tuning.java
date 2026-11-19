@@ -577,23 +577,24 @@ public final class Tuning {
             // camp_step_in: three game minutes at the fire-proof camp of the pillbox's open side with no rod and no blaze gone
             // after, a stand within 4 of the spawner (CampStepIn): 2 of 23 losses waited there 15 minutes with no blaze in reach
             java.util.Map.entry("camp_step_in", 0.0),
-            // (off; an A/B's B arm turns the four on together, test obsidiaan, 17 Nov 2026) the route's M3.2, ten obsidian cast
+            // (on since 19 Nov 2026: test obsidiaan confirmed the four together, alive with the ten obsidian A 66, B 77 of 90 pairs,
+            // z 2.12 against 2.00, deaths 24 against 12; before, off and turned on by its B arm) the route's M3.2, ten obsidian cast
             // with lava and a water bucket: of 369 whole runs that began it 66 were lost there, 61 of them dead.
             // cast_band_here: the obsidian task's lava fetch keeps to the band around the buddy's own height for its first minute,
             // not around max(y, 60) (LavaHunt.inBand, PlaceObsidianBucketTask.bandHere); deep down every pool near the cast was
             // out of the band and the fetch wandered, "25 known, 0 passed" 528 times in 150 game logs. the bucket portal keeps its band
-            java.util.Map.entry("cast_band_here", 0.0),
+            java.util.Map.entry("cast_band_here", 1.0),
             // deep_food_late (read by the buddy, Alto.wantsFood): in M3.2 the deep stretch's daytime floor for a food trip to the
             // surface is 16 points, not 40; hungry now and under 12 still send it. 17 of 28 logged losses had a trip in M3.2, of
             // 10 to 17 game minutes, nearly always into the night, and the cast was built again where the trip ended
-            java.util.Map.entry("deep_food_late", 0.0),
+            java.util.Map.entry("deep_food_late", 1.0),
             // dig_lava_check: in the overworld no block is broken that has lava beside, over or under it, or an open cell beside
             // it with lava beside or over that cell (LavaBreak, a break avoider of AltoClef's; GetDownColumnTask holds its dig):
             // the path broke the block beside a pool just scooped, and a dug-in cover dug down into lava
-            java.util.Map.entry("dig_lava_check", 0.0),
+            java.util.Map.entry("dig_lava_check", 1.0),
             // spare_shield_deep (read by the buddy, Alto.spareShield): on the route's deep stretch the spare shield is made only
             // from the bag's makings, as outside the overworld: no climb to the surface for wood
-            java.util.Map.entry("spare_shield_deep", 0.0),
+            java.util.Map.entry("spare_shield_deep", 1.0),
             // (fixes of 16 Nov 2026, a frozen-ocean start: 31 minutes of loops in M3.3's gold, no gold) the open water's land
             // search rules ice out as the ice rule's does and both ask the same search, the sea ice no dry ground for the walk out
             // of the water (BranchMineTask, ice_same_land); the ice rule picks its land again only in the land's column or after

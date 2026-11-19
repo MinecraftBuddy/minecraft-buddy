@@ -865,7 +865,7 @@ final class Alto {
 	 * The kit's spare shield, while the one in the off hand is at its last uses and no other is in the bag; or null. Outside the
 	 * overworld only with the makings in the bag: with no iron in the nether, Soprano's bill for the shield built a portal of its
 	 * own, went home for iron ore and came back, six game minutes out of a blaze run (8 Nov 2026). On the route's deep stretch
-	 * the same with the autopilot's spare_shield_deep (off by default): the bill climbed to the surface for wood, in M3.1 and
+	 * the same with the autopilot's spare_shield_deep (on since 19 Nov 2026, test obsidiaan): the bill climbed to the surface for wood, in M3.1 and
 	 * M3.2 of whole runs, and one such climb ended drowned at y 70.
 	 */
 	private static Run spareShield(net.minecraft.client.player.LocalPlayer p, java.util.function.Predicate<String> skip) {
@@ -878,7 +878,7 @@ final class Alto {
 			new adris.altoclef.util.ItemTarget("shield", 2))));
 	}
 
-	/** The autopilot's spare_shield_deep switch (off by default); off without the autopilot. */
+	/** The autopilot's spare_shield_deep switch (on since 19 Nov 2026); off without the autopilot. */
 	static boolean spareShieldDeep() {
 		return present() && adris.altoclef.util.helpers.Tuning.get("spare_shield_deep", 0) > 0;
 	}
@@ -1506,7 +1506,7 @@ final class Alto {
 
 	/**
 	 * The deep stretch's daytime floor for a food trip to the surface: DEEP_FOOD_LATE in M3.2 with the autopilot's
-	 * deep_food_late (off by default), else DEEP_FOOD_FLOOR. A trip in the middle of the obsidian took 10 to 17 game minutes,
+	 * deep_food_late (on since 19 Nov 2026, test obsidiaan), else DEEP_FOOD_FLOOR. A trip in the middle of the obsidian took 10 to 17 game minutes,
 	 * nearly always into the night, and the cast was built again where the trip ended, at the surface or halfway up: 17 of 28
 	 * logged M3.2 losses of whole runs had one. Hungry now and under 12 points still send the buddy up.
 	 */
@@ -1514,7 +1514,7 @@ final class Alto {
 		return ObtainSafe.deepFoodFloor(deepFoodLate(), ObtainRoute.phase());
 	}
 
-	/** The autopilot's deep_food_late switch (off by default); off without the autopilot. */
+	/** The autopilot's deep_food_late switch (on since 19 Nov 2026); off without the autopilot. */
 	static boolean deepFoodLate() {
 		return present() && adris.altoclef.util.helpers.Tuning.get("deep_food_late", 0) > 0;
 	}
