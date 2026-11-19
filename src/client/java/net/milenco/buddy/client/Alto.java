@@ -1488,8 +1488,14 @@ final class Alto {
 		boolean open = p.level().canSeeSky(p.blockPosition().above()) || nether && atNetherPortal();
 		// (on the route's deep stretch, by day: under DEEP_FOOD_FLOOR the food comes from the surface (deepFood) while some is
 		// left; at 12 in the deep the food run hunted through caves at low health, and both deaths of gold smoke 2 followed)
-		if (routeDeep(p) && !open && score < deepFoodFloor() && !Obtain.dark(p)) return true;
+		// (food_climb_stuck: not while a climb that got no higher was given up lately; hunger and an empty bag still send it up)
+		if (routeDeep(p) && !open && score < deepFoodFloor() && !Obtain.dark(p) && !climbGivenUp(p)) return true;
 		return score < 12 || score < sky && open || hungryNow;
+	}
+
+	/** (food_climb_stuck) a climb for food was given up lately, by the autopilot's clock; never without the autopilot. */
+	static boolean climbGivenUp(net.minecraft.client.player.LocalPlayer p) {
+		return present() && adris.altoclef.tasks.resources.SurfaceFoodTask.climbGivenUp(p.level().getGameTime());
 	}
 
 	/** The bag's food points under which the route's deep stretch goes up for food by day: five steaks. */
