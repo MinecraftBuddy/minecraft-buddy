@@ -31,6 +31,17 @@ public class CollectObsidianTask extends ResourceTask {
     private static final long SEEN_HOLD = 200;
 
     private PlaceObsidianBucketTask _placeObsidianTask;
+    // (Tuning cast_spot_scan) the spot within CAST_SCAN blocks the cast's walk goes to, and when it was last looked for
+    private BlockPos _castSpot;
+    private long _castScanAt = Long.MIN_VALUE;
+    // when the walk to this spot began, and the spots a walk gave up on (CAST_GIVE_UP with the spot not reached)
+    private long _castSince;
+    private final java.util.Set<BlockPos> _castBanned = new java.util.HashSet<>();
+    private static final long CAST_GIVE_UP = 1200;
+    // the spot looked for again this often while the walk to it goes on (game ticks)
+    private static final long CAST_RESCAN = 100;
+    // how far sideways and up or down a cast's spot is looked for around the feet, and the cast's own half width
+    static final int CAST_SCAN = 8, CAST_SCAN_DY = 3, CAST_HALF = 3;
 
     public CollectObsidianTask(int count) {
         super(Items.OBSIDIAN, count);
@@ -46,6 +57,67 @@ public class CollectObsidianTask extends ResourceTask {
             }
         }
         return mod.getPlayer().blockPosition();
+    }
+
+    // (Tuning cast_spot_scan, a fix of 19 Nov 2026, on; look 139) the nearest cell within CAST_SCAN sideways and CAST_SCAN_DY up
+    // or down that getGoodObsidianPosition would take if the buddy stood in it: every cell of its cube breakable and
+    // placeable, the cell and the one above it open, solid ground under it. the old way tested only the cell underfoot and
+    // otherwise wandered blind, a goal 114 to 226 blocks off: 5.5 game minutes stood still in a cave under the sea with 9 of
+    // 10 obsidian, while a good cell lay a short walk away. one pass over the box (a prefix sum of the cells that fail), so
+    // each candidate costs the same however big its cube; null for none
+    static BlockPos nearbyObsidianPosition(AltoClef mod, java.util.Set<BlockPos> banned) {
+        BlockPos feet = mod.getPlayer().blockPosition();
+        int r = CAST_SCAN + CAST_HALF, h = CAST_SCAN_DY + CAST_HALF;
+        int nx = 2 * r + 1, ny = 2 * h + 1;
+        int[] sum = new int[(nx + 1) * (ny + 1) * (nx + 1)];
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        for (int x = 0; x < nx; x++) {
+            for (int y = 0; y < ny; y++) {
+                for (int z = 0; z < nx; z++) {
+                    at.set(feet.getX() - r + x, feet.getY() - h + y, feet.getZ() - r + z);
+                    int bad = WorldHelper.canBreak(mod, at) && WorldHelper.canPlace(mod, at) ? 0 : 1;
+                    sum[idx(x + 1, y + 1, z + 1, ny, nx)] = bad + sum[idx(x, y + 1, z + 1, ny, nx)] + sum[idx(x + 1, y, z + 1, ny, nx)]
+                            + sum[idx(x + 1, y + 1, z, ny, nx)] - sum[idx(x, y, z + 1, ny, nx)] - sum[idx(x, y + 1, z, ny, nx)]
+                            - sum[idx(x + 1, y, z, ny, nx)] + sum[idx(x, y, z, ny, nx)];
+                }
+            }
+        }
+        BlockPos best = null;
+        double bestD = Double.POSITIVE_INFINITY;
+        var level = mod.getWorld();
+        for (int dx = -CAST_SCAN; dx <= CAST_SCAN; dx++) {
+            for (int dy = -CAST_SCAN_DY; dy <= CAST_SCAN_DY; dy++) {
+                for (int dz = -CAST_SCAN; dz <= CAST_SCAN; dz++) {
+                    // the cube of cells [c - CAST_HALF, c + CAST_HALF] in box coordinates, its count of failing cells
+                    int x0 = dx + r - CAST_HALF, y0 = dy + h - CAST_HALF, z0 = dz + r - CAST_HALF;
+                    int x1 = x0 + 2 * CAST_HALF + 1, y1 = y0 + 2 * CAST_HALF + 1, z1 = z0 + 2 * CAST_HALF + 1;
+                    int bad = sum[idx(x1, y1, z1, ny, nx)] - sum[idx(x0, y1, z1, ny, nx)] - sum[idx(x1, y0, z1, ny, nx)]
+                            - sum[idx(x1, y1, z0, ny, nx)] + sum[idx(x0, y0, z1, ny, nx)] + sum[idx(x0, y1, z0, ny, nx)]
+                            + sum[idx(x1, y0, z0, ny, nx)] - sum[idx(x0, y0, z0, ny, nx)];
+                    if (bad != 0) continue;
+                    BlockPos c = feet.offset(dx, dy, dz);
+                    if (!open(level, c) || !open(level, c.above())
+                            || level.getBlockState(c.below()).getCollisionShape(level, c.below()).isEmpty()
+                            || mod.getBlockTracker().unreachable(c) || banned.contains(c)) continue;
+                    double d = c.distSqr(feet);
+                    if (d < bestD) {
+                        bestD = d;
+                        best = c;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    // no fluid and nothing to bump into: a cell the buddy can stand in
+    private static boolean open(net.minecraft.world.level.Level level, BlockPos p) {
+        var st = level.getBlockState(p);
+        return st.getFluidState().isEmpty() && st.getCollisionShape(level, p).isEmpty();
+    }
+
+    private static int idx(int x, int y, int z, int ny, int nx) {
+        return (x * (ny + 1) + y) * (nx + 1) + z;
     }
 
     @Override
@@ -146,9 +218,32 @@ public class CollectObsidianTask extends ResourceTask {
         if (_placeObsidianTask == null) {
             BlockPos goodPos = getGoodObsidianPosition(mod);
             if (goodPos != null && !mod.getBlockTracker().unreachable(goodPos)) {
+                _castSpot = null;
                 // (Tuning cast_band_here, on since 19 Nov 2026) the cast's lava fetch looks within the band around the buddy's own height
                 _placeObsidianTask = new PlaceObsidianBucketTask(goodPos).bandHere(adris.altoclef.util.helpers.Tuning.get("cast_band_here", 0) > 0);
             } else {
+                // (Tuning cast_spot_scan, a fix of 19 Nov 2026, on; look 139) a good cell near by is walked to first
+                if (adris.altoclef.util.helpers.Tuning.get("cast_spot_scan", 0) > 0) {
+                    long now = mod.getWorld().getGameTime();
+                    if (_castSpot != null && now >= _castSince && now - _castSince > CAST_GIVE_UP) {
+                        Debug.logInternal("obsidian: the walk to the cast spot at " + _castSpot.toShortString() + " got nowhere in a minute, another one");
+                        _castBanned.add(_castSpot);
+                        _castSpot = null;
+                    }
+                    if (_castSpot == null || now < _castScanAt || now - _castScanAt >= CAST_RESCAN) {
+                        BlockPos was = _castSpot;
+                        _castSpot = nearbyObsidianPosition(mod, _castBanned);
+                        _castScanAt = now;
+                        if (_castSpot != null && !_castSpot.equals(was)) {
+                            _castSince = now;
+                            Debug.logInternal("obsidian: no cast spot underfoot, walking to one at " + _castSpot.toShortString() + " (cast_spot_scan)");
+                        }
+                    }
+                    if (_castSpot != null) {
+                        setDebugState("Walking to a spot to place obsidian");
+                        return new adris.altoclef.tasks.movement.GetToBlockTask(_castSpot);
+                    }
+                }
                 setDebugState("Walking until we find a spot to place obsidian");
                 return new TimeoutWanderTask();
             }

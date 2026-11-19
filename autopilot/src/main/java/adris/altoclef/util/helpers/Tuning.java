@@ -788,7 +788,10 @@ public final class Tuning {
             // (his word, steering 200 of 19 Nov 2026) the trade's gold dug in the nether from nether gold ore, out of every
             // piglin's anger box, before the trade begins; the buddy's route then asks only the golden helmets' gold in the
             // overworld, where the mine took 10 to 20 gold a game hour, TradeGold
-            java.util.Map.entry("nether_gold", 1.0));
+            java.util.Map.entry("nether_gold", 1.0),
+            // the obsidian cast's spot looked for within 8 blocks when the cell underfoot fails, and walked to: the old way
+            // wandered blind, 5.5 game minutes stood still in a cave under the sea with 9 of 10 obsidian, CollectObsidianTask (look 139)
+            java.util.Map.entry("cast_spot_scan", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
