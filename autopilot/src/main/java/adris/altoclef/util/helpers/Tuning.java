@@ -809,7 +809,11 @@ public final class Tuning {
             java.util.Map.entry("cover_side_wall", 1.0),
             // the food climb's clock counts only the time the climb runs: five minutes in a skeleton's cover gave it up on its
             // first tick back, with an empty bag, SurfaceFoodTask (look 140, 19 Nov 2026)
-            java.util.Map.entry("food_climb_pause", 1.0));
+            java.util.Map.entry("food_climb_pause", 1.0),
+            // with legitMine an ore's exposure is tested inside the block tracker's scan, before each type's budget of 25: under an
+            // anti-xray in engine mode 2 every hidden block is sent as a random fake ore, so the 25 were fakes in the walls round
+            // the feet and real ore with an open face a few blocks off was never known, BlockTracker (E1119-0905.7, 19 Nov 2026)
+            java.util.Map.entry("ore_scan_exposed", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

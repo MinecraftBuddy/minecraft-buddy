@@ -49,6 +49,9 @@ public class BlockTracker extends Tracker {
     private static final double FIRST_LOOK_GAP = 0.5;
     // same reach as MineProcess.searchWorld's scan
     public static final int FLUID_SCAN_CHUNK_RADIUS = 32;
+    // the exposed-ore scan's rings of chunks (ore_scan_exposed): 11 by 11 chunks, about 80 blocks each way. every fake ore of
+    // its types in that box gets its six neighbours read, so it stays well inside the loaded chunks
+    static final int ORE_SCAN_CHUNK_RADIUS = 6;
     private static BlockTrackerConfig _config = new BlockTrackerConfig();
 
     static {
@@ -56,6 +59,8 @@ public class BlockTracker extends Tracker {
     }
 
     private final HashMap<Dimension, PosCache> _caches = new HashMap<>();
+    // when the exposed-ore scan last logged what it knew (ore_scan_exposed), at most once a minute
+    private volatile long _oreScanLoggedAt;
 
     //private final PosCache _cache = new PosCache(100, 64*1.5);
 
@@ -275,6 +280,26 @@ public class BlockTracker extends Tracker {
         if (level == null) return true;
         for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
             BlockState n = level.getBlockState(pos.relative(d));
+            if (n.isAir() || !n.getFluidState().isEmpty()) return true;
+        }
+        return false;
+    }
+
+    // exposed() for the scan's hit filter, off the main thread: a neighbour in the hit's own chunk is read from that chunk,
+    // one across its border from the client's level (null when the level is gone: the hit is kept, as exposed() keeps it)
+    static boolean exposedAt(net.minecraft.world.level.chunk.LevelChunk chunk, int x, int y, int z) {
+        ClientLevel level = null;
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
+            at.set(x + d.getStepX(), y + d.getStepY(), z + d.getStepZ());
+            BlockState n;
+            if ((at.getX() >> 4) == chunk.getPos().x() && (at.getZ() >> 4) == chunk.getPos().z()) {
+                n = chunk.getBlockState(at);
+            } else {
+                if (level == null) level = Minecraft.getInstance().level;
+                if (level == null) return true;
+                n = level.getBlockState(at);
+            }
             if (n.isAir() || !n.getFluidState().isEmpty()) return true;
         }
         return false;
@@ -545,8 +570,10 @@ public class BlockTracker extends Tracker {
         List<Block> fluids = new ArrayList<>();
         List<Block> logs = new ArrayList<>();
         List<Block> solids = new ArrayList<>();
+        List<Block> legitOres = new ArrayList<>();
+        boolean oreScanExposed = Baritone.settings().legitMine.value && adris.altoclef.util.helpers.Tuning.get("ore_scan_exposed", 0) > 0;
         for (Block block : blocksToScan) {
-            (isScannedAsFluid(block) ? fluids : BlockTrackerConfig.isLog(block) ? logs : solids).add(block);
+            (isScannedAsFluid(block) ? fluids : BlockTrackerConfig.isLog(block) ? logs : oreScanExposed && isOre(block) ? legitOres : solids).add(block);
         }
         PerTypeScan.Scan worldScan = (types, max) -> {
             int[] raw = {0};
@@ -556,6 +583,37 @@ public class BlockTracker extends Tracker {
         Map<Block, List<BlockPos>> found = PerTypeScan.run(solids.toArray(new Block[0]), _config.maxCacheSizePerBlockType, worldScan, blockAt);
         // their own scan for their own share, same split as the fluids below
         found.putAll(PerTypeScan.run(logs.toArray(new Block[0]), _config.maxCacheSizePerLogType, worldScan, blockAt));
+        if (!legitOres.isEmpty()) {
+            // (Tuning ore_scan_exposed, a fix of 19 Nov 2026, on) an ore with no open face is dropped at the hit, before it counts
+            // toward its type's 25: an anti-xray in engine mode 2 (as the rig's worlds run it) sends every hidden block as a
+            // random one of its hidden list, so the plain scan's 25 iron were fakes in the walls of the feet's own section and the
+            // exposed iron of the cave next door was never known (the nether's gold: 0 or 1 in five to nine minutes, four runs of
+            // four). nearest first over ORE_SCAN_CHUNK_RADIUS rings of chunks, the rings each swept whole
+            found.putAll(PerTypeScan.run(
+                    legitOres.toArray(new Block[0]),
+                    _config.maxCacheSizePerBlockType,
+                    (types, max) -> PerTypeScan.Scanned.of(FasterWorldScanner.INSTANCE.scanNearest(
+                            ctx.getBaritone().getPlayerContext(),
+                            new BlockOptionalMetaLookup(types),
+                            max,
+                            ORE_SCAN_CHUNK_RADIUS,
+                            BlockTracker::exposedAt)),
+                    blockAt
+            ));
+            long now = System.currentTimeMillis();
+            if (now - _oreScanLoggedAt >= 60_000) {
+                _oreScanLoggedAt = now;
+                net.minecraft.core.BlockPos feet = ctx.getBaritone().getPlayerContext().playerFeet();
+                StringBuilder line = new StringBuilder("ore scan (exposed):");
+                for (Block block : legitOres) {
+                    List<BlockPos> hits = found.getOrDefault(block, List.of());
+                    double nearest = hits.stream().mapToDouble(p -> Math.sqrt(p.distSqr(feet))).min().orElse(-1);
+                    line.append(String.format(Locale.ROOT, " %s %d (nearest %.0f)",
+                            net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block).getPath(), hits.size(), nearest));
+                }
+                Debug.logInternal(line.toString());
+            }
+        }
         if (!fluids.isEmpty()) {
             // water and lava are mostly flowing or buried, and the plain scan spends its whole budget on those before it
             // ever reaches a surface you could bucket (a lake 10 blocks away came back as "no water"). the filter runs
