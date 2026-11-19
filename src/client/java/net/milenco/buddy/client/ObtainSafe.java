@@ -399,6 +399,20 @@ final class ObtainSafe {
 		final java.util.Set<BlockPos> placedHere = new java.util.HashSet<>();
 		int plugged;
 		long pluggedAt;
+		// the walk to the goal: the nearest it came, and when. no half block nearer in GOAL_STUCK_MS gives the goal up, and a
+		// given-up goal stays out of the next Dry's look for GAVE_UP_MS: the walker counts a busy path search as progress, so
+		// at sea after dusk it searched the same two blocks onto an iceberg's ledge 463 times in six minutes, the step's two
+		// minutes ran out, the shelter began a new Dry with nothing tried, it took the same cell, and a drowned came (look 153)
+		double best = Double.MAX_VALUE;
+		long bestAt;
+		static final long GOAL_STUCK_MS = 10_000;
+		static final long GAVE_UP_MS = 300_000;
+		static final java.util.Map<BlockPos, Long> GAVE_UP = new java.util.concurrent.ConcurrentHashMap<>();
+
+		static boolean gaveUp(BlockPos c, long now) {
+			Long t = GAVE_UP.get(c);
+			return t != null && now - t < GAVE_UP_MS;
+		}
 
 		ObtainSteps.Result tick(Minecraft mc, LocalPlayer p, long now) {
 			// dry on the ground, not a moment out of it while bobbing at the top (at night the hole and the walk out of the
@@ -413,7 +427,7 @@ final class ObtainSafe {
 				int rad = sky ? 16 : 6;
 				for (int dx = -rad; dx <= rad; dx++) for (int dz = -rad; dz <= rad; dz++) for (int dy = -3; dy <= 8; dy++) {
 					BlockPos c = f.offset(dx, dy, dz);
-					if (tried.contains(c) || placedHere.contains(c.below())) continue;
+					if (tried.contains(c) || placedHere.contains(c.below()) || gaveUp(c, now)) continue;
 					if (!level.getBlockState(c).canBeReplaced() || !level.getBlockState(c.above()).canBeReplaced()) continue;
 					if (!level.getFluidState(c).isEmpty() || !level.getFluidState(c.above()).isEmpty()) continue;
 					// on a floor, or on the water's top under the sky, where it swims up to (a flooded stair can come up under a
@@ -432,7 +446,7 @@ final class ObtainSafe {
 							int x = (int) Math.floor(p.getX() + Math.cos(a) * ring), z = (int) Math.floor(p.getZ() + Math.sin(a) * ring);
 							if (!level.hasChunk(x >> 4, z >> 4)) continue;
 							BlockPos land = ObtainSteps.surface(level, x, z);
-							if (land == null || tried.contains(land) || !level.getFluidState(land.below()).isEmpty() || !level.getFluidState(land).isEmpty()) continue;
+							if (land == null || tried.contains(land) || gaveUp(land, now) || !level.getFluidState(land.below()).isEmpty() || !level.getFluidState(land).isEmpty()) continue;
 							if (!level.getBlockState(land.below()).isFaceSturdy(level, land.below(), Direction.UP)) continue;
 							goal = land;
 						}
@@ -464,6 +478,20 @@ final class ObtainSafe {
 					return fail("no dry cell near");
 				}
 				Exchange.emit("obtain", "action", "out of the water", "x", goal.getX(), "y", goal.getY(), "z", goal.getZ());
+				best = Double.MAX_VALUE;
+				bestAt = now;
+			}
+			double d = p.position().distanceTo(Vec3.atBottomCenterOf(goal));
+			if (d < best - 0.5) {
+				best = d;
+				bestAt = now;
+			} else if (now - bestAt > GOAL_STUCK_MS) {
+				Exchange.emit("obtain", "action", "out of the water", "gave_up", goal.toShortString(), "why", "no nearer in 10 s");
+				if (GAVE_UP.size() > 1000) GAVE_UP.clear();
+				GAVE_UP.put(goal.immutable(), now);
+				tried.add(goal);
+				goal = null;
+				return ObtainSteps.Result.RUN;
 			}
 			if (!Work.approach(mc, p, "dry-" + goal.toShortString(), Vec3.atBottomCenterOf(goal), now)) { tried.add(goal); goal = null; }
 			return ObtainSteps.Result.RUN;
