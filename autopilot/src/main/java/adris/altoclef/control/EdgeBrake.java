@@ -27,6 +27,8 @@ public final class EdgeBrake {
     // ground friction slide is about 2.2x the speed, 3 is margin
     private static final double SLIDE_TICKS = 3;
     private static final long LOG_GAP_MS = 2000;
+    // a side exactly on a block edge belongs to the column it closes, not the next (the game floors max - 1.0E-7 the same way)
+    static final double EDGE_EPS = 1.0E-7;
 
     private boolean _engaged;
     private long _lastLog;
@@ -100,12 +102,15 @@ public final class EdgeBrake {
         return mod.getWorld().getBlockState(player.blockPosition()).is(Blocks.POWDER_SNOW);
     }
 
-    // any of the corner columns of the projected box has something to stand on at foot level
+    // any of the corner columns of the projected box has something to stand on at foot level. a box's max side on a block's
+    // edge only touches the next column, as the game's own collision counts it: pressed against a wall, the box ended at
+    // x 10883.00 and the wall's column counted as floor, so the brake never held and the buddy slid off a ledge it had
+    // stopped on mid-step (19 Nov 2026, two deaths in the trade's gold step, heel-60-mc3 and heel-62-mc1)
     private static boolean supportedUnder(Level level, AABB box, int y) {
         int x0 = (int) Math.floor(box.minX);
-        int x1 = (int) Math.floor(box.maxX);
+        int x1 = (int) Math.floor(box.maxX - EDGE_EPS);
         int z0 = (int) Math.floor(box.minZ);
-        int z1 = (int) Math.floor(box.maxZ);
+        int z1 = (int) Math.floor(box.maxZ - EDGE_EPS);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int x : new int[]{x0, x1}) {
             for (int z : new int[]{z0, z1}) {

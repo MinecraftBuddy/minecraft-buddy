@@ -855,7 +855,15 @@ public final class Tuning {
             java.util.Map.entry("away_step_turn", 1.0),
             // a second 'got nowhere' from one spot takes the vein's known cells out for five minutes: a pond's sand under water
             // came round one cell a minute for the whole five-minute limit, MineAndCollectTask (19 Nov 2026)
-            java.util.Map.entry("stall_vein_still", 1.0));
+            java.util.Map.entry("stall_vein_still", 1.0),
+            // the trade's gold step leaves an ore whose straight way is open to a fall in more than 2 columns: it went across the
+            // lava sea on its own bridge and along basalt rims, and a ghast or a magma cube knocked the buddy off, TradeGold (19 Nov 2026)
+            java.util.Map.entry("gold_way_open", 2.0),
+            // a failed search for a way to the ore gives it up at once, not after its minute on the tip of a bridge, TradeGold
+            // (19 Nov 2026)
+            java.util.Map.entry("gold_path_fail", 1.0),
+            // the ore's minute starts again on arrival within 6 blocks: it ran out at the end of a long walk, TradeGold (19 Nov 2026)
+            java.util.Map.entry("gold_clock_near", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

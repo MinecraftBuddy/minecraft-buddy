@@ -94,6 +94,27 @@ public class TradeGoldRulesTest {
         assertTrue(TradeGoldRules.clearOfPiglins(ore, List.of(new BlockPos(0, 89, 0), new BlockPos(0, 64, -30))));
     }
 
+    // the way's open columns: a sea between x 10 and 19 is 10 open columns on the straight way, none beside it; the ends are
+    // left out, and the count stops past the cap
+    @Test
+    public void theWayCountsItsOpenColumns() {
+        TradeGoldRules.OpenColumn sea = (x, y, z) -> x >= 10 && x <= 19 && z < 5;
+        assertEquals(10, TradeGoldRules.openColumns(0, 60, 0, 30, 60, 0, sea, 100));
+        assertEquals(3, TradeGoldRules.openColumns(0, 60, 0, 30, 60, 0, sea, 2));
+        assertEquals(0, TradeGoldRules.openColumns(0, 60, 10, 30, 60, 10, sea, 100));
+        // the ore's own face and the feet's ground are not the way's
+        TradeGoldRules.OpenColumn ends = (x, y, z) -> x <= 1 || x >= 29;
+        assertEquals(0, TradeGoldRules.openColumns(0, 60, 0, 30, 60, 0, ends, 100));
+        // the height goes from the feet's to the ore's
+        int[] seen = new int[1];
+        TradeGoldRules.openColumns(0, 40, 0, 20, 60, 0, (x, y, z) -> {
+            if (x == 10) seen[0] = y;
+            return false;
+        }, 100);
+        assertEquals(50, seen[0]);
+        assertEquals(0, TradeGoldRules.openColumns(0, 60, 0, 1, 60, 1, sea, 100));
+    }
+
     @Test
     public void theNextAnchorIsNearAndAboutOurHeight() {
         assertTrue(TradeGoldRules.anchorOk(90, 70, 0, 0, 64, 0));

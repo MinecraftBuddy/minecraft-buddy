@@ -75,6 +75,11 @@ final class TradeGold {
     private long _scannedAt = Long.MIN_VALUE;
     private BlockPos _target;
     private long _targetSince;
+    // (gold_clock_near) the ore's clock was started again on arrival; (gold_path_fail) baritone's failed searches when the ore
+    // step last ran, and the tick it ran (a gap re-arms: another step's searches are not the ore's)
+    private boolean _targetNear;
+    private int _oreFails;
+    private long _oreTick = Long.MIN_VALUE / 2;
     private final java.util.Set<BlockPos> _givenUp = new java.util.HashSet<>();
     private int _broken;
     private long _pickupSince = Long.MIN_VALUE;
@@ -218,6 +223,13 @@ final class TradeGold {
             }
             _target = null;
         }
+        // (Tuning gold_clock_near, a fix of 19 Nov 2026, on) the ore's minute starts again once, when the feet come within
+        // NEAR_BLOCKS of it: counted from the start of a 69-block walk, it ran out just as the ore came in reach, the next ore
+        // one block over was taken, and its break stopped a diagonal step over an open shaft (heel-60-mc3)
+        if (_target != null && !_targetNear && goldClockNearOn() && _target.distSqr(feet) <= NEAR_BLOCKS * NEAR_BLOCKS) {
+            _targetNear = true;
+            _targetSince = now;
+        }
         if (_target != null && now >= _targetSince && now - _targetSince > ORE_GIVE_UP) {
             Debug.logInternal("trade gold: the ore at " + _target.toShortString() + " not broken in " + ORE_GIVE_UP / 20 + " s, another");
             _givenUp.add(_target);
@@ -231,8 +243,10 @@ final class TradeGold {
                     "Picking up gold nuggets for the piglins");
         }
         if (_target == null) {
-            _target = nearestOre(mod, feet);
+            _target = nearestOre(mod, feet, now);
             _targetSince = now;
+            _targetNear = false;
+            _oreTick = Long.MIN_VALUE / 2;
             if (_target != null && Math.sqrt(_target.distSqr(feet)) > TRIP_BLOCKS) {
                 _anchors++;
                 Debug.logInternal(String.format(Locale.ROOT, "trade gold: on to ore at %s, %.0f blocks off (trip %d, %d exposed ore known)",
@@ -250,6 +264,23 @@ final class TradeGold {
         }
         _noOreSince = -1;
         _searchWalk = null;
+        // (Tuning gold_path_fail, a fix of 19 Nov 2026, on) a failed search for a way to the ore, away from it, gives it up at
+        // once: after a bridge over the lava sea the search found no way on, eleven times, and the buddy stood 22 s on the tip
+        // of the bridge waiting out the ore's minute until a ghast's ball blew it off (heel-59-mc2)
+        if (goldPathFailOn()) {
+            int fails = mod.getClientBaritone().getPathingBehavior().calcFailures();
+            if (now - _oreTick > 2 || fails < _oreFails) {
+                _oreFails = fails;
+            } else if (fails > _oreFails && _target.distSqr(feet) > NEAR_BLOCKS * NEAR_BLOCKS) {
+                Debug.logInternal("trade gold: no way to the ore at " + _target.toShortString() + ", another");
+                _givenUp.add(_target);
+                _target = null;
+                _oreTick = Long.MIN_VALUE / 2;
+                mod.getClientBaritone().getPathingBehavior().forceCancel();
+                return null;
+            }
+            _oreTick = now;
+        }
         BlockPos at = _target;
         return step(mod, "ore " + at.toShortString(), 0, () -> new adris.altoclef.tasks.construction.DestroyBlockTask(at),
                 "Digging gold for the piglins");
@@ -292,20 +323,72 @@ final class TradeGold {
         _ores = scanOres(mod.getWorld(), mod.getPlayer().blockPosition(), _anchor0().getY());
     }
 
-    // the nearest scanned ore still there, clear of piglins and the spawner, not given up on
-    private BlockPos nearestOre(AltoClef mod, BlockPos feet) {
-        BlockPos best = null;
-        double bestD = Double.POSITIVE_INFINITY;
+    // the nearest scanned ore still there, clear of piglins and the spawner, not given up on; (gold_way_open) and with its
+    // straight way from the feet open to a fall in no more than wayOpenMax columns, the nearest WAY_TESTS asked in turn
+    private BlockPos nearestOre(AltoClef mod, BlockPos feet, long now) {
+        // the ways were asked a moment ago and none would do: not again every tick (40 ways of up to 90 columns each)
+        if (now >= _wayLeftAt && now - _wayLeftAt < WAY_AGAIN_TICKS) return null;
+        List<BlockPos> ok = new ArrayList<>();
         for (BlockPos p : _ores) {
             if (_givenUp.contains(p) || !TradeGoldRules.clearOfPiglins(p, _piglins) || !TradeGoldRules.awayFromSpawner(p.getX(), p.getZ(), _spawner)
                     || !mod.getWorld().getBlockState(p).is(Blocks.NETHER_GOLD_ORE)) continue;
-            double d = p.distSqr(feet);
-            if (d < bestD) {
-                bestD = d;
-                best = p;
-            }
+            ok.add(p);
         }
-        return best;
+        ok.sort(java.util.Comparator.comparingDouble(p -> p.distSqr(feet)));
+        int max = TradeGoldRules.wayOpenMax();
+        if (max <= 0 || ok.isEmpty()) return ok.isEmpty() ? null : ok.get(0);
+        var level = mod.getWorld();
+        int skipped = 0;
+        for (int i = 0; i < ok.size() && i < WAY_TESTS; i++) {
+            BlockPos p = ok.get(i);
+            int open = TradeGoldRules.openColumns(feet.getX(), feet.getY(), feet.getZ(), p.getX(), p.getY(), p.getZ(),
+                    (x, y, z) -> openUnder(level, x, y, z), max);
+            if (open <= max) {
+                if (skipped > 0) {
+                    Debug.logInternal("trade gold: " + skipped + " nearer ore left, the way to it open to a fall (gold_way_open)");
+                }
+                return p;
+            }
+            skipped++;
+        }
+        _wayLeftAt = now;
+        if (skipped != _wayLeftLogged) {
+            _wayLeftLogged = skipped;
+            Debug.logInternal("trade gold: the nearest " + skipped + " ore left, the way to each open to a fall (gold_way_open)");
+        }
+        return null;
+    }
+
+    // (gold_way_open) when every way asked was open last, and how many ores that left (said again only when it changes)
+    private long _wayLeftAt = Long.MIN_VALUE / 2;
+    private int _wayLeftLogged = -1;
+    static final long WAY_AGAIN_TICKS = 40;
+
+    // (gold_way_open) a column of the way with no floor from 2 over the way's height y down to WAY_FLOOR_DOWN under it, or lava
+    // the first thing there: a way over it is a bridge or a jump, and a knock off it a fall into the sea
+    private static boolean openUnder(net.minecraft.client.multiplayer.ClientLevel level, int x, int y, int z) {
+        if (!level.hasChunk(x >> 4, z >> 4)) return false;
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        for (int yy = y + 2; yy >= y - TradeGoldRules.WAY_FLOOR_DOWN; yy--) {
+            at.set(x, yy, z);
+            net.minecraft.world.level.block.state.BlockState st = level.getBlockState(at);
+            if (st.getFluidState().is(net.minecraft.tags.FluidTags.LAVA)) return true;
+            if (!st.getCollisionShape(level, at).isEmpty()) return false;
+        }
+        return true;
+    }
+
+    // (gold_way_open) the nearest ores whose way is asked at each pick; past them the step searches as with none known
+    static final int WAY_TESTS = 40;
+    // (gold_clock_near, gold_path_fail) within this many blocks of the ore the buddy is at it
+    static final double NEAR_BLOCKS = 6;
+
+    static boolean goldClockNearOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_clock_near", 0) > 0;
+    }
+
+    static boolean goldPathFailOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_path_fail", 0) > 0;
     }
 
     // (19 Nov 2026, the second smoke: the block tracker's scan takes the 25 nearest gold ores and only then drops the ones with

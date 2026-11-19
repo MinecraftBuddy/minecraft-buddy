@@ -123,6 +123,44 @@ public final class TradeGoldRules {
         return startY + BAND_DY;
     }
 
+    // (Tuning gold_way_open, a fix of 19 Nov 2026, 2 by default, 0 off) the most columns of the straight way from the feet to an
+    // ore that may be open under it: no floor within WAY_FLOOR_DOWN under the way's height there, or lava first. the step picked
+    // ore by straight distance alone: across the lava sea on a bridge of its own, along basalt delta rims, and a ghast's ball or
+    // a magma cube knocked the buddy off, 4 of 5 deaths in the step read on 19 Nov (heel-59, -60, -64)
+    public static final int WAY_FLOOR_DOWN = 6;
+
+    public static int wayOpenMax() {
+        return (int) Tuning.get("gold_way_open", 0);
+    }
+
+    // whether the column at (x, z) is open under the way's height y
+    public interface OpenColumn {
+        boolean open(int x, int y, int z);
+    }
+
+    // the open columns of the straight way from the feet to the ore, one sample a block sideways, the height going straight
+    // from the feet's to the ore's; the first and last WAY_ENDS samples are left out (the feet's own ground, and the ore's
+    // face, which overADrop and the stand judge). stops counting past stopAt
+    public static final int WAY_ENDS = 2;
+
+    public static int openColumns(int fx, int fy, int fz, int ox, int oy, int oz, OpenColumn column, int stopAt) {
+        int dx = ox - fx, dz = oz - fz;
+        int steps = Math.max(Math.abs(dx), Math.abs(dz));
+        int open = 0;
+        int lastX = Integer.MIN_VALUE, lastZ = Integer.MIN_VALUE;
+        for (int i = WAY_ENDS; i <= steps - WAY_ENDS; i++) {
+            double t = i / (double) steps;
+            int x = (int) Math.floor(fx + 0.5 + dx * t);
+            int z = (int) Math.floor(fz + 0.5 + dz * t);
+            if (x == lastX && z == lastZ) continue;
+            lastX = x;
+            lastZ = z;
+            int y = (int) Math.round(fy + (oy - fy) * t);
+            if (column.open(x, y, z) && ++open > stopAt) return open;
+        }
+        return open;
+    }
+
     // an ore may be the next anchor: within ANCHOR_BLOCKS sideways of the feet and ANCHOR_DY up or down
     public static boolean anchorOk(int ox, int oy, int oz, int fx, int fy, int fz) {
         double dx = ox - fx, dz = oz - fz;
