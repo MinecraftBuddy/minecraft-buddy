@@ -168,7 +168,13 @@ final class TradeGold {
         }
         // the end: the target in ingots, the fortress (the walk there went on while no ore was known), or a clock; the last
         // nuggets folded first
+        // (Tuning gold_need_pick, a fix of 19 Nov 2026, on) and the pickaxes of iron or better down to PICK_KEEP uses left in
+        // all: the trips through the netherrack to ore 17 to 73 blocks off wore out a diamond pickaxe of 1137 uses, a fresh iron,
+        // a stone and a wooden one (112 trips, 159 ores), then the step dug with netherrack in hand, which drops nothing, and the
+        // buddy went on through the nether with no pickaxe at all (heel-54-mc3, live watch)
+        int picksLeft = goldNeedPickOn() ? pickUsesLeft(mod) : Integer.MAX_VALUE;
         String end = ingots >= target ? "the target reached" : atFortress ? "at the fortress"
+                : picksLeft < PICK_KEEP ? "the pickaxes kept for the way on (" + picksLeft + " uses left)"
                 : TradeGoldRules.overWhy(now - _begunAt, now - _riseAt, _noOreSince < 0 ? 0 : now - _noOreSince, capTicks(), dryTicks());
         boolean danger = dangerNear(mod);
         if (TradeGoldRules.fold(ingots, nuggets, target, end != null) && !danger) {
@@ -237,6 +243,27 @@ final class TradeGold {
         BlockPos at = _target;
         return step(mod, "ore " + at.toShortString(), 0, () -> new adris.altoclef.tasks.construction.DestroyBlockTask(at),
                 "Digging gold for the piglins");
+    }
+
+    static boolean goldNeedPickOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_need_pick", 0) > 0;
+    }
+
+    // (gold_need_pick) the uses kept back for the rest of the nether (the fortress, the covers, the way out): about a fresh
+    // iron pickaxe and a bit
+    static final int PICK_KEEP = 300;
+
+    // the uses left on the bag's pickaxes of iron or better, all together
+    private static int pickUsesLeft(AltoClef mod) {
+        var inv = mod.getPlayer().getInventory();
+        int left = 0;
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack st = inv.getItem(i);
+            if (st.is(Items.IRON_PICKAXE) || st.is(Items.DIAMOND_PICKAXE) || st.is(Items.NETHERITE_PICKAXE)) {
+                left += Math.max(0, st.getMaxDamage() - st.getDamageValue());
+            }
+        }
+        return left;
     }
 
     static boolean goldTargetKeepOn() {

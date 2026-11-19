@@ -828,7 +828,10 @@ public final class Tuning {
             java.util.Map.entry("gold_target_keep", 1.0),
             // the witch cover is held while the reason it was taken for (a witch within 16 that hit lately, or the poison) holds:
             // taken with no witch's line, its exit held at once and the cover flapped 57 times in 5 s, SkelCover (19 Nov 2026)
-            java.util.Map.entry("witch_cover_hold_wanted", 1.0));
+            java.util.Map.entry("witch_cover_hold_wanted", 1.0),
+            // the trade's gold step ends with the pickaxes of iron or better down to 300 uses left in all: its trips through the
+            // netherrack wore out every pickaxe, diamond included, and the run went on with none, TradeGold (19 Nov 2026)
+            java.util.Map.entry("gold_need_pick", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
