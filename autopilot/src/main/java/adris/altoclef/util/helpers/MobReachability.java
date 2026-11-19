@@ -187,6 +187,10 @@ public class MobReachability {
     private static boolean stepsFor(Mob mob, LocalPlayer player) {
         if (!(mob instanceof Creeper creeper)) return false;
         boolean lit = creeper.getSwellDir() > 0 || creeper.isIgnited();
+        // (Tuning creeper_near_kept, a fix of 19 Nov 2026, on) one within CreeperStep.SAFE counts whatever the line: a creeper
+        // round a corner in a cave five blocks off was "stalled" a second before it lit, and after the step's sprint ended
+        // at 4.9 blocks the defence let go and the wander walked back to it (read of the heel deaths, 19 Nov 2026)
+        if (Tuning.get("creeper_near_kept", 0) > 0 && creeper.distanceTo(player) <= CreeperStep.SAFE) return true;
         return lit || CreeperStep.inView(creeper.getY() - player.getY(), creeper.hasLineOfSight(player));
     }
 
@@ -208,6 +212,9 @@ public class MobReachability {
         if (mob instanceof Piglin) return mob.isHolding(Items.CROSSBOW);
         if (mob instanceof Drowned) return mob.isHolding(Items.TRIDENT);
         // (the witch is a RangedAttackMob already and the breeze is not: it shoots wind charges from across the room)
+        // (Tuning guardian_run, a fix of 19 Nov 2026, on) a guardian's beam is no projectile and the class no RangedAttackMob, so
+        // the defence took one 9 to 16 blocks off as an unreachable melee mob: five beams in 10 s with no reaction, dead
+        if (mob instanceof Guardian && Tuning.get("guardian_run", 0) > 0) return true;
         return mob instanceof RangedAttackMob || mob instanceof CrossbowAttackMob || mob instanceof SpellcasterIllager
                 || mob instanceof Witch || mob instanceof Breeze;
     }

@@ -65,7 +65,10 @@ public final class LandFinder {
 
         public adris.altoclef.tasksystem.Task next(AltoClef mod) {
             long now = mod.getWorld().getGameTime();
-            if (!inOpenWater(mod)) {
+            // (Tuning sea_ice_steer, a fix of 19 Nov 2026, on) out on the sea ice of a frozen ocean is out at sea too: the land
+            // looked for is land with no ice in its top (an iceberg or the ice itself is none)
+            boolean onIce = !inOpenWater(mod) && seaIceSteerOn() && onSeaIce(mod);
+            if (!inOpenWater(mod) && !onIce) {
                 // brought ashore: the way inland is worked out once, for inland() below
                 if (_land != null && _shore) {
                     _ashoreAt = now;
@@ -89,7 +92,7 @@ public final class LandFinder {
             boolean keep = _land != null && _shore && now >= _look && now - _look < 1200 && isLand(mod, _land);
             if (!keep && (_land == null || _shore || now - _look >= 100 || now < _look)) {
                 _look = now;
-                _land = nearestLand(mod, feet, 128);
+                _land = nearestLand(mod, feet, 128, onIce);
                 _shore = _land != null;
                 if (_land == null) _land = shoreward(mod, feet);
             }
@@ -162,6 +165,24 @@ public final class LandFinder {
         }
         if (best <= 0) return null;
         return new BlockPos((int) Math.floor(feet.getX() + 0.5 + bx * INLAND_REACH), feet.getY(), (int) Math.floor(feet.getZ() + 0.5 + bz * INLAND_REACH));
+    }
+
+    // (Tuning sea_ice_steer, a fix of 19 Nov 2026, on) four whole runs of 19 Nov began on a frozen ocean's coast with no tree in
+    // reach: the wood and food wanders walked out over the sea ice, which is dry ground to the steer above, and met drowned,
+    // guardians over a monument and a polar bear; two died there in their first minutes (read of the heel deaths, 19 Nov 2026)
+    public static boolean seaIceSteerOn() {
+        return Tuning.get("sea_ice_steer", 0) > 0;
+    }
+
+    // standing on sea ice: ice of any kind underfoot (a snow layer over it is the feet's own cell) with water under that, the sky
+    // above, in an ocean biome. ice on a lake or a river, or an iceberg's packed ice with no water right under it, is not
+    public static boolean onSeaIce(AltoClef mod) {
+        LocalPlayer p = mod.getPlayer();
+        if (p == null || !p.onGround() || p.isInWater()) return false;
+        Level level = mod.getWorld();
+        BlockPos feet = p.blockPosition();
+        if (!ice(level.getBlockState(feet.below())) || !level.getFluidState(feet.below(2)).is(FluidTags.WATER)) return false;
+        return level.canSeeSky(feet.above()) && WorldHelper.isOcean(level.getBiome(feet));
     }
 
     // swimming at the surface with water two deep under the feet and the sky above: the sea or a lake, not a puddle by the

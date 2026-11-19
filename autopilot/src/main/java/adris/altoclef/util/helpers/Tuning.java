@@ -791,7 +791,19 @@ public final class Tuning {
             java.util.Map.entry("nether_gold", 1.0),
             // the obsidian cast's spot looked for within 8 blocks when the cell underfoot fails, and walked to: the old way
             // wandered blind, 5.5 game minutes stood still in a cave under the sea with 9 of 10 obsidian, CollectObsidianTask (look 139)
-            java.util.Map.entry("cast_spot_scan", 1.0));
+            java.util.Map.entry("cast_spot_scan", 1.0),
+            // sea ice over a frozen ocean is open water to the wanders' steer to land: four whole runs began on such a coast with
+            // no tree in reach and walked out over the ice to drowned, guardians and a polar bear, LandFinder (19 Nov 2026)
+            java.util.Map.entry("sea_ice_steer", 1.0),
+            // a guardian is a shooter and a run at any hp: its beam was no projectile, so five beams in 10 s met no reaction,
+            // MobReachability.isRanged, CombatBrain.tridentRun (19 Nov 2026)
+            java.util.Map.entry("guardian_run", 1.0),
+            // a creeper within 8 blocks is never one the stall rule leaves out: one round a cave corner was "stalled" a second
+            // before it lit, MobReachability.stepsFor (19 Nov 2026)
+            java.util.Map.entry("creeper_near_kept", 1.0),
+            // a station's stand (the "better patch" walked to) never within 2 blocks of lava at its level or one below: a furnace
+            // was put at a lava pool's edge and the first fight there knocked the buddy in, StationSpots.standpoint (19 Nov 2026)
+            java.util.Map.entry("station_stand_lava", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

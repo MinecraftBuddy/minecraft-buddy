@@ -1939,8 +1939,12 @@ final class CombatBrain {
     static final int TRIDENT_ARMOUR = 10;
 
     private static Foe tridentRun(Foe foe, Mob mob, LocalPlayer player) {
-        if (foe.kind() != Kind.NORMAL || !(mob instanceof net.minecraft.world.entity.monster.zombie.Drowned)
-                || !mob.isHolding(Items.TRIDENT) || player.getArmorValue() >= TRIDENT_ARMOUR) {
+        // (Tuning guardian_run, a fix of 19 Nov 2026, on) a guardian in its water is out of a sword's reach and beams for 6 (an
+        // elder for 8) through armour from 16 blocks: a run at any hp, out of its sight
+        boolean guardian = mob instanceof net.minecraft.world.entity.monster.Guardian
+                && adris.altoclef.util.helpers.Tuning.get("guardian_run", 0) > 0;
+        if (foe.kind() != Kind.NORMAL || !guardian && (!(mob instanceof net.minecraft.world.entity.monster.zombie.Drowned)
+                || !mob.isHolding(Items.TRIDENT) || player.getArmorValue() >= TRIDENT_ARMOUR)) {
             return foe;
         }
         return new Foe(foe.id(), foe.distance(), foe.ranged(), foe.creeper(), foe.sinceHit(), Kind.UNTOUCHABLE, foe.reachGap(), foe.sight(),

@@ -569,6 +569,11 @@ public class PlaceStationTask extends Task {
         }
 
         @Override
+        public boolean lava(int x, int y, int z) {
+            return level.getFluidState(new BlockPos(x, y, z)).is(net.minecraft.tags.FluidTags.LAVA);
+        }
+
+        @Override
         public boolean visible(double ex, double ey, double ez, int sx, int sy, int sz, int fx, int fy, int fz, int cx, int cy, int cz) {
             Vec3 eye = new Vec3(ex, ey, ez);
             Vec3 face = new Vec3(sx + 0.5 + fx * 0.5, sy + 0.5 + fy * 0.5, sz + 0.5 + fz * 0.5);

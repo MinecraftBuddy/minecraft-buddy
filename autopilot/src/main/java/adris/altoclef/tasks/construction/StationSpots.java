@@ -67,6 +67,11 @@ final class StationSpots {
         // opening the neighbour lets this in: a liquid that flows, or sand and gravel that fall
         boolean floods(int x, int y, int z);
 
+        // lava in the cell (source or flowing); a world that cannot say answers no
+        default boolean lava(int x, int y, int z) {
+            return false;
+        }
+
         // a station of ours or any workbench (StationHook.keepStanding): never carved, whatever carvable says. mining the table we
         // just crafted at to make room for the furnace is a table we then have to make again
         default boolean keep(int x, int y, int z) {
@@ -491,6 +496,21 @@ final class StationSpots {
         out.add(new Cell(x, y, z));
     }
 
+    // (Tuning station_stand_lava, a fix of 19 Nov 2026, on) lava within LAVA_NEAR sideways at the stand's own level or one below:
+    // the "better patch" for a furnace was a lava pool's edge, three zombies came while it smelted, and the first fight's knock
+    // put the buddy in the lava (read of the heel deaths, 19 Nov 2026)
+    static final int LAVA_NEAR = 2;
+
+    static boolean lavaNear(Cells w, int x, int y, int z) {
+        if (adris.altoclef.util.helpers.Tuning.get("station_stand_lava", 0) <= 0) return false;
+        for (int dx = -LAVA_NEAR; dx <= LAVA_NEAR; dx++) {
+            for (int dz = -LAVA_NEAR; dz <= LAVA_NEAR; dz++) {
+                if (w.lava(x + dx, y, z + dz) || w.lava(x + dx, y - 1, z + dz)) return true;
+            }
+        }
+        return false;
+    }
+
     // somewhere 2-6 blocks away to stand where best() finds a spot, nearest first. empty if the whole neighbourhood is bad.
     // eyeHeight is the eye over the feet (sneaking one, if the placing sneaks)
     static Optional<Stand> standpoint(Cells w, Stance me, Bans bans, double eyeHeight) {
@@ -506,7 +526,7 @@ final class StationSpots {
                     int z = me.feetZ() + dz;
                     // open ground only: a standing cell with another one beside it. best() below asks the rest (a spot we can
                     // click, with room around it), this is the cheap half that keeps the 200 tries off tunnel mouths
-                    if (!bans.isBanned(x, y, z) && w.standable(x, y, z) && floorBeside(w, x, y, z)) {
+                    if (!bans.isBanned(x, y, z) && w.standable(x, y, z) && floorBeside(w, x, y, z) && !lavaNear(w, x, y, z)) {
                         stands.add(new Stand(x, y, z));
                     }
                 }
