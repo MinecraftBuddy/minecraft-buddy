@@ -359,6 +359,10 @@ public final class SkelCover {
         }
 
         // (witch_cover) the witches' facts, handed in before each step; all off in a bare hold
+        static boolean holdWantedOn() {
+            return Tuning.get("witch_cover_hold_wanted", 0) > 0;
+        }
+
         public void witchFacts(boolean on, boolean wanted, boolean poisoned, int lines, double lineDist, double nearest) {
             witchOn = on;
             witchWanted = on && wanted;
@@ -448,7 +452,10 @@ public final class SkelCover {
             // and no witch's line for LINE_GONE_TICKS: the poison takes about 1 hp a 1.25 s whatever the hp says now
             if (witchOn && (witchLines > 0 || now < witchLineAt)) witchLineAt = now;
             boolean witchLineGone = !witchOn || now - witchLineAt >= LINE_GONE_TICKS;
-            boolean witchClear = witchLineGone && !poisoned;
+            // (Tuning witch_cover_hold_wanted, a fix of 19 Nov 2026, on) and the reason the cover was wanted for (a witch within
+            // RANGE that hit lately, or the poison) over: taken for a witch with no line, the 5 s of no line held already on the
+            // next step, the cover was left at full hp and taken again on the tick after, 57 times in 5 s (heel-55-mc3, live watch)
+            boolean witchClear = witchLineGone && !poisoned && !(holdWantedOn() && witchWanted);
             // (mounted_no_run) and no mounted melee mob within RANGE for LINE_GONE_TICKS: it rides up in a second
             if (mountOn && (mountNearest <= RANGE || now < mountAt)) mountAt = now;
             witchClear &= !mountOn || now - mountAt >= LINE_GONE_TICKS;

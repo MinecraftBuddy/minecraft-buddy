@@ -825,7 +825,10 @@ public final class Tuning {
             java.util.Map.entry("trident_run_inland", 1.0),
             // the trade's gold step keeps its ore while the buddy is more than 24 blocks from it, whatever piglins wander near it
             // meanwhile: asked from afar, the target changed every few seconds and no trip arrived, TradeGold (19 Nov 2026)
-            java.util.Map.entry("gold_target_keep", 1.0));
+            java.util.Map.entry("gold_target_keep", 1.0),
+            // the witch cover is held while the reason it was taken for (a witch within 16 that hit lately, or the poison) holds:
+            // taken with no witch's line, its exit held at once and the cover flapped 57 times in 5 s, SkelCover (19 Nov 2026)
+            java.util.Map.entry("witch_cover_hold_wanted", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
