@@ -54,6 +54,8 @@ public class BranchMineTask extends Task {
     private Integer _mineY;
     private long _sculkLook, _awaySince;
     private int _awaySteps;
+    // (away_step_turn) the quarter turns since the walk along last reached a step
+    private int _awayTurns;
     // the deepest the staircase down has got, and when (the loop breaker above)
     private int _deepest = Integer.MAX_VALUE;
     private long _deepestAt;
@@ -648,11 +650,33 @@ public class BranchMineTask extends Task {
             }
         }
         if (_awaySteps > 0) {
-            if (_awayStep != null && now - _awaySince > 200 && !feet.equals(_awayStep)) { _awaySteps = 0; _awayStep = null; }
+            // (Tuning away_step_turn, a fix of 19 Nov 2026, on) a step of the walk not reached in ten game seconds turns the walk a
+            // quarter, at most three times between two steps reached, before the walk ends: its first step against cave water
+            // ended the walk at once, the staircase came straight back to the same water, and the place watch gave the depth up
+            // after five minutes there (heel-64-mc1, live watch)
+            if (_awayStep != null && now - _awaySince > 200 && !feet.equals(_awayStep)) {
+                if (awayStepTurnOn() && _awayTurns < 3) {
+                    int t = _dx;
+                    _dx = -_dz;
+                    _dz = t;
+                    _awayTurns++;
+                    _awayStep = null;
+                    adris.altoclef.Debug.logInternal("branch mine: the walk along's step not reached, turned a quarter (" + _awayTurns
+                            + " of 3, away_step_turn)");
+                } else {
+                    _awaySteps = 0;
+                    _awayStep = null;
+                    _awayTurns = 0;
+                }
+            }
             else {
                 if (_awayStep == null || feet.equals(_awayStep)) {
-                    if (_awayStep != null) _awaySteps--;
-                    else _awayPrev = null;
+                    if (_awayStep != null) {
+                        _awaySteps--;
+                        _awayTurns = 0;
+                    } else if (_awayTurns == 0) {
+                        _awayPrev = null;
+                    }
                     // never a bridge: a way with nothing under its next cell turns, and with all four like that the walk ends.
                     // the 32 blocks along bridged a ravine thirty deep at y 49, and the staircase down from the bridge had
                     // nowhere to go (the runner, 3 Nov 2026, attempt 108)
@@ -2196,6 +2220,10 @@ public class BranchMineTask extends Task {
     // (tunnel_flip_guard) and a way whose step comes within a block of the step refused against water in the last game minute
     // likewise; a half turn round from a way into water refuses that step. every turn is said, against the way it went: the
     // line was said only against the old rule's pick, and the half turn back that the old rule also took said nothing
+    static boolean awayStepTurnOn() {
+        return adris.altoclef.util.helpers.Tuning.get("away_step_turn", 0) > 0;
+    }
+
     static boolean stairStuckRefuseOn() {
         return adris.altoclef.util.helpers.Tuning.get("stair_stuck_refuse", 0) > 0;
     }

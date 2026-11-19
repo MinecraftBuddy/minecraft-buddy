@@ -137,7 +137,7 @@ final class ObtainRoute {
 			piece(M1_3, "bed", b -> b.invEnding("_bed") < 1 && !b.bedNear() && !b.deepUnder()),
 			new Piece(M1_3, "sand", 1, b -> b.inv("sand") < 3)),
 		// the first iron as armour: the shield first (one ingot), then copper for an empty slot whose iron is not in the bag
-		// yet, then the iron itself, most protection per ingot first. No helmet: the golden one goes there in M3.3
+		// yet, then the iron itself, most protection per ingot first, the helmet last (steering 202: the golden boots replace the iron ones in M3.3)
 		List.of(piece(M2_1, "shield", b -> b.inv("shield") < 1),
 			piece(M2_1, "copper_chestplate", b -> copperWanted(b, "chestplate")),
 			piece(M2_1, "copper_leggings", b -> copperWanted(b, "leggings")),
