@@ -200,9 +200,18 @@ public class MovementAscend extends Movement {
     @Override
     public MovementState updateState(MovementState state) {
         braked = false;
+        boolean lowInWater = false;
         if (ctx.playerFeet().y < src.y) {
-            // this check should run even when in preparing state (breaking blocks)
-            return state.setStatus(MovementStatus.UNREACHABLE);
+            // (Tuning ascend_from_water, a fix of 19 Nov 2026, on) bobbing in water one block under the start is still the start:
+            // the swim up and onto the ledge goes on, jump held, as a player climbs out of a pool. each bob ended the one way out
+            // of a four-deep pool under a stone roof, 26 times in 12.6 game minutes at full health (look 138)
+            lowInWater = ctx.playerFeet().y == src.y - 1 && adris.altoclef.util.helpers.Tuning.get("ascend_from_water", 0) > 0
+                    && MovementHelper.isRealWater(BlockStateInterface.get(ctx, src))
+                    && MovementHelper.isRealWater(BlockStateInterface.get(ctx, ctx.playerFeet()));
+            if (!lowInWater) {
+                // this check should run even when in preparing state (breaking blocks)
+                return state.setStatus(MovementStatus.UNREACHABLE);
+            }
         }
         super.updateState(state);
         // TODO incorporate some behavior from ActionClimb (specifically how it waited until it was at most 1.2 blocks away before starting to jump
@@ -239,6 +248,11 @@ public class MovementAscend extends Movement {
             return state;
         }
         MovementHelper.moveTowards(ctx, state, dest);
+        if (lowInWater) {
+            // (ascend_from_water) up out of the water first: the jump key is the swim up
+            state.setInput(Input.JUMP, true);
+            return state;
+        }
 
         state.setInput(Input.SNEAK, Baritone.settings().allowWalkOnMagmaBlocks.value && jumpingOnto.is(Blocks.MAGMA_BLOCK));
 

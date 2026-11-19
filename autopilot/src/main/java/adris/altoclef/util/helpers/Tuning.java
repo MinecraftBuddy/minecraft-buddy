@@ -777,7 +777,10 @@ public final class Tuning {
             // a climb for food that got no higher in 3 game minutes is given up and the order goes on with the bag's food; the deep
             // food rule waits 15 game minutes: one climb went back down its shaft ten times and into a cave, dead with 38 food
             // points in the bag, SurfaceFoodTask (look 137)
-            java.util.Map.entry("food_climb_stuck", 1.0));
+            java.util.Map.entry("food_climb_stuck", 1.0),
+            // a step up out of water goes on while the feet bob one block under its start, jump held: each bob ended the one way out
+            // of a four-deep pool under a stone roof, 12.6 game minutes at full health, MovementAscend (look 138)
+            java.util.Map.entry("ascend_from_water", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
