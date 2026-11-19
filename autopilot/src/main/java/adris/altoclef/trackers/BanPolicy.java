@@ -163,6 +163,12 @@ public final class BanPolicy {
         return bans.banAll(vein, "no path to the vein", NO_PATH_VEIN, "ores of the vein near " + x + " " + y + " " + z);
     }
 
+    // MineAndCollectTask got nowhere twice from one spot (Tuning stall_vein_still): the vein's known cells are out for five
+    // minutes, like a tree's logs. one cell a minute at a time let a pond's sand under water come round for five minutes
+    public static int stallVeinStill(Bans bans, Iterable<Key> vein, int x, int y, int z) {
+        return bans.banAll(vein, "got nowhere twice from one spot", TREE_GAVE_UP, "cells of the vein near " + x + " " + y + " " + z);
+    }
+
     // MineAndCollectTask stalled twice on one tree: all its logs are out for five minutes, not the one minute a single log gets.
     // the same canopy came back every minute otherwise. one line for the lot like the outpost does
     public static int treeGaveUp(Bans bans, Iterable<Key> logs, int x, int y, int z) {

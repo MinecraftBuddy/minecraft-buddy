@@ -852,7 +852,10 @@ public final class Tuning {
             java.util.Map.entry("portal_light_whole", 1.0),
             // the branch mine's walk along turns a quarter when a step is not reached, at most three times between steps, before it
             // ends: it ended at its first step against water and the staircase went back to the same water, BranchMineTask (19 Nov 2026)
-            java.util.Map.entry("away_step_turn", 1.0));
+            java.util.Map.entry("away_step_turn", 1.0),
+            // a second 'got nowhere' from one spot takes the vein's known cells out for five minutes: a pond's sand under water
+            // came round one cell a minute for the whole five-minute limit, MineAndCollectTask (19 Nov 2026)
+            java.util.Map.entry("stall_vein_still", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

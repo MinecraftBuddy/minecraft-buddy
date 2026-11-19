@@ -477,6 +477,10 @@ public class MineAndCollectTask extends ResourceTask {
         // empty searches since we handed baritone this block, and the tick we were last driving (see noPathVerdict)
         private final NoPathScope.Watch _noPath = new NoPathScope.Watch();
         private int _lastTickAt = Integer.MIN_VALUE / 2;
+        // (stall_vein_still) where the feet stood at the last 'got nowhere', the tick of it, and how many came from about there
+        private BlockPos _stallFeet;
+        private int _stallFeetAt;
+        private int _stallStill;
         private Task _pickupTask;
         // what _pickupTask was built for
         private ItemTarget[] _pickupFor;
@@ -1957,11 +1961,50 @@ public class MineAndCollectTask extends ResourceTask {
                 mod.getBlockTracker().requestBlockUnreachable(_miningPos, 2, "mining got nowhere");
                 if (_logsOnly) {
                     giveUpTree(mod, _miningPos);
+                } else if (!_stoneOnly && stallVeinStillOn()) {
+                    stallStill(mod, _miningPos);
                 }
                 _miningPos = null;
                 _progressChecker.newTarget();
             }
             return super.onTick(mod);
+        }
+
+        // (Tuning stall_vein_still, a fix of 19 Nov 2026, on) a second 'got nowhere' within a minute with the feet still within
+        // three blocks of where the first left them takes the rest of the vein out for five minutes. one cell's minute at a
+        // time, a pond's 25 cells of sand under water went round for the whole five-minute limit with the buddy afloat over them
+        static boolean stallVeinStillOn() {
+            return adris.altoclef.util.helpers.Tuning.get("stall_vein_still", 0) > 0;
+        }
+
+        static boolean sameSpot(BlockPos a, BlockPos b) {
+            return Math.abs(a.getX() - b.getX()) <= 3 && Math.abs(a.getY() - b.getY()) <= 3 && Math.abs(a.getZ() - b.getZ()) <= 3;
+        }
+
+        private void stallStill(AltoClef mod, BlockPos stuck) {
+            BlockPos feet = mod.getPlayer().blockPosition();
+            int now = WorldHelper.getTicks();
+            boolean still = _stallFeet != null && now - _stallFeetAt <= 1200 && sameSpot(feet, _stallFeet);
+            _stallFeetAt = now;
+            if (!still) {
+                _stallFeet = feet;
+                _stallStill = 1;
+                return;
+            }
+            if (++_stallStill < 2) {
+                return;
+            }
+            var dim = WorldHelper.getCurrentDimension();
+            List<BlockPos> cells = NoPathScope.cells(stuck, mod.getBlockTracker().getKnownLocations(_blocks), NoPathScope.Verdict.EXHAUSTED, true);
+            Set<Bans.Key> vein = new LinkedHashSet<>();
+            for (BlockPos cell : cells) {
+                vein.add(Bans.Key.block(dim, cell.getX(), cell.getY(), cell.getZ()));
+            }
+            BanPolicy.stallVeinStill(mod.getBans(), vein, stuck.getX(), stuck.getY(), stuck.getZ());
+            Debug.logMessage("Got nowhere twice from one spot, skipping the vein near " + stuck.getX() + " " + stuck.getY() + " "
+                    + stuck.getZ() + " for five minutes (" + cells.size() + " cells, stall_vein_still).");
+            _stallFeet = null;
+            _stallStill = 0;
         }
 
         // baritone's search for the block came back empty. the six second progress checker would get to the same ban, 6 s
