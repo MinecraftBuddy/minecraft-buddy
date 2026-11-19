@@ -42,6 +42,10 @@ public class BranchMineTask extends Task {
     private long _downSince;
     private int _downFromY;
     static final long DOWN_KEEP = 600;
+    // (up_way_keep) baritone's way up when no step up has a floor: the task, since when, from what height
+    private Task _upWay;
+    private long _upSince;
+    private int _upFromY;
     private boolean _mining;
     // baritone's mine stopping as fast as it starts (no branch it can dig from here) is no loop to stay in: five starts in
     // thirty game seconds and it digs a tunnel of its own for a game minute, then tries again
@@ -873,6 +877,29 @@ public class BranchMineTask extends Task {
                     _awayStep = null;
                     setDebugState("The staircase gets no higher here, 32 blocks along first");
                     return null;
+                }
+                // (Tuning up_way_keep, a fix of 19 Nov 2026, on) nothing to stand on under any way's step up (the middle of a
+                // cave, a trial chamber): no stair can be cut without a block put down, and baritone's own way up is taken and
+                // kept, as the way down is, till it ends, the feet are two higher or DOWN_KEEP has passed. each step there asked
+                // a goal over air, every search ran out short, and the climb of 23 blocks took 32 game minutes while baritone's
+                // wander found a way up the chamber in half a second (look 152, heel-68-mc3)
+                if (upWayKeepOn()) {
+                    if (_upWay != null) {
+                        boolean done = _upWay.stopped() || _upWay.isFinished(mod);
+                        if (!done && feet.getY() < _upFromY + 2 && tick - _upSince < DOWN_KEEP) {
+                            setDebugState("Nothing under any step up here: baritone's way up to y " + _mineY + ", kept");
+                            return _upWay;
+                        }
+                        _upWay = null;
+                    }
+                    if (noStepUpAnyWay(mod, feet)) {
+                        setDebugState("Nothing under any step up here: baritone's way up to y " + _mineY);
+                        _upWay = new adris.altoclef.tasks.movement.GetToYTask(_mineY);
+                        _upSince = tick;
+                        _upFromY = feet.getY();
+                        _step = null;
+                        return _upWay;
+                    }
                 }
                 // up by a staircase of its own through the rock, as down: getting to y by baritone's cheapest way went up
                 // through the caves it had fallen into
@@ -2204,6 +2231,18 @@ public class BranchMineTask extends Task {
     private static boolean floorless(AltoClef mod, BlockPos cell) {
         var level = mod.getWorld();
         return level.getBlockState(cell.below()).isAir() && level.getBlockState(cell.below(2)).isAir();
+    }
+
+    // (up_way_keep) every way's step up has air where its floor would be, beside the feet
+    private static boolean noStepUpAnyWay(AltoClef mod, BlockPos feet) {
+        var level = mod.getWorld();
+        int[][] ways = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int[] w : ways) if (!level.getBlockState(feet.offset(w[0], 0, w[1])).isAir()) return false;
+        return true;
+    }
+
+    static boolean upWayKeepOn() {
+        return adris.altoclef.util.helpers.Tuning.get("up_way_keep", 0) > 0;
     }
 
     // every way's step down has nothing under it

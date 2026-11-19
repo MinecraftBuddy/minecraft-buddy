@@ -880,7 +880,10 @@ public final class Tuning {
             java.util.Map.entry("clock_no_step_back", 1.0),
             // a block the ocean rule turned down with its chunk in view stays out five minutes with the chunk out of view: a log
             // under the sea flipped in and out over a chunk border, the miner and the wander took turns, OceanRule (19 Nov 2026)
-            java.util.Map.entry("ocean_rule_keep", 1.0));
+            java.util.Map.entry("ocean_rule_keep", 1.0),
+            // the branch mine's staircase up with no floor under any way's step takes baritone's own way up and keeps it, as the
+            // way down does: in a trial chamber each step was a goal over air, 32 game minutes for 23 blocks, BranchMineTask (19 Nov 2026)
+            java.util.Map.entry("up_way_keep", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
