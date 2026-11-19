@@ -159,6 +159,11 @@ public class ConstructNetherPortalObsidianTask extends Task {
     private BlockPos _tryCell;
     private int _tryFails, _seenGivenUp, _placedSeen = -1;
     private long _placingTicks, _placingAt = Long.MIN_VALUE;
+    // (Tuning portal_clear_limit, a fix of 19 Nov 2026, on) the time at the frame spent clearing its inside, counted as the
+    // placing clock is (no pause over a second counts); past CLEAR_MAX_TICKS the site is dropped as frame_new_site drops one
+    private long _clearTicks, _clearAt = Long.MIN_VALUE;
+    private BlockPos _clearOrigin;
+    static final long CLEAR_MAX_TICKS = 3 * 1200;
 
     private BlockPos _destroyTarget;
     // ticks the interior cell we're on has gone without a ray, see InteriorPick
@@ -397,6 +402,25 @@ public class ConstructNetherPortalObsidianTask extends Task {
         BlockPos next = InteriorPick.pick(mod, _origin, PORTAL_INTERIOR, cell -> WorldHelper.isAir(mod, cell), _destroyTarget, _noReachTicks, _reachSwitches);
         if (next != null) {
             _airTicks = 0;
+            // (portal_clear_limit) a portal lit with a block still in it set the frame on fire, the douse left water in it, and
+            // the bucket aimed at a flowing cell it never clicks: 20 minutes at one frame in two stretches (heel-57-mc3, live
+            // watch; attempt 218 on 4 Nov the same). three minutes at the inside with no end drops the site
+            if (clearLimitOn()) {
+                if (!_origin.equals(_clearOrigin)) {
+                    _clearOrigin = _origin;
+                    _clearTicks = 0;
+                    _clearAt = Long.MIN_VALUE;
+                }
+                long gt = mod.getWorld().getGameTime();
+                _clearTicks += placingStep(_clearAt, gt);
+                _clearAt = gt;
+                if (_clearTicks >= CLEAR_MAX_TICKS) {
+                    dropNow(mod, "the inside not cleared in " + _clearTicks / 1200 + " minutes at the frame, " + next.toShortString()
+                            + " still " + net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(mod.getWorld().getBlockState(next).getBlock()).getPath(),
+                            obsidianIn(mod, _origin));
+                    return null;
+                }
+            }
             if (!next.equals(_destroyTarget)) {
                 if (_destroyTarget != null && !mod.getBlockTracker().unreachable(_destroyTarget)) {
                     _reachSwitches++;
@@ -438,6 +462,16 @@ public class ConstructNetherPortalObsidianTask extends Task {
         if (!dropSite(_tryFails, _placingTicks)) return false;
         String why = _tryFails >= DROP_FAILS ? _tryFails + " clicks given up on the frame cell at " + cell.toShortString()
                 : "no frame block put in for " + _placingTicks / 1200 + " minutes";
+        dropNow(mod, why, placed);
+        return true;
+    }
+
+    static boolean clearLimitOn() {
+        return adris.altoclef.util.helpers.Tuning.get("portal_clear_limit", 0) > 0;
+    }
+
+    // (frame_new_site) the site dropped now, for this reason: remembered, its bans lifted, every per-site field reset
+    private void dropNow(AltoClef mod, String why, int placed) {
         BlockPos was = _origin;
         baritone.api.utils.Dimension dim = WorldHelper.getCurrentDimension();
         DROPPED.add(new Dropped(was, dim, placed));
@@ -464,7 +498,8 @@ public class ConstructNetherPortalObsidianTask extends Task {
         _placedSeen = -1;
         _placingTicks = 0;
         _placingAt = Long.MIN_VALUE;
-        return true;
+        _clearTicks = 0;
+        _clearAt = Long.MIN_VALUE;
     }
 
     // (the buddy's fork: a frame cell with a face to click on goes in with a plain click, as a player builds it. baritone's

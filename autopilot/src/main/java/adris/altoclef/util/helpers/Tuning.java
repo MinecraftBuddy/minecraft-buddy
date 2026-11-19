@@ -843,7 +843,10 @@ public final class Tuning {
             java.util.Map.entry("mine_branch_memory", 1.0),
             // a staircase step not reached in 10 s is refused for a game minute before the turn: the way pick turned straight back
             // onto it, 22 times in 4.6 minutes, BranchMineTask (19 Nov 2026)
-            java.util.Map.entry("stair_stuck_refuse", 1.0));
+            java.util.Map.entry("stair_stuck_refuse", 1.0),
+            // three minutes at a portal frame clearing its inside with no end drop the site: water left in a frame after a douse was
+            // aimed at as a flowing cell the bucket never clicks, 20 minutes, ConstructNetherPortalObsidianTask (19 Nov 2026)
+            java.util.Map.entry("portal_clear_limit", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
