@@ -101,6 +101,12 @@ public final class TradeGoldRules {
     public static final int SEA_MARGIN = 4;
     // lava this near an ore keeps the pick off it
     public static final int LAVA_NEAR = 2;
+    // this many cells or more with nothing to stand on right under an ore, and it is left: a break from on top drops the buddy
+    public static final int DROP_MAX = 4;
+
+    public static boolean dropTooDeep(int openUnder) {
+        return openUnder >= DROP_MAX;
+    }
 
     public static int bandLow(int startY, int seaLevel) {
         return Math.max(startY - BAND_DY, seaLevel + SEA_MARGIN);

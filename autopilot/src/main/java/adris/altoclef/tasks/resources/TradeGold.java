@@ -290,7 +290,7 @@ final class TradeGold {
                         for (int z = 0; z < 16; z++) {
                             if (!sec.getBlockState(x, y & 15, z).is(Blocks.NETHER_GOLD_ORE)) continue;
                             at.set((cx << 4) + x, y, (cz << 4) + z);
-                            if (openFace(level, at) && !lavaNear(level, at)) out.add(at.immutable());
+                            if (openFace(level, at) && !lavaNear(level, at) && !overADrop(level, at)) out.add(at.immutable());
                         }
                     }
                 }
@@ -306,6 +306,20 @@ final class TradeGold {
             if (n.isAir() || !n.getFluidState().isEmpty()) return true;
         }
         return false;
+    }
+
+    // (19 Nov 2026, nethergoud4 run 6) open to a fall under the ore: TradeGoldRules.DROP_MAX cells or more with nothing to stand on
+    // (air, or lava) right under it. a ledge's ore over the lava sea was broken from on top, the buddy standing on it, and the fall
+    // of 45 blocks ended in the lava
+    private static boolean overADrop(net.minecraft.client.multiplayer.ClientLevel level, BlockPos ore) {
+        int open = 0;
+        for (int i = 1; i <= TradeGoldRules.DROP_MAX; i++) {
+            BlockPos p = ore.below(i);
+            net.minecraft.world.level.block.state.BlockState st = level.getBlockState(p);
+            if (!st.getCollisionShape(level, p).isEmpty() && st.getFluidState().isEmpty()) break;
+            open++;
+        }
+        return TradeGoldRules.dropTooDeep(open);
     }
 
     // lava within LAVA_NEAR of the ore, any way

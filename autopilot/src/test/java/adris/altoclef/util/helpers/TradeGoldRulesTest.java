@@ -63,6 +63,14 @@ public class TradeGoldRulesTest {
         assertEquals(36, TradeGoldRules.bandLow(20, 32));
     }
 
+    // an ore with four open cells or more under it is left (a ledge over a drop)
+    @Test
+    public void noOreOverADrop() {
+        assertFalse(TradeGoldRules.dropTooDeep(0));
+        assertFalse(TradeGoldRules.dropTooDeep(3));
+        assertTrue(TradeGoldRules.dropTooDeep(4));
+    }
+
     // the search and the ore keep 64 from a known spawner, and the rings start away from it
     @Test
     public void awayFromTheFortress() {
