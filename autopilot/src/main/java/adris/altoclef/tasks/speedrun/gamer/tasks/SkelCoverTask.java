@@ -337,6 +337,17 @@ public final class SkelCoverTask extends Task {
             if (first && !SkelCover.holeHolds(true, dig.topShut())) return fail(mod, "dug in with no top, open to a skeleton over the rim");
             if (arrow && shot > builtAt + SETTLE_TICKS) {
                 shotHandled = shot;
+                // (Tuning cover_side_wall, a fix of 19 Nov 2026, on) an arrow in the shut hole came in at a side: the hole's open
+                // side cells are walled from the bag, as the pillbox walls its own, once a cover. the hole was taken with its
+                // top alone checked, and the give-up sent the buddy out into two skeletons (read of the heel deaths, run 3)
+                if (adris.altoclef.util.helpers.Tuning.get("cover_side_wall", 0) > 0 && !boxing && boxFeet == null
+                        && CornerWallTask.wallItems(mod).length > 0 && player.onGround()) {
+                    Debug.logInternal("combat: skeleton cover: an arrow in the hole with its top shut, its open sides walled at "
+                            + player.blockPosition().toShortString() + " (cover_side_wall)");
+                    dig = null;
+                    startBox(player, seen.get());
+                    return null;
+                }
                 return failOrDig(mod, "an arrow in the hole with its top shut");
             }
             return stand(mod);

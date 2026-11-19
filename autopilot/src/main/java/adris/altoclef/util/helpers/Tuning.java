@@ -803,7 +803,10 @@ public final class Tuning {
             java.util.Map.entry("creeper_near_kept", 1.0),
             // a station's stand (the "better patch" walked to) never within 2 blocks of lava at its level or one below: a furnace
             // was put at a lava pool's edge and the first fight there knocked the buddy in, StationSpots.standpoint (19 Nov 2026)
-            java.util.Map.entry("station_stand_lava", 1.0));
+            java.util.Map.entry("station_stand_lava", 1.0),
+            // an arrow in the skeleton cover's shut hole: its open side cells walled from the bag (the pillbox's walls) before
+            // any give-up; the hole was taken with its top alone checked, SkelCoverTask (19 Nov 2026)
+            java.util.Map.entry("cover_side_wall", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
