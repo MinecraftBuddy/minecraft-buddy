@@ -55,6 +55,13 @@ public class PokeMineTask extends Task {
     // a run is resumed within this many blocks of its cell, and within FRESH game ticks of its last tick
     static final int RESUME = 16;
     static final long FRESH = 12000;
+
+    // the last tick within FRESH either way: the client's game time steps back a few ticks when the server's time packet
+    // corrects a catch-up burst, and a step back used to count as an old run: 77 new runs in 12 minutes, each cutting the
+    // connector short and poking new legs 6 to 8 apart through its own tunnel (look 150, heel-65 cascade t2, 19 Nov 2026)
+    static boolean fresh(long now, long last) {
+        return Math.abs(now - last) <= FRESH;
+    }
     // runs that found nothing to turn to, this many in RESET_WINDOW ticks: the old tunnel of its own for a game minute instead
     static final int RESETS = 4;
     static final long RESET_WINDOW = 1200;
@@ -158,7 +165,7 @@ public class PokeMineTask extends Task {
         Memory m = MEM;
         if (m == null || m.run == null || m.level != level) return null;
         int d = Math.abs(y - m.run.y());
-        if (d == 0 || d > 2 || now < m.last || now - m.last > FRESH || horizontal(feet, m.run.x(), m.run.z()) > RESUME) return null;
+        if (d == 0 || d > 2 || !fresh(now, m.last) || horizontal(feet, m.run.x(), m.run.z()) > RESUME) return null;
         return m.run.y();
     }
 
@@ -206,9 +213,9 @@ public class PokeMineTask extends Task {
         }
         watchTick(mod, m, now);
         revealTick(mod, m, now);
-        if (m.run == null || m.run.y() != _y || now < m.last || now - m.last > FRESH
+        if (m.run == null || m.run.y() != _y || !fresh(now, m.last)
                 || Math.abs(feet.getY() - _y) > 3 || horizontal(feet, m.run.x(), m.run.z()) > RESUME) {
-            String why = m.run == null ? "a new mine" : m.run.y() != _y ? "a new height" : now < m.last || now - m.last > FRESH
+            String why = m.run == null ? "a new mine" : m.run.y() != _y ? "a new height" : !fresh(now, m.last)
                     ? "the last run is old" : "the last run's cell is far";
             logSegment(m, "a new run");
             newRun(mod, m, feet, _dx, _dz, why);
