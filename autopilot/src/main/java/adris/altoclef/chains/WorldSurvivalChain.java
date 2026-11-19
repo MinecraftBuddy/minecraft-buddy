@@ -124,6 +124,15 @@ public class WorldSurvivalChain extends SingleTaskChain {
         handleDrowning(mod);
         // (the buddy's fork: low on air in water under a solid block, ice over a frozen ocean: swimming up only bumps the
         // head on it. the block is broken instead. attempts 194 and 197 drowned under packed ice, 4 Nov 2026)
+        // (Tuning drown_escape_keep, a fix of 19 Nov 2026, on) the swim to air first when a cell is near, the break only with
+        // none: the two took turns every tick as the feet bobbed a block (18 path starts in 87 ticks), a stone over the head
+        // breaks 25 times slower afloat than on the ground, and the buddy drowned with air one step up (heel-58, cascade)
+        boolean keep = drownEscapeKeepOn();
+        Task toAir = keep ? toAir(mod) : null;
+        if (toAir != null) {
+            setTask(toAir);
+            return 100;
+        }
         Task upThrough = blockOverhead(mod);
         if (upThrough != null) {
             setTask(upThrough);
@@ -131,7 +140,7 @@ public class WorldSurvivalChain extends SingleTaskChain {
         }
         // (and with water over the head, to the nearest cell where the head is in air: the mob defense stood idle behind
         // its shield at y -10 in a cave's water and the buddy drowned with no block over its head, attempt 213)
-        Task toAir = toAir(mod);
+        toAir = keep ? null : toAir(mod);
         if (toAir != null) {
             setTask(toAir);
             return 100;
@@ -565,6 +574,14 @@ public class WorldSurvivalChain extends SingleTaskChain {
                 }
             }
         }
+        // (drown_escape_keep) the cell under way is kept while its head is still in air and the new pick is not clearly nearer:
+        // the nearest moved with every bob of the feet and each move began the walk again
+        if (drownEscapeKeepOn() && _toAirCell != null && !_toAirBanned.contains(_toAirCell) && !_toAirCell.equals(best)
+                && airCell(level, _toAirCell)) {
+            int dx = _toAirCell.getX() - feet.getX(), dy = _toAirCell.getY() - feet.getY(), dz = _toAirCell.getZ() - feet.getZ();
+            double cur = dx * dx + dz * dz + dy * dy * 0.5;
+            if (best == null || bestD > cur - TO_AIR_KEEP) best = _toAirCell;
+        }
         if (best == null) return null;
         if (!best.equals(_toAirCell)) {
             _toAirCell = best;
@@ -573,6 +590,21 @@ public class WorldSurvivalChain extends SingleTaskChain {
             _toAirBest = player.position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(best));
         }
         return _toAir;
+    }
+
+    // (drown_escape_keep) a new pick takes over from the cell under way only this much nearer (the pick's measure)
+    private static final double TO_AIR_KEEP = 2;
+
+    static boolean drownEscapeKeepOn() {
+        return adris.altoclef.util.helpers.Tuning.get("drown_escape_keep", 0) > 0;
+    }
+
+    // a cell to stand in with the head in air: nothing solid in it or over it, no fluid at the head, no lava
+    private static boolean airCell(net.minecraft.world.level.Level level, BlockPos c) {
+        var at = level.getBlockState(c);
+        var head = level.getBlockState(c.above());
+        return at.getCollisionShape(level, c).isEmpty() && head.getFluidState().isEmpty()
+                && head.getCollisionShape(level, c.above()).isEmpty() && !at.getFluidState().is(net.minecraft.tags.FluidTags.LAVA);
     }
 
     // a boat over the column from the feet's height up to this cell's head

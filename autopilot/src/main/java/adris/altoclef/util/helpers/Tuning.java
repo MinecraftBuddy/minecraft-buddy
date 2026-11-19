@@ -863,7 +863,18 @@ public final class Tuning {
             // (19 Nov 2026)
             java.util.Map.entry("gold_path_fail", 1.0),
             // the ore's minute starts again on arrival within 6 blocks: it ran out at the end of a long walk, TradeGold (19 Nov 2026)
-            java.util.Map.entry("gold_clock_near", 1.0));
+            java.util.Map.entry("gold_clock_near", 1.0),
+            // low on air in water: the swim to a near air cell first and kept, the break of the block overhead only with none:
+            // the two took turns every tick as the feet bobbed, WorldSurvivalChain (19 Nov 2026)
+            java.util.Map.entry("drown_escape_keep", 1.0),
+            // a pillbox side left open is tried again every second, and with the rounds spent and a witch's line in, the dig:
+            // a witch's splashes came through a side the box had given up on, SkelCoverTask (19 Nov 2026)
+            java.util.Map.entry("pillbox_open_retry", 1.0),
+            // a witch's line into the shut hole walls its open sides, as an arrow does, SkelCoverTask (19 Nov 2026)
+            java.util.Map.entry("witch_side_wall", 1.0),
+            // a fight's bail with a witch that hit lately takes the cover where it holds, and a witch's splash ends a run into
+            // it as an arrow does, CombatCommit (19 Nov 2026)
+            java.util.Map.entry("witch_cover_bail", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

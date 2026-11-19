@@ -1244,6 +1244,23 @@ public final class CombatCommit {
         return skel != null && skel.witches().contains(witch.id()) && coverHolds(t);
     }
 
+    static boolean witchCoverBailOn() {
+        return Tuning.get("witch_cover_bail", 0) > 0;
+    }
+
+    // (witch_cover_bail) the witch the cover acts on that hit the buddy within WITCH_BAIL_TICKS, nearest first, or null
+    static final long WITCH_BAIL_TICKS = 100;
+
+    private Foe witchHitLately(Tick t) {
+        if (skel == null) return null;
+        Foe best = null;
+        for (Foe foe : t.foes()) {
+            if (foe.kind() != Kind.LOBBER || !skel.witches().contains(foe.id()) || foe.sinceHit() > WITCH_BAIL_TICKS) continue;
+            if (best == null || foe.distance() < best.distance()) best = foe;
+        }
+        return best;
+    }
+
     // the dug-in cover takes the buddy and holds against what is about: every shooter with a line a kind the cover acts on, no
     // lava near, no enderman, no creeper within SkelCover.CREEPER_RANGE, and with a plain melee mob about only where the ground
     // digs (the rest: a witch with the key off, a heavy hitter, a wither skeleton, is the run's)
@@ -1276,8 +1293,12 @@ public final class CombatCommit {
         boolean digKey = fleeArrowDigOn() && meter == null;
         long window = digKey ? ARROW_DIG_TICKS : FRESH;
         boolean arrow = false;
+        // (witch_cover_bail) a witch's splash counts as an arrow here: the run under it went on to 0.9 hp
+        boolean witches = witchCoverBailOn();
         for (Foe foe : t.foes()) {
-            if (!foe.ranged() || foe.creeper() || !skel.kinds().contains(foe.id()) || foe.sinceHit() > window) continue;
+            boolean witch = witches && foe.kind() == Kind.LOBBER && skel.witches().contains(foe.id());
+            if (!witch && (!foe.ranged() || foe.creeper() || !skel.kinds().contains(foe.id()))) continue;
+            if (foe.sinceHit() > window) continue;
             if (t.now() - foe.sinceHit() - clockSkew > startTick) arrow = true;
         }
         if (!arrow) return false;
@@ -3024,6 +3045,14 @@ public final class CombatCommit {
                 // (mounted_no_run) a bail with a mounted melee mob about: into the cover where it holds, no run on foot
                 if (mountTurns(bail) && mountAbout(t) != null && coverHolds(t)) {
                     skelNote(t, "mounted_no_run: foe #" + mountAbout(t).id() + " on a mount, the cover in place of the fight's run [" + bail + "]");
+                    return end(t, Event.FIGHT_TO_COVER);
+                }
+                // (Tuning witch_cover_bail, a fix of 19 Nov 2026, on) a witch that hit lately: into the cover where it holds, as
+                // idle() does with a witch's hit; the fight's bail ran 47 blocks with the witch following and poison ticking, and
+                // took cover only at 0.9 hp (heel-58-mc2)
+                Foe witch = witchCoverBailOn() ? witchHitLately(t) : null;
+                if (witch != null && witchCoverInstead(t, witch)) {
+                    skelNote(t, "witch_cover_bail: witch #" + witch.id() + " hit us, the cover in place of the fight's run [" + bail + "]");
                     return end(t, Event.FIGHT_TO_COVER);
                 }
                 return startRun(t, bail, Event.FIGHT_TO_RUN);

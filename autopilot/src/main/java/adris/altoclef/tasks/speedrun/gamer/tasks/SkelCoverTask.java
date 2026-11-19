@@ -186,6 +186,9 @@ public final class SkelCoverTask extends Task {
     private final Set<BlockPos> boxSkipped = new HashSet<>();
     private int boxClicks;
     private int boxRounds;
+    // (pillbox_open_retry) when the box was last called done, and how often a side left open is tried again
+    private long boxDoneAt;
+    private static final long OPEN_RETRY_TICKS = 20;
     private String boxLead = "skeleton cover: ";
     // (mounted_no_run) this cover was taken for a mounted mob: its lines say so
     private final boolean mount;
@@ -335,6 +338,20 @@ public final class SkelCoverTask extends Task {
             if (state != CombatCommit.WallState.BUILT) return dig;
             if (builtAt < 0) builtAt = now;
             if (first && !SkelCover.holeHolds(true, dig.topShut())) return fail(mod, "dug in with no top, open to a skeleton over the rim");
+            // (Tuning witch_side_wall, a fix of 19 Nov 2026, on) a witch with a line into the shut hole walls its open sides too, as
+            // an arrow does: the hole dug at 0.9 hp had its east side open into a cave, and the witch, a block lower, threw
+            // through it for 6 s until the last splash (heel-58-mc2)
+            boolean witchLine = witchSideWallOn() && now > builtAt + SETTLE_TICKS && !seen.get().witchLines().isEmpty();
+            if (witchLine && !(arrow && shot > builtAt + SETTLE_TICKS)) {
+                if (!boxing && boxFeet == null && CornerWallTask.wallItems(mod).length > 0 && player.onGround()) {
+                    Debug.logInternal("combat: skeleton cover: a witch's line into the hole with its top shut, its open sides walled at "
+                            + player.blockPosition().toShortString() + " (witch_side_wall)");
+                    dig = null;
+                    startBox(player, seen.get());
+                    return null;
+                }
+                return stand(mod);
+            }
             if (arrow && shot > builtAt + SETTLE_TICKS) {
                 shotHandled = shot;
                 // (Tuning cover_side_wall, a fix of 19 Nov 2026, on) an arrow in the shut hole came in at a side: the hole's open
@@ -520,17 +537,33 @@ public final class SkelCoverTask extends Task {
             jumpFor = null;
         }
         if (boxDone) {
-            if (!arrow) return stand(mod);
+            // (Tuning pillbox_open_retry, a fix of 19 Nov 2026, on) a side left open is tried again every OPEN_RETRY_TICKS, not
+            // only after an arrow: a witch's splash is no arrow, and the buddy stood 31 s in a box with its east side open, poisoned,
+            // until two harming splashes came through it (heel-58-mc2). with the rounds spent and a witch's line in, the dig
+            boolean open = pillboxOpenRetryOn() && sideOpen(level);
+            boolean retry = open && (now < boxDoneAt || now - boxDoneAt >= OPEN_RETRY_TICKS);
+            if (!arrow && !retry) return stand(mod);
+            boolean witchIn = open && !s.witchLines().isEmpty();
+            if (!arrow && boxRounds >= BOX_ROUNDS && !witchIn) {
+                boxDoneAt = now;
+                return stand(mod);
+            }
             // an arrow in the finished box: the cells given up once more, then the dig, then no cover
-            shotHandled = shot;
+            if (arrow) shotHandled = shot;
             if (boxRounds >= BOX_ROUNDS) {
+                String why = arrow ? "arrows in the pillbox at " : "a witch's line into the open pillbox at ";
                 if (CornerWallTask.diggable(mod, level, boxFeet)) {
+                    if (!arrow) Debug.logInternal("combat: " + boxLead + why + boxFeet.toShortString() + ", digging in (pillbox_open_retry)");
                     boxing = false;
                     dig = CornerWallTask.digIn(lead(s, player));
                     mod.getClientBaritone().getPathingBehavior().cancelEverything();
                     return dig;
                 }
-                return failOrDig(mod, "arrows in the pillbox at " + boxFeet.toShortString() + ", nothing more to put up");
+                if (!arrow) {
+                    boxDoneAt = now;
+                    return stand(mod);
+                }
+                return failOrDig(mod, why + boxFeet.toShortString() + ", nothing more to put up");
             }
             boxRounds++;
             boxDone = false;
@@ -556,6 +589,7 @@ public final class SkelCoverTask extends Task {
         }
         if (next == null) {
             boxDone = true;
+            boxDoneAt = now;
             int up = 0;
             for (BlockPos cell : boxCells) if (CornerWallTask.solid(level, cell)) up++;
             Debug.logInternal("combat: " + boxLead + "pillbox up at " + boxFeet.toShortString() + ": " + up + " of " + boxCells.size()
@@ -619,6 +653,14 @@ public final class SkelCoverTask extends Task {
     }
 
     // (pillbox_top_support) a side cell at the eye's height still open
+    static boolean witchSideWallOn() {
+        return adris.altoclef.util.helpers.Tuning.get("witch_side_wall", 0) > 0;
+    }
+
+    static boolean pillboxOpenRetryOn() {
+        return adris.altoclef.util.helpers.Tuning.get("pillbox_open_retry", 0) > 0;
+    }
+
     private boolean sideOpen(Level level) {
         for (int i = 0; i < 4 && i < boxCells.size(); i++) {
             if (!CornerWallTask.solid(level, boxCells.get(i))) return true;
