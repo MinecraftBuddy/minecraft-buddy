@@ -38,4 +38,18 @@ public class OceanRuleTest {
         assertEquals(false, latch.atSurface(49));
         assertEquals(true, latch.atSurface(49.01));
     }
+
+    // ocean_rule_keep: a block turned down stays out KEEP_TICKS in its world, never in another
+    @Test
+    public void aTurnedDownBlockIsKeptAWhileInItsWorld() {
+        OceanRule.Kept kept = new OceanRule.Kept();
+        Object world = new Object();
+        assertEquals(false, kept.recent(world, 42L, 100));
+        kept.note(world, 42L, 100);
+        assertEquals(true, kept.recent(world, 42L, 100 + OceanRule.KEEP_TICKS));
+        assertEquals(false, kept.recent(world, 42L, 101 + OceanRule.KEEP_TICKS));
+        assertEquals(false, kept.recent(world, 43L, 200));
+        assertEquals(false, kept.recent(new Object(), 42L, 200));
+        assertEquals(false, kept.recent(world, 42L, 200));
+    }
 }

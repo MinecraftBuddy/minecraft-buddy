@@ -439,9 +439,18 @@ public interface WorldHelper {
     static boolean canReach(AltoClef mod, BlockPos pos) {
         if (Baritone.settings().altoAvoidOceanBlocks.value) {
             // are we up at the surface: a line at y 47 that only flips once we are clearly past it (OceanRule)
-            if (OceanRule.PLAYER.atSurface(mod.getPlayer().getY()) && mod.getChunkTracker().isChunkLoaded(pos) && isOcean(mod.getWorld().getBiome(pos))) {
-                // Block is in an ocean biome. If it's below sea level...
-                if (pos.getY() < 64 && getGroundHeight(mod, pos.getX(), pos.getZ(), Blocks.WATER) > pos.getY()) {
+            if (OceanRule.PLAYER.atSurface(mod.getPlayer().getY())) {
+                boolean loaded = mod.getChunkTracker().isChunkLoaded(pos);
+                boolean keep = OceanRule.keepOn();
+                long now = mod.getWorld().getGameTime();
+                if (loaded && isOcean(mod.getWorld().getBiome(pos))) {
+                    // Block is in an ocean biome. If it's below sea level...
+                    if (pos.getY() < 64 && getGroundHeight(mod, pos.getX(), pos.getZ(), Blocks.WATER) > pos.getY()) {
+                        if (keep) OceanRule.KEPT.note(mod.getWorld(), pos.asLong(), now);
+                        return false;
+                    }
+                } else if (!loaded && keep && OceanRule.KEPT.recent(mod.getWorld(), pos.asLong(), now)) {
+                    // (ocean_rule_keep) turned down while its chunk was in view: still out with the chunk gone from view
                     return false;
                 }
             }
