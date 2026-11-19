@@ -1139,6 +1139,12 @@ final class Alto {
 
 			public boolean kitAgain() { return kitAgainOn(); }
 
+			public int obsidianInFrames() {
+				if (!present() || adris.altoclef.util.helpers.Tuning.get("frame_obsidian_counts", 0) <= 0) return 0;
+				var mod = instance();
+				return mod == null ? 0 : adris.altoclef.tasks.construction.compound.ConstructNetherPortalObsidianTask.obsidianOfOurFrames(mod);
+			}
+
 			public boolean goldClockFix() { return goldClockFixOn(); }
 
 			public boolean rawGoldSmelt() { return present() && adris.altoclef.util.helpers.Tuning.get("gold_raw_smelt", 0) > 0; }

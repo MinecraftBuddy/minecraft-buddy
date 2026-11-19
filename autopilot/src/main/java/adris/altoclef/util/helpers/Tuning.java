@@ -883,7 +883,14 @@ public final class Tuning {
             java.util.Map.entry("ocean_rule_keep", 1.0),
             // the branch mine's staircase up with no floor under any way's step takes baritone's own way up and keeps it, as the
             // way down does: in a trial chamber each step was a goal over air, 32 game minutes for 23 blocks, BranchMineTask (19 Nov 2026)
-            java.util.Map.entry("up_way_keep", 1.0));
+            java.util.Map.entry("up_way_keep", 1.0),
+            // the buddy's M3.4 counts the obsidian standing in its own frames nearby with the bag's: after a food run it mined its
+            // own frame of 8 back out for want of 10 in the bag, the buddy's ObtainRoute (20 Nov 2026)
+            java.util.Map.entry("frame_obsidian_counts", 1.0),
+            // a climb to the surface for the portal frame holds off the next within 16 blocks for five game minutes, unless the feet
+            // are more than 6 under the ground's top: the site search and the climb took turns every 4 s for 43 minutes,
+            // DefaultGoToDimensionTask (20 Nov 2026)
+            java.util.Map.entry("portal_climb_hold", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

@@ -183,8 +183,21 @@ public class DefaultGoToDimensionTask extends Task {
                 setDebugState("Up to the surface at y " + _upForFrameY + " for the portal");
                 return _upForFrame;
             }
+            long now = mod.getWorld().getGameTime();
+            boolean holdOn = adris.altoclef.util.helpers.Tuning.get("portal_climb_hold", 0) > 0;
+            if (holdOn && _upForFrame != null) {
+                _climbDoneAt = at;
+                _climbDoneTick = now;
+            }
             int top = mod.getWorld().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, at.getX(), at.getZ());
-            if (at.getY() < top - 1) {
+            // (Tuning portal_climb_hold, a fix of 20 Nov 2026, on) a climb done holds off the next within CLIMB_HOLD_RANGE for
+            // CLIMB_HOLD_TICKS, unless the feet are more than CLIMB_HOLD_DEPTH under the ground's top: the frame's search for a
+            // site wandered three blocks down under an overhang, the climb took the buddy back up, the search went down again,
+            // every 4 s for 43 minutes (look 154)
+            boolean held = holdOn && _climbDoneAt != null && now >= _climbDoneTick && now - _climbDoneTick <= CLIMB_HOLD_TICKS
+                    && Math.abs(at.getX() - _climbDoneAt.getX()) <= CLIMB_HOLD_RANGE && Math.abs(at.getZ() - _climbDoneAt.getZ()) <= CLIMB_HOLD_RANGE
+                    && at.getY() >= top - CLIMB_HOLD_DEPTH;
+            if (at.getY() < top - 1 && !held) {
                 _upForFrame = new GetToYTask(top);
                 _upForFrameY = top;
                 setDebugState("Up to the surface at y " + top + " for the portal");
@@ -194,6 +207,13 @@ public class DefaultGoToDimensionTask extends Task {
         _upForFrame = null;
         return _cachedNetherObsidianConstructionTask;
     }
+
+    // (portal_climb_hold) where and when the last climb for the frame ended, and how far, how long and how shallow it holds
+    private BlockPos _climbDoneAt;
+    private long _climbDoneTick;
+    static final int CLIMB_HOLD_RANGE = 16;
+    static final long CLIMB_HOLD_TICKS = 6000;
+    static final int CLIMB_HOLD_DEPTH = 6;
 
     // this much water over our head is a sea: a pond, a river or a pool in a mineshaft is climbed past. any water at all sent a
     // climb from a mineshaft back to y 7, the frame went in the rock, the food rule never saw the sky, and the buddy went into

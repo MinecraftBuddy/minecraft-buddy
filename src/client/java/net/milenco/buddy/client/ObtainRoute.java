@@ -85,6 +85,12 @@ final class ObtainRoute {
 		/** The autopilot's m34_kit_again switch: before the portal a crafting table, and the M3 kit asked again. */
 		default boolean kitAgain() { return false; }
 
+		/**
+		 * The obsidian standing in the buddy's own portal frames nearby (the autopilot's count, with its frame_obsidian_counts
+		 * switch on; 0 without): it counts for M3.4's obsidian as the bag's does.
+		 */
+		default int obsidianInFrames() { return 0; }
+
 		/** The autopilot's gold_clock_fix switch: M3.4's gold on M3.3's clock and budget, and not mined again once over. */
 		default boolean goldClockFix() { return false; }
 
@@ -189,7 +195,10 @@ final class ObtainRoute {
 			piece(M3_4, "diamonds", b -> b.kitAgain()
 				&& (!anyOf(b, "diamond_pickaxe", "netherite_pickaxe") || !anyOf(b, "diamond_sword", "netherite_sword"))),
 			piece(M3_4, "redstone", b -> b.kitAgain() && b.inv("redstone") < 1),
-			piece(M3_4, "obsidian", b -> b.kitAgain() && b.inv("obsidian") < 10),
+			// (frame_obsidian_counts, a fix of 20 Nov 2026) the obsidian in the frame begun counts: after a food run the piece saw
+			// 2 in the bag, mined the 8 of the buddy's own frame back out, and the new site's search then looped for 43 minutes
+			// (look 154)
+			piece(M3_4, "obsidian", b -> b.kitAgain() && b.inv("obsidian") + b.obsidianInFrames() < 10),
 			// (gold_raw_smelt, a fix of 19 Nov 2026) once no more gold is mined, the raw gold in the bag smelted: a piglin trades
 			// only ingots, and goudsmoke3's run 4 went through the portal with 27 ingots and 12 raw gold from the slime dig
 			piece(M3_4, "raw gold", b -> b.kitAgain() && b.rawGoldSmelt() && b.inv("raw_gold") > 0
