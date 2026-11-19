@@ -7,6 +7,7 @@
 		"BossBarMixin",
 		"BlockItemAccessor",
 		"ConnectScreenMixin",
+		"ConnectFailMixin",
 		"DeathScreenAccessor",
 		"DisconnectedScreenAccessor",
 		"OpenScreenMixin",

@@ -590,7 +590,7 @@ public class AfkHelperClient implements ClientModInitializer {
 			// less): state.json says so now. It used to wait for the panel's next ask, up to ten seconds in which the
 			// panel showed the buddy as still there.
 			if (inWorld && ++outTicks >= 40) { inWorld = false; Details.offline(); }
-			if (tick % 20 == 0) offlineCommands();
+			if (tick % 20 == 0) { connectWatch(mc); offlineCommands(); }
 			return;
 		}
 		inWorld = true;
@@ -1067,8 +1067,39 @@ public class AfkHelperClient implements ClientModInitializer {
 		if (server == null) { Exchange.emit("error", "msg", "join: no server known"); return; }
 		failedConnections = 0;
 		Exchange.emit("connection", "action", "comes back", "server", server.ip);
-		m.execute(() -> net.minecraft.client.gui.screens.ConnectScreen.startConnecting(new net.minecraft.client.gui.screens.TitleScreen(), m,
-			net.minecraft.client.multiplayer.resolver.ServerAddress.parseString(server.ip), server, false, null));
+		m.execute(() -> {
+			// an attempt under way, or one left hanging, would make the game refuse this one as "already connecting"
+			if (m.gui.screen() instanceof net.minecraft.client.gui.screens.ConnectScreen cs) {
+				((ConnectAttempt) cs).buddy$abort();
+				m.gui.setScreen(new net.minecraft.client.gui.screens.TitleScreen());
+			}
+			net.minecraft.client.gui.screens.ConnectScreen.startConnecting(new net.minecraft.client.gui.screens.TitleScreen(), m,
+				net.minecraft.client.multiplayer.resolver.ServerAddress.parseString(server.ip), server, false, null);
+		});
+	}
+
+	private static Object watchedConnect = null;   // the connect screen being timed, and since when it has had no connection
+	private static long watchedSince = 0;
+
+	/**
+	 * A connect screen without a connection after 90 seconds hangs (the game gives up a connection after 30): its thread
+	 * ended without a result, and while the screen stays the game refuses every new attempt, the panel's Join too (19 Nov
+	 * 2026: offline for a quarter of an hour after a server restart). Stopped, it counts as a failed attempt, so
+	 * reconnecting goes on.
+	 */
+	private static void connectWatch(Minecraft m) {
+		if (!(m.gui.screen() instanceof net.minecraft.client.gui.screens.ConnectScreen cs) || ((ConnectAttempt) cs).buddy$connected()) {
+			watchedConnect = null;
+			return;
+		}
+		long now = System.currentTimeMillis();
+		if (watchedConnect != cs) { watchedConnect = cs; watchedSince = now; return; }
+		if (now - watchedSince < 90_000) return;
+		watchedConnect = null;
+		Exchange.emit("connection", "action", "attempt hung", "after_s", (now - watchedSince) / 1000);
+		((ConnectAttempt) cs).buddy$abort();
+		m.gui.setScreen(new net.minecraft.client.gui.screens.DisconnectedScreen(new net.minecraft.client.gui.screens.TitleScreen(),
+			net.minecraft.network.chat.CommonComponents.CONNECT_FAILED, Component.literal("The connection attempt hung")));
 	}
 
 	/** Not in a world: only the commands that make sense there (join, ping, state, the panel's profiles), the rest is old by then. */

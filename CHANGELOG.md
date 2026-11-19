@@ -3,6 +3,11 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.28
+
+- The buddy joins again after a server restart, also when the server's machine cannot be reached for a while. Before,
+  one such attempt could leave the game waiting for good, and Join did nothing then.
+
 ## 0.5.27
 
 - After an update the panel says that this is why the view is grey: "Updated to 0.5.27: … is back in a minute or two",
