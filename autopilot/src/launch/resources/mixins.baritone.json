@@ -19,6 +19,7 @@
     "MixinAltoClefDeathScreen",
     "MixinAltoClefGui",
     "MixinAltoClefLevel",
+    "MixinClientLevelClock",
     "MixinAltoClefOptions",
     "MixinAltoClefPlayerTouch",
     "MixinAltoClefScreen",
