@@ -487,7 +487,10 @@ public class MobDefenseChain extends SingleTaskChain {
                 // without this nobody can tell whether the shield came up in time or at all
                 if (!_shielding) Debug.logInternal(ProjectileHelper.shieldLine(_impactType, _impactTicks, _impactDist));
                 if (ballShield) clearHandForBall(mod);
-                startShielding(mod, !fighting);
+                // (Tuning run_shield_no_pause, a fix of 19 Nov 2026, on) a run's shield never pauses the path: the pause held the
+                // run still, the still run kept the drowned's raised trident a reason to shield, and the run stood "stuck 0
+                // blocks" for two minutes while two tridents of 7.7 came through (heel-51, read of heel's zombie deaths)
+                startShielding(mod, !fighting && !(mode == CombatCommit.Mode.RUN && runShieldNoPause()));
             }
         } else {
             stopShielding(mod);
@@ -868,10 +871,17 @@ public class MobDefenseChain extends SingleTaskChain {
     // client sees a mob's drawn bow (the using item flag is synced), and the shield then goes up before the arrow leaves.
     // a fight only counts its own target (turning to another shooter is the target's free hits), a run only while the run is
     // standing still (a raised shield walks at a fifth of the speed), a perch shields for nothing
+    static boolean runShieldNoPause() {
+        return adris.altoclef.util.helpers.Tuning.get("run_shield_no_pause", 0) > 0;
+    }
+
     private Mob drawingShooter(AltoClef mod, CombatCommit.Mode mode, LocalPlayer player) {
         _drawImpactTicks = Double.POSITIVE_INFINITY;
         if (_brain.perching()) return null;
         if (mode == CombatCommit.Mode.RUN && !(player.onGround() && player.getDeltaMovement().horizontalDistanceSqr() < 0.0025)) return null;
+        // (Tuning run_shield_no_pause, a fix of 19 Nov 2026, on) and in a run only while no path is under way: the raised shield
+        // walks at a fifth of the speed, so a path that moves that slowly read as standing still and kept it up
+        if (mode == CombatCommit.Mode.RUN && runShieldNoPause() && mod.getClientBaritone().getPathingBehavior().isPathing()) return null;
         int fightTarget = mode == CombatCommit.Mode.FIGHT ? _brain.fightTarget() : -1;
         Mob best = null;
         int bestDrawn = DRAW_SHIELD_TICKS - 1;

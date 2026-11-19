@@ -813,7 +813,16 @@ public final class Tuning {
             // with legitMine an ore's exposure is tested inside the block tracker's scan, before each type's budget of 25: under an
             // anti-xray in engine mode 2 every hidden block is sent as a random fake ore, so the 25 were fakes in the walls round
             // the feet and real ore with an open face a few blocks off was never known, BlockTracker (E1119-0905.7, 19 Nov 2026)
-            java.util.Map.entry("ore_scan_exposed", 1.0));
+            java.util.Map.entry("ore_scan_exposed", 1.0),
+            // a run's shield (a drawn bow or a raised trident while the run stands) never pauses the path, and none goes up while a
+            // path is under way: the pause held the run still for two minutes under a drowned's tridents, MobDefenseChain (19 Nov 2026)
+            java.util.Map.entry("run_shield_no_pause", 1.0),
+            // a dug-in cover holds only with the feet in its column: knocked 7 blocks off, the cave roof over the new cell read as the
+            // hole's top and the cover stood without a swing under two zombies, CornerWallTask (19 Nov 2026)
+            java.util.Map.entry("cover_in_column", 1.0),
+            // a run from a crowd with a trident drowned, under the open sky, goes inland along the driest ray: the rerun from the
+            // same shore origin went back along the water, CommittedRunTask (19 Nov 2026, F3)
+            java.util.Map.entry("trident_run_inland", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

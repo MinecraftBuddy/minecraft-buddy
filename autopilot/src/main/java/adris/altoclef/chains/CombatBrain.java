@@ -2023,6 +2023,19 @@ final class CombatBrain {
         String line = CombatLog.line(dimension, event, _commit.why(), _commit.cornered(), _commit.noRoom(), _commit.cornerKind(), nameOf(mod, _commit.targetId()), fighting,
                 crowd, Math.round(player.getHealth()), blocks);
         if (line != null) Debug.logInternal(line);
+        // (19 Nov 2026, read of heel's zombie deaths, fault C suspected) a run called clear with a zombie still about: the zombie
+        // kinds within 16, their distance and the game's aggressive flag, which a zombie raises only for half of each attack
+        // cycle and which the foe list goes by. a log line only, to see whether the run ends on a flag that blinks
+        if (event == CombatCommit.Event.RUN_CLEAR) {
+            StringBuilder z = new StringBuilder();
+            for (Entity e : mod.getWorld().getEntitiesOfClass(net.minecraft.world.entity.monster.zombie.Zombie.class,
+                    player.getBoundingBox().inflate(16))) {
+                Mob m = (Mob) e;
+                if (!m.isAlive()) continue;
+                z.append(String.format(java.util.Locale.ROOT, " %s %.1f%s", typeOf(m), m.distanceTo(player), m.isAggressive() ? " aggressive" : ""));
+            }
+            if (z.length() > 0) Debug.logInternal("combat: run clear with zombies within 16:" + z);
+        }
     }
 
     private static String nameOf(AltoClef mod, int id) {

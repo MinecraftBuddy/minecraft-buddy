@@ -191,8 +191,26 @@ public final class CornerWallTask extends Task {
             case BLOCK -> block(mod, player, level, now);
             case DIG -> dig(mod, player, level, now);
             case ROOF -> roof(mod, player, level, now);
-            case BUILT, FAILED -> stand(mod);
+            case BUILT -> {
+                // (cover_in_column) a dug hole holds only with the feet in it: knocked out after it was built, it is no cover
+                if (inColumnOn() && column != null && !inColumn(player)) {
+                    fail("knocked out of the hole: the feet at " + player.blockPosition().toShortString() + ", the column at "
+                            + column.getX() + " " + column.getZ(), now);
+                }
+                yield stand(mod);
+            }
+            case FAILED -> stand(mod);
         };
+    }
+
+    static boolean inColumnOn() {
+        return adris.altoclef.util.helpers.Tuning.get("cover_in_column", 0) > 0;
+    }
+
+    // the feet in the dug column's cell (x and z), at whatever depth: no column dug is never in one
+    private boolean inColumn(LocalPlayer player) {
+        BlockPos feet = player.blockPosition();
+        return column != null && feet.getX() == column.getX() && feet.getZ() == column.getZ();
     }
 
     // behind the wall (or given up, till the machine lets go): still, the path paused
@@ -293,6 +311,14 @@ public final class CornerWallTask extends Task {
             return null;
         }
         if (player.onGround() && player.blockPosition().getY() <= floorY) {
+            // (Tuning cover_in_column, a fix of 19 Nov 2026, on) deep enough counts only in the column: zombies' hits knocked the
+            // buddy 7 blocks off to a lower cell, the cave roof over it read as the hole's top, and the cover stood there, no
+            // swing, while two zombies hit nine times (heel-52-mc3, read of heel's zombie deaths)
+            if (inColumnOn() && !inColumn(player)) {
+                fail("knocked out of the hole: the feet at " + player.blockPosition().toShortString() + ", the column at "
+                        + column.getX() + " " + column.getZ(), now);
+                return null;
+            }
             if (!roofs) {
                 Debug.logInternal("combat: " + say + "dug down at " + column.getX() + " " + column.getY() + " " + column.getZ()
                         + " (" + depth + " deep, the top left open)");
@@ -307,6 +333,12 @@ public final class CornerWallTask extends Task {
     }
 
     private Task roof(AltoClef mod, LocalPlayer player, Level level, long now) {
+        // (cover_in_column) a knock out of the hole while the top goes on: the cover is not here
+        if (inColumnOn() && !inColumn(player)) {
+            fail("knocked out of the hole: the feet at " + player.blockPosition().toShortString() + ", the column at "
+                    + column.getX() + " " + column.getZ(), now);
+            return null;
+        }
         // the cell over the top of the head, not feet + 2: standing on a slab the body reaches into that one
         BlockPos top = BlockPos.containing(player.getX(), player.getBoundingBox().maxY, player.getZ()).above();
         if (!level.getBlockState(top).canBeReplaced()) {

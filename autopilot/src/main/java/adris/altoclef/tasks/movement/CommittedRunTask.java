@@ -69,6 +69,20 @@ public class CommittedRunTask extends CustomBaritoneGoalTask {
     }
 
     protected Goal runGoal(AltoClef mod) {
+        // (Tuning trident_run_inland, a fix of 19 Nov 2026, on) a run from a crowd that holds a drowned with a trident, under the
+        // open sky: inland, along the ray with the most dry land (LandFinder.inlandPoint). the plain goal asks only distance from
+        // the run's origin, and a rerun from the same origin on a shore took its 48 blocks back along the drowned's water: two
+        // tridents of 7.7 and dead (heel-51, read of heel's zombie deaths; F3 of the early deaths' read)
+        if (tridentRunInlandOn()) {
+            LocalPlayer player = mod.getPlayer();
+            if (player != null && mod.getWorld().canSeeSky(player.blockPosition().above()) && tridentIn(_crowd.get())) {
+                BlockPos inland = adris.altoclef.util.helpers.LandFinder.inlandPoint(mod, player.blockPosition());
+                if (inland != null) {
+                    adris.altoclef.Debug.logInternal("combat: the run from a trident goes inland, to " + inland.getX() + " " + inland.getZ());
+                    return new baritone.api.pathing.goals.GoalXZ(inland.getX(), inland.getZ());
+                }
+            }
+        }
         // the goal is asked from the pathfinder thread, so it gets thread safe copies of the loaded chunks (remade by refresh)
         return new GoalCommittedRun(_originX, _originZ, _distance, CROWD_CLEAR, _crowd,
                 () -> CliffAvoidance.of(new BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true)),
@@ -86,6 +100,22 @@ public class CommittedRunTask extends CustomBaritoneGoalTask {
         } else {
             mod.getClientBaritone().getPathingBehavior().cancelEverything();
         }
+    }
+
+    static boolean tridentRunInlandOn() {
+        return adris.altoclef.util.helpers.Tuning.get("trident_run_inland", 0) > 0;
+    }
+
+    // a drowned with a trident in either hand among the crowd
+    static boolean tridentIn(List<Entity> crowd) {
+        if (crowd == null) return false;
+        for (Entity e : crowd) {
+            if (e instanceof net.minecraft.world.entity.monster.zombie.Drowned d && d.isAlive()
+                    && (d.getMainHandItem().is(net.minecraft.world.item.Items.TRIDENT) || d.getOffhandItem().is(net.minecraft.world.item.Items.TRIDENT))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // in the water with nothing under us (wading on the bottom walks out on its own)
