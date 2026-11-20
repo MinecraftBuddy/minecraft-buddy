@@ -927,7 +927,10 @@ public final class Tuning {
             java.util.Map.entry("root_done_unwind", 0.0),
             // three poke-mine segments in a row with nothing dug start a new run into rock not dug yet: a cave on both sides
             // turned the run back onto its own tunnels, 188 legs in 12 minutes with no block dug, PokeMineTask (20 Nov 2026)
-            java.util.Map.entry("poke_empty_new_run", 1.0));
+            java.util.Map.entry("poke_empty_new_run", 1.0),
+            // no climb to the surface for the portal's frame while the portal task fetches obsidian: the fetch went down to y -55 and
+            // the climb took the buddy back up every 4 s, 306 times in 46 minutes, DefaultGoToDimensionTask (20 Nov 2026)
+            java.util.Map.entry("portal_fetch_no_climb", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

@@ -280,6 +280,16 @@ public class ConstructNetherPortalObsidianTask extends Task {
     }
 
     // a spot picked, or a frame begun nearby: it is finished where it is, wherever that is
+    // (Tuning portal_fetch_no_climb) the game tick this task last asked for obsidian, and whether it did within FETCH_HOLD_TICKS:
+    // the climb for the frame's site (DefaultGoToDimensionTask) waits while the obsidian is fetched
+    private long _fetchTick = Long.MIN_VALUE / 2;
+    static final long FETCH_HOLD_TICKS = 200;
+
+    public boolean fetchingObsidian(AltoClef mod) {
+        long now = mod.getWorld().getGameTime();
+        return now >= _fetchTick && now - _fetchTick <= FETCH_HOLD_TICKS;
+    }
+
     public boolean begun(AltoClef mod) {
         return _origin != null || lastFrame(mod) != null;
     }
@@ -340,6 +350,7 @@ public class ConstructNetherPortalObsidianTask extends Task {
         // Get obsidian if we don't have.
         if (mod.getItemStorage().getItemCount(Items.OBSIDIAN) < neededObsidian) {
             setDebugState("Getting obsidian");
+            _fetchTick = mod.getWorld().getGameTime();
             return TaskCatalogue.getItemTask(Items.OBSIDIAN, neededObsidian);
         }
 

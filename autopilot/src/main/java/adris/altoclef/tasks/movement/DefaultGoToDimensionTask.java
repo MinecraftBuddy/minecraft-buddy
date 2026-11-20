@@ -197,7 +197,13 @@ public class DefaultGoToDimensionTask extends Task {
             boolean held = holdOn && _climbDoneAt != null && now >= _climbDoneTick && now - _climbDoneTick <= CLIMB_HOLD_TICKS
                     && Math.abs(at.getX() - _climbDoneAt.getX()) <= CLIMB_HOLD_RANGE && Math.abs(at.getZ() - _climbDoneAt.getZ()) <= CLIMB_HOLD_RANGE
                     && at.getY() >= top - CLIMB_HOLD_DEPTH;
-            if (at.getY() < top - 1 && !held) {
+            // (Tuning portal_fetch_no_climb, a fix of 20 Nov 2026, on) no climb while the portal task fetches obsidian: the climb is
+            // for the frame's site, and the fetch goes down for real; with the feet 7 under the ground's top portal_climb_hold let every
+            // climb through, the fetch went down to the obsidian at y -55 and the climb took the buddy back up every 4 s, 306 times
+            // in 46 minutes (heel-74-mc3, look 162)
+            boolean fetching = adris.altoclef.util.helpers.Tuning.get("portal_fetch_no_climb", 0) > 0
+                    && _cachedNetherObsidianConstructionTask.fetchingObsidian(mod);
+            if (at.getY() < top - 1 && !held && !fetching) {
                 _upForFrame = new GetToYTask(top);
                 _upForFrameY = top;
                 setDebugState("Up to the surface at y " + top + " for the portal");
