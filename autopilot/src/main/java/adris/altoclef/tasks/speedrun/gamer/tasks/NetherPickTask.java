@@ -133,8 +133,21 @@ public class NetherPickTask extends Task {
             case PLANKS -> cutLogs(mod, b);
             case STICKS -> new CraftInInventoryTask(new RecipeTarget(Items.STICK, NetherPick.sticksNeeded(kind), STICKS_RECIPE), false, true);
             case TABLE -> new CraftInInventoryTask(TaskCatalogue.recipeOf("crafting_table"), false, true);
-            default -> new CraftInTableTask(TaskCatalogue.recipeOf(NetherPick.catalogueName(tier, kind)), false, true);
+            default -> pickCraft(mod);
         };
+    }
+
+    // (Tuning pick_count_held, a fix of 20 Nov 2026, on) the craft's target is one more than the bag holds of that tool now: a worn
+    // one still in the bag (not usable, so this task runs) made "1 stone pickaxe" done before anything was crafted, the task
+    // called that a failure and the gold step ended on the pickaxes kept, with 61 cobblestone, sticks and a table in the bag
+    // (6 of 13 heel nether runs on 20 Nov, cascade heel-84 run 1)
+    private Task pickCraft(AltoClef mod) {
+        RecipeTarget r = TaskCatalogue.recipeOf(NetherPick.catalogueName(tier, kind));
+        if (adris.altoclef.util.helpers.Tuning.get("pick_count_held", 0) <= 0) {
+            return new CraftInTableTask(r, false, true);
+        }
+        int held = mod.getItemStorage().getItemCount(r.getOutputItem());
+        return new CraftInTableTask(new RecipeTarget(r.getOutputItem(), held + r.getTargetCount(), r.getRecipe()), false, true);
     }
 
     // the same one CollectSticksTask uses: two planks make four sticks

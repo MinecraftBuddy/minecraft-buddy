@@ -938,6 +938,9 @@ public final class Tuning {
             // here passes it, are out for a minute and a half. the task walked back past the same unlit creeper to the same oak
             // log every ~17 s for 4.8 minutes, CombatBrain (20 Nov 2026)
             java.util.Map.entry("creeper_way_ban", 1.0),
+            // the nether pickaxe's craft aims at one more than the bag holds of that tool: a worn one in the bag made the craft
+            // "done" before it began, and the gold step ended on the pickaxes kept in 6 of 13 nether runs, NetherPickTask (20 Nov 2026)
+            java.util.Map.entry("pick_count_held", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)
