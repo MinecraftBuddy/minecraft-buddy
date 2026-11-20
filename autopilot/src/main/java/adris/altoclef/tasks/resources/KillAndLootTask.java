@@ -209,7 +209,8 @@ public class KillAndLootTask extends ResourceTask {
         }
         // (the closest one not banned: a slime banned for lava by it is none here)
         Optional<Entity> closest = mod.getEntityTracker().getClosestEntity(_toKill);
-        double dist = closest.map(e -> (double) e.distanceTo(mod.getPlayer())).orElse(Double.MAX_VALUE);
+        double dist = closest.map(e -> slimeChaseFlatOn() ? chaseDistance(e.getX() - mod.getPlayer().getX(), e.getY() - mod.getPlayer().getY(),
+                e.getZ() - mod.getPlayer().getZ()) : (double) e.distanceTo(mod.getPlayer())).orElse(Double.MAX_VALUE);
         int now = WorldHelper.getTicks();
         boolean was = _chasing;
         _chasing = slimeChase(was, dist, near, now, _chaseSeenTick);
@@ -220,6 +221,20 @@ public class KillAndLootTask extends ResourceTask {
                     : "slime hunt: no slime within " + (int) (near * 4 / 3) + " blocks for " + CHASE_HOLD_TICKS / 20 + " s, the mine again");
         }
         return _chasing;
+    }
+
+    // (Tuning slime_chase_flat, a fix of 20 Nov 2026, on) the chase's distance is the one across, with a slime more than
+    // CHASE_DY above or below out of it: the server sends a slime to the client by the distance across (ChunkMap's tracking),
+    // so the slimes the mine sees are mostly far above or below, and one 45 across and 35 above (58 in 3D) was left to the
+    // mine (heel-82-mc1)
+    static final double CHASE_DY = 40;
+
+    static boolean slimeChaseFlatOn() {
+        return adris.altoclef.util.helpers.Tuning.get("slime_chase_flat", 0) > 0;
+    }
+
+    static double chaseDistance(double dx, double dy, double dz) {
+        return Math.abs(dy) > CHASE_DY ? Double.MAX_VALUE : Math.sqrt(dx * dx + dz * dz);
     }
 
     // (slime_chase_near) the chase wanted now: a slime within near, or within a third more while chasing, or the chase began

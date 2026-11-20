@@ -38,4 +38,13 @@ public class KillAndLootPursuitTest {
         assertFalse(KillAndLootTask.slimeChase(true, Double.MAX_VALUE, 48, 1000, 800));
         assertFalse(KillAndLootTask.slimeChase(false, 120, 48, 1000, 990));
     }
+
+    // slime_chase_flat: the distance across, a slime more than 40 above or below out of the chase
+    @Test
+    public void slimeChaseDistanceIsAcrossWithAHeightCap() {
+        assertEquals(45.0, KillAndLootTask.chaseDistance(27, 35, 36), 1e-9);
+        assertTrue(KillAndLootTask.slimeChase(false, KillAndLootTask.chaseDistance(27, 35, 36), 48, 1000, 0));
+        assertEquals(Double.MAX_VALUE, KillAndLootTask.chaseDistance(3, -41, 4), 0);
+        assertEquals(5.0, KillAndLootTask.chaseDistance(3, -40, 4), 1e-9);
+    }
 }

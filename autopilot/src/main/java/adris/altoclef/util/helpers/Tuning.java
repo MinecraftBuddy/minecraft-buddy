@@ -912,6 +912,9 @@ public final class Tuning {
             // 29 of 70 perch starts had a bite within a second, 18 of those went nowhere and 4 died on the floor, CombatBrain
             // (20 Nov 2026)
             java.util.Map.entry("perch_climb_no_bite", 1.0),
+            // the slime chase measures the distance across, a slime more than 40 above or below left out: the client gets a slime
+            // by its distance across, and one 45 across and 35 above (58 in 3D) was past the 48, KillAndLootTask (20 Nov 2026)
+            java.util.Map.entry("slime_chase_flat", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)
