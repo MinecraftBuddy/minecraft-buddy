@@ -49,7 +49,22 @@ final class ObtainSafe {
 		// deep under the ground the night changes nothing: monsters stand up in the dark there at any hour, and a player
 		// mines on through the night (at y 33 it walled itself in for a night for nothing). A step that wants the surface
 		// waits down there for the morning (Obtain)
-		return dim.equals("overworld") && night(p.level()) && (p.getArmorValue() < 15 || phantomsDue()) && !deepUnder(p);
+		return dim.equals("overworld") && night(p.level()) && (kitArmour(p) < 15 || phantomsDue()) && !deepUnder(p);
+	}
+
+	/**
+	 * The armour as the rules on 15 (iron all over) count it: golden boots, the kit's piece for the piglins worn in place of the
+	 * iron ones (steering 202: an iron helmet, chestplate and leggings and golden boots, 14), count as the iron boots they
+	 * stand in for. Read as 14, the full kit dug in for every night in the overworld: after a trip home for food from the
+	 * nether the buddy spent the night in a hole till morning and the order stood still (heel, 19-20 Nov 2026).
+	 */
+	static int kitArmour(LocalPlayer p) {
+		return kitArmour(p.getArmorValue(), p.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.FEET).is(net.minecraft.world.item.Items.GOLDEN_BOOTS));
+	}
+
+	/** kitArmour's sum: the armour, and one more for golden boots worn (iron boots are 2, golden 1). */
+	static int kitArmour(int armour, boolean goldenBoots) {
+		return goldenBoots ? armour + 1 : armour;
 	}
 
 	/** The server's phantoms come for a player whose time since rest is past three game days (PhantomSpawner). */
@@ -193,7 +208,7 @@ final class ObtainSafe {
 	static void watch(LocalPlayer p, long now) {
 		if (now < nextWatch) return;
 		nextWatch = now + 500;
-		boolean armed = p.getArmorValue() >= 15 && (p.getOffhandItem().is(net.minecraft.world.item.Items.SHIELD));
+		boolean armed = kitArmour(p) >= 15 && (p.getOffhandItem().is(net.minecraft.world.item.Items.SHIELD));
 		String dim = p.level().dimension().identifier().getPath();
 		for (var m : p.level().getEntitiesOfClass(net.minecraft.world.entity.monster.Monster.class, p.getBoundingBox().inflate(40, 20, 40))) {
 			if (!m.isAlive()) continue;
@@ -246,7 +261,7 @@ final class ObtainSafe {
 	static boolean hurt(LocalPlayer p) {
 		if (p.isInWater() || p.isInLava() || !p.onGround()) return false;
 		float hp = p.getHealth();
-		return hp <= (p.getArmorValue() >= 15 ? 7 : 10);
+		return hp <= (kitArmour(p) >= 15 ? 7 : 10);
 	}
 
 	/**
@@ -260,7 +275,7 @@ final class ObtainSafe {
 		for (var m : foes) if (!shoots(m)) return false;
 		// in iron with a shield it fights them, down to seven hearts (Soprano runs from a blaze in sight at 14 health; a
 		// blaze fight took it to five)
-		if (p.getArmorValue() >= 15 && p.getOffhandItem().is(net.minecraft.world.item.Items.SHIELD) && p.getHealth() > 14) return false;
+		if (kitArmour(p) >= 15 && p.getOffhandItem().is(net.minecraft.world.item.Items.SHIELD) && p.getHealth() > 14) return false;
 		Level level = p.level();
 		BlockPos f = p.blockPosition();
 		// into the ground, or walled in with blocks it carries: a run in their sight is never the way (on a floor of planks
@@ -274,7 +289,7 @@ final class ObtainSafe {
 	 */
 	static boolean seal(LocalPlayer p, List<net.minecraft.world.entity.monster.Monster> foes) {
 		if (foes.isEmpty() || p.isInWater() || underSky(p) || throwaways(p) < 8) return false;
-		if (p.getArmorValue() >= 15 && p.getOffhandItem().is(net.minecraft.world.item.Items.SHIELD)) return false;
+		if (kitArmour(p) >= 15 && p.getOffhandItem().is(net.minecraft.world.item.Items.SHIELD)) return false;
 		for (var m : foes) if (m.distanceToSqr(p) < 2.5 * 2.5) return false;
 		return true;
 	}

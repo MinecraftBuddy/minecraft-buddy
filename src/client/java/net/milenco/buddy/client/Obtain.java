@@ -702,7 +702,7 @@ final class Obtain {
 			// a step on the surface while it is deep underground: a stair of its own up to the sky first, never a walk through
 			// the caves (it went after cows from y 33 through a lush cave without armour, and a skeleton there killed it)
 			// at night not up among the monsters: shut in down here until the morning
-			if (wantsSurface(s, p) && ObtainSafe.night(p.level()) && p.getArmorValue() < 15) {
+			if (wantsSurface(s, p) && ObtainSafe.night(p.level()) && ObtainSafe.kitArmour(p) < 15) {
 				ObtainSafe.Shelter sh = new ObtainSafe.Shelter();
 				sh.tillMorning = true;
 				exec = sh;
