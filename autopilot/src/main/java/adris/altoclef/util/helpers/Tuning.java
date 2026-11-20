@@ -949,9 +949,11 @@ public final class Tuning {
             // reserve the kit's finished tasks left behind: "every throwaway we have is protected" with 56 cobblestone held, six
             // casts failed in 5.6 minutes, PlaceObsidianBucketTask (20 Nov 2026)
             java.util.Map.entry("cast_free_stone", 1.0),
-            // (off till its smoke) a user task finished on its chain's tick pops the behaviour levels its tasks left, down to the
-            // runner's own: their reserves added up over the kit's tasks and locked the stone, UserTaskChain (20 Nov 2026)
-            java.util.Map.entry("root_done_unwind", 0.0),
+            // a user task finished on its chain's tick pops the behaviour levels its tasks left, down to the runner's own: their
+            // reserves added up over the kit's tasks and locked the stone, UserTaskChain (20 Nov 2026). On since its two smokes
+            // (7 runs, one through the nether and out with 9 rods): no 'every throwaway we have is protected' (in 21 of 209
+            // game logs of 20 Nov without it), only surplus thrown
+            java.util.Map.entry("root_done_unwind", 1.0),
             // three poke-mine segments in a row with nothing dug start a new run into rock not dug yet: a cave on both sides
             // turned the run back onto its own tunnels, 188 legs in 12 minutes with no block dug, PokeMineTask (20 Nov 2026)
             java.util.Map.entry("poke_empty_new_run", 1.0),
