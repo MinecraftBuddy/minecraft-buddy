@@ -762,6 +762,11 @@ final class ObtainSafe {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_none_go_on", 0) > 0;
 	}
 
+	/** (the autopilot's shelter_sea_give_up, on: 1 when the autopilot's own table has no such key yet) */
+	static boolean seaGiveUpOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_sea_give_up", 1) > 0;
+	}
+
 	/**
 	 * (shelter_none_go_on) the blocks and logs the bag holds for a shelter: the shelter's blocks, and the logs where they are not
 	 * among them (shelter_dig_here off).
@@ -1528,6 +1533,18 @@ final class ObtainSafe {
 				phase = "to land";
 				ObtainSteps.Result r = dry.tick(mc, p, now);
 				if (r == ObtainSteps.Result.RUN) return r;
+				// (the autopilot's shelter_sea_give_up, a fix of 20 Nov 2026, on) at sea with no dry cell in the land search's reach (64)
+				// and nothing under the feet to plug: no way to shelter here, and the order's step goes on (Soprano's own walk out of
+				// open water looks further and had found land 96 blocks off). The failed Dry was dropped and a fresh one failed the next
+				// tick, 13,523 ticks of "to land first" afloat in one spot, 17.5 minutes of a night and a storm (heel-111-mc2 r1, look 184)
+				if (r == ObtainSteps.Result.FAIL && mayGiveUp && seaGiveUpOn() && "no dry cell near".equals(dry.why)
+						&& (p.isInWater() || wetUnder(p))) {
+					noWay = true;
+					Exchange.emit("obtain", "action", "shelter", "what", "no way to shelter here: at sea, no land in reach: on with the order",
+						"x", p.getBlockX(), "y", p.getBlockY(), "z", p.getBlockZ());
+					dry = null;
+					return ObtainSteps.Result.FAIL;
+				}
 				dry = null;
 			}
 			if (!p.onGround()) return ObtainSteps.Result.RUN;
