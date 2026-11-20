@@ -2086,6 +2086,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (mod.getItemStorage().getItemCount(Items.BLAZE_ROD) < rodsWanted) {
             return null;
         }
+        // (Tuning brew_stand_stone_gate, a fix of 20 Nov 2026, on) no stand in the bag and too little of its stone: no brew, the
+        // route's fallback, as without the cream. the box was shut with 0 cobblestone (the gold step's stone pickaxes took it),
+        // the stand's craft went out of the shut box for stone, a pickaxe and logs, broke its wall or opened it, and the buddy
+        // died in the open in 3 of 3 such brews (heel-108 r3, heel-108-mc1 r4, heel-107-mc3 r2)
+        if (adris.altoclef.util.helpers.Tuning.get("brew_stand_stone_gate", 0) > 0 && !mod.getItemStorage().hasItem(Items.BREWING_STAND)
+                && BlazePillboxTask.standStoneInBag(mod) < adris.altoclef.util.helpers.RouteRules.STAND_STONE) {
+            noteNoBrew(mod, "no stone for the brewing stand: " + BlazePillboxTask.standStoneInBag(mod) + " of "
+                    + adris.altoclef.util.helpers.RouteRules.STAND_STONE);
+            return null;
+        }
         if (WorldHelper.getTicks() < _brewWaitUntil) return null;
         routePhase(adris.altoclef.util.helpers.RouteRules.BREW);
         // (Tuning route_brew_pillbox: the brew shut in the fight's pillbox by the spawner, built first when none stands)

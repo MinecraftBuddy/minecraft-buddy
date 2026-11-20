@@ -990,6 +990,9 @@ public final class Tuning {
             // the skeleton pillbox's side over a drop gets a corner block beside it first, against the side wall already up, so it
             // has a face: the side toward a lower skeleton stayed open through both retry rounds, SkelCoverTask (20 Nov 2026)
             java.util.Map.entry("pillbox_corner_face", 1.0),
+            // no brewing stand and fewer than its 3 stone in the bag: no brew (the route's fallback, as without the cream), never
+            // the stand's craft out of the shut box: 3 of 3 such brews died in the open, CollectBlazeRodsTask (20 Nov 2026)
+            java.util.Map.entry("brew_stand_stone_gate", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)
