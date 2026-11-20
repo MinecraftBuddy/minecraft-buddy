@@ -467,8 +467,13 @@ public final class BlazePillboxTask extends Task {
         // "dir south" against B's roof from B's side of that face, would not go in three times, and the box failed after the
         // potion had run out: 4 of the 8 route-12 runs that failed phase 5 with wart, cream and the potion at phase 4, and in
         // p4-cream3 too. with a face in sight nothing changes, so roof_centre's suspicion (a step in every fight) does not apply)
+        // (Tuning roof_jump_keep, a fix of 20 Nov 2026, on) never for a block on a wall's top: its face is the top of the block
+        // under it, which the eye sees only at a jump's top, so roofFaceSeen says no on the ground and the step to the middle cut
+        // every jump below: the support block on a bent box's back wall went 15 times to the jump and 13 to the step in 23 s
+        // under blazes, never clicked, and the buddy burned (heel-63-mc2)
+        boolean onTop = adris.altoclef.util.helpers.Tuning.get("roof_jump_keep", 0) > 0 && solid(mod, pos.below());
         if (roofRow && !stand.equals(cell) && adris.altoclef.util.helpers.Tuning.get("roof_face_step", 1) > 0
-                && !roofFaceSeen(mod, pos) && centreIn(mod, stand, HIDE_SLACK)) {
+                && !onTop && !roofFaceSeen(mod, pos) && centreIn(mod, stand, HIDE_SLACK)) {
             if (!pos.equals(faceStepSaid)) {
                 faceStepSaid = pos;
                 Debug.logInternal("pillbox: no face for the roof block at " + pos.toShortString() + " faces the eye, a step to the middle of "

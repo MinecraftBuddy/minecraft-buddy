@@ -910,7 +910,11 @@ public final class Tuning {
             java.util.Map.entry("slime_chase_near", 48.0),
             // a block's break, once begun, lets a step that is mid way finish to its first safe tick before the path goes: a
             // diagonal round a corner over the lava sea, cut short, slid the buddy off a rim, DestroyBlockTask (20 Nov 2026)
-            java.util.Map.entry("destroy_start_safe", 1.0));
+            java.util.Map.entry("destroy_start_safe", 1.0),
+            // a pillbox roof-row block on a wall's top is left to the jump that places it: the step to the front cell's middle
+            // cut every jump, and the support block on a bent box's back wall never went in under blazes, BlazePillboxTask
+            // (20 Nov 2026)
+            java.util.Map.entry("roof_jump_keep", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
