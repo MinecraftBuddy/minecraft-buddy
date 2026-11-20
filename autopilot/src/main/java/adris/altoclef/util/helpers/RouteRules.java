@@ -658,6 +658,28 @@ public final class RouteRules {
         return AWAY_ZONES.size() + (exitBegun ? 1 : 0) + (exitGaveUp ? 1 : 0) + (outSaid ? 1 : 0);
     }
 
+    // (Tuning route_nobrew_keep, a fix of 20 Nov 2026, on) the route's no-brew line said in this run: kept past a new order of
+    // rods (RunMemory clears it with the run, reset() does not). the order was set again twice after 'no brew, the fallback (no
+    // cream)', the new task began the cream errand again and looked round the fortress for 9 minutes, over the spawner, till
+    // wither skeletons and blazes killed the buddy (heel-100-mc3)
+    private static volatile boolean noBrewRun;
+
+    public static void noBrewSaid() {
+        noBrewRun = true;
+    }
+
+    public static boolean noBrewKept() {
+        return noBrewRun && Tuning.get("route_nobrew_keep", 0) > 0;
+    }
+
+    public static int noBrewRemembered() {
+        return noBrewRun ? 1 : 0;
+    }
+
+    public static void forgetNoBrew() {
+        noBrewRun = false;
+    }
+
     // a new order of rods: nothing of the last one's exit, nor of its zones walked away from
     public static void reset() {
         exitBegun = false;

@@ -63,6 +63,9 @@ final class RunMemoryFork {
         RunMemory.register("route", () -> RouteRules.remembered(), () -> RouteRules.reset(),
                 P + "util.helpers.RouteRules#AWAY_ZONES", P + "util.helpers.RouteRules#exitBegun",
                 P + "util.helpers.RouteRules#exitGaveUp", P + "util.helpers.RouteRules#outSaid");
+        // the route's no-brew line of this run, kept past a new order (route_nobrew_keep)
+        RunMemory.register("route_no_brew", () -> RouteRules.noBrewRemembered(), () -> RouteRules.forgetNoBrew(),
+                P + "util.helpers.RouteRules#noBrewRun");
         // the fortress sweep's memory, in RAM and its files beside #gamer's
         RunMemory.register("obtain_sweep", () -> ObtainSweep.remembered(mod()), () -> {
             try {

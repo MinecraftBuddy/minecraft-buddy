@@ -993,6 +993,9 @@ public final class Tuning {
             // no brewing stand and fewer than its 3 stone in the bag: no brew (the route's fallback, as without the cream), never
             // the stand's craft out of the shut box: 3 of 3 such brews died in the open, CollectBlazeRodsTask (20 Nov 2026)
             java.util.Map.entry("brew_stand_stone_gate", 1.0),
+            // the route's no-brew line said in a run holds past a new order of rods in that run: the order set again began the
+            // cream errand anew, 9 minutes round the fortress over the spawner, RouteRules (20 Nov 2026)
+            java.util.Map.entry("route_nobrew_keep", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

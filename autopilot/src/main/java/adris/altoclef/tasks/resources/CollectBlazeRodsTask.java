@@ -340,6 +340,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         _pearlsNeeded = pearlsNeeded;
         _bareOrder = bareOrder;
         if (bareOrder) adris.altoclef.util.helpers.RouteRules.reset();
+        // (route_nobrew_keep) the run's no-brew line said under an earlier order holds for this one too
+        _noBrewSaid = adris.altoclef.util.helpers.RouteRules.noBrewKept();
     }
 
     // the route's phase line, once, when the route first reaches it (RouteRules)
@@ -1935,6 +1937,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private void noteNoBrew(AltoClef mod, String why) {
         if (_noBrewSaid) return;
         _noBrewSaid = true;
+        adris.altoclef.util.helpers.RouteRules.noBrewSaid();
         boolean potion = FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.DRINK)
                 + FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.THROW) > 0
                 || mod.getPlayer().hasEffect(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE);
