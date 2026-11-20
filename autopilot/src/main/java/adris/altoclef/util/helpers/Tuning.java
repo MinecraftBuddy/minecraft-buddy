@@ -941,6 +941,13 @@ public final class Tuning {
             // the nether pickaxe's craft aims at one more than the bag holds of that tool: a worn one in the bag made the craft
             // "done" before it began, and the gold step ended on the pickaxes kept in 6 of 13 nether runs, NetherPickTask (20 Nov 2026)
             java.util.Map.entry("pick_count_held", 1.0),
+            // a magma cube let go by lava that has hit us since is not let go by lava again for 30 s: the fight goes on and the kill
+            // task's shore walk takes the buddy off the rim; let go again and again, the route walked on beside it while it hit on,
+            // 3 of 15 nether deaths, CombatCommit (20 Nov 2026)
+            java.util.Map.entry("cube_let_go_once", 1.0),
+            // a magma cube counts as able to reach us from 4.5 above or below (it jumps about 4.1), not 3 like a walker, MobReachRules
+            // (20 Nov 2026)
+            java.util.Map.entry("cube_vertical_reach", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

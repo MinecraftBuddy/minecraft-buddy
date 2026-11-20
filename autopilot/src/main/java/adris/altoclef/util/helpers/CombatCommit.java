@@ -1029,6 +1029,8 @@ public final class CombatCommit {
 
     // mobs we gave up on, and when. they get another go when they hit us again
     private final Map<Integer, Long> ignored = new HashMap<>();
+    // (cube_let_go_once) when each cube was last let go by lava
+    private final Map<Integer, Long> lavaLetGo = new HashMap<>();
     // heavy hitters we already ran from for standing in the path, and when. the second time one of them is in the way we walk on
     // (it hits us and that is the HIT fight, or the path goes round) instead of running the same 24 blocks over and over
     private final Map<Integer, Long> ranFrom = new HashMap<>();
@@ -1622,6 +1624,7 @@ public final class CombatCommit {
         wayBoxSince = -1;
         wayGapSince = -1;
         ignored.clear();
+        lavaLetGo.clear();
         ranFrom.clear();
         runMaxHit = 0;
         chaseIds.clear();
@@ -2954,6 +2957,7 @@ public final class CombatCommit {
     private void forgetIgnored(Tick t) {
         if (ignored.isEmpty()) return;
         ignored.entrySet().removeIf(e -> t.now() - e.getValue() > 6000 || t.now() < e.getValue());
+        lavaLetGo.entrySet().removeIf(e -> t.now() - e.getValue() > LAVA_LET_GO_TICKS || t.now() < e.getValue());
     }
 
     // ---- FIGHT
@@ -3109,6 +3113,18 @@ public final class CombatCommit {
         return fightOn(t, target);
     }
 
+    // (Tuning cube_let_go_once, a fix of 20 Nov 2026, on) a cube let go by lava that has hit us since is not let go by lava again
+    // for LAVA_LET_GO_TICKS: the fight goes on, and the kill task's shore walk (groundWalk) takes the buddy off the rim before it
+    // swings. let go again and again, the route walked on beside it and the cube hit on: 3 of 15 nether deaths in six hours of
+    // test heel, two knocked off a rim into lava, one among the splits at a gold ore (heel-88 r5, heel-87-mc1 r3, heel-87-mc2 r2)
+    static final long LAVA_LET_GO_TICKS = 600;
+
+    private boolean cubeBackAfterLetGo(Foe target, long now) {
+        if (Tuning.get("cube_let_go_once", 0) <= 0) return false;
+        Long at = lavaLetGo.get(target.id());
+        return at != null && now - at <= LAVA_LET_GO_TICKS && target.sinceHit() < now - at;
+    }
+
     // the fight goes on with this target: whether it is over (let go by lava, stepped out of the way, drifted off, lost, stalled)
     private Event fightOn(Tick t, Foe target) {
         // a cube we can't swing at with lava this close: all the task does from here is stand and let it come. written off like a
@@ -3116,8 +3132,10 @@ public final class CombatCommit {
         // task still won't swing and StandCap doesn't count it. boxed in there is no route to go back to. a stuck run's fight stays too:
         // the walk already failed, letting go is the same stuck run and this same pick ten ticks later
         boolean stuckRunFight = cornered && !boxCorner && !fastCorner;
-        if (target.splitType() != null && t.way().lavaClose() && !target.inTaskReach() && !t.boxed() && !stuckRunFight) {
+        if (target.splitType() != null && t.way().lavaClose() && !target.inTaskReach() && !t.boxed() && !stuckRunFight
+                && !cubeBackAfterLetGo(target, t.now())) {
             ignored.put(target.id(), t.now());
+            lavaLetGo.put(target.id(), t.now());
             idleNote = String.format(java.util.Locale.ROOT, "let go of #%d, out of reach by lava (gap %.1f, hp %.1f)", target.id(), target.reachGap(), t.health());
             Event cleared = end(t, Event.FIGHT_CLEARED);
             // (end just offered us a heal hold, which is the same stand beside the same lava under a nicer name, and rerun won't

@@ -15,6 +15,9 @@ public final class MobReachRules {
     // "more than 3 blocks up or down while basically on top of us". past that a zombie is not getting there by walking
     public static final double VERTICAL_GAP = 3;
     public static final double VERTICAL_GAP_HORIZONTAL_RANGE = 4;
+    // (Tuning cube_vertical_reach, a fix of 20 Nov 2026, on) a big magma cube jumps about 4.1 up (0.42 + 0.1 x size, MagmaCube):
+    // "it can't reach us (vertical_gap)" at 3.5 below was wrong, and it bit a digging buddy from 20 hp to 4 in 9 s (heel-87-mc1 r3)
+    public static final double CUBE_VERTICAL_GAP = 4.5;
 
     // no closer by a block over two seconds means it is stuck on something
     public static final double STALL_PROGRESS = 1;
@@ -87,8 +90,18 @@ public final class MobReachRules {
 
     // directly above or below us, further than a mob can climb or safely drop. spiders skip this one, they climb
     public static boolean isVerticallyOut(double dx, double dy, double dz) {
-        if (Math.abs(dy) <= VERTICAL_GAP) return false;
+        return isVerticallyOut(dx, dy, dz, VERTICAL_GAP);
+    }
+
+    // the same with the gap the mob can climb or jump (CUBE_VERTICAL_GAP for a magma cube)
+    public static boolean isVerticallyOut(double dx, double dy, double dz, double gap) {
+        if (Math.abs(dy) <= gap) return false;
         return dx * dx + dz * dz <= VERTICAL_GAP_HORIZONTAL_RANGE * VERTICAL_GAP_HORIZONTAL_RANGE;
+    }
+
+    // the gap for this mob: a magma cube jumps higher than anything walks (cube_vertical_reach)
+    public static double verticalGap(boolean magmaCube, boolean cubeReachOn) {
+        return magmaCube && cubeReachOn ? CUBE_VERTICAL_GAP : VERTICAL_GAP;
     }
 
     // watches how close each mob gets over time. a mob that is trying to reach us and is still no closer two seconds later

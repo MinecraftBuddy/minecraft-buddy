@@ -343,4 +343,14 @@ public class MobReachRulesTest {
         assertFalse(MobReachRules.verdictHolds(MobReachRules.Verdict.STALLED, CreeperStep.TRIGGER, false, true));
         assertTrue(MobReachRules.verdictHolds(MobReachRules.Verdict.STALLED, CreeperStep.TRIGGER, false, false));
     }
+
+    // (cube_vertical_reach) a magma cube jumps about 4.1: 3.5 below is in its reach, 5 is not
+    @Test
+    public void aMagmaCubeReachesFurtherUpAndDown() {
+        double gap = MobReachRules.verticalGap(true, true);
+        assertFalse(MobReachRules.isVerticallyOut(1, -3.5, 1, gap));
+        assertTrue(MobReachRules.isVerticallyOut(1, -5, 1, gap));
+        assertTrue(MobReachRules.isVerticallyOut(1, -3.5, 1, MobReachRules.verticalGap(false, true)));
+        assertTrue(MobReachRules.isVerticallyOut(1, -3.5, 1, MobReachRules.verticalGap(true, false)));
+    }
 }

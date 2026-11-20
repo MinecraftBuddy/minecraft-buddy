@@ -110,7 +110,12 @@ public class MobReachability {
         Cached cached = _verdicts.get(mob.getId());
         if (cached != null && now >= cached.tick && now - cached.tick < FORGET_AFTER) return cached.verdict.reachable();
         if (mob instanceof Spider) return true;
-        return !MobReachRules.isVerticallyOut(mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ());
+        return !MobReachRules.isVerticallyOut(mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ(), gapFor(mob));
+    }
+
+    private static double gapFor(Mob mob) {
+        return MobReachRules.verticalGap(mob instanceof net.minecraft.world.entity.monster.cubemob.MagmaCube,
+                Tuning.get("cube_vertical_reach", 0) > 0);
     }
 
     public void setFleeing(boolean fleeing) {
@@ -130,7 +135,7 @@ public class MobReachability {
         LocalPlayer player = mod.getPlayer();
         if (isEnclosed(mod, now)) return Verdict.ENCLOSED;
         // spiders go up walls, everything else has to walk
-        if (!(mob instanceof Spider) && MobReachRules.isVerticallyOut(mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ())) {
+        if (!(mob instanceof Spider) && MobReachRules.isVerticallyOut(mob.getX() - player.getX(), mob.getY() - player.getY(), mob.getZ() - player.getZ(), gapFor(mob))) {
             return Verdict.VERTICAL_GAP;
         }
         if (_stall.update(mob.getId(), mob.distanceTo(player), now, _fleeing, stepsFor(mob, player))) return Verdict.STALLED;

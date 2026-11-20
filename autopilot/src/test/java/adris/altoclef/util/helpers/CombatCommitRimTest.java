@@ -197,6 +197,38 @@ public class CombatCommitRimTest {
         assertEquals(Mode.FIGHT, c.mode());
     }
 
+    // (cube_let_go_once) let go by lava, back and bit us again: no second let-go within 30 s, the fight holds and the kill task's
+    // shore walk gets its turn. past the 30 s the old let-go comes back
+    @Test
+    public void aCubeThatBitAgainAfterTheLetGoIsNotLetGoAgain() {
+        CombatCommit c = new CombatCommit();
+        Foe bit = realCube(1, 2.5, 2, 0);
+        assertEquals(Event.FIGHT_START, c.step(tick(0, 20, List.of(bit), null, LAVA)));
+        Foe knocked = realCube(1, 4.5, 3.5, 1);
+        assertEquals(Event.FIGHT_CLEARED, c.step(tick(1, 20, List.of(knocked), knocked, LAVA)));
+        // it hops back and bites at 40: the fight again
+        assertEquals(Event.FIGHT_START, c.step(tick(40, 20, List.of(realCube(1, 2, 1.5, 0)), null, LAVA)));
+        // knocked out of the task's reach again: held this time
+        Foe out = realCube(1, 4.5, 3.5, 1);
+        for (long t = 41; t < 60; t++) {
+            assertEquals(Event.NONE, c.step(tick(t, 20, List.of(out), out, LAVA)));
+        }
+        assertEquals(Mode.FIGHT, c.mode());
+        assertEquals(1, c.targetId());
+    }
+
+    @Test
+    public void aCubeThatNeverBitAfterTheLetGoIsStillLetGo() {
+        CombatCommit c = new CombatCommit();
+        Foe bit = realCube(1, 2.5, 2, 0);
+        c.step(tick(0, 20, List.of(bit), null, LAVA));
+        assertEquals(Event.FIGHT_CLEARED, c.step(tick(1, 20, List.of(realCube(1, 4.5, 3.5, 1)), realCube(1, 4.5, 3.5, 1), LAVA)));
+        // 700 ticks on, past the 30 s, a fresh bite and a knock out of reach: the plain let-go again
+        assertEquals(Event.FIGHT_START, c.step(tick(700, 20, List.of(realCube(1, 2, 1.5, 0)), null, LAVA)));
+        Foe out = realCube(1, 4.5, 3.5, 1);
+        assertEquals(Event.FIGHT_CLEARED, c.step(tick(701, 20, List.of(out), out, LAVA)));
+    }
+
     // between the task's reach and the arm's the task still won't swing, so that gap can't be a place to wait either
     @Test
     public void theLineIsTheTasksReachNotTheArms() {
