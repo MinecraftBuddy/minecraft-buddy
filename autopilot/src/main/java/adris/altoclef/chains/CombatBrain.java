@@ -582,7 +582,12 @@ final class CombatBrain {
     // (pillbox_hold_melee) shut in the cover: the aura keeps its hands under the flee line too, on what hits in reach with a line
     // (the swing list's own rule: a foe that hit us within contact, seen by the aura's line check)
     boolean coverHands() {
-        return covering() && _shutIn;
+        if (!covering()) return false;
+        if (_shutIn) return true;
+        // (Tuning cover_contact_hands, a fix of 20 Nov 2026, on) not shut in, a melee mob in contact that hit us is answered too (the
+        // swing list holds only those): in a hole with no top, or still digging it, a zombie bit the buddy 5 to 8 s with no swing
+        // back, 2.0 to 3.0 a second, in 3 of 16 deaths in the first 25 game minutes of test heel. not while a block goes in
+        return adris.altoclef.util.helpers.Tuning.get("cover_contact_hands", 0) > 0 && !coverPlacing() && !_swingAt.isEmpty();
     }
 
     // (skel_cover) a block of the cover is on its way in: the arrow shield keeps its hands off the click

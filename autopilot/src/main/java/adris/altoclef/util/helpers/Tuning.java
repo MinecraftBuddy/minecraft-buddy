@@ -948,6 +948,9 @@ public final class Tuning {
             // a magma cube counts as able to reach us from 4.5 above or below (it jumps about 4.1), not 3 like a walker, MobReachRules
             // (20 Nov 2026)
             java.util.Map.entry("cube_vertical_reach", 1.0),
+            // in the skeleton cover but not shut in (a hole with no top, or still digging it), the aura's hands answer a melee mob in
+            // contact that hit us: a zombie bit 5 to 8 s with no swing back in 3 of 16 early deaths, CombatBrain (20 Nov 2026)
+            java.util.Map.entry("cover_contact_hands", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)
