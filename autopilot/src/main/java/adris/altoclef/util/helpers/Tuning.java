@@ -907,7 +907,10 @@ public final class Tuning {
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)
-            java.util.Map.entry("slime_chase_near", 48.0));
+            java.util.Map.entry("slime_chase_near", 48.0),
+            // a block's break, once begun, lets a step that is mid way finish to its first safe tick before the path goes: a
+            // diagonal round a corner over the lava sea, cut short, slid the buddy off a rim, DestroyBlockTask (20 Nov 2026)
+            java.util.Map.entry("destroy_start_safe", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

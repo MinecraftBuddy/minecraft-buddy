@@ -588,7 +588,15 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
     @Override
     protected void onStart(AltoClef mod) {
         // Cancel any ongoing pathing behavior.
-        mod.getClientBaritone().getPathingBehavior().forceCancel();
+        // (Tuning destroy_start_safe, a fix of 20 Nov 2026, on) a step that is mid way goes on to its first safe tick first:
+        // a diagonal round a solid corner over the lava sea, cut the tick the gold step swapped its nugget pickup for the
+        // next ore's break, left the buddy with no keys and no floor under the box, and it slid off a rim 55 blocks into the
+        // lava (heel-68-mc3; heel-60-mc3 the same way over a shaft)
+        if (adris.altoclef.util.helpers.Tuning.get("destroy_start_safe", 0) > 0) {
+            mod.getClientBaritone().getPathingBehavior().cancelWhenSafe();
+        } else {
+            mod.getClientBaritone().getPathingBehavior().forceCancel();
+        }
 
         // Reset move checker and stuck check.
         _moveChecker.newTarget();
