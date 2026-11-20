@@ -930,7 +930,10 @@ public final class Tuning {
             java.util.Map.entry("poke_empty_new_run", 1.0),
             // no climb to the surface for the portal's frame while the portal task fetches obsidian: the fetch went down to y -55 and
             // the climb took the buddy back up every 4 s, 306 times in 46 minutes, DefaultGoToDimensionTask (20 Nov 2026)
-            java.util.Map.entry("portal_fetch_no_climb", 1.0));
+            java.util.Map.entry("portal_fetch_no_climb", 1.0),
+            // the obsidian cast keeps its frame's cells from breaking only once its buckets are in the bag: in a pocket one wide
+            // the fetch for the lava bucket could neither place nor dig its way out, 45 minutes, PlaceObsidianBucketTask (20 Nov 2026)
+            java.util.Map.entry("cast_frame_fetch_free", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

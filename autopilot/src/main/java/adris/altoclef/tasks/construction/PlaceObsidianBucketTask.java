@@ -132,6 +132,16 @@ public class PlaceObsidianBucketTask extends Task {
         _ruinCells.removeAll(earlierCells);
     }
 
+    // (Tuning cast_frame_fetch_free, a fix of 20 Nov 2026, on) the frame's cells are kept from breaking only once the buckets are in
+    // the bag: the cast spot was the cell the buddy stood in, a pocket one wide, and onStart kept every frame cell round it, so
+    // the fetch for the lava bucket (iron, a furnace, a crafting table) could neither place nor dig its way out; 45 minutes
+    // with no obsidian and the run a stall (heel-79-mc2, look 163). volatile: baritone asks the avoider from its own thread
+    private volatile boolean _fetching;
+
+    private void fetching() {
+        _fetching = adris.altoclef.util.helpers.Tuning.get("cast_frame_fetch_free", 0) > 0;
+    }
+
     // (Tuning cast_free_stone, a fix of 20 Nov 2026, on) the frame's block with no block it may place: the cobblestone above
     // CAST_STONE_KEEP and the cobbled deepslate are the frame's, the reserve on them capped while the frame is built (renewed every
     // tick of it, lapsing CAST_FREE_HOLD_MS after the last). the reserve is the sum over the behaviour stack, which still holds the
@@ -160,7 +170,10 @@ public class PlaceObsidianBucketTask extends Task {
     protected void onStart(AltoClef mod) {
         mod.getBehaviour().push();
         // Don't break cast
+        _fetching = false;
         mod.getBehaviour().avoidBlockBreaking(block -> {
+            // (cast_frame_fetch_free) not while the buckets are fetched
+            if (_fetching) return false;
             for (Vec3i castPosRelativeToLava : PlaceObsidianBucketTask.CAST_FRAME) {
                 BlockPos castPos = _pos.offset(castPosRelativeToLava);
                 if (block.equals(castPos)) {
@@ -384,6 +397,7 @@ public class PlaceObsidianBucketTask extends Task {
                 return new ClearLiquidTask(leftover);
             }
             _progressChecker.reset();
+            fetching();
             return TaskCatalogue.getItemTask(Items.WATER_BUCKET, 1);
         }
 
@@ -392,9 +406,11 @@ public class PlaceObsidianBucketTask extends Task {
             // The only excuse is that we have lava at our position. the world, the tracker's cache can be stale
             if (mod.getWorld().getBlockState(_pos).getBlock() != Blocks.LAVA) {
                 _progressChecker.reset();
+                fetching();
                 return ownFetch();
             }
         }
+        _fetching = false;
 
         // Check progress
         if (!_progressChecker.check(mod)) {
@@ -498,6 +514,7 @@ public class PlaceObsidianBucketTask extends Task {
             if (!mod.getItemStorage().hasItem(Items.LAVA_BUCKET)) {
                 letGoOfTheClick(mod);
                 _progressChecker.reset();
+                fetching();
                 return ownFetch();
             }
             _lavaBefore = mod.getItemStorage().getItemCount(Items.LAVA_BUCKET);
