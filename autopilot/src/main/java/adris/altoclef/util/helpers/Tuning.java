@@ -963,6 +963,9 @@ public final class Tuning {
             // the heal hold ends once regen cannot happen (the bar under the regen line, nothing decent to eat): one stood 40 s at 3.2 hp
             // and hunger 16, RecoverHold (20 Nov 2026)
             java.util.Map.entry("hold_regen_check", 1.0),
+            // a wart seen later in a room the brew errand gave up is out too: two in the same room were walked at again, 60 s each,
+            // from a rim 40 above the fortress, CollectBlazeRodsTask (20 Nov 2026)
+            java.util.Map.entry("wart_room_seen", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

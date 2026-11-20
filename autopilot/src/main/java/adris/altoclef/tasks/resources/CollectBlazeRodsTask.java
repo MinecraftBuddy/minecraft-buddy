@@ -155,6 +155,20 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private BlockPos _wartLastHeld;
     private long _wartTicks;
     private final java.util.Set<BlockPos> _wartGaveUp = new java.util.HashSet<>();
+    // (Tuning wart_room_seen, a fix of 20 Nov 2026, on) the warts whose give-up took their room with them: a wart seen in that room
+    // later is out too. the room ban covered only the warts known at the give-up, and two seen after it in the same room were
+    // walked at again, 60 s each, from a rim 40 above the fortress with no way down (cascade heel-99 r3, look 181)
+    private final java.util.List<BlockPos> _wartRooms = new java.util.ArrayList<>();
+
+    private boolean wartOut(BlockPos p) {
+        if (_wartGaveUp.contains(p)) return true;
+        if (adris.altoclef.util.helpers.Tuning.get("wart_room_seen", 0) <= 0) return false;
+        double r = adris.altoclef.util.helpers.RouteRules.WART_ROOM;
+        for (BlockPos g : _wartRooms) {
+            if (g.distSqr(p) <= r * r) return true;
+        }
+        return false;
+    }
     // (Tuning route_wart_far, RouteRules.wartFarBegins) the far pass: the game time it began (-1 none) and its brick search
     private long _wartFarAt = -1;
     // (Tuning route_wart_drink, RouteRules.wartDrinks) the fight's walk-aways when the wart held was picked, and the wart the
@@ -1683,16 +1697,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         boolean holdOn = adris.altoclef.util.helpers.RouteRules.wartHoldOn();
         java.util.function.Predicate<BlockPos> heldReach = p -> adris.altoclef.util.helpers.RouteRules.wartHeldInReach(anchor.distanceTo(Vec3.atCenterOf(p)), wartNear, holdOn);
-        boolean keep = walk && _wartAt != null && !_wartGaveUp.contains(_wartAt) && heldReach.test(_wartAt) && unzoned.test(_wartAt)
+        boolean keep = walk && _wartAt != null && !wartOut(_wartAt) && heldReach.test(_wartAt) && unzoned.test(_wartAt)
                 && mod.getBlockTracker().blockIsValid(_wartAt, Blocks.NETHER_WART);
         Optional<BlockPos> block = keep ? Optional.of(_wartAt)
-                : mod.getBlockTracker().getNearestTracking(me.position(), p -> !_wartGaveUp.contains(p) && inReach.test(p) && unzoned.test(p), Blocks.NETHER_WART);
+                : mod.getBlockTracker().getNearestTracking(me.position(), p -> !wartOut(p) && inReach.test(p) && unzoned.test(p), Blocks.NETHER_WART);
         if (!drop && block.isEmpty()) {
             _wartAt = null;
             return null;
         }
         BlockPos at = block.orElse(null);
-        if (at != null && !at.equals(_wartAt) && holdOn && at.equals(_wartLastHeld) && !_wartGaveUp.contains(at)) {
+        if (at != null && !at.equals(_wartAt) && holdOn && at.equals(_wartLastHeld) && !wartOut(at)) {
             // (wart_hold_reach: the same wart again, dropped a moment ago: its clocks go on)
             _wartAt = at;
             _wartWalk = null;
@@ -1790,6 +1804,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             mod.getBlockTracker().requestBlockUnreachable(at, 0, "the brew errand's wart: " + why);
             int room = 0;
             if (_wartStall >= stallCap || _wartWalkTicks >= walkCap) {
+                _wartRooms.add(at);
                 for (BlockPos p : mod.getBlockTracker().getKnownLocations(Blocks.NETHER_WART)) {
                     if (Math.sqrt(p.distSqr(at)) <= adris.altoclef.util.helpers.RouteRules.WART_ROOM && _wartGaveUp.add(p)) room++;
                 }
