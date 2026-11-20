@@ -987,6 +987,9 @@ public final class Tuning {
             // a dig straight down breaks the block under the feet only with the feet on its cell: a descend that landed 0.68 past
             // its cell left the buddy over a shaft, and the break dropped it 28 blocks, MovementDownward (20 Nov 2026)
             java.util.Map.entry("downward_on_cell", 1.0),
+            // the skeleton pillbox's side over a drop gets a corner block beside it first, against the side wall already up, so it
+            // has a face: the side toward a lower skeleton stayed open through both retry rounds, SkelCoverTask (20 Nov 2026)
+            java.util.Map.entry("pillbox_corner_face", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

@@ -653,8 +653,22 @@ public final class SkelCoverTask extends Task {
             if (boxUsable(level, player, cell)) return cell;
             BlockPos below = cell.below();
             if (cell.getY() == boxFeet.getY() + 1 && boxUsable(level, player, below)) return below;
+            // (Tuning pillbox_corner_face, a fix of 20 Nov 2026, on) a side over a drop has no face under it either: a corner beside
+            // it, against the side wall already up, gives it one. the box stood '4 of 5 cells shut' with its side toward a
+            // skeleton a block lower open through both retry rounds (heel-101, heel-110-mc2)
+            if (cornerFaceOn() && cell.getY() == boxFeet.getY() + 1) {
+                int sx = cell.getX() - boxFeet.getX(), sz = cell.getZ() - boxFeet.getZ();
+                for (int k = -1; k <= 1; k += 2) {
+                    BlockPos corner = cell.offset(sz * k, 0, sx * k);
+                    if (boxUsable(level, player, corner)) return corner;
+                }
+            }
         }
         return null;
+    }
+
+    static boolean cornerFaceOn() {
+        return adris.altoclef.util.helpers.Tuning.get("pillbox_corner_face", 0) > 0;
     }
 
     private boolean boxUsable(Level level, LocalPlayer player, BlockPos cell) {
