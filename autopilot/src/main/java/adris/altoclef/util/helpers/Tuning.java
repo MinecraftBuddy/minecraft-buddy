@@ -890,7 +890,10 @@ public final class Tuning {
             // a climb to the surface for the portal frame holds off the next within 16 blocks for five game minutes, unless the feet
             // are more than 6 under the ground's top: the site search and the climb took turns every 4 s for 43 minutes,
             // DefaultGoToDimensionTask (20 Nov 2026)
-            java.util.Map.entry("portal_climb_hold", 1.0));
+            java.util.Map.entry("portal_climb_hold", 1.0),
+            // the obsidian cast's walk back to its stand, once begun, goes on till within 24 blocks: the side of a chunk line with the
+            // cast's chunks in built from 142 blocks off, and the walk and the build took turns, PlaceObsidianBucketTask (20 Nov 2026)
+            java.util.Map.entry("cast_walk_latch", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

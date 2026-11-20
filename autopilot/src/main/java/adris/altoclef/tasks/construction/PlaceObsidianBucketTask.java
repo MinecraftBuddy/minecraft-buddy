@@ -203,6 +203,19 @@ public class PlaceObsidianBucketTask extends Task {
         return this;
     }
 
+    // (cast_walk_latch) the walk back to the cast under way, and how near ends it
+    private boolean _walkBack;
+    static final double WALK_LATCH_NEAR = 24;
+
+    static boolean castWalkLatchOn() {
+        return adris.altoclef.util.helpers.Tuning.get("cast_walk_latch", 0) > 0;
+    }
+
+    private static double horizontalFrom(AltoClef mod, BlockPos pos) {
+        double dx = mod.getPlayer().getX() - (pos.getX() + 0.5), dz = mod.getPlayer().getZ() - (pos.getZ() + 0.5);
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
     // (cast_chunk_wait) the cast's cell and every frame cell in a chunk the client has
     static boolean castChunkWait() {
         return adris.altoclef.util.helpers.Tuning.get("cast_chunk_wait", 0) > 0;
@@ -371,12 +384,19 @@ public class PlaceObsidianBucketTask extends Task {
         // that is not, every cell reads air, so the frame looked unbuilt from one side of a chunk line and built from the
         // other, and the build and the walk to the stand took turns on that line about 28 times a minute for 11 minutes, 150
         // blocks from the cast after a far lava fetch (look 122). till the cast's chunks are in, the walk to the stand
-        if (castChunkWait() && !castChunksLoaded(mod)) {
+        // (Tuning cast_walk_latch, a fix of 20 Nov 2026, on) and once begun, the walk goes on till the feet are within
+        // WALK_LATCH_NEAR blocks of the cast: the side with the chunks in still built from 142 blocks off, its path stepped back
+        // over the chunk line, and the walk and the build took turns 110 times in four minutes (look 156)
+        boolean latch = castWalkLatchOn();
+        boolean far = latch && _walkBack && horizontalFrom(mod, _pos) > WALK_LATCH_NEAR;
+        if (castChunkWait() && (!castChunksLoaded(mod) || far)) {
+            _walkBack = latch;
             setDebugState("Walking back to the cast till its chunk is loaded");
             _currentCastTarget = null;
             _currentDestroyTarget = null;
             return new GetToBlockTask(_pos.offset(-1, 1, 0), false);
         }
+        _walkBack = false;
 
         // Build cast frame if not already built
         if (_currentCastTarget != null) {
