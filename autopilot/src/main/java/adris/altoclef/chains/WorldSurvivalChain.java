@@ -568,6 +568,7 @@ public class WorldSurvivalChain extends SingleTaskChain {
                     if (!at.getCollisionShape(level, c).isEmpty() || !head.getFluidState().isEmpty()
                             || !head.getCollisionShape(level, c.above()).isEmpty() || at.getFluidState().is(net.minecraft.tags.FluidTags.LAVA)) continue;
                     if (dy > 0 && fallingWaterUnder(level, c, feet.getY())) continue;
+                    if (dy > 0 && drownOpenColumnOn() && !openColumn(level, c, feet.getY())) continue;
                     if (underLid(lids, c, feet.getY())) continue;
                     best = c;
                     bestD = d;
@@ -613,6 +614,23 @@ public class WorldSurvivalChain extends SingleTaskChain {
         var column = new net.minecraft.world.phys.AABB(cell.getX(), Math.min(fromY, cell.getY()), cell.getZ(), cell.getX() + 1, cell.getY() + 2, cell.getZ() + 1);
         for (var lid : lids) if (lid.intersects(column)) return true;
         return false;
+    }
+
+    // (Tuning drown_open_column, a fix of 20 Nov 2026, on) an air cell over the feet counts only with nothing solid in the column
+    // under it down to the feet's height, the way a swimmer comes up: the cells on top of sea or river ice passed, baritone never
+    // breaks ice ('up ice=avoid'), every pick had no path and was banned in turn (14 and 9 of them), the break of the block
+    // overhead never ran, and the buddy drowned with the head against the ice and open water 2 blocks off (heel-81 r3,
+    // heel-78-mc3 r2)
+    static boolean drownOpenColumnOn() {
+        return adris.altoclef.util.helpers.Tuning.get("drown_open_column", 0) > 0;
+    }
+
+    private static boolean openColumn(net.minecraft.world.level.Level level, BlockPos cell, int fromY) {
+        for (int y = cell.getY() - 1; y >= fromY; y--) {
+            BlockPos p = new BlockPos(cell.getX(), y, cell.getZ());
+            if (!level.getBlockState(p).getCollisionShape(level, p).isEmpty()) return false;
+        }
+        return true;
     }
 
     // falling water in the column under this cell, down to the feet's height: a waterfall pushes a swimmer down
