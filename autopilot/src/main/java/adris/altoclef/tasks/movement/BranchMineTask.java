@@ -264,6 +264,8 @@ public class BranchMineTask extends Task {
     private boolean _shuttleStall;
     // (Tuning mine_all_wet_leave) every way from the feet ranked wet at a step's choice: the depth is given up here at once
     private boolean _allWetStall;
+    // (Tuning ice_kit_first) the surface kit had a task on its last ask
+    private boolean _kitRunning;
     private int _flipX, _flipZ;
     // the rock goes to a cheap pick and the iron one is kept for the ore. an iron pickaxe is through in 250 blocks and a staircase
     // to the diamonds takes three a step: the iron one wore out on the way down while a stone one lay in the bag, and it climbed
@@ -625,7 +627,10 @@ public class BranchMineTask extends Task {
         // the snow of an iceberg's top the rule saw no ice, the staircase stepped down onto it, and the two took turns
         // (ice_same_land: the land the open water's rule picks, by the same search; ice_pick_at_column: picked again only in its
         // column or after ICE_LAND_HOLD; ice_berg_not_land: an iceberg's top is no land, LandFinder.icyColumn)
-        if (onIce(mod, feet)) {
+        // (Tuning ice_kit_first, a fix of 20 Nov 2026, on) not while the surface kit's walk for wood or a pickaxe runs: it digs
+        // nothing down, and the two took turns every tick on a frozen lake's edge, the ice rule one step to land and the log walk
+        // one step back over the ice, 328 times in 3.7 minutes (heel-90-mc2 run 3, look 173)
+        if (onIce(mod, feet) && !(_kitRunning && iceKitFirstOn())) {
             boolean atColumn = icePickAtColumnOn();
             if (iceRepick(atColumn, feet, _iceLand, _iceLandSince, now)) {
                 boolean same = iceSameLandOn();
@@ -720,6 +725,7 @@ public class BranchMineTask extends Task {
         }
         // (mine_kit_surface) going down from the surface: the pickaxes and the wood for one more first, up here where the wood is
         Task kit = surfaceKit(mod, feet, y, now);
+        _kitRunning = kit != null;
         if (kit != null) {
             stopMine(mod);
             return kit;
@@ -2269,6 +2275,10 @@ public class BranchMineTask extends Task {
     // line was said only against the old rule's pick, and the half turn back that the old rule also took said nothing
     static boolean awayStepTurnOn() {
         return adris.altoclef.util.helpers.Tuning.get("away_step_turn", 0) > 0;
+    }
+
+    static boolean iceKitFirstOn() {
+        return adris.altoclef.util.helpers.Tuning.get("ice_kit_first", 0) > 0;
     }
 
     static boolean allWetLeaveOn() {
