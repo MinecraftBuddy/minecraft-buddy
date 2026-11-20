@@ -966,6 +966,9 @@ public final class Tuning {
             // a wart seen later in a room the brew errand gave up is out too: two in the same room were walked at again, 60 s each,
             // from a rim 40 above the fortress, CollectBlazeRodsTask (20 Nov 2026)
             java.util.Map.entry("wart_room_seen", 1.0),
+            // the blaze corner picks only a blaze its leash keeps once the buddy steps out (the bite, or lure_keep_reach): one 3.4 to 4.5
+            // off was picked and let go every 2 s for 6 minutes with no rod, BlazeFight (20 Nov 2026)
+            java.util.Map.entry("corner_pick_leash", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

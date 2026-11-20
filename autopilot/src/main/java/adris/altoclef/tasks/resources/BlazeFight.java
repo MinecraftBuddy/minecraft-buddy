@@ -148,6 +148,16 @@ final class BlazeFight {
         return FightOpenRules.leashed(open, rushNow, target != null && target == freeTarget);
     }
 
+    // (Tuning corner_pick_leash, a fix of 20 Nov 2026, on) the corner picks only a blaze its leash would keep once the buddy steps
+    // out to it: within the bite, or within lure_keep_reach. one 3.4 to 4.5 off was picked from the corner (CORNER_REACH 6), let go
+    // by the leash the moment the buddy was 1.5 out, and picked again 2 s later: 6 minutes, 132 looks, no rod, and one step out took
+    // four fireballs, 20 hp to 10.8 (cascade heel-96 r1, look 182)
+    private boolean cornerPickKept(double distance) {
+        if (adris.altoclef.util.helpers.Tuning.get("corner_pick_leash", 0) <= 0 || !leashed()) return true;
+        double keep = adris.altoclef.util.helpers.Tuning.get("lure_keep_reach", 0);
+        return distance <= Math.max(BITE_RANGE, keep);
+    }
+
     void spawner(BlockPos s) {
         spawner = s;
     }
@@ -1559,7 +1569,8 @@ final class BlazeFight {
                         && (fireproofReach(player) <= 0 || blaze.getY() - player.getY() <= fireproofReach(player))
                         && (open || rushNow || !cornerHold || blaze == target || distance <= BITE_RANGE || (blaze.getEyePosition().distanceTo(cornerEye) <= CORNER_REACH
                         && (!BlazeCover.hidden(mod.getWorld(), List.of(blaze.getEyePosition()), seeCell.getX(), seeCell.getY(), seeCell.getZ(), player)
-                        || BlazeCover.bodySeen(mod.getWorld(), player.getEyePosition(), blaze, player))));
+                        || BlazeCover.bodySeen(mod.getWorld(), player.getEyePosition(), blaze, player))
+                        && cornerPickKept(distance)));
                 if (inReach) candidates.add(blaze);
                 // (Tuning fireproof_bow: one past the sword's reach with a line to it, its rod falling where it can be picked up;
                 // the no-path ban is no input, the bow is for those. not one the corner's leash would let go the next tick)
