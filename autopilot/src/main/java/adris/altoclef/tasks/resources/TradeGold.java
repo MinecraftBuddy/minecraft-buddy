@@ -192,6 +192,9 @@ final class TradeGold {
             if (danger || now < _dangerAt) _dangerAt = now;
             danger = now - _dangerAt < DANGER_HOLD;
         }
+        // (20 Nov 2026, look 157) burning or in lava is a danger for the fold too: the buddy folded nuggets at a table with fire on
+        // it after a lava stream beside the way, and went from 20 hp to 1
+        if (goldDangerHoldOn() && (player.isOnFire() || player.isInLava())) danger = true;
         if (TradeGoldRules.fold(ingots, nuggets, target, end != null) && !danger) {
             int to = Math.min(target, ingots + nuggets / NetherGold.NUGGETS_PER_INGOT);
             return step(mod, "fold", to, () -> {
@@ -341,8 +344,9 @@ final class TradeGold {
         int skipped = 0;
         for (int i = 0; i < ok.size() && i < WAY_TESTS; i++) {
             BlockPos p = ok.get(i);
+            int low = Math.min(feet.getY(), p.getY());
             int open = TradeGoldRules.openColumns(feet.getX(), feet.getY(), feet.getZ(), p.getX(), p.getY(), p.getZ(),
-                    (x, y, z) -> openUnder(level, x, y, z), max);
+                    (x, y, z) -> openUnder(level, x, y, z, low), max);
             if (open <= max) {
                 if (skipped > 0) {
                     Debug.logInternal("trade gold: " + skipped + " nearer ore left, the way to it open to a fall (gold_way_open)");
@@ -364,12 +368,14 @@ final class TradeGold {
     private int _wayLeftLogged = -1;
     static final long WAY_AGAIN_TICKS = 40;
 
-    // (gold_way_open) a column of the way with no floor from 2 over the way's height y down to WAY_FLOOR_DOWN under it, or lava
-    // the first thing there: a way over it is a bridge or a jump, and a knock off it a fall into the sea
-    private static boolean openUnder(net.minecraft.client.multiplayer.ClientLevel level, int x, int y, int z) {
+    // (gold_way_open) a column of the way with no floor from 2 over the way's height y down to WAY_FLOOR_DOWN under the way's lower
+    // end (the feet's or the ore's height, whichever is lower), or lava the first thing there: a way over it is a bridge or a
+    // jump, and a knock off it a fall into the sea. (20 Nov 2026, look 157) under the lower end, not the line: a straight line
+    // from a basin at y 44 up to ore at y 80 floats over the slope it climbs, and 38% of the open columns were such climbs
+    private static boolean openUnder(net.minecraft.client.multiplayer.ClientLevel level, int x, int y, int z, int low) {
         if (!level.hasChunk(x >> 4, z >> 4)) return false;
         BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
-        for (int yy = y + 2; yy >= y - TradeGoldRules.WAY_FLOOR_DOWN; yy--) {
+        for (int yy = y + 2; yy >= Math.min(y, low) - TradeGoldRules.WAY_FLOOR_DOWN; yy--) {
             at.set(x, yy, z);
             net.minecraft.world.level.block.state.BlockState st = level.getBlockState(at);
             if (st.getFluidState().is(net.minecraft.tags.FluidTags.LAVA)) return true;
