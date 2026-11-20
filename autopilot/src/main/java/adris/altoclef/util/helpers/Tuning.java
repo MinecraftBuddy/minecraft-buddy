@@ -915,6 +915,9 @@ public final class Tuning {
             // the slime chase measures the distance across, a slime more than 40 above or below left out: the client gets a slime
             // by its distance across, and one 45 across and 35 above (58 in 3D) was past the 48, KillAndLootTask (20 Nov 2026)
             java.util.Map.entry("slime_chase_flat", 1.0),
+            // a sulfur cube is neutral (NeutralMobs): it attacks nobody, and one holding a block takes no harm from a blow; a
+            // fight with one "in our way" ran almost 6 minutes and ended at 1.3 hp from arrows (20 Nov 2026)
+            java.util.Map.entry("sulfur_cube_neutral", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

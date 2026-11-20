@@ -56,7 +56,12 @@ public class EntityHelper {
         // magma cubes are not slimes, and neither kind ever raises the aggressive flag (nothing in the cube goals does), so
         // the "close enough to bite" rule has to cover the whole family or the aura never swings at a magma cube on us
         if (entity instanceof AbstractCubeMob cube) {
-            if (mod.getPlayer().closerThan(cube, adris.altoclef.util.helpers.CombatRules.cubeBiteRange(cube.getBbWidth()))) return true;
+            // (Tuning sulfur_cube_neutral, a fix of 20 Nov 2026, on) a sulfur cube is in the family but never bites: it looks for
+            // items, and hurts only by contact with some blocks it holds, which the hit rule below still counts. close by alone
+            // it is no foe: one "in our way" was fought for almost 6 minutes and took no harm (a cube holding a block shrugs off
+            // blows, SulfurCube.hurtServer), while skeletons' arrows took the buddy to 1.3 hp (heel-89 run 4)
+            boolean bites = !(cube instanceof net.minecraft.world.entity.monster.cubemob.SulfurCube && Tuning.get("sulfur_cube_neutral", 0) > 0);
+            if (bites && mod.getPlayer().closerThan(cube, adris.altoclef.util.helpers.CombatRules.cubeBiteRange(cube.getBbWidth()))) return true;
             // a bite throws us past 3 blocks, it is still the one that bit us
             return NeutralMobs.hitRecently(mod.getEntityTracker().getProvocations().sinceHit(cube.getId(), mod.getWorld().getGameTime()));
         }

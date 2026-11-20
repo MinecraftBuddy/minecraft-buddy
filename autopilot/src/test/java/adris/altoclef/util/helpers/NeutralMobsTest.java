@@ -118,4 +118,12 @@ public class NeutralMobsTest {
             assertFalse(type, NeutralMobs.hostile(neutral, true, false, false, 10, true));
         }
     }
+
+    // sulfur_cube_neutral: 26.3's sulfur cube attacks nobody and shrugs off blows while it holds a block, so it is calm until
+    // it has a reason
+    @Test
+    public void sulfurCubeIsNeutral() {
+        assertTrue(NeutralMobs.neutralNow("sulfur_cube", false, false));
+        assertFalse(NeutralMobs.hostile(true, false, false, false, 2, false));
+    }
 }

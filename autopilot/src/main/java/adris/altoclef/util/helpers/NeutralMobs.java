@@ -30,6 +30,11 @@ public final class NeutralMobs {
     // is this type calm right now. piglins are neutral while we wear gold, spiders while the sun is up
     public static boolean neutralNow(String type, boolean bright, boolean wearingGold) {
         if (NEUTRAL.contains(type)) return true;
+        // (Tuning sulfur_cube_neutral, a fix of 20 Nov 2026, on) 26.3's sulfur cube looks for items and attacks nobody, and one
+        // holding a block takes no harm from a blow (SulfurCube.hurtServer: knockback only): the buddy fought one "in our
+        // way" for almost 6 minutes with the shield up, never killed it, and ran at 1.3 hp from the skeletons' arrows that
+        // came past the shield meanwhile (heel-89 run 4; 7.5 minutes and hunger 20 to 0 on 17 Nov)
+        if (type.equals("sulfur_cube") && Tuning.get("sulfur_cube_neutral", 0) > 0) return true;
         if (DAYLIGHT_NEUTRAL.contains(type)) return bright;
         return type.equals("piglin") && wearingGold;
     }
