@@ -1805,8 +1805,21 @@ final class CombatBrain {
         // (Tuning wither_gap) the same in the gap's cell: nothing on our floor reaches in there, the meal is safe
         if (_commit.gapping() && !creeperClose && _gapTask != null && _gapTask.inCell()) return CombatRules.Stance.CALM;
         // (skel_cover: in cover the meal goes by the heal hold's lines too: none while a skeleton still has a line)
-        return CombatCommit.stance(_commit.mode(), mod.getPlayer().getHealth(), nearest, creeperClose, gapple, bite, _commit.recovering() || covering(),
-                mod.getFoodChain().hasFood());
+        CombatRules.Stance stance = CombatCommit.stance(_commit.mode(), mod.getPlayer().getHealth(), nearest, creeperClose, gapple, bite,
+                _commit.recovering() || covering(), mod.getFoodChain().hasFood());
+        // (Tuning perch_climb_no_bite, a fix of 20 Nov 2026, on) a perch not yet on top never eats: a bite pauses the clicks
+        // (FoodChain setInteractionPaused), baritone then has no block to place and the pillar goes nowhere. 29 of 70 perch
+        // starts on 19-20 Nov had a bite within a second (the fight's bite once no melee mob was within 4), and of those 18 ended
+        // "pillar went nowhere" and 4 died on the floor with zombies hitting (heel-79-mc2: 7.6 to 0 in 2.4 s, 0 swings)
+        if (perchClimbNoBiteOn() && _commit.perching() && _perch != null && !_perch.onTop()
+                && (stance == CombatRules.Stance.CALM || stance == CombatRules.Stance.EAT)) {
+            return CombatRules.Stance.FIGHT;
+        }
+        return stance;
+    }
+
+    private static boolean perchClimbNoBiteOn() {
+        return adris.altoclef.util.helpers.Tuning.get("perch_climb_no_bite", 0) > 0;
     }
 
     // projectile hits, every tick. the game hands a fresh source object per hit and keeps it for a couple of seconds

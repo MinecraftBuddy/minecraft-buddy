@@ -908,6 +908,10 @@ public final class Tuning {
             // none and no danger near, before it ends on "the pickaxes kept": 7 of 8 steps since gold_rounds ended there at 0 to
             // 54 gold, so no other round and no potion, TradeGold (20 Nov 2026)
             java.util.Map.entry("gold_stone_dig", 1.0),
+            // a perch not yet on top never eats (the stance stays FIGHT): a bite pauses the clicks and the pillar goes nowhere;
+            // 29 of 70 perch starts had a bite within a second, 18 of those went nowhere and 4 died on the floor, CombatBrain
+            // (20 Nov 2026)
+            java.util.Map.entry("perch_climb_no_bite", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)
