@@ -163,8 +163,13 @@ public class NetherPickTask extends Task {
     protected void onStop(AltoClef mod, Task interruptTask) {
     }
 
+    // (Tuning pick_fail_replace, a fix of 20 Nov 2026, on) a failed one is equal to nothing: the parent's fresh instance after a
+    // failure was "equal" to the failed child, the task system kept the child, and it returned null every tick; the gold step stood
+    // 19 minutes in 'Making a stone pickaxe for the gold' at hp 20 (heel-95-mc1 r3, look 178)
     @Override
     protected boolean isEqual(Task other) {
+        if (adris.altoclef.util.helpers.Tuning.get("pick_fail_replace", 0) > 0
+                && (failed || (other instanceof NetherPickTask t && t.failed))) return false;
         return other instanceof NetherPickTask task && task.tier == tier && task.kind == kind;
     }
 

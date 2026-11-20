@@ -954,6 +954,9 @@ public final class Tuning {
             // the fight's own target counts for the mid-fight bite whether or not the foe list holds it this tick: a cornered fight on a
             // spider read 'no melee mob within 4' and the buddy ate at hp 5.3 and 2.7 with the spider on it, CombatBrain (20 Nov 2026)
             java.util.Map.entry("fight_target_bite", 1.0),
+            // a failed nether pickaxe craft is equal to no other: the fresh one after a failure was kept out as "equal" to the failed
+            // child, which returned null every tick, and the gold step stood 19 minutes, NetherPickTask (20 Nov 2026)
+            java.util.Map.entry("pick_fail_replace", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)
