@@ -998,6 +998,9 @@ public final class Tuning {
             // the route's no-brew line said in a run holds past a new order of rods in that run: the order set again began the
             // cream errand anew, 9 minutes round the fortress over the spawner, RouteRules (20 Nov 2026)
             java.util.Map.entry("route_nobrew_keep", 1.0),
+            // a poke mine's turn with nothing dug since the last segment counts as an empty segment for poke_empty_new_run: the
+            // walk back down its own connector flipped between the two ends for 2 minutes, PokeMineTask (20 Nov 2026)
+            java.util.Map.entry("poke_turn_empty", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

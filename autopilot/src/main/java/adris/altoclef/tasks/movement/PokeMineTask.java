@@ -445,7 +445,13 @@ public class PokeMineTask extends Task {
         _stepAt = null;
         _walk = null;
         if (why.startsWith("open") || why.startsWith("water")) m.caves++;
+        // (Tuning poke_turn_empty, a fix of 20 Nov 2026, on) a turn with nothing dug and no hole cell skipped since the last
+        // segment is an empty segment too: logSegment writes no line for it, so the walk back down the run's own connector never
+        // counted, and the flip between its two ends went on for 2 minutes, legs 4 to 59, till the place watch (heel-121-mc2 r3,
+        // look 188)
+        boolean nothing = m.run != null && m.tunnel + m.holes + m.connector + m.skipped == 0;
         logSegment(m, "the way closed");
+        if (nothing && adris.altoclef.util.helpers.Tuning.get("poke_turn_empty", 0) > 0) m.empty++;
         if (emptyLoop(mod, m, feet)) return false;
         PokePattern.Turn t = m.run.blocked();
         if (t == PokePattern.Turn.TURNED) {
