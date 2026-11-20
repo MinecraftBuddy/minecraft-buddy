@@ -52,6 +52,14 @@ public final class TradeGoldRules {
         return null;
     }
 
+    // (Tuning gold_rounds) whether the gold step digs another round before the blazes without a potion: rounds allowed in all
+    // (1 or less: off), the rounds so far, the ingots handed in all, the target, whether this round's step began, is still
+    // running, and ended at a dead end (the pickaxes kept, the cap)
+    public static boolean anotherRound(int rounds, int roundsSoFar, int handed, int target, boolean begun, boolean running,
+                                       boolean deadEnd) {
+        return rounds > 1 && roundsSoFar < rounds && handed < target && begun && !running && !deadEnd;
+    }
+
     // why the step is over by a clock, or null: its cap, no new gold for the dry spell, or no ore known for NO_ORE_S (game ticks)
     public static String overWhy(long ran, long sinceRise, long noOre, long cap, long dry) {
         if (ran >= cap) return "the cap of " + cap / 20 + " s";

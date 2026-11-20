@@ -899,7 +899,11 @@ public final class Tuning {
             java.util.Map.entry("m34_food_points", 1.0),
             // the lava fetch's open source outranks the lids 6 blocks further once it has: at 32 to the block the pick turned with each
             // first step, the lid and a pool taking turns for 20 minutes, CollectBucketLiquidTask (20 Nov 2026)
-            java.util.Map.entry("bucket_outrank_hold", 1.0));
+            java.util.Map.entry("bucket_outrank_hold", 1.0),
+            // a gold step that ended short, or its gold all handed with no potion, digs again for the rest of the 96, up to 4
+            // rounds in all, before the blazes without a potion: 13 of 26 failed nether runs went to the blazes without one, 9
+            // after a step that ended with 0 to 28 gold, FireResTrade (20 Nov 2026)
+            java.util.Map.entry("gold_rounds", 4.0));
 
     private static Path file;
     private static Properties props = new Properties();

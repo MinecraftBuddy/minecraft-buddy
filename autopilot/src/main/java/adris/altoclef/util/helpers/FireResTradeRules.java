@@ -49,10 +49,13 @@ public final class FireResTradeRules {
     }
 
     // why the trade does not begin, null when it may: gold to give, no fire resistance potion yet, and the rods still to get
+    // whyNot's word for an empty bag (FireResTrade's gold rounds look for it)
+    public static final String NO_GOLD = "no gold";
+
     public static String whyNot(int gold, boolean potion, int rods) {
         if (potion) return "a fire resistance potion already in the bag";
         if (rods >= ROD_LIMIT) return rods + " rods already";
-        if (gold <= 0) return "no gold";
+        if (gold <= 0) return NO_GOLD;
         return null;
     }
 

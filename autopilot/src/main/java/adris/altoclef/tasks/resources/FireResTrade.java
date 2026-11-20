@@ -125,7 +125,10 @@ public final class FireResTrade {
     private int _bagPotionsBefore;
     private final GiveGoldTask _give = new GiveGoldTask();
     // (Tuning nether_gold, on by default, steering 200: the trade's gold dug in the nether before the trade begins)
-    private final TradeGold _gold = new TradeGold();
+    private TradeGold _gold = new TradeGold();
+    // (Tuning gold_rounds) the ingots handed in the rounds before this one, and the rounds of the gold step so far
+    private int _handedTotal;
+    private int _goldRounds = 1;
     private PickupDroppedItemTask _pickup;
     // the pickup above takes ender pearls too (FireResTradeRules.takesPearls); built again when that changes
     private boolean _pickupPearls;
@@ -326,6 +329,7 @@ public final class FireResTrade {
                     : FireResTradeRules.whyNot(gold, fireTarget > 0 ? false : enough, mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
             if (why == null && (atFortress || blazeNear)) why = "at the fortress already";
             if (why != null) {
+                if (FireResTradeRules.NO_GOLD.equals(why) && newGoldRound(now, _handedTotal)) return null;
                 if (now - _firstLookAt >= BEGIN_GRACE_TICKS || now < _firstLookAt) {
                     Debug.logInternal("strategy trade: not begun (" + why + ")");
                     _endWhy = "no trade begun, " + why;
@@ -472,9 +476,12 @@ public final class FireResTrade {
                     FireRes.traded(now, spawner);
                     return null;
                 }
+                if (!potion && FireResTradeRules.OUT_OF_GOLD.equals(verdict.reason()) && newGoldRound(now, _handedTotal + given)) {
+                    return null;
+                }
                 Debug.logInternal("strategy trade: given up (" + verdict.reason() + ") after " + given + " ingots in "
                         + FireResTradeRules.seconds(now - _begunAt) + " seconds, " + gold + " gold left");
-                _endWhy = FireResTradeRules.OUT_OF_GOLD.equals(verdict.reason()) ? "all the gold handed, " + given + " ingots"
+                _endWhy = FireResTradeRules.OUT_OF_GOLD.equals(verdict.reason()) ? "all the gold handed, " + (_handedTotal + given) + " ingots"
                         : verdict.reason() + ", " + given + " ingots handed, " + gold + " gold left";
                 end(player, now, false, drink, thrown);
                 return null;
@@ -582,6 +589,29 @@ public final class FireResTrade {
             return !FireResTradeRules.known(now - e.getValue()) || _give.leftAlone(e.getKey()) || seen != null && !seen.isAlive();
         });
         return !_freeSeen.isEmpty();
+    }
+
+    // (Tuning gold_rounds, a fix of 20 Nov 2026, on at 4 rounds in all: the fallback without a potion only once all the gold is
+    // handed, the maintainer's word of 8 Nov) the gold step ended short with no gold in the bag, or the trade handed all the gold
+    // with no potion and less than the step's target in all: the step digs again for the rest, from where the buddy stands,
+    // the ores the rounds before gave up on kept out, the cap counted from the first round's begin. never once the step's end
+    // was a dead end another round cannot change (the pickaxes kept for the way on, the cap) or the step never began this
+    // round. heel 19-20 Nov: 13 of 26 failed nether runs went to the blazes without a potion, 9 after a step that ended with
+    // 0 to 28 gold; 4 of the 5 blaze deaths at 0 rods were these. handed: the ingots handed in all, this round's too
+    private boolean newGoldRound(long now, int handed) {
+        int rounds = (int) Tuning.get("gold_rounds", 0);
+        int target = TradeGold.target();
+        if (!TradeGold.on() || !adris.altoclef.util.helpers.TradeGoldRules.anotherRound(rounds, _goldRounds, handed, target,
+                _gold.begun(), _gold.running(), _gold.deadEnd())) return false;
+        _goldRounds++;
+        _handedTotal = handed;
+        Debug.logInternal(String.format(Locale.ROOT, "strategy trade: gold round %d of %d: the step ended (%s) and %d of the %d gold"
+                        + " handed with no potion; digging the other %d before any blaze without one", _goldRounds, rounds,
+                _gold.overWhy(), handed, target, target - handed));
+        _gold = new TradeGold(target - handed, _gold.givenUp(), _gold.capFrom());
+        _state = State.WAITING;
+        _firstLookAt = -1;
+        return true;
     }
 
     private void end(LocalPlayer player, long now, boolean succeeded, int drink, int thrown) {

@@ -98,6 +98,42 @@ final class TradeGold {
     private BlockPos _spawner;
     private BlockPos _start;
     private String _hud = "Digging gold for the piglins";
+    // (Tuning gold_rounds) a round after the first: what it digs to (-1: Tuning's target), and the tick the first round began,
+    // from which the cap counts (Long.MIN_VALUE: this round's own begin); why the step ended, once it has
+    private final int _roundTarget;
+    private final long _capFrom;
+    private String _overWhy;
+
+    TradeGold() {
+        this(-1, java.util.Set.of(), Long.MIN_VALUE);
+    }
+
+    // a further round (FireResTrade, gold_rounds): its own target, the ores the rounds before gave up on, and the first round's
+    // begin for the cap
+    TradeGold(int roundTarget, java.util.Set<BlockPos> givenUp, long capFrom) {
+        _roundTarget = roundTarget;
+        _givenUp.addAll(givenUp);
+        _capFrom = capFrom;
+    }
+
+    // why the step ended, or null while it has not
+    String overWhy() {
+        return _overWhy;
+    }
+
+    // the step ended for a reason another round cannot change: the pickaxes kept for the way on, or the cap of all the rounds
+    boolean deadEnd() {
+        return _overWhy != null && (_overWhy.startsWith("the pickaxes kept") || _overWhy.startsWith("the cap"));
+    }
+
+    java.util.Set<BlockPos> givenUp() {
+        return java.util.Set.copyOf(_givenUp);
+    }
+
+    // the tick the cap counts from: the first round's begin
+    long capFrom() {
+        return _capFrom != Long.MIN_VALUE ? _capFrom : _begunAt;
+    }
 
     static boolean on() {
         return Tuning.get("nether_gold", 1) > 0;
@@ -137,7 +173,7 @@ final class TradeGold {
         long now = mod.getWorld().getGameTime();
         int ingots = mod.getItemStorage().getItemCount(Items.GOLD_INGOT);
         int nuggets = mod.getItemStorage().getItemCount(Items.GOLD_NUGGET);
-        int target = target();
+        int target = _roundTarget >= 0 ? _roundTarget : target();
         if (!_begun) {
             if (WorldHelper.getCurrentDimension() != Dimension.NETHER) return null;
             String why = TradeGoldRules.whyNot(ingots, nuggets, target, enough, atFortress || blazeNear,
@@ -145,6 +181,7 @@ final class TradeGold {
             if (why != null) {
                 Debug.logInternal("trade gold: not begun (" + why + ")");
                 _over = true;
+                _overWhy = "not begun (" + why + ")";
                 return null;
             }
             _begun = true;
@@ -183,7 +220,7 @@ final class TradeGold {
         int picksLeft = goldNeedPickOn() ? pickUsesLeft(mod) : Integer.MAX_VALUE;
         String end = ingots >= target ? "the target reached" : atFortress ? "at the fortress"
                 : picksLeft < PICK_KEEP ? "the pickaxes kept for the way on (" + picksLeft + " uses left)"
-                : TradeGoldRules.overWhy(now - _begunAt, now - _riseAt, _noOreSince < 0 ? 0 : now - _noOreSince, capTicks(), dryTicks());
+                : TradeGoldRules.overWhy(Math.max(0, now - capFrom()), now - _riseAt, _noOreSince < 0 ? 0 : now - _noOreSince, capTicks(), dryTicks());
         // (Tuning gold_danger_hold, a fix of 19 Nov 2026, on) a hostile seen within DANGER_BLOCKS counts for DANGER_HOLD after: a mob
         // on the edge of the box, in as the buddy walked to the table and out as the dig walked away, flipped the fold and the dig
         // every second for three minutes, and neither the table nor the ore was reached (heel-55-mc3, live watch)
@@ -531,6 +568,7 @@ final class TradeGold {
 
     private void over(AltoClef mod, long now, String why, int ingots, int nuggets) {
         _over = true;
+        _overWhy = why;
         unguard();
         int got = TradeGoldRules.ninths(ingots, nuggets) - _ninthsAtBegin;
         double hours = Math.max(1e-9, (now - _begunAt) / 72000.0);

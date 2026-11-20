@@ -121,4 +121,19 @@ public class TradeGoldRulesTest {
         assertFalse(TradeGoldRules.anchorOk(70, 64, 70, 0, 64, 0));
         assertFalse(TradeGoldRules.anchorOk(10, 77, 0, 0, 64, 0));
     }
+
+    // gold_rounds: another round after a step that ended short or a trade that handed all with no potion, under the target in
+    // all; never at a dead end, past the rounds, with the step still running or never begun, or with the target handed
+    @Test
+    public void anotherRoundOnlyShortOfTheTargetAndNoDeadEnd() {
+        assertTrue(TradeGoldRules.anotherRound(4, 1, 0, 96, true, false, false));
+        assertTrue(TradeGoldRules.anotherRound(4, 3, 85, 96, true, false, false));
+        assertFalse(TradeGoldRules.anotherRound(4, 4, 28, 96, true, false, false));
+        assertFalse(TradeGoldRules.anotherRound(4, 1, 96, 96, true, false, false));
+        assertFalse(TradeGoldRules.anotherRound(4, 1, 0, 96, false, false, false));
+        assertFalse(TradeGoldRules.anotherRound(4, 1, 0, 96, true, true, false));
+        assertFalse(TradeGoldRules.anotherRound(4, 1, 0, 96, true, false, true));
+        assertFalse(TradeGoldRules.anotherRound(1, 1, 0, 96, true, false, false));
+        assertFalse(TradeGoldRules.anotherRound(0, 1, 0, 96, true, false, false));
+    }
 }
