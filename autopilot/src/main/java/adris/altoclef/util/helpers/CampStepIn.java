@@ -4,7 +4,7 @@ import baritone.pathing.movement.CliffAvoidance.Cells;
 import java.util.ArrayList;
 import java.util.List;
 
-// the buddy's fork, Tuning camp_step_in (off by default, 17 Nov 2026, test staven): the fire-proof camp at the pillbox's open
+// the buddy's fork, Tuning camp_step_in (on by default since 20 Nov 2026, steering 203; built 17 Nov 2026, test staven): the fire-proof camp at the pillbox's open
 // side, six to eight off the spawner and a few blocks down, has every blaze of the spawner in sight of the buddy, and a blaze
 // that sees its target hovers and shoots (fireballs that do nothing under the potion) rather than coming: two phase-6 stalls of
 // whole runs waited there 15 minutes, "Waiting for the blazes to come in reach", with no rod. after DRY_TICKS at that camp with

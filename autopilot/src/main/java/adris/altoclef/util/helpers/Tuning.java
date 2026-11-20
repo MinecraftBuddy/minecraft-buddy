@@ -575,8 +575,10 @@ public final class Tuning {
             // most a minute (BoxCrowd): 5 of 23 phase-6 losses opened the box into a crowd and died to bites within 1.5 minutes
             java.util.Map.entry("box_crowd_hold", 0.0),
             // camp_step_in: three game minutes at the fire-proof camp of the pillbox's open side with no rod and no blaze gone
-            // after, a stand within 4 of the spawner (CampStepIn): 2 of 23 losses waited there 15 minutes with no blaze in reach
-            java.util.Map.entry("camp_step_in", 0.0),
+            // after, a stand within 4 of the spawner (CampStepIn): 2 of 23 losses waited there 15 minutes with no blaze in reach.
+            // on since 20 Nov 2026 by the maintainer's word (steering 203): 3 of 6 phase-6 stalls read were the camp waiting with
+            // 5 or 6 blazes hovering 6 to 9 off, never in reach
+            java.util.Map.entry("camp_step_in", 1.0),
             // (on since 19 Nov 2026: test obsidiaan confirmed the four together, alive with the ten obsidian A 66, B 77 of 90 pairs,
             // z 2.12 against 2.00, deaths 24 against 12; before, off and turned on by its B arm) the route's M3.2, ten obsidian cast
             // with lava and a water bucket: of 369 whole runs that began it 66 were lost there, 61 of them dead.
