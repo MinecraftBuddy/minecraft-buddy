@@ -951,6 +951,9 @@ public final class Tuning {
             // in the skeleton cover but not shut in (a hole with no top, or still digging it), the aura's hands answer a melee mob in
             // contact that hit us: a zombie bit 5 to 8 s with no swing back in 3 of 16 early deaths, CombatBrain (20 Nov 2026)
             java.util.Map.entry("cover_contact_hands", 1.0),
+            // the fight's own target counts for the mid-fight bite whether or not the foe list holds it this tick: a cornered fight on a
+            // spider read 'no melee mob within 4' and the buddy ate at hp 5.3 and 2.7 with the spider on it, CombatBrain (20 Nov 2026)
+            java.util.Map.entry("fight_target_bite", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)
