@@ -972,6 +972,9 @@ public final class Tuning {
             // the buddy's night shelter gives up at sea with no land in its search's reach: a fresh 'to land first' failed every tick
             // for 17.5 minutes afloat, ObtainSafe (the buddy, 20 Nov 2026)
             java.util.Map.entry("shelter_sea_give_up", 1.0),
+            // baritone walks on mud (14/16 high like soul sand, which it already took): a start on a mangrove swamp's mud had no move
+            // at all for 14 minutes, MovementHelper (20 Nov 2026)
+            java.util.Map.entry("walk_on_mud", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

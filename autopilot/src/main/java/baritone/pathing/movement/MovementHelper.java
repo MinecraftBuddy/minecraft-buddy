@@ -594,6 +594,12 @@ public interface MovementHelper extends ActionCosts, Helper {
         if (block == Blocks.FARMLAND || block == Blocks.DIRT_PATH || block == Blocks.SOUL_SAND) {
             return YES;
         }
+        // (the buddy's fork, Tuning walk_on_mud, a fix of 20 Nov 2026, on) mud is 14/16 high like soul sand, so the normal-cube test
+        // turned it down and no cell on a mud floor could be stood on: a start in a mangrove swamp had no move at all, 5910 of 5927
+        // searches failed in 14 minutes, and a skeleton shot the buddy where it stood (heel-112-mc3 r1, look 185)
+        if (block == Blocks.MUD && adris.altoclef.util.helpers.Tuning.get("walk_on_mud", 0) > 0) {
+            return YES;
+        }
         if (block == Blocks.ENDER_CHEST || block == Blocks.CHEST || block == Blocks.TRAPPED_CHEST) {
             return YES;
         }
