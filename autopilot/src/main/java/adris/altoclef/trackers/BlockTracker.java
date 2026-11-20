@@ -405,6 +405,14 @@ public class BlockTracker extends Tracker {
         }
     }
 
+    // every position the scans know of, whatever the block (creeper_way_ban picks the logs and ores past a creeper from these)
+    public List<BlockPos> knownPositions() {
+        updateState();
+        synchronized (_scanMutex) {
+            return new ArrayList<>(currentCache()._cachedByPosition.keySet());
+        }
+    }
+
     // what the last scan saw at pos, null when nothing tracked was there. no updateState: this gets asked from inside
     // getNearestTracking's own filter, a rescan halfway through that walk is not what anybody wants
     public Block knownBlockAt(BlockPos pos) {

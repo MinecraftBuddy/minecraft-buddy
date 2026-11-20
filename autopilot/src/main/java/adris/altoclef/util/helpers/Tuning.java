@@ -934,6 +934,10 @@ public final class Tuning {
             // the old placer's click that placed nothing counts as placing for 40 ticks in a row at most, then its progress check
             // and the spot's strike get the tick: it held a table in hand 23.5 minutes, PlaceBlockNearbyTask (20 Nov 2026)
             java.util.Map.entry("place_click_limit", 1.0),
+            // a run from a creeper that kept coming back ended clear: the logs and ores by that creeper, or whose straight way from
+            // here passes it, are out for a minute and a half. the task walked back past the same unlit creeper to the same oak
+            // log every ~17 s for 4.8 minutes, CombatBrain (20 Nov 2026)
+            java.util.Map.entry("creeper_way_ban", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

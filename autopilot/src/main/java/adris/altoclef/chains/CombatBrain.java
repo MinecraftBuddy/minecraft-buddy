@@ -1214,6 +1214,7 @@ final class CombatBrain {
                 // the old one ended and the next one started on the same step, both get their line, in that order
                 if (_commit.endedFirst() != Event.NONE) log(mod, dimension, _commit.endedFirst(), fighting, mobs, blocks);
                 log(mod, dimension, event, fighting, mobs, blocks);
+                if (event == Event.RUN_CLEAR || _commit.endedFirst() == Event.RUN_CLEAR) creeperWayBan(mod, dimension, player);
                 // a new run is a new origin, a new fight is a new target, whatever the old ones were
                 _run = null;
                 _flee = null;
@@ -2048,6 +2049,37 @@ final class CombatBrain {
                 z.append(String.format(java.util.Locale.ROOT, " %s %.1f%s", typeOf(m), m.distanceTo(player), m.isAggressive() ? " aggressive" : ""));
             }
             if (z.length() > 0) Debug.logInternal("combat: run clear with zombies within 16:" + z);
+        }
+    }
+
+    // (Tuning creeper_way_ban, 20 Nov 2026) a run from a creeper that kept coming back ended clear: the task walked straight back
+    // past the same unlit creeper to the same oak log every ~17 s for 4.8 minutes and got no log. the logs and ores by that creeper,
+    // or whose straight way from here passes it, are out for a minute and a half (the shared ban book, so the task's pursuit of one
+    // goes invalid and the next pick is another tree). the creeper is the one still near where the run began, or that spot itself
+    private void creeperWayBan(AltoClef mod, Dimension dimension, LocalPlayer player) {
+        if (_commit.lastRunWhy() != CombatCommit.Why.REPEAT_CREEPER || adris.altoclef.util.helpers.Tuning.get("creeper_way_ban", 0) <= 0) return;
+        double ox = _commit.lastRunX(), oz = _commit.lastRunZ();
+        List<double[]> spots = new ArrayList<>();
+        for (Creeper c : mod.getWorld().getEntitiesOfClass(Creeper.class, player.getBoundingBox().inflate(48))) {
+            if (!c.isAlive() || Math.abs(c.getY() - player.getY()) > adris.altoclef.util.helpers.CreeperWay.LEVEL) continue;
+            if (Math.hypot(c.getX() - ox, c.getZ() - oz) > adris.altoclef.util.helpers.CreeperWay.ORIGIN) continue;
+            spots.add(new double[]{c.getX(), c.getZ()});
+        }
+        if (spots.isEmpty()) spots.add(new double[]{ox, oz});
+        java.util.Set<adris.altoclef.trackers.Bans.Key> keys = new java.util.LinkedHashSet<>();
+        adris.altoclef.trackers.BlockTracker tracker = mod.getBlockTracker();
+        for (BlockPos b : tracker.knownPositions()) {
+            net.minecraft.world.level.block.Block kind = tracker.knownBlockAt(b);
+            if (kind == null || !adris.altoclef.util.helpers.CreeperWay.gathered(BuiltInRegistries.BLOCK.getKey(kind).getPath())) continue;
+            for (double[] c : spots) {
+                if (adris.altoclef.util.helpers.CreeperWay.onTheWay(player.getX(), player.getZ(), c[0], c[1], b.getX() + 0.5, b.getZ() + 0.5)) {
+                    keys.add(adris.altoclef.trackers.Bans.Key.block(dimension, b.getX(), b.getY(), b.getZ()));
+                    break;
+                }
+            }
+        }
+        if (!keys.isEmpty()) {
+            adris.altoclef.trackers.BanPolicy.creeperWay(mod.getBans(), keys, (int) Math.floor(spots.get(0)[0]), (int) Math.floor(spots.get(0)[1]));
         }
     }
 

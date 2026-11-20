@@ -892,6 +892,8 @@ public final class CombatCommit {
     private int lastRunLegs;
     private long lastRunEnd = Long.MIN_VALUE / 2;
     private boolean lastRunClear;
+    // why the last run ran (creeper_way_ban asks it once the run is over, when `why` is NONE again)
+    private Why lastRunWhy = Why.NONE;
     private long startTick;
     private long lastTick = Long.MIN_VALUE;
     // how far step() pulled the clock forward this tick. the foes' sinceHit counts on the raw clock, so a hit's own time is
@@ -1533,6 +1535,19 @@ public final class CombatCommit {
 
     public double originX() {
         return originX;
+    }
+
+    // the last run's origin and why it ran, for what comes after it (creeper_way_ban)
+    public double lastRunX() {
+        return lastRunX;
+    }
+
+    public double lastRunZ() {
+        return lastRunZ;
+    }
+
+    public Why lastRunWhy() {
+        return lastRunWhy;
     }
 
     public double originZ() {
@@ -3915,6 +3930,7 @@ public final class CombatCommit {
             lastRunLegs = runLegs;
             lastRunEnd = t.now();
             lastRunClear = event == Event.RUN_CLEAR;
+            lastRunWhy = why;
         }
         // (mode is still the one that is ending)
         recover.ended(t.now(), mode == Mode.FIGHT && runLine ? Mode.RUN : mode, t.health(), t.body());

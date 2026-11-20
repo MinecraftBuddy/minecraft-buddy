@@ -20,6 +20,9 @@ public final class BanPolicy {
     // a tree we stalled on twice (MineAndCollectTask). five minutes like the block strikes, so the canopy is not back before
     // the trees around it are used up
     public static final long TREE_GAVE_UP = 6000;
+    // what lies by a creeper we ran from, or past it (CombatBrain, creeper_way_ban). a minute and a half: long enough for the task
+    // to be at another tree, short enough that the only trees around come back once the creeper has wandered off
+    public static final long CREEPER_WAY = 1800;
     // a liquid pool we missed twice (CollectBucketLiquidTask). five minutes like a tree, so the pool is not back before the
     // other pools around have had their turn
     public static final long BUCKET_POOL_GAVE_UP = 6000;
@@ -248,6 +251,12 @@ public final class BanPolicy {
     // (liftOutpost). one line for the pass, the already banned ones don't count
     public static int outpost(Bans bans, Iterable<Key> blocks, double x, double z) {
         return bans.banAll(blocks, OUTPOST_REASON, Bans.RUN, "logs/wool near the pillager outpost at " + (int) x + " " + (int) z);
+    }
+
+    // CombatBrain (creeper_way_ban): a run from a creeper that kept coming back ended clear, the logs and ores by it or past it
+    // from here are out a while, one line for the lot
+    public static int creeperWay(Bans bans, Iterable<Key> blocks, int x, int z) {
+        return bans.banAll(blocks, "by a creeper we ran from, or past it", CREEPER_WAY, "logs/ores by or past the creeper near " + x + " " + z);
     }
 
     // DeepDarkRules: wool down low or in the deep dark, one pass, one line. never lifted, the warden is not going anywhere
