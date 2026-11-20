@@ -925,6 +925,9 @@ public final class Tuning {
             // stand's, with no danger near: the errand's walks wore out every pickaxe and the buddy stalled 32 minutes with 18
             // cobblestone in the bag, CollectBlazeRodsTask (20 Nov 2026)
             java.util.Map.entry("nether_pick_make", 1.0),
+            // a branch mine whose driest way from the feet is wet gives the depth up at once: baritone breaks nothing beside water,
+            // and the place watch's second fire came 2.2 to 3 minutes later, BranchMineTask (20 Nov 2026)
+            java.util.Map.entry("mine_all_wet_leave", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

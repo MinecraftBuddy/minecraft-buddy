@@ -262,6 +262,8 @@ public class BranchMineTask extends Task {
     private boolean _flipStall;
     // (tunnel_shuttle_guard) a second half turn against water, facing back, within a game minute: a fire on the next tick
     private boolean _shuttleStall;
+    // (Tuning mine_all_wet_leave) every way from the feet ranked wet at a step's choice: the depth is given up here at once
+    private boolean _allWetStall;
     private int _flipX, _flipZ;
     // the rock goes to a cheap pick and the iron one is kept for the ore. an iron pickaxe is through in 250 blocks and a staircase
     // to the diamonds takes three a step: the iron one wore out on the way down while a stone one lay in the bag, and it climbed
@@ -445,7 +447,9 @@ public class BranchMineTask extends Task {
         // (tunnel_shuttle_guard) and so does a shuttle between two waters; in the tunnel of its own its first fire gives the depth up
         boolean shuttle = _shuttleStall;
         _shuttleStall = false;
-        boolean flipLoop = _flipStall || shuttle;
+        boolean allWet = _allWetStall;
+        _allWetStall = false;
+        boolean flipLoop = _flipStall || shuttle || allWet;
         _flipStall = false;
         if (watch || stall || wetLoop || flipLoop) {
             int fx = watch ? place().x() : stall ? _downFails.x() : wetLoop ? _wetX : _flipX;
@@ -473,6 +477,10 @@ public class BranchMineTask extends Task {
             }
             if (shuttle && _ownTunnelAt != null) {
                 return giveUpHere(mod, now, y, fx, fz, Math.max(1, fires().last()), ", in the tunnel of its own, tunnel_shuttle_guard");
+            }
+            // (mine_all_wet_leave) every way wet: no step from here is one baritone will dig, the depth goes at once
+            if (allWet) {
+                return giveUpHere(mod, now, y, fx, fz, Math.max(1, fires().last()), ", every way from here wet, mine_all_wet_leave");
             }
             // (mine_leave_given_up) a walk along under way goes on, way and all: zeroing it here stopped one at 25 blocks to
             // go, and the mine started again in the place the walk was leaving
@@ -2263,6 +2271,10 @@ public class BranchMineTask extends Task {
         return adris.altoclef.util.helpers.Tuning.get("away_step_turn", 0) > 0;
     }
 
+    static boolean allWetLeaveOn() {
+        return adris.altoclef.util.helpers.Tuning.get("mine_all_wet_leave", 0) > 0;
+    }
+
     static boolean stairStuckRefuseOn() {
         return adris.altoclef.util.helpers.Tuning.get("stair_stuck_refuse", 0) > 0;
     }
@@ -2276,6 +2288,16 @@ public class BranchMineTask extends Task {
         boolean flips = flipGuardOn();
         boolean[] nearRefused = wayNever(feet, _dx, _dz, down, flips ? _flip.refused(now) : null);
         int pick = pickWay(rank, flips ? TunnelFlip.either(never, nearRefused) : never);
+        // (Tuning mine_all_wet_leave, a fix of 20 Nov 2026, on) the driest way is wet: water lies by every step from here, and
+        // baritone breaks nothing beside water, so each step fails 2 to 14 times at about 10 s, a wander goes back into the
+        // water, and only the place watch's second fire gave the depth up, 2.2 to 3 minutes later (looks 168 and 172: the
+        // shield's iron at y 16 and the copper at y 48, both in flooded caves)
+        if (rank[pick] == WAY_WET && allWetLeaveOn()) {
+            _allWetStall = true;
+            _flipX = feet.getX();
+            _flipZ = feet.getZ();
+            adris.altoclef.Debug.logInternal("branch mine: every way from " + feet.toShortString() + " wet, the depth given up here (mine_all_wet_leave)");
+        }
         boolean refuses = flips && TunnelFlip.refusesWater(rank, pick);
         if (refuses && _flip.refuse(feet.offset(_dx, down, _dz), _dx, _dz, now) && shuttleGuardOn()) {
             _shuttleStall = true;
