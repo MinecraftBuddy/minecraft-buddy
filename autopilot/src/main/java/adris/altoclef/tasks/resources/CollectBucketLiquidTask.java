@@ -70,6 +70,19 @@ public class CollectBucketLiquidTask extends ResourceTask {
     private final MovementProgressChecker _progressChecker = new MovementProgressChecker();
 
     private boolean wasWandering = false;
+    // (Tuning scoop_hold, a fix of 20 Nov 2026, on) the source the last scoop began on, when it last had reach, and how often the
+    // approach took it back since: the scoop's first tick only aims, the ray from the old look said "no reach" the next tick, the
+    // approach began and the next tick's scoop cancelled it, 2271 rounds in 6.4 minutes at full health beside one lava source
+    // (heel-102-mc3 r2, look 180). the scoop keeps the source while the eye is within reach of it for SCOOP_HOLD_TICKS, and
+    // SCOOP_SWAPS swaps without a fill give the source up
+    private BlockPos _scoopPos;
+    private long _scoopAt = Long.MIN_VALUE / 2;
+    private int _scoopSwaps;
+    // the lambda's last answer for _scoopPos was the scoop: only a turn from the scoop to the walk counts as a swap
+    private boolean _scoopLast;
+    static final long SCOOP_HOLD_TICKS = 40;
+    static final double SCOOP_HOLD_REACH_SQ = 4.5 * 4.5;
+    static final int SCOOP_SWAPS = 20;
 
     private static final int SCAN_WAIT_TICKS = 60;
     // a stream is followed once in a while, not every tick of a wander. the cube it starts from is 49^3 cells
@@ -360,9 +373,28 @@ public class CollectBucketLiquidTask extends ResourceTask {
                         return new DestroyBlockTask(blockPos.above());
                     }
                     // We can reach the block.
-                    if (LookHelper.getReach(blockPos).isPresent() &&
-                            mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
+                    boolean reach = LookHelper.getReach(blockPos).isPresent();
+                    long tick = WorldHelper.getTicks();
+                    boolean holdOn = adris.altoclef.util.helpers.Tuning.get("scoop_hold", 0) > 0;
+                    boolean held = holdOn && blockPos.equals(_scoopPos) && tick - _scoopAt <= SCOOP_HOLD_TICKS && tick >= _scoopAt
+                            && mod.getPlayer().getEyePosition().distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(blockPos)) <= SCOOP_HOLD_REACH_SQ;
+                    if ((reach && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) || held) {
+                        if (reach) {
+                            if (!blockPos.equals(_scoopPos)) _scoopSwaps = 0;
+                            _scoopPos = blockPos;
+                            _scoopAt = tick;
+                        }
+                        _scoopLast = blockPos.equals(_scoopPos);
                         return InteractWithBlockTask.scoop(new ItemTarget(_empty, 1), blockPos, _toCollect != Blocks.LAVA);
+                    }
+                    // (scoop_hold) the approach takes a source the scoop just had: one more swap, and enough of them give it up
+                    boolean swap = _scoopLast && blockPos.equals(_scoopPos);
+                    _scoopLast = false;
+                    if (holdOn && swap && ++_scoopSwaps >= SCOOP_SWAPS) {
+                        Debug.logMessage("Scooping and walking up to the source at " + blockPos.toShortString() + " took turns " + _scoopSwaps + " times, giving it up.");
+                        mod.getBlockTracker().requestBlockUnreachable(blockPos, 0, "the scoop and the walk to it took turns");
+                        _scoopPos = null;
+                        _scoopSwaps = 0;
                     }
                     // Get close enough.
                     // up because if we go below we'll try to move next to the liquid (for lava, not a good move)

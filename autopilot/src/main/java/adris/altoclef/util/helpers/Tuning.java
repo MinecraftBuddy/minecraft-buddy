@@ -957,6 +957,9 @@ public final class Tuning {
             // a failed nether pickaxe craft is equal to no other: the fresh one after a failure was kept out as "equal" to the failed
             // child, which returned null every tick, and the gold step stood 19 minutes, NetherPickTask (20 Nov 2026)
             java.util.Map.entry("pick_fail_replace", 1.0),
+            // the bucket's scoop keeps its source for 2 s while the eye is in reach, and 20 swaps with the walk to it give the source
+            // up: the two took turns every tick for 6.4 minutes beside one lava source, CollectBucketLiquidTask (20 Nov 2026)
+            java.util.Map.entry("scoop_hold", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)
