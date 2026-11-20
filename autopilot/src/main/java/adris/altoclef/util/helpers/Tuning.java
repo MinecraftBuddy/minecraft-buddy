@@ -914,7 +914,10 @@ public final class Tuning {
             // a pillbox roof-row block on a wall's top is left to the jump that places it: the step to the front cell's middle
             // cut every jump, and the support block on a bent box's back wall never went in under blazes, BlazePillboxTask
             // (20 Nov 2026)
-            java.util.Map.entry("roof_jump_keep", 1.0));
+            java.util.Map.entry("roof_jump_keep", 1.0),
+            // the pillbox's step to a cell's middle walks uncrouched with the feet a block or more over the cell, so it drops in:
+            // crouched it held the buddy on its own wall's edge in the blazes' fire, BlazePillboxTask (20 Nov 2026)
+            java.util.Map.entry("centre_drop_in", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

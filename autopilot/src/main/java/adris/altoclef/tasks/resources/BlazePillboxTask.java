@@ -555,7 +555,14 @@ public final class BlazePillboxTask extends Task {
         // (forward is (-sin, cos) of the yaw, left (cos, sin): facing south, +z, the left hand is east)
         double f = -dx * Math.sin(yaw) + dz * Math.cos(yaw), l = dx * Math.cos(yaw) + dz * Math.sin(yaw);
         var in = mod.getInputControls();
-        in.tryPress(baritone.api.utils.input.Input.SNEAK);
+        // (Tuning centre_drop_in, a fix of 20 Nov 2026, on) no crouch with the feet a block or more over the stand: crouched,
+        // a player never leaves an edge, and the buddy stood on its own cell's low wall, pressed toward the middle below it and
+        // held on the wall's edge, the body over the walls in the blazes' fire, until it burned (heel-71-mc1, a fight that
+        // ended on the wall's top). over the cell, the walls stop the walk once down; on the ground only (a jump's top
+        // in the stand's column is no wall)
+        boolean above = adris.altoclef.util.helpers.Tuning.get("centre_drop_in", 0) > 0 && player.onGround()
+                && player.getY() >= stand.getY() + 0.9;
+        if (!above) in.tryPress(baritone.api.utils.input.Input.SNEAK);
         double k = Math.min(slack, CENTRE_SLACK);
         if (f > k) in.tryPress(baritone.api.utils.input.Input.MOVE_FORWARD);
         else if (f < -k) in.tryPress(baritone.api.utils.input.Input.MOVE_BACK);
