@@ -74,6 +74,20 @@ public class MovementDownward extends Movement {
         }
     }
 
+    // (Tuning downward_on_cell, a fix of 20 Nov 2026, on) the block under src is broken only with the feet on src: a descend that
+    // landed 0.68 past its cell left the buddy's middle over a 28-block shaft beside it, and the break of the block it rested on
+    // dropped it down the shaft (heel-103-mc3). off the cell with the block still there, the walk back onto it first
+    @Override
+    protected boolean prepared(MovementState state) {
+        BetterBlockPos feet = ctx.playerFeet();
+        if (state.getStatus() != MovementStatus.WAITING && adris.altoclef.util.helpers.Tuning.get("downward_on_cell", 0) > 0
+                && !feet.equals(src) && !feet.equals(dest) && !MovementHelper.canWalkThrough(ctx, positionsToBreak[0])) {
+            MovementHelper.moveTowards(ctx, state, src);
+            return false;
+        }
+        return super.prepared(state);
+    }
+
     @Override
     public MovementState updateState(MovementState state) {
         super.updateState(state);
