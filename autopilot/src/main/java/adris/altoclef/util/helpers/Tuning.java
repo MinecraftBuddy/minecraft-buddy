@@ -975,6 +975,15 @@ public final class Tuning {
             // baritone walks on mud (14/16 high like soul sand, which it already took): a start on a mangrove swamp's mud had no move
             // at all for 14 minutes, MovementHelper (20 Nov 2026)
             java.util.Map.entry("walk_on_mud", 1.0),
+            // in the lava the rim's shield and sneak are off: knocked into a pool, the run's guard held the feet still for 3 s while
+            // forward, sprint and jump were held, CombatBrain (20 Nov 2026)
+            java.util.Map.entry("rim_guard_lava_off", 1.0),
+            // the skeleton pillbox gives up when no block went in within 3 s of building or the buddy was knocked off its spot twice
+            // with none in: begun with skeletons in its cells, six arrows came in over 9 s, SkelCoverTask (20 Nov 2026)
+            java.util.Map.entry("pillbox_no_block_give_up", 1.0),
+            // with its rounds spent, a skeleton's line into the pillbox's open side digs in or gives up, as a witch's does: the
+            // buddy stood 26 s at 1.5 hp in that line, SkelCoverTask (20 Nov 2026)
+            java.util.Map.entry("pillbox_line_give_up", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

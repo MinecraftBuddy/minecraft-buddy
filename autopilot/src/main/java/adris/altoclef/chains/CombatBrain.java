@@ -1345,10 +1345,14 @@ final class CombatBrain {
                 mod.getClientBaritone().getPathingBehavior().getCurrent() != null, target != null ? target.distance() : Double.POSITIVE_INFINITY);
         _walkNoArrowShield = _fightWalking && target != null && (target.kind() == Kind.FLYER || target.patrol());
         // (outside a fight the shield pauses pathing, so it waits until the walk is done instead of pinning us on the edge)
-        _rim = rim && !_commit.perching() && CombatRules.rimShield(true, blazeContact, foes, lavaClose) && mod.getClientBaritone().getPathingBehavior().getInProgress().isEmpty();
+        // (Tuning rim_guard_lava_off, a fix of 20 Nov 2026, on) in the lava already the rim's shield and sneak only hold the buddy
+        // in it: knocked into a pool by a cube, the run's guard raised the shield five times a second and the feet stood still for
+        // 3 s while forward, sprint and jump were held, burned to death (heel-107-mc2)
+        boolean lavaIn = adris.altoclef.util.helpers.Tuning.get("rim_guard_lava_off", 0) > 0 && mod.getPlayer().isInLava();
+        _rim = rim && !lavaIn && !_commit.perching() && CombatRules.rimShield(true, blazeContact, foes, lavaClose) && mod.getClientBaritone().getPathingBehavior().getInProgress().isEmpty();
         // a run on a rim with a cube on us has no walk to wait for: the next hit is the knock into the lava, so the shield is up
         // for it, for a leash's worth of ticks (RimHold)
-        Foe rimRun = _commit.mode() == Mode.RUN ? CombatRules.rimRunFoe(rim, foes) : null;
+        Foe rimRun = _commit.mode() == Mode.RUN && !lavaIn ? CombatRules.rimRunFoe(rim, foes) : null;
         _rimGuardId = _rimHold.step(rimRun == null ? -1 : rimRun.id()) ? rimRun.id() : -1;
         if (_rimGuardId >= 0) {
             _commit.pauseCorner();

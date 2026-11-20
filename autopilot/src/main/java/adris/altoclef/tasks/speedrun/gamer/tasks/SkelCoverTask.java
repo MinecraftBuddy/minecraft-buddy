@@ -189,6 +189,13 @@ public final class SkelCoverTask extends Task {
     // (pillbox_open_retry) when the box was last called done, and how often a side left open is tried again
     private long boxDoneAt;
     private static final long OPEN_RETRY_TICKS = 20;
+    // (pillbox_no_block_give_up) the ticks spent building this box, its cells shut when it began, and how often the buddy was
+    // knocked off its spot with no block in yet
+    private int boxBuildTicks;
+    private int boxShut0;
+    private int boxKnocks;
+    private static final long BOX_FIRST_BLOCK_TICKS = 60;
+    private static final int BOX_KNOCKS = 2;
     private String boxLead = "skeleton cover: ";
     // (mounted_no_run) this cover was taken for a mounted mob: its lines say so
     private final boolean mount;
@@ -490,6 +497,7 @@ public final class SkelCoverTask extends Task {
     private void startBox(LocalPlayer player, Seen s) {
         boxing = true;
         boxDone = false;
+        boxBuildTicks = 0;
         boxFeet = player.blockPosition();
         boxCells.clear();
         boxSkipped.clear();
@@ -504,6 +512,7 @@ public final class SkelCoverTask extends Task {
         double dz = toward == null ? 0 : toward.getZ() - player.getZ();
         for (int[] side : SkelCover.boxSides(dx, dz)) boxCells.add(boxFeet.offset(side[0], 1, side[1]));
         boxCells.add(boxFeet.above(2));
+        boxShut0 = shutCells(player.level());
         boxLead = lead(s, player);
         Debug.logInternal("combat: " + boxLead + "a pillbox at " + boxFeet.toShortString() + " (no ground to dig here)");
     }
@@ -519,6 +528,13 @@ public final class SkelCoverTask extends Task {
         }
         if (!player.onGround() || mod.getFoodChain().isTryingToEat()) return stand(mod);
         if (!player.blockPosition().equals(boxFeet)) {
+            // (Tuning pillbox_no_block_give_up, a fix of 20 Nov 2026, on) knocked off the spot again with no cell shut: the box cannot
+            // go up here. three skeletons 1.3 to 2.1 off knocked the buddy off its cell with each arrow, the box began three times
+            // with no block in and the buddy died in 6 s (heel-110-mc2)
+            if (noBlockGiveUpOn() && shutCells(level) <= boxShut0 && ++boxKnocks >= BOX_KNOCKS) {
+                boxing = false;
+                return failOrDig(mod, "knocked off the pillbox's spot " + boxKnocks + " times with no block in, at " + boxFeet.toShortString());
+            }
             // knocked off the spot: a new look from where the buddy is now
             boxing = false;
             boxFeet = null;
@@ -536,6 +552,14 @@ public final class SkelCoverTask extends Task {
             }
             jumpFor = null;
         }
+        // (pillbox_no_block_give_up) no cell shut after BOX_FIRST_BLOCK_TICKS of building (on the ground, on the spot, not eating):
+        // a box goes up in about a second, so a mob in its cells or a click the server refuses holds the buddy still under the
+        // arrows. two skeletons 0.5 and 1.5 off, one in the box's own cell, put six arrows in over 9 s while not one block went
+        // in (heel-114)
+        if (noBlockGiveUpOn() && !boxDone && ++boxBuildTicks >= BOX_FIRST_BLOCK_TICKS && shutCells(level) <= boxShut0) {
+            boxing = false;
+            return failOrDig(mod, "no block of the pillbox went in within " + BOX_FIRST_BLOCK_TICKS / 20 + " s at " + boxFeet.toShortString());
+        }
         if (boxDone) {
             // (Tuning pillbox_open_retry, a fix of 19 Nov 2026, on) a side left open is tried again every OPEN_RETRY_TICKS, not
             // only after an arrow: a witch's splash is no arrow, and the buddy stood 31 s in a box with its east side open, poisoned,
@@ -544,22 +568,29 @@ public final class SkelCoverTask extends Task {
             boolean retry = open && (now < boxDoneAt || now - boxDoneAt >= OPEN_RETRY_TICKS);
             if (!arrow && !retry) return stand(mod);
             boolean witchIn = open && !s.witchLines().isEmpty();
-            if (!arrow && boxRounds >= BOX_ROUNDS && !witchIn) {
+            // (Tuning pillbox_line_give_up, a fix of 20 Nov 2026, on) with the rounds spent, a skeleton with a line into the open
+            // side is the witch's case too: the box is no cover from it. the box stood '4 of 5 cells shut' with its south side
+            // open to a skeleton 14 off and a block lower, and the buddy stood 26 s in that line at 1.5 hp until the next arrow
+            // (heel-101). the dig if the ground digs, else the give-up: the run's rules again
+            boolean skelIn = lineGiveUpOn() && open && !s.lines().isEmpty();
+            if (!arrow && boxRounds >= BOX_ROUNDS && !witchIn && !skelIn) {
                 boxDoneAt = now;
                 return stand(mod);
             }
             // an arrow in the finished box: the cells given up once more, then the dig, then no cover
             if (arrow) shotHandled = shot;
             if (boxRounds >= BOX_ROUNDS) {
-                String why = arrow ? "arrows in the pillbox at " : "a witch's line into the open pillbox at ";
+                String why = arrow ? "arrows in the pillbox at " : witchIn ? "a witch's line into the open pillbox at "
+                        : "a skeleton's line into the open pillbox at ";
                 if (CornerWallTask.diggable(mod, level, boxFeet)) {
-                    if (!arrow) Debug.logInternal("combat: " + boxLead + why + boxFeet.toShortString() + ", digging in (pillbox_open_retry)");
+                    if (!arrow) Debug.logInternal("combat: " + boxLead + why + boxFeet.toShortString() + ", digging in ("
+                            + (witchIn ? "pillbox_open_retry" : "pillbox_line_give_up") + ")");
                     boxing = false;
                     dig = CornerWallTask.digIn(lead(s, player));
                     mod.getClientBaritone().getPathingBehavior().cancelEverything();
                     return dig;
                 }
-                if (!arrow) {
+                if (!arrow && !skelIn) {
                     boxDoneAt = now;
                     return stand(mod);
                 }
@@ -655,6 +686,21 @@ public final class SkelCoverTask extends Task {
     // (pillbox_top_support) a side cell at the eye's height still open
     static boolean witchSideWallOn() {
         return adris.altoclef.util.helpers.Tuning.get("witch_side_wall", 0) > 0;
+    }
+
+    static boolean noBlockGiveUpOn() {
+        return adris.altoclef.util.helpers.Tuning.get("pillbox_no_block_give_up", 0) > 0;
+    }
+
+    static boolean lineGiveUpOn() {
+        return adris.altoclef.util.helpers.Tuning.get("pillbox_line_give_up", 0) > 0;
+    }
+
+    // the box's cells shut now, walls and top
+    private int shutCells(Level level) {
+        int up = 0;
+        for (BlockPos cell : boxCells) if (CornerWallTask.solid(level, cell)) up++;
+        return up;
     }
 
     static boolean pillboxOpenRetryOn() {
