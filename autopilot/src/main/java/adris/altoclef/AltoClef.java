@@ -290,11 +290,19 @@ public class AltoClef {
 
     // Soprano: TaskRunner calls these as it switches on and off. Everything altoclef changes about baritone happens
     // in between and is undone on the way out, so a Soprano user who never runs a task never sees any of it.
+    // (Tuning root_done_unwind) the runner's own level on the behaviour stack, pushed as it switches on: what a finished user
+    // task's leftover levels are popped down to (UserTaskChain.onRootDone)
+    private BotBehaviour.State _runnerLevel;
+
+    public BotBehaviour.State runnerLevel() {
+        return _runnerLevel;
+    }
+
     public void onTaskRunnerEnable() {
         // the bottom BotBehaviour state is what pop() writes back, so make sure it is today's settings and not startup's
         _botBehaviour.rebaseline();
         _baritoneScope.apply();
-        _botBehaviour.push();
+        _runnerLevel = _botBehaviour.push();
         _botBehaviour.setPauseOnLostFocus(false);
         // Don't break blocks or place blocks where we are explicitly protected. These ride in the pushed state so
         // the pop in TaskRunner#disable takes them back out of the global AltoClefSettings.

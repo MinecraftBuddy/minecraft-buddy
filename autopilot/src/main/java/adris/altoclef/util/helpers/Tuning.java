@@ -921,7 +921,10 @@ public final class Tuning {
             // the obsidian cast's frame with no block it may place frees the cobblestone above 16 and the deepslate from the
             // reserve the kit's finished tasks left behind: "every throwaway we have is protected" with 56 cobblestone held, six
             // casts failed in 5.6 minutes, PlaceObsidianBucketTask (20 Nov 2026)
-            java.util.Map.entry("cast_free_stone", 1.0));
+            java.util.Map.entry("cast_free_stone", 1.0),
+            // (off till its smoke) a user task finished on its chain's tick pops the behaviour levels its tasks left, down to the
+            // runner's own: their reserves added up over the kit's tasks and locked the stone, UserTaskChain (20 Nov 2026)
+            java.util.Map.entry("root_done_unwind", 0.0));
 
     private static Path file;
     private static Properties props = new Properties();

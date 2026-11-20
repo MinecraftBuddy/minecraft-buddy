@@ -104,6 +104,17 @@ public class UserTaskChain extends SingleTaskChain {
         setTask(task);
     }
 
+    // (Tuning root_done_unwind, a fix of 20 Nov 2026, off till its smoke) a user task finished on this chain's tick: the levels its
+    // tasks pushed on the behaviour stack in their onStart are popped down to the runner's own. the runner stays up between the
+    // kit's tasks (altoRunsWhenIdle) and a finished root is dropped without a stop, so none of them was ever popped and their
+    // reserves added up: "every throwaway we have is protected" with 56 cobblestone in the bag, in 36 of 298 rig game logs
+    @Override
+    protected void onRootDone(AltoClef mod) {
+        if (adris.altoclef.util.helpers.Tuning.get("root_done_unwind", 0) <= 0) return;
+        int n = mod.getBehaviour().popAbove(mod.runnerLevel());
+        if (n > 0) Debug.logInternal("root done: " + n + " behaviour level(s) the finished task left taken off, its reserves with them (root_done_unwind)");
+    }
+
     @Override
     protected void onTaskFinish(AltoClef mod) {
         boolean shouldIdle = AltoSettings.shouldRunIdleCommandWhenNotActive();

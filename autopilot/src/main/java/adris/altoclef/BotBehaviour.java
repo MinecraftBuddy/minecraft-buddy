@@ -486,6 +486,18 @@ public class BotBehaviour {
         current().applyState();
     }
 
+    // (Tuning root_done_unwind) pops every level above base, the runner's own, and says how many: for a finished user task whose
+    // tasks pushed levels in their onStart and were dropped without a stop. nothing when base is not on the stack
+    public int popAbove(State base) {
+        if (base == null || !_states.contains(base)) return 0;
+        int n = 0;
+        while (!_states.isEmpty() && _states.peek() != base) {
+            pop();
+            n++;
+        }
+        return n;
+    }
+
     // for a task that wants to pop only its own level and never somebody's above it (SchematicBuildTask)
     public boolean isTop(State level) {
         return !_states.isEmpty() && _states.peek() == level;

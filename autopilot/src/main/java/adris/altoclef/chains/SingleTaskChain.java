@@ -41,6 +41,7 @@ public abstract class SingleTaskChain extends TaskChain {
                 // a finished root is dropped without stop (onStop is not part of the plan), so the keys it and its
                 // children still hold have to be let go of here or they stay down for the next task
                 _mainTask.letGoOfKeys(mod);
+                onRootDone(mod);
                 onTaskFinish(mod);
             } else {
                 _mainTask.tick(mod, this);
@@ -107,5 +108,9 @@ public abstract class SingleTaskChain extends TaskChain {
     @Override
     public String getHeldTaskDebug() {
         return _mainTask == null ? "no task" : _mainTask.toString();
+    }
+
+    // a root finished on this chain's own tick (never a cancel or a stop): before onTaskFinish, which may start the next one
+    protected void onRootDone(AltoClef mod) {
     }
 }
