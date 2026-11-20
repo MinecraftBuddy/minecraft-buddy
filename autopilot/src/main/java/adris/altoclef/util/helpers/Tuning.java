@@ -896,7 +896,10 @@ public final class Tuning {
             java.util.Map.entry("cast_walk_latch", 1.0),
             // the buddy's portal phase gathers food by points too, under 120 up to 160: eight carrots met its count of eight food,
             // and the nether sent the buddy home under 36 points on arrival, the buddy's ObtainRoute (20 Nov 2026)
-            java.util.Map.entry("m34_food_points", 1.0));
+            java.util.Map.entry("m34_food_points", 1.0),
+            // the lava fetch's open source outranks the lids 6 blocks further once it has: at 32 to the block the pick turned with each
+            // first step, the lid and a pool taking turns for 20 minutes, CollectBucketLiquidTask (20 Nov 2026)
+            java.util.Map.entry("bucket_outrank_hold", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

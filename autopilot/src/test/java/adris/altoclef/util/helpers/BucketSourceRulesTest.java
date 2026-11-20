@@ -159,4 +159,16 @@ public class BucketSourceRulesTest {
         assertTrue(BucketSourceRules.worthGoingTo(Kind.LID, false));
         assertFalse(BucketSourceRules.worthGoingTo(Kind.NONE, false));
     }
+
+    // bucket_outrank_hold: the answer holds OUTRANK_SLACK past the line once given, and turns only inside it
+    @Test
+    public void theOutrankHoldsPastTheLine() {
+        assertTrue(BucketSourceRules.openOutranksLids(31.0, 33.0, false));
+        assertFalse(BucketSourceRules.openOutranksLids(32.3, 7.0, false));
+        assertTrue(BucketSourceRules.openOutranksLids(32.3, 7.0, true));
+        assertTrue(BucketSourceRules.openOutranksLids(38.0, 7.0, true));
+        assertFalse(BucketSourceRules.openOutranksLids(38.5, 7.0, true));
+        assertFalse(BucketSourceRules.openOutranksLids(Double.NaN, 7.0, true));
+        assertTrue(BucketSourceRules.openOutranksLids(100, Double.NaN, false));
+    }
 }

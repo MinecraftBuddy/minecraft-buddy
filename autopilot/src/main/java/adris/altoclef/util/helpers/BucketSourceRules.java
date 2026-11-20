@@ -73,6 +73,22 @@ public final class BucketSourceRules {
         return nearestOpen <= OPEN_NEAR_BLOCKS || nearestOpen - nearestLid <= OPEN_EXTRA_BLOCKS;
     }
 
+    // (Tuning bucket_outrank_hold, a fix of 20 Nov 2026, on) with the last answer: an open source that outranked the lids keeps
+    // outranking them OUTRANK_SLACK further. at 32 to the block the answer turned with each first step: the lid's path stepped
+    // down to 31.0 from the pool, the pool won, its path climbed to 32.3, the lid won, for 20 minutes (look 158)
+    public static final double OUTRANK_SLACK = 6;
+
+    public static boolean openOutranksLids(double nearestOpen, double nearestLid, boolean before) {
+        if (Double.isNaN(nearestOpen)) {
+            return false;
+        }
+        if (Double.isNaN(nearestLid)) {
+            return true;
+        }
+        double slack = before ? OUTRANK_SLACK : 0;
+        return nearestOpen <= OPEN_NEAR_BLOCKS + slack || nearestOpen - nearestLid <= OPEN_EXTRA_BLOCKS + slack;
+    }
+
     // a lid source only counts while an open one does not outrank it: digging for lava is the slow way, and a pool we can
     // just scoop from the edge beats a lidded source unless it is a long way off for no good reason
     public static boolean worthGoingTo(Kind kind, boolean openOutranksLids) {

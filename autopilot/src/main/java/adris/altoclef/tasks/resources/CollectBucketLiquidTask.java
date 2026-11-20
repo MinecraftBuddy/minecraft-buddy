@@ -312,7 +312,9 @@ public class CollectBucketLiquidTask extends ResourceTask {
             Optional<BlockPos> lid = mod.getBlockTracker().getNearestTracking(
                     p -> isSource.test(p) && BucketSourceRules.classify(cells, p.getX(), p.getY(), p.getZ()) == BucketSourceRules.Kind.LID,
                     _toCollect);
-            _openOutranks = BucketSourceRules.openOutranksLids(away(mod, open), away(mod, lid));
+            _openOutranks = adris.altoclef.util.helpers.Tuning.get("bucket_outrank_hold", 0) > 0
+                    ? BucketSourceRules.openOutranksLids(away(mod, open), away(mod, lid), _openOutranks)
+                    : BucketSourceRules.openOutranksLids(away(mod, open), away(mod, lid));
         };
         if (WorldHelper.getTicks() - _openLookAt >= OPEN_LOOK_TICKS) {
             lookForOpen.run();
