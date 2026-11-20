@@ -60,6 +60,23 @@ public final class TradeGoldRules {
         return rounds > 1 && roundsSoFar < rounds && handed < target && begun && !running && !deadEnd;
     }
 
+    // (Tuning gold_stone_dig) what the gold step does with the pickaxes of iron or better at keep uses left in all or fewer:
+    // DIG on, MAKE a stone pickaxe from the bag first, or END (the pickaxes kept for the way on). nether gold ore and
+    // netherrack take a stone pickaxe, and the wear chain (ToolPick.chainOrder) swings a stone one before iron and diamond, so
+    // with a usable stone pickaxe in the bag the kit's are spared. a craft never with danger near: the dig goes on with the
+    // kit's down to floor uses meanwhile, then ends. a craft that failed once is not tried again
+    public enum PickWay { DIG, MAKE, END }
+
+    public static PickWay pickWay(boolean on, int ironUses, int keep, int floor, boolean stonePick, boolean canMake,
+                                  boolean makeFailed, boolean danger) {
+        if (ironUses >= keep) return PickWay.DIG;
+        if (!on) return PickWay.END;
+        if (stonePick) return PickWay.DIG;
+        if (!canMake || makeFailed) return PickWay.END;
+        if (danger) return ironUses >= floor ? PickWay.DIG : PickWay.END;
+        return PickWay.MAKE;
+    }
+
     // why the step is over by a clock, or null: its cap, no new gold for the dry spell, or no ore known for NO_ORE_S (game ticks)
     public static String overWhy(long ran, long sinceRise, long noOre, long cap, long dry) {
         if (ran >= cap) return "the cap of " + cap / 20 + " s";

@@ -136,4 +136,21 @@ public class TradeGoldRulesTest {
         assertFalse(TradeGoldRules.anotherRound(1, 1, 0, 96, true, false, false));
         assertFalse(TradeGoldRules.anotherRound(0, 1, 0, 96, true, false, false));
     }
+
+    // gold_stone_dig: over the reserve the dig goes on; under it a usable stone pickaxe digs on, the bag's cobblestone makes one
+    // when no danger is near (with danger the kit's dig on down to the floor), and with neither the step ends as before
+    @Test
+    public void stonePickaxeTakesOverUnderTheReserve() {
+        TradeGoldRules.PickWay dig = TradeGoldRules.PickWay.DIG, make = TradeGoldRules.PickWay.MAKE, end = TradeGoldRules.PickWay.END;
+        assertEquals(dig, TradeGoldRules.pickWay(true, 900, 300, 240, false, false, false, false));
+        assertEquals(dig, TradeGoldRules.pickWay(false, 300, 300, 240, false, false, false, false));
+        assertEquals(end, TradeGoldRules.pickWay(false, 298, 300, 240, true, true, false, false));
+        assertEquals(dig, TradeGoldRules.pickWay(true, 298, 300, 240, true, false, false, false));
+        assertEquals(dig, TradeGoldRules.pickWay(true, 0, 300, 240, true, false, false, true));
+        assertEquals(make, TradeGoldRules.pickWay(true, 298, 300, 240, false, true, false, false));
+        assertEquals(dig, TradeGoldRules.pickWay(true, 298, 300, 240, false, true, false, true));
+        assertEquals(end, TradeGoldRules.pickWay(true, 239, 300, 240, false, true, false, true));
+        assertEquals(end, TradeGoldRules.pickWay(true, 298, 300, 240, false, true, true, false));
+        assertEquals(end, TradeGoldRules.pickWay(true, 298, 300, 240, false, false, false, false));
+    }
 }

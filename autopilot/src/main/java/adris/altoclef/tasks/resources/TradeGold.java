@@ -4,6 +4,8 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.tasks.container.CraftInTableTask;
 import adris.altoclef.tasks.speedrun.gamer.NetherGold;
+import adris.altoclef.tasks.speedrun.gamer.NetherPick;
+import adris.altoclef.tasks.speedrun.gamer.tasks.NetherPickTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.CraftingRecipe;
 import adris.altoclef.util.ItemTarget;
@@ -103,6 +105,10 @@ final class TradeGold {
     private final int _roundTarget;
     private final long _capFrom;
     private String _overWhy;
+    // (gold_stone_dig) the stone pickaxe's craft under way, how many were begun, and whether one failed
+    private NetherPickTask _stonePick;
+    private int _stonePicks;
+    private boolean _stonePickFailed;
 
     TradeGold() {
         this(-1, java.util.Set.of(), Long.MIN_VALUE);
@@ -218,8 +224,26 @@ final class TradeGold {
         // a stone and a wooden one (112 trips, 159 ores), then the step dug with netherrack in hand, which drops nothing, and the
         // buddy went on through the nether with no pickaxe at all (heel-54-mc3, live watch)
         int picksLeft = goldNeedPickOn() ? pickUsesLeft(mod) : Integer.MAX_VALUE;
+        boolean picksKept = picksLeft < PICK_KEEP;
+        // (Tuning gold_stone_dig, a fix of 20 Nov 2026, on) under the reserve a stone pickaxe takes over: one in the bag digs on
+        // (the wear chain swings it before the kit's), else one is made from the bag's cobblestone with no danger near. 7 of 8
+        // steps since gold_rounds ended on the pickaxes kept at 0 to 54 gold, a dead end for another round, and 3 of those runs
+        // went to the blazes or stood with no potion (heel-78-mc1, heel-78-mc2, heel-80-mc2)
+        if (picksKept && ingots < target && !atFortress) {
+            boolean dangerNow = dangerNear(mod) || now - _dangerAt < DANGER_HOLD || player.isOnFire() || player.isInLava();
+            switch (TradeGoldRules.pickWay(goldStoneDigOn(), picksLeft, PICK_KEEP, PICK_FLOOR, stonePickUsable(mod),
+                    NetherPick.covered(bagOf(mod), NetherPick.Tier.STONE), _stonePickFailed, dangerNow)) {
+                case DIG -> picksKept = false;
+                case MAKE -> {
+                    Task make = stonePick(mod, picksLeft);
+                    if (make != null) return make;
+                }
+                case END -> {
+                }
+            }
+        }
         String end = ingots >= target ? "the target reached" : atFortress ? "at the fortress"
-                : picksLeft < PICK_KEEP ? "the pickaxes kept for the way on (" + picksLeft + " uses left)"
+                : picksKept ? "the pickaxes kept for the way on (" + picksLeft + " uses left)"
                 : TradeGoldRules.overWhy(Math.max(0, now - capFrom()), now - _riseAt, _noOreSince < 0 ? 0 : now - _noOreSince, capTicks(), dryTicks());
         // (Tuning gold_danger_hold, a fix of 19 Nov 2026, on) a hostile seen within DANGER_BLOCKS counts for DANGER_HOLD after: a mob
         // on the edge of the box, in as the buddy walked to the table and out as the dig walked away, flipped the fold and the dig
@@ -333,6 +357,55 @@ final class TradeGold {
     // (gold_need_pick) the uses kept back for the rest of the nether (the fortress, the covers, the way out): about a fresh
     // iron pickaxe and a bit
     static final int PICK_KEEP = 300;
+    // (gold_stone_dig) with danger near the stone pickaxe's craft waits and the kit's dig on down to this many uses, then the step ends
+    static final int PICK_FLOOR = 240;
+
+    static boolean goldStoneDigOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_stone_dig", 0) > 0;
+    }
+
+    // (gold_stone_dig) a stone pickaxe in the bag that is not worn out
+    private static boolean stonePickUsable(AltoClef mod) {
+        var inv = mod.getPlayer().getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack st = inv.getItem(i);
+            if (st.is(Items.STONE_PICKAXE) && !adris.altoclef.util.helpers.ToolWear.wornOut(st.getDamageValue(), st.getMaxDamage())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // (gold_stone_dig) what the bag holds for a pickaxe of its own (NetherPick's recipe inputs)
+    private static NetherPick.Bag bagOf(AltoClef mod) {
+        var st = mod.getItemStorage();
+        int planks = 0;
+        for (var item : adris.altoclef.util.helpers.ItemHelper.PLANKS) planks += st.getItemCount(item);
+        int logs = 0;
+        for (var item : adris.altoclef.util.helpers.ItemHelper.LOG) logs += st.getItemCount(item);
+        return new NetherPick.Bag(st.getItemCount(Items.IRON_INGOT), st.getItemCount(Items.COBBLESTONE), planks,
+                st.getItemCount(Items.STICK), logs, st.getItemCount(Items.CRAFTING_TABLE) > 0);
+    }
+
+    // (gold_stone_dig) the stone pickaxe's craft, stage by stage from the bag (NetherPickTask); null once a craft failed, and the
+    // step then ends on the pickaxes kept
+    private Task stonePick(AltoClef mod, int picksLeft) {
+        if (_stonePick != null && _stonePick.failed()) {
+            _stonePickFailed = true;
+            Debug.logInternal("trade gold: the stone pickaxe's craft failed, the step ends on the pickaxes kept");
+            return null;
+        }
+        if (_stonePick == null || _stonePick.isFinished(mod)) {
+            _stonePick = new NetherPickTask(NetherPick.Tier.STONE, () -> bagOf(mod), () -> stonePickUsable(mod));
+            _stonePicks++;
+            Debug.logInternal(String.format(Locale.ROOT, "trade gold: the pickaxes of iron or better at %d uses, a stone pickaxe from the bag's %d cobblestone (%d made)",
+                    picksLeft, mod.getItemStorage().getItemCount(Items.COBBLESTONE), _stonePicks));
+        }
+        _step = _stonePick;
+        _stepKind = "stone pick";
+        _hud = "Making a stone pickaxe for the gold";
+        return _stonePick;
+    }
 
     // the uses left on the bag's pickaxes of iron or better, all together
     private static int pickUsesLeft(AltoClef mod) {
@@ -572,8 +645,9 @@ final class TradeGold {
         unguard();
         int got = TradeGoldRules.ninths(ingots, nuggets) - _ninthsAtBegin;
         double hours = Math.max(1e-9, (now - _begunAt) / 72000.0);
-        Debug.logInternal(String.format(Locale.ROOT, "trade gold: over (%s), %d gold, %d nuggets left, %d gold dug in %s s (%.1f an hour), %d trips, %d ores broken",
-                why, ingots, nuggets, got / 9, seconds(now - _begunAt), got / 9.0 / hours, _anchors, _broken));
+        Debug.logInternal(String.format(Locale.ROOT, "trade gold: over (%s), %d gold, %d nuggets left, %d gold dug in %s s (%.1f an hour), %d trips, %d ores broken; %d stone pickaxes begun, %d cobblestone left",
+                why, ingots, nuggets, got / 9, seconds(now - _begunAt), got / 9.0 / hours, _anchors, _broken, _stonePicks,
+                mod.getItemStorage().getItemCount(Items.COBBLESTONE)));
     }
 
     // a died buddy, or an order dropped: the guard off and the tracker freed (the trade's own end does not ask it)
