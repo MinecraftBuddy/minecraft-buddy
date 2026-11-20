@@ -903,7 +903,11 @@ public final class Tuning {
             // a gold step that ended short, or its gold all handed with no potion, digs again for the rest of the 96, up to 4
             // rounds in all, before the blazes without a potion: 13 of 26 failed nether runs went to the blazes without one, 9
             // after a step that ended with 0 to 28 gold, FireResTrade (20 Nov 2026)
-            java.util.Map.entry("gold_rounds", 4.0));
+            java.util.Map.entry("gold_rounds", 4.0),
+            // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
+            // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
+            // KillAndLootTask (20 Nov 2026)
+            java.util.Map.entry("slime_chase_near", 48.0));
 
     private static Path file;
     private static Properties props = new Properties();

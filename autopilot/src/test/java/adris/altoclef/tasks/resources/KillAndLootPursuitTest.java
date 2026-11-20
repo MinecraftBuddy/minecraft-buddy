@@ -26,4 +26,16 @@ public class KillAndLootPursuitTest {
         // any other mob is looked for on the ground as before
         assertFalse(KillAndLootTask.slimeDigWanted(net.minecraft.world.entity.monster.zombie.Zombie.class, true, true, true));
     }
+
+    // slime_chase_near: the chase begins within 48, keeps to 64, and holds 5 s past the last such sight; never begun from afar
+    @Test
+    public void theSlimeChaseHoldsNearAndLetsGoOfAFarOne() {
+        assertTrue(KillAndLootTask.slimeChase(false, 40, 48, 1000, -10000));
+        assertFalse(KillAndLootTask.slimeChase(false, 60, 48, 1000, -10000));
+        assertTrue(KillAndLootTask.slimeChase(true, 60, 48, 1000, 990));
+        assertTrue(KillAndLootTask.slimeChase(true, 120, 48, 1000, 950));
+        assertFalse(KillAndLootTask.slimeChase(true, 120, 48, 1000, 900));
+        assertFalse(KillAndLootTask.slimeChase(true, Double.MAX_VALUE, 48, 1000, 800));
+        assertFalse(KillAndLootTask.slimeChase(false, 120, 48, 1000, 990));
+    }
 }

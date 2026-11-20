@@ -141,7 +141,7 @@ public class KillAndLootTask extends ResourceTask {
             setDebugState("Waiting for the loot to show up");
             return null;
         }
-        if (!mod.getEntityTracker().entityFound(_toKill)) {
+        if (!mod.getEntityTracker().entityFound(_toKill) || !slimeChaseWanted(mod)) {
             if (isInWrongDimension(mod)) {
                 setDebugState("Going to correct dimension.");
                 return getToCorrectDimensionTask(mod);
@@ -191,6 +191,43 @@ public class KillAndLootTask extends ResourceTask {
 
     // (slime_dig_keep) the hunt's one mine, made at its first dig
     private adris.altoclef.tasks.movement.BranchMineTask _slimeMine;
+
+    // (Tuning slime_chase_near, a fix of 20 Nov 2026, on at 48 blocks) with the slime mine as the other choice, the chase takes
+    // the wheel for a slime within that many blocks, keeps it while one is within a third more, and for CHASE_HOLD_TICKS after
+    // the last such sight; a farther one, or only a banned one, leaves the mine digging. the client lists slimes out to about
+    // 120 blocks, and one hopping across that edge flipped the chase and the mine every 1 to 4 s for minutes with the buddy
+    // never closing in (heel, 19-20 Nov: 6 of 12 slime stalls; a lava ban left the chase wandering till the slime left the list)
+    static final int CHASE_HOLD_TICKS = 100;
+    private boolean _chasing;
+    private int _chaseSeenTick = Integer.MIN_VALUE / 2;
+
+    private boolean slimeChaseWanted(AltoClef mod) {
+        double near = adris.altoclef.util.helpers.Tuning.get("slime_chase_near", 0);
+        if (near <= 0 || _toKill != net.minecraft.world.entity.monster.cubemob.Slime.class || _onlyId >= 0
+                || WorldHelper.getCurrentDimension() != baritone.api.utils.Dimension.OVERWORLD || slimeDig(mod) == null) {
+            return true;
+        }
+        // (the closest one not banned: a slime banned for lava by it is none here)
+        Optional<Entity> closest = mod.getEntityTracker().getClosestEntity(_toKill);
+        double dist = closest.map(e -> (double) e.distanceTo(mod.getPlayer())).orElse(Double.MAX_VALUE);
+        int now = WorldHelper.getTicks();
+        boolean was = _chasing;
+        _chasing = slimeChase(was, dist, near, now, _chaseSeenTick);
+        if (dist <= (was ? near * 4 / 3 : near)) _chaseSeenTick = now;
+        if (_chasing != was) {
+            adris.altoclef.Debug.logInternal(_chasing
+                    ? String.format(java.util.Locale.ROOT, "slime hunt: a slime %.0f blocks off, the chase", dist)
+                    : "slime hunt: no slime within " + (int) (near * 4 / 3) + " blocks for " + CHASE_HOLD_TICKS / 20 + " s, the mine again");
+        }
+        return _chasing;
+    }
+
+    // (slime_chase_near) the chase wanted now: a slime within near, or within a third more while chasing, or the chase began
+    // and the last such sight is under CHASE_HOLD_TICKS old
+    static boolean slimeChase(boolean chasing, double dist, double near, int now, int seenTick) {
+        if (dist <= (chasing ? near * 4 / 3 : near)) return true;
+        return chasing && now - seenTick < CHASE_HOLD_TICKS && now >= seenTick;
+    }
 
     static boolean slimeDigKeepOn() {
         return adris.altoclef.util.helpers.Tuning.get("slime_dig_keep", 0) > 0;
