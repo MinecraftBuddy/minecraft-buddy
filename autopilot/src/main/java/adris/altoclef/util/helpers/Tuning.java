@@ -931,6 +931,9 @@ public final class Tuning {
             // the branch mine's ice rule steps aside while the surface kit's walk for wood runs: the two took turns every tick on a
             // frozen lake's edge for 3.7 minutes, BranchMineTask (20 Nov 2026)
             java.util.Map.entry("ice_kit_first", 1.0),
+            // the old placer's click that placed nothing counts as placing for 40 ticks in a row at most, then its progress check
+            // and the spot's strike get the tick: it held a table in hand 23.5 minutes, PlaceBlockNearbyTask (20 Nov 2026)
+            java.util.Map.entry("place_click_limit", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

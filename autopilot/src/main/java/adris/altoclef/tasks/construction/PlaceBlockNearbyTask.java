@@ -294,15 +294,27 @@ public class PlaceBlockNearbyTask extends Task {
                     mod.getPlayer().swing(hand, SwingAnimation.DEFAULT, false);
                 }
                 _justPlaced = targetPlace;
+                _failedClicks = 0;
                 return true;
             }
 
             //mod.getControllerExtras().mouseClickOverride(1, true);
             //mod.getClientBaritone().getInputOverrideHandler().setInputForceState(Input.CLICK_RIGHT, true);
+            // (Tuning place_click_limit, a fix of 20 Nov 2026, on) a click that did not place counts as placing for
+            // FAILED_CLICKS ticks in a row at most, then the tick goes on to the progress check, the spot's strike and the
+            // wander: counted as placed every tick, "Placing since we can" held a crafting table in hand 23.5 minutes in a
+            // cave with no block put down, till the route's piece clock (heel-98-mc3 run 1, look 175)
+            if (adris.altoclef.util.helpers.Tuning.get("place_click_limit", 0) > 0 && ++_failedClicks > FAILED_CLICKS) {
+                return false;
+            }
             return true;
         }
         return false;
     }
+
+    // (place_click_limit) clicks in a row that placed nothing, and how many count as placing
+    static final int FAILED_CLICKS = 40;
+    private int _failedClicks;
 
     private void stopPlacing(AltoClef mod) {
         mod.getInputControls().release(Input.SNEAK);
