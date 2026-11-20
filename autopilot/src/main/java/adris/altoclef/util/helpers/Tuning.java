@@ -918,6 +918,13 @@ public final class Tuning {
             // a sulfur cube is neutral (NeutralMobs): it attacks nobody, and one holding a block takes no harm from a blow; a
             // fight with one "in our way" ran almost 6 minutes and ended at 1.3 hp from arrows (20 Nov 2026)
             java.util.Map.entry("sulfur_cube_neutral", 1.0),
+            // the shimmy out of a block under a goal walk (GetToYTask and the like) for 10 s at most, as InteractWithBlockTask's:
+            // held by a drop beside the feet it stood 10.8 minutes on the way up to the portal, CustomBaritoneGoalTask (20 Nov 2026)
+            java.util.Map.entry("goal_shimmy_limit", 1.0),
+            // in the nether with no usable pickaxe left, the blaze task makes a stone one from the bag's cobblestone past the
+            // stand's, with no danger near: the errand's walks wore out every pickaxe and the buddy stalled 32 minutes with 18
+            // cobblestone in the bag, CollectBlazeRodsTask (20 Nov 2026)
+            java.util.Map.entry("nether_pick_make", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

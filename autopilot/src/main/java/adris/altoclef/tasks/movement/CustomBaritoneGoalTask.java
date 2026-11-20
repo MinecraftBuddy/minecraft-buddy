@@ -29,6 +29,9 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
     protected MovementProgressChecker _checker = new MovementProgressChecker();
     protected Goal _cachedGoal = null;
     private Task _unstuckTask = null;
+    // (Tuning goal_shimmy_limit) the shimmy out of a block, UNSTUCK_SECONDS at most
+    static final double UNSTUCK_SECONDS = 10;
+    private final adris.altoclef.util.time.TimerGame _unstuckTimer = new adris.altoclef.util.time.TimerGame(UNSTUCK_SECONDS);
     // the step out of a fence's cell gets this many ticks in one cell, then the normal pathing (and its stuck and wander
     // checks) takes over: an open cell beside that the step can't reach would otherwise hold the forward key for ever
     private static final int OPEN_BESIDE_TICKS = 10;
@@ -198,6 +201,16 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
             mod.getInputControls().release(Input.MOVE_BACK);
             mod.getInputControls().release(Input.MOVE_FORWARD);
         }
+        // (Tuning goal_shimmy_limit, a fix of 20 Nov 2026, on) the shimmy out of a block for UNSTUCK_SECONDS at most, as in
+        // InteractWithBlockTask: it never finishes by itself, and held by a drop beside the feet it only turns the head. On the
+        // way up to the portal (GetToYTask) short grass in the feet cell with no floor beside held it 10.8 minutes in the day,
+        // till the night's bed build broke the grass by chance (heel-88-mc1 run 5). After it the path is asked again, and a
+        // stall again starts it again
+        if (_unstuckTask != null && _unstuckTimer.elapsed() && adris.altoclef.util.helpers.Tuning.get("goal_shimmy_limit", 0) > 0) {
+            _unstuckTask = null;
+            stuckCheck.reset();
+            _checker.reset();
+        }
         if (_unstuckTask != null && _unstuckTask.isActive() && !_unstuckTask.isFinished(mod) && stuckInBlock(mod) != null) {
             setDebugState("Getting unstuck from block.");
             stuckCheck.reset();
@@ -210,6 +223,7 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
             BlockPos blockStuck = stuckInBlock(mod);
             if (blockStuck != null) {
                 _unstuckTask = getFenceUnstuckTask();
+                _unstuckTimer.reset();
                 return _unstuckTask;
             }
             stuckCheck.reset();

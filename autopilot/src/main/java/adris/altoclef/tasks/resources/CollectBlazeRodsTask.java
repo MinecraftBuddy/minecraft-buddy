@@ -2,6 +2,7 @@ package adris.altoclef.tasks.resources;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
+import adris.altoclef.tasks.speedrun.gamer.NetherPick;
 import adris.altoclef.TaskCatalogue;
 import adris.altoclef.tasks.container.BrewFireResistanceTask;
 import adris.altoclef.tasks.ResourceTask;
@@ -474,6 +475,57 @@ public class CollectBlazeRodsTask extends ResourceTask {
         mod.getBehaviour().reserveProtectedItems(behaviourLevel(), java.util.Map.of(Items.COBBLESTONE, standStoneKeep(mod)));
     }
 
+    // (Tuning nether_pick_make, a fix of 20 Nov 2026, on) in the nether with no usable pickaxe left, a stone one from the bag's
+    // cobblestone past the stand's, with no danger near (TradeGold's test), up to NETHER_PICK_TRIES failed crafts. the errand's
+    // ring walks dug through netherrack and wore out the kit's last 290 uses, the stone and the wooden one in 3.5 minutes,
+    // then every path was priced by hand and the buddy went to and fro at a tunnel's tip for 32 minutes with 18 cobblestone,
+    // sticks, planks and a table in the bag (cascade heel-86 run 1, look 170)
+    static final int NETHER_PICK_TRIES = 3;
+    private adris.altoclef.tasks.speedrun.gamer.tasks.NetherPickTask _netherPick;
+    private int _netherPickFails;
+
+    private Task netherPick(AltoClef mod) {
+        if (adris.altoclef.util.helpers.Tuning.get("nether_pick_make", 0) <= 0 || usablePick(mod)) {
+            _netherPick = null;
+            return null;
+        }
+        if (_netherPick != null && _netherPick.failed()) {
+            _netherPickFails++;
+            _netherPick = null;
+            Debug.logInternal("nether pick: the stone pickaxe's craft failed (" + _netherPickFails + " of " + NETHER_PICK_TRIES + ")");
+        }
+        if (_netherPickFails >= NETHER_PICK_TRIES) return null;
+        var p = mod.getPlayer();
+        if (TradeGold.dangerNear(mod) || p.isOnFire() || p.isInLava()) return null;
+        if (!adris.altoclef.tasks.speedrun.gamer.NetherPick.covered(pickBag(mod), adris.altoclef.tasks.speedrun.gamer.NetherPick.Tier.STONE)) return null;
+        if (_netherPick == null) {
+            _netherPick = new adris.altoclef.tasks.speedrun.gamer.tasks.NetherPickTask(adris.altoclef.tasks.speedrun.gamer.NetherPick.Tier.STONE,
+                    () -> pickBag(mod), () -> usablePick(mod));
+            Debug.logInternal("nether pick: no usable pickaxe left, a stone one from the bag's " + mod.getItemStorage().getItemCount(Items.COBBLESTONE)
+                    + " cobblestone (" + standStoneKeep(mod) + " kept for the stand)");
+        }
+        setDebugState("No pickaxe left: making a stone one");
+        return _netherPick;
+    }
+
+    // (nether_pick_make) the bag for the pickaxe, the stand's cobblestone left out
+    private NetherPick.Bag pickBag(AltoClef mod) {
+        NetherPick.Bag b = TradeGold.bagOf(mod);
+        return new NetherPick.Bag(b.ingots(), Math.max(0, b.cobble() - standStoneKeep(mod)), b.planks(), b.sticks(), b.logs(), b.table());
+    }
+
+    // (nether_pick_make) a pickaxe of any kind in the bag that is not worn out
+    private static boolean usablePick(AltoClef mod) {
+        var inv = mod.getPlayer().getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack st = inv.getItem(i);
+            if (st.is(net.minecraft.tags.ItemTags.PICKAXES) && !adris.altoclef.util.helpers.ToolWear.wornOut(st.getDamageValue(), st.getMaxDamage())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // the cobblestone the brewing stand still needs: brew_keep_stone's count while no stand is in the bag and a brew is to come
     private int standStoneKeep(AltoClef mod) {
         int keep = adris.altoclef.util.helpers.RouteRules.keepStone();
@@ -505,6 +557,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
             return new DefaultGoToDimensionTask(Dimension.NETHER);
         }
         notePortals(mod);
+        Task pick = netherPick(mod);
+        if (pick != null) return pick;
         // (the buddy's fork, Tuning far_box: the clock of the strategy's lines starts with the first tick in the nether)
         if (_netherSince < 0 && farOn()) _netherSince = mod.getWorld().getGameTime();
         // the spawner is what starts the dry timer, finding one only between fights meant a long fight never found it

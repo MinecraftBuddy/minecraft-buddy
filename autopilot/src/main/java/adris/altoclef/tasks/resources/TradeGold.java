@@ -109,6 +109,8 @@ final class TradeGold {
     private NetherPickTask _stonePick;
     private int _stonePicks;
     private boolean _stonePickFailed;
+    private int _stonePickFails;
+    static final int STONE_PICK_TRIES = 3;
 
     TradeGold() {
         this(-1, java.util.Set.of(), Long.MIN_VALUE);
@@ -377,23 +379,41 @@ final class TradeGold {
     }
 
     // (gold_stone_dig) what the bag holds for a pickaxe of its own (NetherPick's recipe inputs)
-    private static NetherPick.Bag bagOf(AltoClef mod) {
+    static NetherPick.Bag bagOf(AltoClef mod) {
         var st = mod.getItemStorage();
         int planks = 0;
         for (var item : adris.altoclef.util.helpers.ItemHelper.PLANKS) planks += st.getItemCount(item);
         int logs = 0;
         for (var item : adris.altoclef.util.helpers.ItemHelper.LOG) logs += st.getItemCount(item);
         return new NetherPick.Bag(st.getItemCount(Items.IRON_INGOT), st.getItemCount(Items.COBBLESTONE), planks,
-                st.getItemCount(Items.STICK), logs, st.getItemCount(Items.CRAFTING_TABLE) > 0);
+                st.getItemCount(Items.STICK), logs, st.getItemCount(Items.CRAFTING_TABLE) > 0 || tableNear(mod));
+    }
+
+    // (gold_stone_dig, 20 Nov 2026) a table of ours standing within the bench's reach counts as the craft's table: the first
+    // try placed the bag's table, a danger broke the craft off, the dig went on, and 2.5 minutes later the bag had no table
+    // and too few planks for one, so the craft failed at once (cascade heel-86 run 1, look 170)
+    static final double TABLE_REACH = 21;
+
+    static boolean tableNear(AltoClef mod) {
+        var p = mod.getPlayer();
+        return adris.altoclef.util.helpers.StationHook.standingWithin(adris.altoclef.util.helpers.StationHook.Kind.TABLE,
+                p.getX(), p.getY(), p.getZ(), TABLE_REACH) != null;
     }
 
     // (gold_stone_dig) the stone pickaxe's craft, stage by stage from the bag (NetherPickTask); null once a craft failed, and the
     // step then ends on the pickaxes kept
     private Task stonePick(AltoClef mod, int picksLeft) {
+        // (a failed craft is tried again up to STONE_PICK_TRIES in all: one broken off by a danger came back to a bag that had
+        // set its table down, look 170)
         if (_stonePick != null && _stonePick.failed()) {
-            _stonePickFailed = true;
-            Debug.logInternal("trade gold: the stone pickaxe's craft failed, the step ends on the pickaxes kept");
-            return null;
+            _stonePickFails++;
+            _stonePick = null;
+            if (_stonePickFails >= STONE_PICK_TRIES) {
+                _stonePickFailed = true;
+                Debug.logInternal("trade gold: the stone pickaxe's craft failed " + _stonePickFails + " times, the step ends on the pickaxes kept");
+                return null;
+            }
+            Debug.logInternal("trade gold: the stone pickaxe's craft failed (" + _stonePickFails + " of " + STONE_PICK_TRIES + "), again");
         }
         if (_stonePick == null || _stonePick.isFinished(mod)) {
             _stonePick = new NetherPickTask(NetherPick.Tier.STONE, () -> bagOf(mod), () -> stonePickUsable(mod));
@@ -685,7 +705,7 @@ final class TradeGold {
     }
 
     // a hostile within TradeGoldRules.DANGER_BLOCKS: no craft out in the open then (the mine goes on, the defence chain fights)
-    private static boolean dangerNear(AltoClef mod) {
+    static boolean dangerNear(AltoClef mod) {
         AABB box = mod.getPlayer().getBoundingBox().inflate(TradeGoldRules.DANGER_BLOCKS);
         return !mod.getWorld().getEntities((Entity) null, box,
                 e -> e.isAlive() && e instanceof Enemy && !(e instanceof ZombifiedPiglin) && !(e instanceof Piglin)).isEmpty();
