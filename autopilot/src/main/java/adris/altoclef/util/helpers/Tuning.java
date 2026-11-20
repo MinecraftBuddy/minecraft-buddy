@@ -936,7 +936,10 @@ public final class Tuning {
             java.util.Map.entry("cast_frame_fetch_free", 1.0),
             // the drown escape takes an air cell over the feet only with an open column under it: the cells on top of the ice had
             // no path, each was banned in turn and the break overhead never ran, WorldSurvivalChain (20 Nov 2026)
-            java.util.Map.entry("drown_open_column", 1.0));
+            java.util.Map.entry("drown_open_column", 1.0),
+            // a block's place resets its progress check after a failure, so the try from above gets more than one tick: the buddy
+            // went back to the same stand with no face to click for 4.3 minutes, PlaceBlockTask (20 Nov 2026)
+            java.util.Map.entry("place_fail_reset", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

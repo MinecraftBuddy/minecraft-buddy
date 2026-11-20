@@ -164,6 +164,11 @@ public class PlaceBlockTask extends Task implements ITaskRequiresGrounded {
         // Check if we're approaching our point. If we fail, wander for a bit.
         if (!_progressChecker.check(mod)) {
             _failCount++;
+            // (Tuning place_fail_reset, a fix of 20 Nov 2026, on) the way picked after a failure gets its own window: with the
+            // checker not reset the next tick failed again, so the try from above (every fourth failure) lasted one tick and the
+            // buddy went back to the same stand with no face to click, 4.3 minutes of the obsidian cast's frame (heel-81-mc3,
+            // look 164)
+            if (adris.altoclef.util.helpers.Tuning.get("place_fail_reset", 0) > 0) _progressChecker.reset();
             if (!tryingAlternativeWay()) {
                 Debug.logMessage("Failed to place, wandering timeout.");
                 return _wanderTask;
