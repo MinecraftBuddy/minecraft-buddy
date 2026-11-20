@@ -132,6 +132,30 @@ public class PlaceObsidianBucketTask extends Task {
         _ruinCells.removeAll(earlierCells);
     }
 
+    // (Tuning cast_free_stone, a fix of 20 Nov 2026, on) the frame's block with no block it may place: the cobblestone above
+    // CAST_STONE_KEEP and the cobbled deepslate are the frame's, the reserve on them capped while the frame is built (renewed every
+    // tick of it, lapsing CAST_FREE_HOLD_MS after the last). the reserve is the sum over the behaviour stack, which still holds the
+    // levels of the kit's user tasks that finished long before (a finished root is dropped without a stop, exit_free_stone): with
+    // 56 cobblestone in the bag baritone answered "every throwaway we have is protected", the frame's place and a wander took
+    // turns, and six casts failed in 5.6 minutes (heel-75-mc1, look 160)
+    static final int CAST_STONE_KEEP = 16;
+    private static final long CAST_FREE_HOLD_MS = 5000;
+    private boolean _castStoneFreed;
+
+    private void castFreeStone(AltoClef mod) {
+        if (adris.altoclef.util.helpers.Tuning.get("cast_free_stone", 0) <= 0) return;
+        if (!_castStoneFreed) {
+            if (mod.getClientBaritone().getInventoryBehavior().hasGenericThrowaway()) return;
+            int stone = mod.getItemStorage().getItemCount(Items.COBBLESTONE, Items.COBBLED_DEEPSLATE);
+            if (stone <= CAST_STONE_KEEP) return;
+            _castStoneFreed = true;
+            Debug.logInternal("obsidian: no block the cast's frame may place, the bag's " + stone + " cobblestone and deepslate freed for it, "
+                    + CAST_STONE_KEEP + " kept (cast_free_stone)");
+        }
+        baritone.altoclef.AltoClefSettings.getInstance().capReserve(java.util.Map.of(Items.COBBLESTONE, CAST_STONE_KEEP,
+                Items.COBBLED_DEEPSLATE, 0), System.currentTimeMillis() + CAST_FREE_HOLD_MS);
+    }
+
     @Override
     protected void onStart(AltoClef mod) {
         mod.getBehaviour().push();
@@ -403,6 +427,7 @@ public class PlaceObsidianBucketTask extends Task {
             if (WorldHelper.isSolid(mod, _currentCastTarget)) {
                 _currentCastTarget = null;
             } else {
+                castFreeStone(mod);
                 return new PlaceStructureBlockTask(_currentCastTarget);
             }
         }

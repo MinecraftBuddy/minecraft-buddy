@@ -917,7 +917,11 @@ public final class Tuning {
             java.util.Map.entry("roof_jump_keep", 1.0),
             // the pillbox's step to a cell's middle walks uncrouched with the feet a block or more over the cell, so it drops in:
             // crouched it held the buddy on its own wall's edge in the blazes' fire, BlazePillboxTask (20 Nov 2026)
-            java.util.Map.entry("centre_drop_in", 1.0));
+            java.util.Map.entry("centre_drop_in", 1.0),
+            // the obsidian cast's frame with no block it may place frees the cobblestone above 16 and the deepslate from the
+            // reserve the kit's finished tasks left behind: "every throwaway we have is protected" with 56 cobblestone held, six
+            // casts failed in 5.6 minutes, PlaceObsidianBucketTask (20 Nov 2026)
+            java.util.Map.entry("cast_free_stone", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
