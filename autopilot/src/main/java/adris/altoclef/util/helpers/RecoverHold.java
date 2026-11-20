@@ -129,6 +129,14 @@ public final class RecoverHold {
             on = false;
             return;
         }
+        // (Tuning hold_regen_check, a fix of 20 Nov 2026, on) regen that cannot happen any more ends the hold: the bar fell under
+        // the regen line with nothing decent to eat, and a hold stood 40 s at 3.2 hp and hunger 16 in water, re-runs from a
+        // skeleton keeping its stall clock at zero, until a drowned killed it (heel-88-mc3 r2). mayStart asked this only at the start
+        if (Tuning.get("hold_regen_check", 0) > 0 && !body.canRegen() && !body.eating()) {
+            on = false;
+            stallTicks = 0;
+            return;
+        }
         if (now - startTick >= CAP_TICKS) {
             on = false;
             stallTicks = 0;

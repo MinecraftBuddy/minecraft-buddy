@@ -342,4 +342,21 @@ public class RecoverHoldTest {
         assertFalse(0.23 >= CombatRules.FAST_MOB_SPEED);
         assertFalse(0.25 >= CombatRules.FAST_MOB_SPEED);
     }
+
+    // (hold_regen_check) the bar falls under the regen line with nothing decent to eat: the hold ends, re-run or not
+    @Test
+    public void aHoldEndsOnceRegenCannotHappen() {
+        RecoverHold h = new RecoverHold();
+        h.ended(0, CombatCommit.Mode.RUN, 10f, FED);
+        assertTrue(h.on());
+        h.update(20, 10f, true, new Body(18, false, false, false));
+        assertTrue(h.on());
+        h.update(40, 10f, true, new Body(16, false, false, false));
+        assertFalse(h.on());
+        // with food in the bag it holds on (the meal is the regen)
+        RecoverHold fed = new RecoverHold();
+        fed.ended(0, CombatCommit.Mode.RUN, 10f, FED);
+        fed.update(20, 10f, true, new Body(16, true, false, false));
+        assertTrue(fed.on());
+    }
 }
