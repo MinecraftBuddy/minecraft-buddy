@@ -1139,6 +1139,8 @@ final class Alto {
 
 			public boolean kitAgain() { return kitAgainOn(); }
 
+			public int foodPoints() { return m34FoodPointsOn() ? foodScore(false) : -1; }
+
 			public int obsidianInFrames() {
 				if (!present() || adris.altoclef.util.helpers.Tuning.get("frame_obsidian_counts", 0) <= 0) return 0;
 				var mod = instance();
@@ -1156,6 +1158,11 @@ final class Alto {
 	/** The autopilot's nether_gold switch (steering 200, on by default): the trade's gold dug in the nether; off without the autopilot. */
 	static boolean netherGoldOn() {
 		return present() && adris.altoclef.util.helpers.Tuning.get("nether_gold", 0) > 0;
+	}
+
+	/** The autopilot's m34_food_points switch (a fix of 20 Nov 2026, on by default); off without the autopilot. */
+	static boolean m34FoodPointsOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("m34_food_points", 0) > 0;
 	}
 
 	/** The autopilot's m34_kit_again switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
@@ -1215,7 +1222,9 @@ final class Alto {
 				return new Run("kit a furnace", 5 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
 					new adris.altoclef.util.ItemTarget("furnace", 1))));
 			case "food":
-				// eight steaks' worth: the phase is met with eight food in the bag
+				// eight steaks' worth: the phase is met with eight food in the bag; (m34_food_points) in the portal phase what a food
+				// run before the nether gathers (foodUnits: NETHER_FOOD)
+				if (m34FoodPointsOn() && ObtainRoute.phase() == ObtainRoute.M3_4) return food(foodUnits(p));
 				return food(64);
 			case "bed":
 				// (asked with no sheep about too: the route's bed is the first night's, wherever the sheep are)

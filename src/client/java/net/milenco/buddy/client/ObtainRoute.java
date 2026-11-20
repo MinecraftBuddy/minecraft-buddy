@@ -91,6 +91,12 @@ final class ObtainRoute {
 		 */
 		default int obsidianInFrames() { return 0; }
 
+		/**
+		 * The bag's food points as the nether's food rule counts them, with the autopilot's m34_food_points switch on; -1
+		 * without, and the portal phase's food piece asks the count of food alone.
+		 */
+		default int foodPoints() { return -1; }
+
 		/** The autopilot's gold_clock_fix switch: M3.4's gold on M3.3's clock and budget, and not mined again once over. */
 		default boolean goldClockFix() { return false; }
 
@@ -123,6 +129,9 @@ final class ObtainRoute {
 
 	private static final String[] SLOTS = { "helmet", "chestplate", "leggings", "boots" };
 	private static final List<String> IRON_UP = List.of("iron", "diamond", "netherite");
+
+	/** (m34_food_points) under this many food points the portal phase gathers food for the nether (a food run gathers 160). */
+	static final int M34_FOOD_POINTS = 120;
 
 	/** What the rig counts as food in the bag (raw meat too). */
 	static final Set<String> FOOD = Set.of("cooked_beef", "cooked_porkchop", "cooked_mutton", "cooked_chicken", "cooked_cod",
@@ -187,7 +196,9 @@ final class ObtainRoute {
 		List.of(piece(M3_4, "flint and steel", b -> b.inv("flint_and_steel") < 1),
 			piece(M3_4, "rest", Bag::restMissing),
 			piece(M3_4, "crafting table", b -> b.kitAgain() && b.inv("crafting_table") < 1 && wood(b) < 4),
-			piece(M3_4, "food", b -> b.kitAgain() && food(b) < 8),
+			// (m34_food_points, a fix of 20 Nov 2026) and by points: the nether sends the buddy home under 36 points, and eight
+			// carrots or berries met the count, so two runs turned back at the portal for food (read of 20 Nov 01:10)
+			piece(M3_4, "food", b -> b.kitAgain() && (food(b) < 8 || b.foodPoints() >= 0 && b.foodPoints() < M34_FOOD_POINTS)),
 			piece(M3_4, "bed", b -> b.kitAgain() && b.invEnding("_bed") < 1 && !b.bedNear() && !b.deepUnder()),
 			piece(M3_4, "water bucket", b -> b.kitAgain() && b.inv("water_bucket") < 1),
 			// (the iron pickaxes before the diamonds: diamond ore wants one)

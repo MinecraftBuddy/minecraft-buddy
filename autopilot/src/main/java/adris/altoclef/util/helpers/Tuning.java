@@ -893,7 +893,10 @@ public final class Tuning {
             java.util.Map.entry("portal_climb_hold", 1.0),
             // the obsidian cast's walk back to its stand, once begun, goes on till within 24 blocks: the side of a chunk line with the
             // cast's chunks in built from 142 blocks off, and the walk and the build took turns, PlaceObsidianBucketTask (20 Nov 2026)
-            java.util.Map.entry("cast_walk_latch", 1.0));
+            java.util.Map.entry("cast_walk_latch", 1.0),
+            // the buddy's portal phase gathers food by points too, under 120 up to 160: eight carrots met its count of eight food,
+            // and the nether sent the buddy home under 36 points on arrival, the buddy's ObtainRoute (20 Nov 2026)
+            java.util.Map.entry("m34_food_points", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
