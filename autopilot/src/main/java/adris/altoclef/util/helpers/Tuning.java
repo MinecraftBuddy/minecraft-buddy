@@ -924,7 +924,10 @@ public final class Tuning {
             java.util.Map.entry("cast_free_stone", 1.0),
             // (off till its smoke) a user task finished on its chain's tick pops the behaviour levels its tasks left, down to the
             // runner's own: their reserves added up over the kit's tasks and locked the stone, UserTaskChain (20 Nov 2026)
-            java.util.Map.entry("root_done_unwind", 0.0));
+            java.util.Map.entry("root_done_unwind", 0.0),
+            // three poke-mine segments in a row with nothing dug start a new run into rock not dug yet: a cave on both sides
+            // turned the run back onto its own tunnels, 188 legs in 12 minutes with no block dug, PokeMineTask (20 Nov 2026)
+            java.util.Map.entry("poke_empty_new_run", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

@@ -126,6 +126,8 @@ public class PokeMineTask extends Task {
         final ArrayDeque<Long> resets = new ArrayDeque<>();
         // the segment under way: cells dug by kind, hole cells passed over, caves met, cells shown, ores seen, which pick broke what
         int tunnel, holes, connector, skipped, caves, faces, oresSeen, wanted, segments;
+        // (poke_empty_new_run) segments in a row that dug nothing
+        int empty;
         final TreeMap<String, Integer> picks = new TreeMap<>();
 
         Memory(Object level) {
@@ -288,7 +290,10 @@ public class PokeMineTask extends Task {
             if (feet.equals(step)) {
                 _stepAt = null;
                 _walk = null;
-                if (run.stepped()) logSegment(m, run.station() ? "a station" : "a new leg");
+                if (run.stepped()) {
+                    logSegment(m, run.station() ? "a station" : "a new leg");
+                    if (emptyLoop(mod, m, feet)) return null;
+                }
                 continue;
             }
             if (!feet.equals(at)) return back(mod, m, feet, at, now);
@@ -441,6 +446,7 @@ public class PokeMineTask extends Task {
         _walk = null;
         if (why.startsWith("open") || why.startsWith("water")) m.caves++;
         logSegment(m, "the way closed");
+        if (emptyLoop(mod, m, feet)) return false;
         PokePattern.Turn t = m.run.blocked();
         if (t == PokePattern.Turn.TURNED) {
             logTurn(m, "the step to " + step.toShortString() + " is not taken: " + why);
@@ -625,6 +631,23 @@ public class PokeMineTask extends Task {
 
     // one line a segment (a station's holes and the steps to the next, a connector, or up to a turn): what was dug and
     // shown, so a read can count the ores seen a block dug, and which pick broke which rock
+    // (Tuning poke_empty_new_run, a fix of 20 Nov 2026, on) EMPTY_SEGMENTS segments in a row that dug nothing: the run went back
+    // along its own tunnels, and a new run goes from the feet into rock not dug yet. a cave on both sides of a leg's end turned
+    // the connector back onto the leg dug before, the pattern found the old tunnels open and never asked for a new run: 188 legs
+    // in 12 minutes with no block dug in the slime search (heel-76-mc2 run 3, cascade heel-76 run 3, look 161). true when a new
+    // run began
+    static final int EMPTY_SEGMENTS = 3;
+
+    private boolean emptyLoop(AltoClef mod, Memory m, BlockPos feet) {
+        if (m.run == null || m.empty < EMPTY_SEGMENTS || adris.altoclef.util.helpers.Tuning.get("poke_empty_new_run", 0) <= 0) return false;
+        int n = m.empty;
+        m.empty = 0;
+        Debug.logInternal("branch mine: " + n + " poke segments in a row dug nothing at " + feet.toShortString()
+                + ", back along the run's own tunnels: a new run into rock not dug yet (poke_empty_new_run)");
+        newRun(mod, m, feet, -m.run.dz(), m.run.dx(), n + " segments with nothing dug");
+        return true;
+    }
+
     private static void logSegment(Memory m, String why) {
         if (m.run == null || m.tunnel + m.holes + m.connector + m.skipped == 0) return;
         m.segments++;
@@ -634,6 +657,7 @@ public class PokeMineTask extends Task {
             picks.append(e.getKey()).append(' ').append(e.getValue());
         }
         int dug = m.tunnel + m.holes + m.connector;
+        m.empty = dug == 0 ? m.empty + 1 : 0;
         Debug.logInternal("branch mine: poke segment " + m.segments + " (leg " + m.run.legs() + ", to " + m.run.x() + ", " + m.run.y()
                 + ", " + m.run.z() + ", " + why + "): " + dug + " dug (" + m.tunnel + " tunnel, " + m.holes + " holes, " + m.connector
                 + " connector), " + m.skipped + " hole cells not dug, " + m.caves + " caves met, " + m.faces + " cells shown, "
