@@ -742,6 +742,10 @@ public final class Tuning {
             // three minutes is banned for five: a block under the sea flipped out and in 260 times in 43 minutes, and looks 130,
             // 151 and 202 were the same loop with other triggers, AbstractDoToClosestObjectTask (look 205)
             java.util.Map.entry("flip_guard", 1.0),
+            // (read by the buddy, Alto) the slime ball's one search keeps its forty minutes through a branch mine's give-up of its
+            // depth: the mine walks on and begins afresh; a give-up near the surface ended 13 of 68 searches within five minutes
+            // (21 Nov 2026, the evaluation of 21:05)
+            java.util.Map.entry("slime_search_whole", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),

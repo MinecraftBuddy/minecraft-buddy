@@ -839,6 +839,10 @@ final class Alto {
 	static void kitReset() { KIT_FAILED.clear(); }
 
 	/** The autopilot's gold_runs_on switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
+	static boolean slimeSearchWholeOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("slime_search_whole", 0) > 0;
+	}
+
 	static boolean goldRunsOn() {
 		return present() && adris.altoclef.util.helpers.Tuning.get("gold_runs_on", 0) > 0;
 	}
@@ -1643,6 +1647,8 @@ final class Alto {
 
 		boolean kit() { return what.startsWith("equip ") || what.startsWith("kit "); }
 
+		boolean slimeSearch() { return what.equals("kit a slime ball"); }
+
 		@Override
 		ObtainSteps.Result tick(net.minecraft.client.Minecraft mc, net.minecraft.client.player.LocalPlayer p, long now) {
 			lastNow = now;
@@ -1801,7 +1807,11 @@ final class Alto {
 				} else if (now - startedAt > limit) { cancel(); return fail("AltoClef did not " + what + " in " + limit / 60_000 + " minutes"); }
 				// (mine_water_roof) the branch mine under a piece of the kit gave up its depth where it stood: the piece fails
 				// and the next one goes on, rather than its whole time in the same place
-				if (kit() && adris.altoclef.tasks.movement.BranchMineTask.gaveUps != gaveUpsAtStart) {
+				// (slime_search_whole, a fix of 21 Nov 2026, on) except the slime ball's: its one try is one search of forty minutes
+				// (steering 204), and the mine walks on and begins afresh by itself; a give-up near the surface ended 13 of 68
+				// searches within five minutes and the run went to the nether without the ball
+				if (kit() && !(slimeSearch() && slimeSearchWholeOn())
+						&& adris.altoclef.tasks.movement.BranchMineTask.gaveUps != gaveUpsAtStart) {
 					cancel();
 					return fail(adris.altoclef.tasks.movement.BranchMineTask.gaveUpLine);
 				}
