@@ -477,6 +477,12 @@ public class BranchMineTask extends Task {
             if (flipGuardOn() && watch && _ownTunnelAt != null) {
                 return giveUpHere(mod, now, y, fx, fz, Math.max(1, fires().last()), ", in the tunnel of its own, tunnel_flip_guard");
             }
+            // (Tuning tunnel_wet_guard, a fix of 21 Nov 2026, on) the walk-outs' fire in the tunnel of its own likewise: its remedy is
+            // the tunnel whose step, three down beside a flooded pocket, Baritone would not dig. look 200 (heel-157 r1): five
+            // walk-outs to the same dry cell in two minutes, the place watch then gave the same tunnel again, 75 s more lost
+            if (flipGuardOn() && wetLoop && _ownTunnelAt != null && adris.altoclef.util.helpers.Tuning.get("tunnel_wet_guard", 0) > 0) {
+                return giveUpHere(mod, now, y, fx, fz, Math.max(1, fires().last()), ", the walk-outs' in the tunnel of its own, tunnel_wet_guard");
+            }
             if (shuttle && _ownTunnelAt != null) {
                 return giveUpHere(mod, now, y, fx, fz, Math.max(1, fires().last()), ", in the tunnel of its own, tunnel_shuttle_guard");
             }

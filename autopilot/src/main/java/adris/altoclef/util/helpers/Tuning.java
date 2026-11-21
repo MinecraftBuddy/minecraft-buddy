@@ -736,6 +736,9 @@ public final class Tuning {
             // within 12 where a pit can begin, each spot once, three walks a task; a swamp start stood in water and never began
             // its pit, 6 minutes lost, MineAndCollectTask (look 198)
             java.util.Map.entry("stone_pit_dry", 1.0),
+            // the branch mine's walk-outs of water firing in its own tunnel give the depth up, as the place watch's fire there
+            // does: the remedy was the tunnel that failed, BranchMineTask (look 200)
+            java.util.Map.entry("tunnel_wet_guard", 1.0),
             // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
             // none: a stone one takes no gold ore); with no wood in the bag the try ends as before (no trip up from the deep
             // with a worn pickaxe, look 127):
