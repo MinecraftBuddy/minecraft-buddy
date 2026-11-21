@@ -110,6 +110,9 @@ final class TradeGold {
     private int _stonePicks;
     private boolean _stonePickFailed;
     private int _stonePickFails;
+    // (Tuning gold_stone_making, a fix of 21 Nov 2026, on) a stone pickaxe's craft under way: begun since the last one in the
+    // bag was usable. it counts as one the bag covers, so the step never ends on the pickaxes kept in the middle of it
+    private boolean _stoneMaking;
     static final int STONE_PICK_TRIES = 3;
 
     TradeGold() {
@@ -233,8 +236,16 @@ final class TradeGold {
         // went to the blazes or stood with no potion (heel-78-mc1, heel-78-mc2, heel-80-mc2)
         if (picksKept && ingots < target && !atFortress) {
             boolean dangerNow = dangerNear(mod) || now - _dangerAt < DANGER_HOLD || player.isOnFire() || player.isInLava();
-            switch (TradeGoldRules.pickWay(goldStoneDigOn(), picksLeft, PICK_KEEP, PICK_FLOOR, stonePickUsable(mod),
-                    NetherPick.covered(bagOf(mod), NetherPick.Tier.STONE), _stonePickFailed, dangerNow)) {
+            boolean usable = stonePickUsable(mod);
+            if (usable) _stoneMaking = false;
+            // (Tuning gold_stone_making) the craft's own table, once set down, is out of the bag and not yet in the station book,
+            // so covered() read false the tick after: END, the fold took the tick, the table went back to the bag and the loop
+            // ran till the fold was done and the step ended "the pickaxes kept" with 23 cobblestone and 5 sticks in the bag
+            // (heel-152-mc2 r1, the seventh stone pickaxe; mc-test2 t8 the second). a real shortage still ends the craft:
+            // NetherPickTask's own check (with its table grace) fails it, and stonePick() counts that toward STONE_PICK_TRIES
+            boolean making = goldStoneMakingOn() && _stoneMaking && _stonePick != null && !_stonePick.failed();
+            switch (TradeGoldRules.pickWay(goldStoneDigOn(), picksLeft, PICK_KEEP, PICK_FLOOR, usable,
+                    making || NetherPick.covered(bagOf(mod), NetherPick.Tier.STONE), _stonePickFailed, dangerNow)) {
                 case DIG -> picksKept = false;
                 case MAKE -> {
                     Task make = stonePick(mod, picksLeft);
@@ -366,6 +377,10 @@ final class TradeGold {
         return adris.altoclef.util.helpers.Tuning.get("gold_stone_dig", 0) > 0;
     }
 
+    static boolean goldStoneMakingOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_stone_making", 0) > 0;
+    }
+
     // (gold_stone_dig) a stone pickaxe in the bag that is not worn out
     private static boolean stonePickUsable(AltoClef mod) {
         var inv = mod.getPlayer().getInventory();
@@ -428,7 +443,11 @@ final class TradeGold {
             }
             Debug.logInternal("trade gold: the stone pickaxe's craft failed (" + _stonePickFails + " of " + STONE_PICK_TRIES + "), again");
         }
-        if (_stonePick == null || _stonePick.isFinished(mod)) {
+        // (gold_stone_making) a new craft each time the last stone pickaxe wore out: the old task read unfinished again and was
+        // reused, so each craft after the first went uncounted ("1 stone pickaxes begun" after six)
+        boolean fresh = goldStoneMakingOn() && !_stoneMaking;
+        _stoneMaking = true;
+        if (_stonePick == null || fresh || _stonePick.isFinished(mod)) {
             _stonePick = new NetherPickTask(NetherPick.Tier.STONE, () -> bagOf(mod), () -> stonePickUsable(mod));
             _stonePicks++;
             Debug.logInternal(String.format(Locale.ROOT, "trade gold: the pickaxes of iron or better at %d uses, a stone pickaxe from the bag's %d cobblestone (%d made)",
