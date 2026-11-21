@@ -92,6 +92,14 @@ public class GhastShelterChain extends SingleTaskChain {
     private final Task _stay = new IdleTask();
     private long _since = Long.MIN_VALUE;
     private long _walkSince = Long.MIN_VALUE;
+    // (Tuning ghast_walk_stuck, a fix of 21 Nov 2026, on) the walk's nearest distance to its cover so far and when it was reached:
+    // a walk that gets no WALK_GAIN closer in WALK_STUCK_TICKS is given up as one not reached in WALK_TICKS is. test heel
+    // (heel-150-mc1 r4): a cover with no path held the buddy 20 s in the open beside a blaze spawner, Baritone's "No path found"
+    // over and over, ten blazes' fire 20 hp to 1.6 while the ghast was 45 blocks off; the blaze run got the wheel at 1.6 hp
+    private double _walkBest = Double.MAX_VALUE;
+    private long _walkBestAt = Long.MIN_VALUE;
+    static final int WALK_STUCK_TICKS = 100;
+    static final double WALK_GAIN = 0.5;
     private long _restUntil = Long.MIN_VALUE;
     private long _clearSince = Long.MIN_VALUE;
     // waiting before a crossing (any ghast near) rather than hiding from one that sees us
@@ -152,6 +160,19 @@ public class GhastShelterChain extends SingleTaskChain {
                 Debug.logInternal("ghast shelter: the cover at " + _cover.toShortString() + " not reached in " + WALK_TICKS / 20 + " s, no shelter for " + REST_TICKS / 20 + " s");
                 rest(now);
                 return Float.NEGATIVE_INFINITY;
+            }
+            // (Tuning ghast_walk_stuck) a walk getting no closer is given up at once, not at the end of WALK_TICKS
+            if (!there && adris.altoclef.util.helpers.Tuning.get("ghast_walk_stuck", 0) > 0) {
+                double d = Math.sqrt(player.blockPosition().distSqr(_cover));
+                if (_walkBestAt == Long.MIN_VALUE || now < _walkBestAt || d <= _walkBest - WALK_GAIN) {
+                    _walkBest = Math.min(_walkBest, d);
+                    _walkBestAt = now;
+                } else if (now - _walkBestAt > WALK_STUCK_TICKS) {
+                    Debug.logInternal(String.format(java.util.Locale.ROOT, "ghast shelter: the cover at %s no closer in %d s (%.1f off, the nearest %.1f), no shelter for %d s (ghast_walk_stuck)",
+                            _cover.toShortString(), WALK_STUCK_TICKS / 20, d, _walkBest, REST_TICKS / 20));
+                    rest(now);
+                    return Float.NEGATIVE_INFINITY;
+                }
             }
             if (there && ghast != null) {
                 // (still in a ghast's sight there: from where it is now that cell is no cover, so the next one. the idle there held
@@ -347,6 +368,8 @@ public class GhastShelterChain extends SingleTaskChain {
         _way.reset();
         _go = new GetToBlockTask(cover);
         _walkSince = now;
+        _walkBest = Double.MAX_VALUE;
+        _walkBestAt = Long.MIN_VALUE;
         _clearSince = Long.MIN_VALUE;
     }
 

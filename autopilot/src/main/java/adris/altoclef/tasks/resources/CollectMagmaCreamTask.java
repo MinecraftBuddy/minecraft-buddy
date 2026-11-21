@@ -125,6 +125,10 @@ public class CollectMagmaCreamTask extends ResourceTask {
         if (why == null && alone > 0) {
             why = adris.altoclef.util.helpers.RouteRules.cubeLetGo(CollectBlazeRodsTask.cubesBy(mod, _held, alone), us.getHealth());
         }
+        // (Tuning route_cube_foe: let go with a skeleton by the buddy or the cube, RouteRules.cubeFoeWhy)
+        if (why == null) {
+            why = CollectBlazeRodsTask.cubeFoeWhyNot(mod, _held);
+        }
         if (why == null) return _held;
         LET_GO.add(_held.getId());
         adris.altoclef.Debug.logInternal(String.format(java.util.Locale.ROOT, "cream: the cube at %s let go, %s, after %.0f s",

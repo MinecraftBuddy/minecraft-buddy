@@ -83,6 +83,9 @@ public final class Tuning {
             // splash potion thrown over the mob defense when the way's rule lets it go burning, 0 by the rods task alone.
             // RouteRules, BlazeFightRules, ItemPickupRules, FireResTrade.burnThrow)
             java.util.Map.entry("route_cube_alone", 6.0),
+            // (a fix of 21 Nov 2026, heel-151 r4) the errand's cube hunt picks and holds no cube with a skeleton or a wither skeleton
+            // within 12 of the buddy or of the cube, RouteRules.cubeFoeWhy
+            java.util.Map.entry("route_cube_foe", 12.0),
             java.util.Map.entry("route_trade_cube", 6.0),
             // (11 Nov 2026, a fix: a piglin with a magma cube within the cube distance and its clear margin is passed over, as one
             // by a hoglin; the walk to it and the walk off the cubes took turns 146 times in seven minutes, FireResTrade.cubeNear)
@@ -157,6 +160,9 @@ public final class Tuning {
             java.util.Map.entry("box_living_only", 1.0),
             // (a fix of 13 Nov 2026: the ghast shelter takes no cover within 3 blocks of the one held, look 73)
             java.util.Map.entry("ghast_cover_near_stay", 1.0),
+            // (a fix of 21 Nov 2026, heel-150-mc1 r4: the ghast shelter gives up a walk to cover that gets no half block closer in
+            // 5 s; one with no path held the buddy 20 s in a blaze spawner's fire, GhastShelterChain)
+            java.util.Map.entry("ghast_walk_stuck", 1.0),
             // (fixes of 13 Nov 2026, route-58's phase 2: no punch of a ghast's ball with a zombified piglin by its way back; the
             // trade's search rings start on the side away from the start, and wastes are looked for 16 and 32 above and below too)
             java.util.Map.entry("ghast_punch_zp_guard", 1.0),
@@ -723,6 +729,10 @@ public final class Tuning {
             // the breaker's dry spots to stand on reach one layer further down, five under the block: the dry top of a trunk in the sea
             // under one log left hanging was never asked, and the buddy swung from the water 288 times, DestroyBlockTask (look 197)
             java.util.Map.entry("land_spot_below", 1.0),
+            // the stone pit with the buddy in water or no dry column at the feet: a walk of at most 30 s to the nearest dry spot
+            // within 12 where a pit can begin, each spot once, three walks a task; a swamp start stood in water and never began
+            // its pit, 6 minutes lost, MineAndCollectTask (look 198)
+            java.util.Map.entry("stone_pit_dry", 1.0),
             // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
             // none: a stone one takes no gold ore); with no wood in the bag the try ends as before (no trip up from the deep
             // with a worn pickaxe, look 127):

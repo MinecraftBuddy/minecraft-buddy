@@ -885,6 +885,23 @@ public class MineAndCollectTask extends ResourceTask {
         private BlockPos _pitDigAt;
         private int _pitTries;
         private final Task _pitWait = new adris.altoclef.tasks.movement.IdleTask();
+        // (Tuning stone_pit_dry, a fix of 21 Nov 2026, look 198) the walk to a dry spot for the pit when the buddy stands in water
+        // or no column at the feet will do: the walk under way, its spot, when it began (game time), the walks this task made,
+        // and until when no new look for a spot is taken after none was found. DRY_TRIED holds the spots walked to (per world,
+        // as PITS: the parent builds this task again after every craft), each tried once
+        private Task _dryWalk;
+        private BlockPos _dryAt;
+        private long _drySince;
+        private int _dryWalks;
+        private long _dryNoneUntil = Long.MIN_VALUE / 2;
+        private static final Set<Long> DRY_TRIED = new HashSet<>();
+        // how far the look for a dry spot goes (sideways and up or down), how long a walk to one may take, how long after none
+        // was found the next look waits (game ticks), and the walks a task makes at most
+        static final int DRY_REACH = 12;
+        static final int DRY_UP = 3;
+        static final long DRY_WALK_TICKS = 30 * 20;
+        static final long DRY_NONE_TICKS = 10 * 20;
+        static final int DRY_MAX = 3;
         // the pits dug lately by any task ({x, z, game time}) and when the last ended, kept per world as the band memory is: the
         // parent builds this task again after every craft
         private static final List<long[]> PITS = new ArrayList<>();
@@ -897,6 +914,7 @@ public class MineAndCollectTask extends ResourceTask {
             int world = System.identityHashCode(mod.getWorld());
             if (world != pitWorld) {
                 PITS.clear();
+                DRY_TRIED.clear();
                 pitEndAt = Long.MIN_VALUE / 2;
                 pitWorld = world;
             }
@@ -949,14 +967,38 @@ public class MineAndCollectTask extends ResourceTask {
                 return null;
             }
             if (!on) {
+                _dryWalk = null;
                 return null;
+            }
+            // (Tuning stone_pit_dry) the walk to a dry spot, kept across ticks before the look's throttle: on the spot the pit
+            // begins as before, at once; a spot not reached in DRY_WALK_TICKS is left. test heel, look 198: a swamp start stood
+            // in water 65 of 74 samples, the pit never began (wet feet, wet columns), 6 min lost till the night
+            boolean dry = adris.altoclef.util.helpers.Tuning.get("stone_pit_dry", 0) > 0;
+            if (_dryWalk != null) {
+                if (!dry) {
+                    _dryWalk = null;
+                } else if (feet.equals(_dryAt) && player.onGround() && !player.isInWater()) {
+                    Debug.logInternal("stone pit: at the dry spot " + _dryAt.getX() + " " + _dryAt.getY() + " " + _dryAt.getZ() + " after "
+                            + (now - _drySince) / 20 + " s (stone_pit_dry)");
+                    _dryWalk = null;
+                    _pitLookAt = WorldHelper.getTicks() - 20;
+                } else if (now - _drySince > DRY_WALK_TICKS) {
+                    Debug.logInternal("stone pit: the dry spot " + _dryAt.getX() + " " + _dryAt.getY() + " " + _dryAt.getZ() + " not reached in "
+                            + DRY_WALK_TICKS / 20 + " s, left (stone_pit_dry)");
+                    _dryWalk = null;
+                } else {
+                    setDebugState("To a dry spot at " + _dryAt.getX() + " " + _dryAt.getZ() + " for the pit");
+                    return _dryWalk;
+                }
             }
             int t = WorldHelper.getTicks();
             if (t >= _pitLookAt && t - _pitLookAt < 20) {
                 return null;
             }
             _pitLookAt = t;
-            if (!player.onGround() || player.isInWater()) {
+            // in water the pit never begins here; with stone_pit_dry a dry spot is looked for below, once the pit is wanted
+            boolean wet = player.isInWater();
+            if (wet ? !dry : !player.onGround()) {
                 return null;
             }
             Integer bestY = _miningPos != null ? _miningPos.getY() : null;
@@ -971,9 +1013,9 @@ public class MineAndCollectTask extends ResourceTask {
             if (stoneInReach(mod, player)) {
                 return null;
             }
-            BlockPos column = pitColumn(mod, feet, direct);
+            BlockPos column = wet ? null : pitColumn(mod, feet, direct);
             if (column == null) {
-                return null;
+                return dry ? dryWalk(mod, feet, direct, now, wet) : null;
             }
             int floorY = column.getY() - StoneDigRank.PIT_DEPTH;
             // (Tuning stone_pit_direct) no search through the fake ores: the block under the feet is broken where the buddy
@@ -1112,6 +1154,63 @@ public class MineAndCollectTask extends ResourceTask {
                 }
             }
             return null;
+        }
+
+        // (Tuning stone_pit_dry) the walk to the nearest stand within DRY_REACH sideways and DRY_UP up or down where a pit can
+        // begin: feet and head dry and free, a whole floor, a column pitColumnOk takes; a spot once a world, DRY_MAX walks a task.
+        // null with none (the next look after DRY_NONE_TICKS)
+        private Task dryWalk(AltoClef mod, BlockPos feet, boolean direct, long now, boolean wet) {
+            if (now < _dryNoneUntil || _dryWalks >= DRY_MAX) {
+                return null;
+            }
+            List<BlockPos> stands = new ArrayList<>();
+            for (int dx = -DRY_REACH; dx <= DRY_REACH; dx++) {
+                for (int dz = -DRY_REACH; dz <= DRY_REACH; dz++) {
+                    for (int dy = -DRY_UP; dy <= DRY_UP; dy++) {
+                        BlockPos c = feet.offset(dx, dy, dz);
+                        if (c.equals(feet) || DRY_TRIED.contains(c.asLong()) || !standDry(mod, c)) {
+                            continue;
+                        }
+                        stands.add(c);
+                    }
+                }
+            }
+            stands.sort(Comparator.comparingDouble(c -> c.distSqr(feet)));
+            for (BlockPos c : stands) {
+                if (!pitColumnOk(mod, c, direct)) {
+                    continue;
+                }
+                DRY_TRIED.add(c.asLong());
+                if (DRY_TRIED.size() > 256) {
+                    DRY_TRIED.clear();
+                    DRY_TRIED.add(c.asLong());
+                }
+                _dryAt = c.immutable();
+                _drySince = now;
+                _dryWalks++;
+                _dryWalk = new adris.altoclef.tasks.movement.GetToBlockTask(_dryAt);
+                Debug.logInternal(String.format(Locale.ROOT, "stone pit: %s, a dry spot at %d %d %d, %.1f off, walk %d of %d (stone_pit_dry)",
+                        wet ? "the buddy in water" : "no dry column at the feet", c.getX(), c.getY(), c.getZ(), Math.sqrt(c.distSqr(feet)),
+                        _dryWalks, DRY_MAX));
+                setDebugState("To a dry spot at " + c.getX() + " " + c.getZ() + " for the pit");
+                return _dryWalk;
+            }
+            _dryNoneUntil = now + DRY_NONE_TICKS;
+            Debug.logInternal("stone pit: " + (wet ? "the buddy in water" : "no dry column at the feet") + ", no dry spot within " + DRY_REACH
+                    + " (stone_pit_dry)");
+            return null;
+        }
+
+        // a stand for the dry walk: feet and head free of blocks and fluid, a whole floor under the feet
+        private static boolean standDry(AltoClef mod, BlockPos c) {
+            var world = mod.getWorld();
+            BlockState at = world.getBlockState(c);
+            BlockState head = world.getBlockState(c.above());
+            if (!at.getCollisionShape(world, c).isEmpty() || !head.getCollisionShape(world, c.above()).isEmpty()
+                    || !at.getFluidState().isEmpty() || !head.getFluidState().isEmpty()) {
+                return false;
+            }
+            return floorHolds(mod, c.getX(), c.getY() - 1, c.getZ());
         }
 
         private static boolean pitColumnOk(AltoClef mod, BlockPos top, boolean direct) {

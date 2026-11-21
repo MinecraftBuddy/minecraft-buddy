@@ -390,6 +390,26 @@ public final class RouteRules {
         return Tuning.get("route_cube_alone", 0);
     }
 
+    // (Tuning route_cube_foe, a fix of 21 Nov 2026, on: the radius, CUBE_FOE by default, 0 off) the crowd the hunt lets go for
+    // counted cubes alone, never the skeletons that kill in the fortress: the errand's hunt picks no cube and holds none with a
+    // skeleton or a wither skeleton within the radius of the buddy or of the cube. test heel, a run with no slime ball: the
+    // hunt went up a fortress deck for a cube 38 blocks off past a wither skeleton the danger watch had named at 7.4, a second
+    // came from behind, 20 hp to 0 in 20 s (heel-151 r4)
+    public static final double CUBE_FOE = 12;
+
+    public static double cubeFoe() {
+        return Tuning.get("route_cube_foe", 0);
+    }
+
+    // why the hunt leaves a cube for a skeleton, null when none is within the radius of the buddy or of the cube (the nearest
+    // skeleton's distance to each; Double.MAX_VALUE with none about)
+    public static String cubeFoeWhy(double toBuddy, double toCube, double radius) {
+        if (radius <= 0) return null;
+        if (toBuddy <= radius) return String.format(java.util.Locale.ROOT, "a skeleton %.0f blocks from the buddy", toBuddy);
+        if (toCube <= radius) return String.format(java.util.Locale.ROOT, "a skeleton %.0f blocks from the cube", toCube);
+        return null;
+    }
+
     // why a cube is not hunted by the alone rule (the count line's words), null when it may be: its size, the other cubes
     // within the radius of it, the buddy's health
     public static String cubeWhyNot(int size, int othersNear, double health) {

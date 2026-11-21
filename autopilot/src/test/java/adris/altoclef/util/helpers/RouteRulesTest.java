@@ -463,6 +463,16 @@ public class RouteRulesTest {
         assertEquals("2 more cubes by it", RouteRules.cubeLetGo(2, 20));
     }
 
+    // heel-151 r4: no cube hunted or held with a skeleton within the radius of the buddy or of the cube (route_cube_foe)
+    @Test
+    public void theCubeHuntLeavesACubeWithASkeletonBy() {
+        assertNull(RouteRules.cubeFoeWhy(Double.MAX_VALUE, Double.MAX_VALUE, 12));
+        assertNull(RouteRules.cubeFoeWhy(13, 20, 12));
+        assertEquals("a skeleton 7 blocks from the buddy", RouteRules.cubeFoeWhy(7.4, 30, 12));
+        assertEquals("a skeleton 10 blocks from the cube", RouteRules.cubeFoeWhy(20, 10, 12));
+        assertNull(RouteRules.cubeFoeWhy(3, 3, 0));
+    }
+
     // route jar 7: the trade walks off a cube within the distance, on till it is the distance and 4 more off (route_trade_cube)
     @Test
     public void theTradeWalksOffACubeTillClear() {

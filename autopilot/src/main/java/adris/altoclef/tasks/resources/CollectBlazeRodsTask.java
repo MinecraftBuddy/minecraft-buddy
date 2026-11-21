@@ -1234,8 +1234,31 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (adris.altoclef.util.helpers.LavaShore.approachBlocked(cells, us.getX(), us.getY(), us.getZ(), cube.getX(), cube.getY(), cube.getZ())) return "shore";
         // (Tuning route_cube_alone, route jar 7: the errand's hunt takes a cube of size 2 alone, with the buddy's health up,
         // RouteRules.cubeWhyNot; asked last, so the held cube's lava and sea let-go still sees those first)
-        if (anyLevel) return cubeAloneWhyNot(mod, cube);
+        if (anyLevel) {
+            // (Tuning route_cube_foe: no hunt with a skeleton by the buddy or the cube, RouteRules.cubeFoeWhy)
+            if (cubeFoeWhyNot(mod, cube) != null) return "foe";
+            return cubeAloneWhyNot(mod, cube);
+        }
         return null;
+    }
+
+    // the foe rule's verdict on a cube (Tuning route_cube_foe), null with the rule off or no skeleton within its radius of the
+    // buddy or of the cube. the tracker files an entity under its own class, so each kind is asked apart
+    static String cubeFoeWhyNot(AltoClef mod, MagmaCube cube) {
+        double radius = adris.altoclef.util.helpers.RouteRules.cubeFoe();
+        if (radius <= 0) return null;
+        var us = mod.getPlayer();
+        double toUs = Double.MAX_VALUE;
+        double toCube = Double.MAX_VALUE;
+        java.util.List<net.minecraft.world.entity.monster.skeleton.AbstractSkeleton> foes = new java.util.ArrayList<>();
+        foes.addAll(mod.getEntityTracker().getTrackedEntities(net.minecraft.world.entity.monster.skeleton.WitherSkeleton.class));
+        foes.addAll(mod.getEntityTracker().getTrackedEntities(net.minecraft.world.entity.monster.skeleton.Skeleton.class));
+        for (var s : foes) {
+            if (!s.isAlive()) continue;
+            toUs = Math.min(toUs, s.distanceTo(us));
+            toCube = Math.min(toCube, s.distanceTo(cube));
+        }
+        return adris.altoclef.util.helpers.RouteRules.cubeFoeWhy(toUs, toCube, radius);
     }
 
     // Tuning route_cream_ground (off by default; route jar 8, 9 Nov 2026): the B arm of the cream's A/B block. realfort-route-5's
