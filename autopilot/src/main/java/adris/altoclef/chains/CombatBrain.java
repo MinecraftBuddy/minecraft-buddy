@@ -1394,7 +1394,10 @@ final class CombatBrain {
         // the buddy bit into beef at hp 5.3 and 2.7 between its swings (heel-91-mc1 r3; heel-97-mc2 r5 the same at 7.3 and 1.3)
         if (adris.altoclef.util.helpers.Tuning.get("fight_target_bite", 0) > 0 && _commit.mode() == Mode.FIGHT && !_commit.perching()
                 && !_commit.gapping() && mod.getWorld().getEntity(_commit.targetId()) instanceof Mob fightMob && fightMob.isAlive()) {
-            nearestMelee = MobReachability.isRanged(fightMob) ? Math.min(nearestMelee, fightMob.distanceTo(player)) : 0;
+            // (a wither skeleton is a RangedAttackMob by class and never shoots: a melee target, as FoeRules.shoots reads it)
+            boolean targetShoots = MobReachability.isRanged(fightMob) && !(fightMob instanceof WitherSkeleton
+                    && adris.altoclef.util.helpers.Tuning.get("wither_target_melee", 0) > 0);
+            nearestMelee = targetShoots ? Math.min(nearestMelee, fightMob.distanceTo(player)) : 0;
         }
         // (in lava a bite is the wrong thing to be doing, the escape has the wheel)
         boolean burning = mod.getPlayer().isOnFire() && !mod.getPlayer().isInLava();

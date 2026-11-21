@@ -53,6 +53,14 @@ public final class WeaponPick {
     // best pickaxe that is not worn out: it never sweeps either. the sword's early window did not keep the sweep off (86
     // zombified piglins hit beside a target at a charge of 0.6 to 0.9 in the logs since 11 Nov, 6 of 7 piglin deaths begun so),
     // and its charge thrown away again and again let a biting blaze go unhit, 3 of 5 blaze deaths under the potion)
+    // (Tuning neutral_pick_floor) how much less a pickaxe may hit than the weapon it stands in for: a diamond pickaxe (5) for a
+    // diamond sword (7), an iron one (4) for an iron sword (6), never a wooden or stone one for a diamond sword
+    public static final float NEUTRAL_PICK_GAP = 2.0f;
+
+    public static boolean pickHitsEnough(float pick, float weapon) {
+        return pick >= weapon - NEUTRAL_PICK_GAP;
+    }
+
     public static Item bestPickaxe(Iterable<Candidate> candidates) {
         Candidate best = null;
         for (Candidate c : candidates) {

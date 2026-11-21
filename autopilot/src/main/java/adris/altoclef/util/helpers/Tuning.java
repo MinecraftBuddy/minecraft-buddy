@@ -1013,6 +1013,12 @@ public final class Tuning {
             // a night trip that gave up (the night did not pass) leaves its bed out of the buddy's count for the night's hole:
             // NightSleepHook.bedGaveUpTonight, Obtain.holeNight (21 Nov 2026)
             java.util.Map.entry("bed_failed_hole", 1.0),
+            // the neutral pick's pickaxe hits no more than 2 less than the weapon: WeaponPick.pickHitsEnough (21 Nov 2026)
+            java.util.Map.entry("neutral_pick_floor", 1.0),
+            // a wither skeleton as the fight's target is a melee foe to the bite gate (fight_target_bite), CombatBrain (21 Nov 2026)
+            java.util.Map.entry("wither_target_melee", 1.0),
+            // a melee mob that hit us in the last 5 s is never "can't reach us": MobReachRules.hitKeeps (21 Nov 2026)
+            java.util.Map.entry("hit_keeps_reach", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

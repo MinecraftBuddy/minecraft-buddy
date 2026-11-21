@@ -80,6 +80,15 @@ public abstract class AbstractKillEntityTask extends AbstractDoToEntityTask {
         if (axe == null && target != null && adris.altoclef.util.helpers.Tuning.get("neutral_pick", 0) > 0
                 && mod.getControllerExtras().calmNeutralNear(target)) {
             axe = WeaponPick.bestPickaxe(candidates(mod));
+            // (Tuning neutral_pick_floor, a fix of 21 Nov 2026, on) never a pickaxe much weaker than the weapon: a calm zombified
+            // piglin 1.5 off swapped a diamond sword for a wooden pickaxe (the diamond one counted as worn) against a wither
+            // skeleton, and two of its blows more killed the buddy (heel-120-mc2 r5)
+            Item weapon = bestWeapon(mod);
+            if (axe != null && weapon != null && adris.altoclef.util.helpers.Tuning.get("neutral_pick_floor", 0) > 0
+                    && !WeaponPick.pickHitsEnough(adris.altoclef.util.helpers.ItemHelper.getAttackDamage(axe),
+                    adris.altoclef.util.helpers.ItemHelper.getAttackDamage(weapon))) {
+                axe = null;
+            }
         }
         Item bestWeapon = axe != null ? axe : bestWeapon(mod);
         if (bestWeapon == null && toolFallback) bestWeapon = WeaponPick.bestTool(candidates(mod));

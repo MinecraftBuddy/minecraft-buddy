@@ -215,4 +215,12 @@ public class WeaponPickTest {
         assertNull(WeaponPick.bestAxe(List.of(fresh(Items.DIAMOND_SWORD), worn(Items.IRON_AXE))));
         assertNull(WeaponPick.bestAxe(List.of(fresh(Items.DIAMOND_SWORD))));
     }
+    // neutral_pick_floor: a pickaxe stands in for the weapon only when it hits at most 2 less
+    @Test
+    public void thePickStandsInOnlyWhenItHitsNearlyAsHard() {
+        assertTrue(WeaponPick.pickHitsEnough(5, 7));
+        assertTrue(WeaponPick.pickHitsEnough(4, 6));
+        assertFalse(WeaponPick.pickHitsEnough(4, 7));
+        assertFalse(WeaponPick.pickHitsEnough(2, 7));
+    }
 }

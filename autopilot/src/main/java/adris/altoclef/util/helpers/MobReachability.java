@@ -83,6 +83,14 @@ public class MobReachability {
             return true;
         }
         long now = mod.getWorld().getGameTime();
+        // (Tuning hit_keeps_reach, a fix of 21 Nov 2026, on) a melee mob that hit us a moment ago can reach us, whatever the stall
+        // clock says: a hoglin's throw keeps the gap from closing, and one read "it can't reach us (stalled)" right after a 4.8
+        // hit, the stance stayed calm, and three hoglins took the buddy from 20 to 0 (heel-120 r2)
+        if (Tuning.get("hit_keeps_reach", 0) > 0
+                && MobReachRules.hitKeeps(isRanged(mob), mod.getEntityTracker().getProvocations().sinceHit(mob.getId(), now))) {
+            _verdicts.put(mob.getId(), new Cached(now, Verdict.REACHABLE));
+            return true;
+        }
         Cached cached = _verdicts.get(mob.getId());
         // (a stalled verdict from when it was further out does not outlive it walking up to us)
         if (cached != null && now >= cached.tick && now - cached.tick < HOLD_TICKS

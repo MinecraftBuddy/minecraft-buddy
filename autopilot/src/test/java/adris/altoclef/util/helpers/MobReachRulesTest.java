@@ -353,4 +353,13 @@ public class MobReachRulesTest {
         assertTrue(MobReachRules.isVerticallyOut(1, -3.5, 1, MobReachRules.verticalGap(false, true)));
         assertTrue(MobReachRules.isVerticallyOut(1, -3.5, 1, MobReachRules.verticalGap(true, false)));
     }
+    // hit_keeps_reach: a melee mob that hit us within 5 s reaches us; a shooter's hit says nothing about walking up
+    @Test
+    public void aMeleeHitKeepsTheMobReachable() {
+        assertTrue(MobReachRules.hitKeeps(false, 0));
+        assertTrue(MobReachRules.hitKeeps(false, 100));
+        assertFalse(MobReachRules.hitKeeps(false, 101));
+        assertFalse(MobReachRules.hitKeeps(true, 10));
+        assertFalse(MobReachRules.hitKeeps(false, Provocations.NEVER));
+    }
 }

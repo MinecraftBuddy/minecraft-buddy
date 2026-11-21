@@ -65,6 +65,13 @@ public final class MobReachRules {
     public static final double CREEPER_EXEMPT_RANGE = CreeperStep.TRIGGER;
 
     // how close a mob has to be to never count as stuck. running widens it, outside it the old forty ticks stand
+    // (Tuning hit_keeps_reach) a melee mob that hit us within this many ticks reaches us: no stall verdict for it
+    public static final long HIT_KEEPS_TICKS = 100;
+
+    public static boolean hitKeeps(boolean ranged, long sinceHit) {
+        return !ranged && sinceHit >= 0 && sinceHit <= HIT_KEEPS_TICKS;
+    }
+
     public static double stallExemptRange(boolean fleeing) {
         return stallExemptRange(fleeing, false);
     }
