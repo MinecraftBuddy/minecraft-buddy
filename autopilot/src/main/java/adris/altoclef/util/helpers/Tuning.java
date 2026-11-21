@@ -712,6 +712,9 @@ public final class Tuning {
             // no break over sand or gravel that rests on lava: the gravel falls into the lava and the buddy after it, LavaBreak
             // (21 Nov 2026, heel-140-mc2 r1)
             java.util.Map.entry("dig_lava_loose", 1.0),
+            // (read by the buddy, ObtainSafe.Shelter.logsEnd) a night shelter's logs step that brought nothing keeps the shelter's tries
+            // counted: "no log in reach" after 0 s set them back, and an empty bag waited open for ten minutes (21 Nov 2026, look 195)
+            java.util.Map.entry("shelter_logs_keep_tries", 1.0),
             // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
             // none: a stone one takes no gold ore); with no wood in the bag the try ends as before (no trip up from the deep
             // with a worn pickaxe, look 127):

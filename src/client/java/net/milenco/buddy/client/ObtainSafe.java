@@ -752,6 +752,11 @@ final class ObtainSafe {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_skip_tries", 0) > 0;
 	}
 
+	/** The autopilot's shelter_logs_keep_tries switch (a fix of 21 Nov 2026, on by default); off without the autopilot. */
+	static boolean logsKeepTriesOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_logs_keep_tries", 0) > 0;
+	}
+
 	/** The autopilot's shelter_flat_walk switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
 	static boolean flatWalkOn() {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_flat_walk", 0) > 0;
@@ -1414,6 +1419,8 @@ final class ObtainSafe {
 		final ObtainSteps.Breaker logBreaker = new ObtainSteps.Breaker();
 		final ObtainSteps.Pickup logPickup = new ObtainSteps.Pickup();
 		int logRuns;
+		/** (shelter_logs_keep_tries) the logs and blocks the bag held when the logs step began. */
+		int logsAtStart, blocksAtStart;
 		ObtainSteps.Craft planks;
 		/** (shelter_flat_walk) the last look for a walk by hand found neither a cell to dig in nor flat ground. */
 		boolean handNone;
@@ -2261,6 +2268,8 @@ final class ObtainSafe {
 		void logsStart(Minecraft mc, LocalPlayer p, BlockPos f, long now, String why) {
 			logsRun = true;
 			logsSince = now;
+			logsAtStart = logsIn(p);
+			blocksAtStart = shelterBlocks(p);
 			logTarget = null;
 			planks = null;
 			logRuns++;
@@ -2323,7 +2332,11 @@ final class ObtainSafe {
 				"s", (now - logsSince) / 1000);
 			bottom = null; site = null; siteSince = 0; here = null; prop = null; propDone = false; nearSite = false; handWalk = false;
 			dug = 0; extra = 0; stuckSince = 0; since = now; noDig = false; stoppedShort = false; noDigKeptAt = null; digAt = null; dugAt = 0;
-			refusedAt = null; nearLook = null; elsewhere = 0; handNone = false;
+			refusedAt = null; nearLook = null;
+			// (the autopilot's shelter_logs_keep_tries, a fix of 21 Nov 2026, on) a logs step that brought nothing leaves the
+			// tries where they were: "no log in reach" after 0 s set them back every time, and each of the two log runs bought
+			// three more tries of 20 s at the same feet, an empty bag waiting open at nightfall for ten minutes (look 195)
+			if (!(logsKeepTriesOn() && logsIn(p) <= logsAtStart && shelterBlocks(p) <= blocksAtStart)) { elsewhere = 0; handNone = false; }
 			return ObtainSteps.Result.DONE;
 		}
 
