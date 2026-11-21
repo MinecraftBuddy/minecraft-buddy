@@ -805,8 +805,17 @@ public class BranchMineTask extends Task {
             }
             if (_tunnel == null || feet.equals(_tunnel)) {
                 boolean reached = _tunnel != null;
-                closedWay(mod, feet, 0);
-                _tunnel = new BlockPos(feet.getX() + _dx, _mineY, feet.getZ() + _dz);
+                // (Tuning tunnel_stair_down, a fix of 22 Nov 2026, on) with the feet two or more above the tunnel's height the
+                // step is a stair down, checked at its own height as the staircase's is: the level step at the tunnel's height
+                // lay up to eight blocks under the feet, the check looked at the feet's, and a pit's floor that was a cave's
+                // roof gave three minutes of searches that got 2 blocks (look 208, heel-177-mc1 r2)
+                if (stairDownOn() && feet.getY() >= _mineY + 2) {
+                    closedWay(mod, feet, -1);
+                    _tunnel = feet.offset(_dx, -1, _dz);
+                } else {
+                    closedWay(mod, feet, 0);
+                    _tunnel = new BlockPos(feet.getX() + _dx, _mineY, feet.getZ() + _dz);
+                }
                 _tunnelSince = now;
                 keepTunnel(now);
                 // (tunnel_flip_guard) back into the cell just left, the step before back too (A to B to A): a fire of the place
@@ -2259,6 +2268,10 @@ public class BranchMineTask extends Task {
         int[][] ways = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         for (int[] w : ways) if (!level.getBlockState(feet.offset(w[0], 0, w[1])).isAir()) return false;
         return true;
+    }
+
+    static boolean stairDownOn() {
+        return adris.altoclef.util.helpers.Tuning.get("tunnel_stair_down", 0) > 0;
     }
 
     static boolean upWayKeepOn() {

@@ -746,6 +746,10 @@ public final class Tuning {
             // depth: the mine walks on and begins afresh; a give-up near the surface ended 13 of 68 searches within five minutes
             // (21 Nov 2026, the evaluation of 21:05)
             java.util.Map.entry("slime_search_whole", 1.0),
+            // the branch mine's own tunnel with the feet two or more above its height steps a stair down, checked at the stair's
+            // height: the level step lay up to eight under the feet over a cave's open space, three minutes of searches that got
+            // two blocks, BranchMineTask (look 208)
+            java.util.Map.entry("tunnel_stair_down", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),
