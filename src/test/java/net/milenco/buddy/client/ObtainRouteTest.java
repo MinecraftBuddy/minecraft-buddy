@@ -26,6 +26,7 @@ class ObtainRouteTest {
 		final Map<String, Integer> items = new HashMap<>();
 		final Map<String, String> worn = new HashMap<>();
 		boolean bedNear, rest, slimeNear, kitAgain, goldClockFix, rawGoldSmelt, netherGold;
+		int netherSticks;
 
 		Kit give(String item, int n) { items.merge(item, n, Integer::sum); return this; }
 
@@ -52,6 +53,8 @@ class ObtainRouteTest {
 		public boolean restMissing() { return rest; }
 
 		public boolean kitAgain() { return kitAgain; }
+
+		public int netherSticks() { return netherSticks; }
 
 		public boolean goldClockFix() { return goldClockFix; }
 
@@ -496,7 +499,7 @@ class ObtainRouteTest {
 			"m2.1/shield", "m2.1/copper_chestplate", "m2.1/copper_leggings", "m2.1/copper_boots", "m2.1/iron_chestplate",
 			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.1/iron_helmet", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m3.1/diamonds",
 			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/slime ball", "m3.3/golden boots", "m3.3/golden boots again", "m3.3/gold", "m3.3b/slime ball",
-			"m3.4/flint and steel", "m3.4/rest", "m3.4/crafting table", "m3.4/food", "m3.4/bed", "m3.4/water bucket",
+			"m3.4/flint and steel", "m3.4/rest", "m3.4/crafting table", "m3.4/sticks", "m3.4/food", "m3.4/bed", "m3.4/water bucket",
 			"m3.4/iron pickaxes", "m3.4/diamonds", "m3.4/redstone", "m3.4/obsidian", "m3.4/raw gold", "m3.4/golden boots", "m3.4/gold",
 			"m3.4/water bottles", "m3.4/crafting table last"), names);
 		assertEquals(ObtainRoute.PHASES.size(), ObtainRoute.PIECES.size());
@@ -533,6 +536,23 @@ class ObtainRouteTest {
 		assertNull(next(k));
 		assertEquals(ObtainRoute.M3_4, ObtainRoute.phase());
 		assertEquals(List.of(), said);
+	}
+
+	/**
+	 * (nether_sticks) Before the portal the sticks of the nether's stone pickaxes: the gold step's own pickaxes go down to their
+	 * reserve, and with two sticks in the bag one stone pickaxe was made and the step ended with 60 cobblestone left.
+	 */
+	@Test
+	void thePortalsPhaseTakesSticksForTheNethersStonePickaxes() {
+		Kit k = from("m3.4").give("flint_and_steel").give("potion", 3);
+		walk(k);
+		k.take("stick").give("stick", 2);
+		// with the key at 0: nothing asked
+		assertNull(next(k));
+		k.netherSticks = 16;
+		assertEquals("sticks", next(k));
+		k.give("stick", 14);
+		assertNull(next(k));
 	}
 
 	@Test

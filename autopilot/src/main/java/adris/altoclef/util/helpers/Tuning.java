@@ -864,6 +864,10 @@ public final class Tuning {
             // the search for ore with none known leaves a ring point whose straight way crosses the lava sea: the search walk bridged
             // over the sea in 5 of 63 segments while the ore trips never did, TradeGold (21 Nov 2026, look 192)
             java.util.Map.entry("gold_search_way", 1.0),
+            // the sticks the bag takes through the portal (read by the buddy, ObtainRoute's M3.4 piece "sticks"): eight stone
+            // pickaxes for the gold step once the kit's pickaxes are at their reserve; with two sticks one was made and the step
+            // ended with 60 cobblestone left (21 Nov 2026)
+            java.util.Map.entry("nether_sticks", 16.0),
             // a failed search for a way to the ore gives it up at once, not after its minute on the tip of a bridge, TradeGold
             // (19 Nov 2026)
             java.util.Map.entry("gold_path_fail", 1.0),

@@ -86,6 +86,12 @@ final class ObtainRoute {
 		default boolean kitAgain() { return false; }
 
 		/**
+		 * The autopilot's nether_sticks: the sticks the bag takes through the portal for the stone pickaxes of the nether's gold
+		 * step (0: none asked).
+		 */
+		default int netherSticks() { return 0; }
+
+		/**
 		 * The obsidian standing in the buddy's own portal frames nearby (the autopilot's count, with its frame_obsidian_counts
 		 * switch on; 0 without): it counts for M3.4's obsidian as the bag's does.
 		 */
@@ -196,6 +202,11 @@ final class ObtainRoute {
 		List.of(piece(M3_4, "flint and steel", b -> b.inv("flint_and_steel") < 1),
 			piece(M3_4, "rest", Bag::restMissing),
 			piece(M3_4, "crafting table", b -> b.kitAgain() && b.inv("crafting_table") < 1 && wood(b) < 4),
+			// (nether_sticks, a fix of 21 Nov 2026) sticks for the nether's stone pickaxes: the gold step's pickaxes of iron or
+			// better go down to their reserve on the tunnels to the ore, and a stone pickaxe from the bag's cobblestone takes
+			// over; with the two sticks the bag held, one stone pickaxe was made and the step ended with 60 cobblestone left
+			// (heel-136-mc1 r2), and 58 of 102 gold steps ended on the pickaxes kept, at a median 48 of the 96 gold
+			piece(M3_4, "sticks", b -> b.netherSticks() > 0 && b.inv("stick") < b.netherSticks()),
 			// (m34_food_points, a fix of 20 Nov 2026) and by points: the nether sends the buddy home under 36 points, and eight
 			// carrots or berries met the count, so two runs turned back at the portal for food (read of 20 Nov 01:10)
 			piece(M3_4, "food", b -> b.kitAgain() && (food(b) < 8 || b.foodPoints() >= 0 && b.foodPoints() < M34_FOOD_POINTS)),

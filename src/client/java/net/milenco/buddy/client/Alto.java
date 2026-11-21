@@ -1152,6 +1152,8 @@ final class Alto {
 
 			public boolean kitAgain() { return kitAgainOn(); }
 
+			public int netherSticks() { return netherSticksWanted(); }
+
 			public int foodPoints() { return m34FoodPointsOn() ? foodScore(false) : -1; }
 
 			public int obsidianInFrames() {
@@ -1181,6 +1183,11 @@ final class Alto {
 	/** The autopilot's m34_kit_again switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
 	static boolean kitAgainOn() {
 		return present() && adris.altoclef.util.helpers.Tuning.get("m34_kit_again", 0) > 0;
+	}
+
+	/** The autopilot's nether_sticks (a fix of 21 Nov 2026, 16 by default: eight stone pickaxes); 0 without the autopilot. */
+	static int netherSticksWanted() {
+		return present() ? Math.max(0, (int) adris.altoclef.util.helpers.Tuning.get("nether_sticks", 0)) : 0;
 	}
 
 	/**
@@ -1314,6 +1321,11 @@ final class Alto {
 			}
 			case "water bottles":
 				return new Run("kit water bottles", 10 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("water_bottle", 3)));
+			case "sticks": {
+				// (nether_sticks) the sticks the nether's stone pickaxes take, from the bag's wood or a log fetched for it
+				int to = netherSticksWanted();
+				return new Run("kit sticks", 8 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("stick", to)));
+			}
 			case "crafting table":
 			case "crafting table last":
 				// (m34_kit_again) the bottles' table and the nether's crafts: a table and four planks more. (nether_gold: once more,
