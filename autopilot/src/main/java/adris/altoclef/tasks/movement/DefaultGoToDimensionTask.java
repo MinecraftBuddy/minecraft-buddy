@@ -196,7 +196,7 @@ public class DefaultGoToDimensionTask extends Task {
             // every 4 s for 43 minutes (look 154)
             boolean held = holdOn && _climbDoneAt != null && now >= _climbDoneTick && now - _climbDoneTick <= CLIMB_HOLD_TICKS
                     && Math.abs(at.getX() - _climbDoneAt.getX()) <= CLIMB_HOLD_RANGE && Math.abs(at.getZ() - _climbDoneAt.getZ()) <= CLIMB_HOLD_RANGE
-                    && at.getY() >= top - CLIMB_HOLD_DEPTH;
+                    && (at.getY() >= top - CLIMB_HOLD_DEPTH || climbLoop(now));
             // (Tuning portal_fetch_no_climb, a fix of 20 Nov 2026, on) no climb while the portal task fetches obsidian: the climb is
             // for the frame's site, and the fetch goes down for real; with the feet 7 under the ground's top portal_climb_hold let every
             // climb through, the fetch went down to the obsidian at y -55 and the climb took the buddy back up every 4 s, 306 times
@@ -204,6 +204,7 @@ public class DefaultGoToDimensionTask extends Task {
             boolean fetching = adris.altoclef.util.helpers.Tuning.get("portal_fetch_no_climb", 0) > 0
                     && _cachedNetherObsidianConstructionTask.fetchingObsidian(mod);
             if (at.getY() < top - 1 && !held && !fetching) {
+                _climbs.addLast(now);
                 _upForFrame = new GetToYTask(top);
                 _upForFrameY = top;
                 setDebugState("Up to the surface at y " + top + " for the portal");
@@ -220,6 +221,19 @@ public class DefaultGoToDimensionTask extends Task {
     static final int CLIMB_HOLD_RANGE = 16;
     static final long CLIMB_HOLD_TICKS = 6000;
     static final int CLIMB_HOLD_DEPTH = 6;
+
+    // (Tuning portal_climb_loop, a fix of 21 Nov 2026, on) CLIMB_LOOP climbs within CLIMB_HOLD_TICKS hold the next one whatever
+    // the depth: under an overhang the column's top is the overhang, the site search wandered 7 to 9 under it, more than
+    // CLIMB_HOLD_DEPTH, and the climb took the buddy back up about 45 times in 7.5 minutes till a creeper's run pushed it out
+    // (heel-130 r2, look 191)
+    static final int CLIMB_LOOP = 3;
+    private final java.util.ArrayDeque<Long> _climbs = new java.util.ArrayDeque<>();
+
+    private boolean climbLoop(long now) {
+        if (adris.altoclef.util.helpers.Tuning.get("portal_climb_loop", 0) <= 0) return false;
+        while (!_climbs.isEmpty() && (now < _climbs.peekFirst() || now - _climbs.peekFirst() > CLIMB_HOLD_TICKS)) _climbs.removeFirst();
+        return _climbs.size() >= CLIMB_LOOP;
+    }
 
     // this much water over our head is a sea: a pond, a river or a pool in a mineshaft is climbed past. any water at all sent a
     // climb from a mineshaft back to y 7, the frame went in the rock, the food rule never saw the sky, and the buddy went into
