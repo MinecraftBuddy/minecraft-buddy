@@ -443,6 +443,17 @@ class ObtainRouteTest {
 		assertEquals(List.of(), said);
 	}
 
+	/** (steering 204) One slime search: when it ends without a ball the route goes on to the portal. */
+	@Test
+	void theSlimePhaseHasOneTry() {
+		Kit k = from("m3.3b");
+		walk(k);
+		assertEquals("slime ball", next(k));
+		ObtainRoute.tried("m3.3b/slime ball");
+		assertEquals("flint and steel", next(k));
+		assertEquals(ObtainRoute.M3_4, ObtainRoute.phase());
+	}
+
 	@Test
 	void theSlimeBallIsAPhaseBeforeThePortal() {
 		Kit k = from("m3.3b");

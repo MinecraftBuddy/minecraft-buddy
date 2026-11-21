@@ -37,6 +37,8 @@ final class ObtainRoute {
 
 	/** How often a piece is asked before it is given up. */
 	static final int TRIES = 3;
+	/** The slime phase's tries (steering 204): one search, then the portal without the ball. */
+	static final int SLIME_TRIES = 1;
 
 	/** The wood M1.1 fetches, in planks: sixteen logs. */
 	static final int WOOD = 16 * 4;
@@ -191,8 +193,10 @@ final class ObtainRoute {
 			piece(M3_3, "golden boots", b -> !goldBoots(b)),
 			piece(M3_3, "golden boots again", b -> !goldBoots(b) && (b.inv("golden_boots") > 0 || b.inv("gold_ingot") >= BOOTS_GOLD)),
 			piece(M3_3, "gold", b -> b.inv("gold_ingot") < goldNeed(b))),
-		// a slime ball for the brew's cream: slimes deep under the ground in some chunks, the dig at the gold mine's height
-		List.of(piece(M3_3B, "slime ball", b -> b.inv("slime_ball") < 1)),
+		// a slime ball for the brew's cream: slimes deep under the ground in some chunks, the dig at the gold mine's height.
+		// one try of forty minutes, then on to the portal without the ball (steering 204 of 21 Nov 2026, his word: up to three
+		// tries stalled 33 of 136 runs in 24 h on blind digging for slimes)
+		List.of(new Piece(M3_3B, "slime ball", SLIME_TRIES, b -> b.inv("slime_ball") < 1)),
 		// up again: flint and steel, the rest of the nether's kit, the bottles filled; then the whole order builds the portal
 		// (m34_kit_again, a fix of 14 Nov 2026: M4 begins with the whole kit, his word. A run lost its table, its wood, the
 		// bucket, the bed and every pickaxe above wood on the way through M3, and the bottles, which need a table, stalled the
