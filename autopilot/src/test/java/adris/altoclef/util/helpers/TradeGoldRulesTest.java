@@ -153,4 +153,15 @@ public class TradeGoldRulesTest {
         assertEquals(end, TradeGoldRules.pickWay(true, 298, 300, 240, false, true, true, false));
         assertEquals(end, TradeGoldRules.pickWay(true, 298, 300, 240, false, false, false, false));
     }
+
+    // gold_keep_stand_stone: the stand's three stone stay in the bag; blackstone or deepslate kept for it frees cobblestone
+    @Test
+    public void standStoneIsNeverThePickaxes() {
+        assertEquals(0, TradeGoldRules.cobbleFree(3, 3, 3));
+        assertEquals(1, TradeGoldRules.cobbleFree(4, 4, 3));
+        assertEquals(3, TradeGoldRules.cobbleFree(6, 6, 3));
+        assertEquals(3, TradeGoldRules.cobbleFree(3, 6, 3));
+        assertEquals(5, TradeGoldRules.cobbleFree(5, 5, 0));
+        assertEquals(0, TradeGoldRules.cobbleFree(0, 2, 2));
+    }
 }

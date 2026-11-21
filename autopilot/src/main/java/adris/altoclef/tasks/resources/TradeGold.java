@@ -385,7 +385,14 @@ final class TradeGold {
         for (var item : adris.altoclef.util.helpers.ItemHelper.PLANKS) planks += st.getItemCount(item);
         int logs = 0;
         for (var item : adris.altoclef.util.helpers.ItemHelper.LOG) logs += st.getItemCount(item);
-        return new NetherPick.Bag(st.getItemCount(Items.IRON_INGOT), st.getItemCount(Items.COBBLESTONE), planks,
+        int cobble = st.getItemCount(Items.COBBLESTONE);
+        // (Tuning gold_keep_stand_stone, a fix of 21 Nov 2026, on) the brewing stand's stone (brew_keep_stone) is never the
+        // stone pickaxe's: the boxes kept it, the gold step's pickaxes did not, so the brew found 0 of 3 and was skipped
+        // (the brew gate fired 3 times in 51 heel runs, 20-21 Nov)
+        if (adris.altoclef.util.helpers.Tuning.get("gold_keep_stand_stone", 0) > 0) {
+            cobble = TradeGoldRules.cobbleFree(cobble, BlazePillboxTask.standStoneInBag(mod), BlazePillboxTask.keptStone(mod));
+        }
+        return new NetherPick.Bag(st.getItemCount(Items.IRON_INGOT), cobble, planks,
                 st.getItemCount(Items.STICK), logs, st.getItemCount(Items.CRAFTING_TABLE) > 0 || tableNear(mod));
     }
 

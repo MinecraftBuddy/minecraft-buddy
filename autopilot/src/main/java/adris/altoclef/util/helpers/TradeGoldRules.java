@@ -77,6 +77,12 @@ public final class TradeGoldRules {
         return PickWay.MAKE;
     }
 
+    // (Tuning gold_keep_stand_stone) the cobblestone a stone pickaxe may take: the bag's, less what the brewing stand keeps of
+    // all its stone (cobblestone, blackstone, cobbled deepslate together; kept is 0 with a stand in the bag)
+    public static int cobbleFree(int cobble, int standStone, int kept) {
+        return Math.max(0, Math.min(cobble, standStone - kept));
+    }
+
     // why the step is over by a clock, or null: its cap, no new gold for the dry spell, or no ore known for NO_ORE_S (game ticks)
     public static String overWhy(long ran, long sinceRise, long noOre, long cap, long dry) {
         if (ran >= cap) return "the cap of " + cap / 20 + " s";
