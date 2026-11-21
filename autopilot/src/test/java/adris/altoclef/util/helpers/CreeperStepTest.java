@@ -86,14 +86,15 @@ public class CreeperStepTest {
         assertEquals(2, step.creeperId());
     }
 
-    // one rule to let go: unlit and past HOLD_RADIUS
+    // one rule to let go: unlit with no charge and past SWELL_STOP (creeper_hold_drain, on: as inside a run; HOLD_RADIUS before)
     @Test
-    public void anUnlitOneIsHeldUntilItIsPastFive() {
+    public void anUnlitOneIsHeldUntilItIsPastSeven() {
         CreeperStep step = new CreeperStep();
         step.step(0, List.of(new Seen(7, false, 3, false)), false);
-        assertEquals(Event.NONE, step.step(5, List.of(new Seen(7, false, CreeperStep.HOLD_RADIUS, false, false)), false));
+        assertEquals(Event.NONE, step.step(5, List.of(new Seen(7, false, CreeperStep.HOLD_RADIUS + 0.1, false, false)), false));
+        assertEquals(Event.NONE, step.step(6, List.of(new Seen(7, false, CreeperStep.SWELL_STOP, false, false)), false));
         assertTrue(step.active());
-        assertEquals(Event.END_UNLIT, step.step(6, List.of(new Seen(7, false, CreeperStep.HOLD_RADIUS + 0.1, false, false)), false));
+        assertEquals(Event.END_UNLIT, step.step(7, List.of(new Seen(7, false, CreeperStep.SWELL_STOP + 0.1, false, false)), false));
         assertFalse(step.active());
     }
 
@@ -103,13 +104,13 @@ public class CreeperStepTest {
         CreeperStep step = new CreeperStep();
         step.step(0, List.of(new Seen(7, false, 3, false)), false, Mode.NONE, true);
         assertFalse(step.escalate());
-        assertEquals(Event.END_UNLIT, step.step(20, List.of(new Seen(7, false, 5.5, false, false)), false, Mode.NONE, true));
+        assertEquals(Event.END_UNLIT, step.step(20, List.of(new Seen(7, false, 7.5, false, false)), false, Mode.NONE, true));
         assertEquals(Event.START, step.step(100, List.of(new Seen(7, false, 3.5, false)), false, Mode.NONE, true));
         assertTrue(step.escalate());
         // and not within the window of the end any more than REPEAT_WINDOW
         CreeperStep late = new CreeperStep();
         late.step(0, List.of(new Seen(7, false, 3, false)), false, Mode.NONE, true);
-        late.step(20, List.of(new Seen(7, false, 5.5, false, false)), false, Mode.NONE, true);
+        late.step(20, List.of(new Seen(7, false, 7.5, false, false)), false, Mode.NONE, true);
         assertEquals(Event.START, late.step(21 + CreeperStep.REPEAT_WINDOW, List.of(new Seen(7, false, 3.5, false)), false, Mode.NONE, true));
         assertFalse(late.escalate());
     }
@@ -156,7 +157,7 @@ public class CreeperStepTest {
     public void unswellingEndsTheHold() {
         CreeperStep step = new CreeperStep();
         step.step(0, lit(7, 3), false);
-        assertEquals(Event.END_UNLIT, step.step(10, List.of(new Seen(7, false, 6, false)), false));
+        assertEquals(Event.END_UNLIT, step.step(10, List.of(new Seen(7, false, 7.5, false)), false));
         assertFalse(step.active());
     }
 
@@ -176,15 +177,19 @@ public class CreeperStepTest {
         CreeperStep step = new CreeperStep();
         step.step(0, lit(7, 3), false);
         assertEquals(Event.NONE, step.step(10, List.of(new Seen(7, false, 3, false, false)), false));
-        assertEquals(Event.END_UNLIT, step.step(11, List.of(new Seen(7, false, 5.5, false, false)), false));
+        assertEquals(Event.END_UNLIT, step.step(11, List.of(new Seen(7, false, 7.5, false, false)), false));
         assertFalse(step.active());
     }
 
+    // (creeper_hold_drain) a deflating fuse past five still holds: let go there, a pickup walked back in and it relit
+    // (heel-138-mc1 r1); drained and past seven ends it
     @Test
-    public void aDeflatingFuseFarAwayEndsTheHold() {
+    public void aDeflatingFuseHoldsUntilDrainedAndPastSeven() {
         CreeperStep step = new CreeperStep();
         step.step(0, fused(7, 3), false);
-        assertEquals(Event.END_UNLIT, step.step(10, fused(7, false, CreeperStep.HOLD_RADIUS + 0.1, true), false));
+        assertEquals(Event.NONE, step.step(10, fused(7, false, CreeperStep.HOLD_RADIUS + 0.1, true), false));
+        assertEquals(Event.NONE, step.step(11, fused(7, false, CreeperStep.SWELL_STOP + 0.1, true), false));
+        assertEquals(Event.END_UNLIT, step.step(12, fused(7, false, CreeperStep.SWELL_STOP + 0.1, false), false));
     }
 
     @Test
@@ -417,7 +422,7 @@ public class CreeperStepTest {
     public void aRelitCreeperStepsAgainButLogsOnce() {
         CreeperStep step = new CreeperStep();
         step.step(0, lit(7, 3), false);
-        step.step(5, List.of(new Seen(7, false, 6, false)), false);
+        step.step(5, List.of(new Seen(7, false, 7.5, false)), false);
         assertEquals(Event.START, step.step(40, lit(7, 2.5), false));
         assertFalse(step.shouldLog());
     }
