@@ -241,6 +241,15 @@ public class TakeAlongChain extends SingleTaskChain {
                 return Float.NEGATIVE_INFINITY;
             case BLOCKED:
                 String why = TakeAlongRules.stopping(state, cfg);
+                // (take_along_blocked_ban, a fix of 21 Nov 2026, on) what is left is banned as a timeout's is: the detour began dry,
+                // its way to a flint and its gravel went through water, the wet rule ended it, nothing was banned, and the same
+                // flint was picked again after every cooldown, 264 times in 28 minutes, while the user task between them never
+                // broke the stone of its own way up (look 194)
+                if (blockedBanOn()) {
+                    int left = ban(mod, cfg, "blocked", now);
+                    end(mod, now, "blocked", (why != null ? why : "no tool for what is left") + ", " + left + " banned for a while");
+                    return Float.NEGATIVE_INFINITY;
+                }
                 end(mod, now, "blocked", why != null ? why : "no tool for what is left");
                 return Float.NEGATIVE_INFINITY;
             default:
@@ -1031,6 +1040,10 @@ public class TakeAlongChain extends SingleTaskChain {
 
     private static boolean doneBanOn() {
         return adris.altoclef.util.helpers.Tuning.get("take_along_done_ban", 0) > 0;
+    }
+
+    private static boolean blockedBanOn() {
+        return adris.altoclef.util.helpers.Tuning.get("take_along_blocked_ban", 0) > 0;
     }
 
     // (take_along_done_ban) a block detour whose targets are none of them more in the bag than at its start

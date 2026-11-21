@@ -703,6 +703,9 @@ public final class Tuning {
             // a take-along of blocks that ends "done" with nothing got bans what is left, as a timeout does: a cluster seen
             // through water began again every 7 s with no pickup, TakeAlongChain (look 115)
             java.util.Map.entry("take_along_done_ban", 1.0),
+            // a take-along that ends blocked (in water, lava or fire, or no tool) bans what is left too: one began dry, went into water
+            // on its way to a flint, ended, and began again after every cooldown, 264 times in 28 minutes, TakeAlongChain (look 194)
+            java.util.Map.entry("take_along_blocked_ban", 1.0),
             // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
             // none: a stone one takes no gold ore); with no wood in the bag the try ends as before (no trip up from the deep
             // with a worn pickaxe, look 127):
