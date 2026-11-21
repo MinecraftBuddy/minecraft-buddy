@@ -732,6 +732,9 @@ public final class Tuning {
             // the brew errand's ring walk on a rim with no way on for a second walks back to firm ground first and gives the point
             // up, as the wander does (RimRetreat, his 55): a blaze's fireball knocked the buddy off a bridge's bend, CollectBlazeRodsTask (look 204)
             java.util.Map.entry("errand_rim_retreat", 1.0),
+            // the brew errand's ring point Baritone finds no path to three times is given up at once, not after 20 s: in the deltas
+            // every point lay across open air, eight minutes standing, CollectBlazeRodsTask (box 3 heel-160-mc3 r3)
+            java.util.Map.entry("errand_nopath_skip", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),

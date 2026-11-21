@@ -1872,6 +1872,13 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // (errand_rim_retreat) the walk back to firm ground from a rim with no way on, and the last walk back the point was given up for
     private final adris.altoclef.util.helpers.RimRetreat _errandOffRim = new adris.altoclef.util.helpers.RimRetreat();
     private Task _errandRimBack;
+    // (Tuning errand_nopath_skip, a fix of 21 Nov 2026, on) a ring point Baritone found no path to ERRAND_NOPATH_MAX times, with no
+    // path walked in between, is given up at once rather than after the point's ERRAND_POINT_TICKS: in the basalt deltas every
+    // point of the rings lay across open air, the buddy stood 20 s at each, eight minutes for 24 points (box 3 heel-160-mc3
+    // r3; look 204's fortress the same)
+    static final int ERRAND_NOPATH_MAX = 3;
+    private final adris.altoclef.util.helpers.NoPathScope.Watch _errandNoPath = new adris.altoclef.util.helpers.NoPathScope.Watch();
+    private int _errandNoPaths;
 
     private Task errandWalk(AltoClef mod, long gap) {
         var me = mod.getPlayer();
@@ -1882,6 +1889,21 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _errandPointTicks = adris.altoclef.util.helpers.BrewErrandRules.own(_errandPointTicks, gap);
             boolean reached = Math.hypot(me.getX() - _errandPointAt[0], me.getZ() - _errandPointAt[1]) <= adris.altoclef.util.helpers.RouteRules.ERRAND_POINT_NEAR;
             if (reached || _errandPointTicks > adris.altoclef.util.helpers.RouteRules.ERRAND_POINT_TICKS) {
+                _errandPoint++;
+                next = true;
+            }
+        }
+        // (errand_nopath_skip) the point under way given up after ERRAND_NOPATH_MAX empty searches
+        if (!next && adris.altoclef.util.helpers.Tuning.get("errand_nopath_skip", 0) > 0) {
+            var pathing = mod.getClientBaritone().getPathingBehavior();
+            int failures = pathing.calcFailures();
+            int exhausted = pathing.calcExhausted();
+            if (gap > 2 || !_errandNoPath.armed()) {
+                _errandNoPath.arm(failures, exhausted);
+            } else if (_errandNoPath.poll(failures, exhausted, pathing.isPathing()) != adris.altoclef.util.helpers.NoPathScope.Verdict.NONE
+                    && ++_errandNoPaths >= ERRAND_NOPATH_MAX) {
+                Debug.logInternal("brew errand: no path to point " + (_errandPoint + 1) + " at " + _errandPointAt[0] + " " + _errandPointAt[1]
+                        + " in " + _errandNoPaths + " searches, given up after " + secs(_errandPointTicks) + " s (errand_nopath_skip)");
                 _errandPoint++;
                 next = true;
             }
@@ -1911,6 +1933,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
             }
             if (passed > 0) Debug.logInternal("brew errand: " + passed + " point(s) passed over where the buddy walked away from blazes");
             _errandPointTicks = 0;
+            _errandNoPaths = 0;
+            _errandNoPath.disarm();
             _errandWalk = new adris.altoclef.tasks.movement.GetToXZTask(_errandPointAt[0], _errandPointAt[1], adris.altoclef.util.helpers.RouteRules.ERRAND_POINT_NEAR);
             int ring = 1 + Math.floorMod(_errandPoint, adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS) / adris.altoclef.util.helpers.RouteRules.ERRAND_RING_POINTS;
             Debug.logInternal("brew errand: nothing in sight, looking round the fortress: point " + (_errandPoint + 1) + " of " + points
