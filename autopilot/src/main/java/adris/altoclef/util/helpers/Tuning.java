@@ -739,6 +739,9 @@ public final class Tuning {
             // the branch mine's walk-outs of water firing in its own tunnel give the depth up, as the place watch's fire there
             // does: the remedy was the tunnel that failed, BranchMineTask (look 200)
             java.util.Map.entry("tunnel_wet_guard", 1.0),
+            // a shimmy out of a block that ends still stuck counts a strike against the click's target, so the blacklist is reached:
+            // a bucket's click on lava out of reach waited 7.5 minutes with one strike, InteractWithBlockTask (look 202)
+            java.util.Map.entry("shimmy_strike", 1.0),
             // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
             // none: a stone one takes no gold ore); with no wood in the bag the try ends as before (no trip up from the deep
             // with a worn pickaxe, look 127):

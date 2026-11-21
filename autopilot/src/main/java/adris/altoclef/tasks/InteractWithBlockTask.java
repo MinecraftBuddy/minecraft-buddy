@@ -358,6 +358,15 @@ public class InteractWithBlockTask extends Task {
         // drop beside the feet it only turns the head: by a portal frame it ran 19 and 21 game minutes, until the drill's
         // cap, m4cream-3 runs 1 and 2, 6 Nov 2026. after that the click goes on, and a stall again starts it again)
         if (_unstuckTask != null && _unstuckTimer.elapsed()) {
+            // (Tuning shimmy_strike, a fix of 21 Nov 2026, on) a shimmy that ends with the buddy still stuck in its block counts a
+            // strike against the target: each new stall began a new shimmy, so the move check's blacklist below was reached once
+            // in 7.5 minutes while the bucket's click on lava 5 blocks off waited (look 202, heel-159-mc1 r3, the obsidian cast)
+            BlockPos stillStuck = stuckInBlock(mod);
+            if (stillStuck != null && adris.altoclef.util.helpers.Tuning.get("shimmy_strike", 0) > 0) {
+                Debug.logInternal("interact: the shimmy ended still stuck in " + stillStuck.toShortString() + ", a strike against "
+                        + _target.toShortString() + " (shimmy_strike)");
+                mod.getBlockTracker().requestBlockUnreachable(_target);
+            }
             _unstuckTask = null;
             stuckCheck.reset();
             _moveChecker.reset();
