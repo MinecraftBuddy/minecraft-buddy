@@ -37,6 +37,12 @@ public final class OceanRule {
         return Tuning.get("ocean_rule_keep", 0) > 0;
     }
 
+    // (Tuning ocean_rule_top, a fix of 21 Nov 2026, on) a block under the sea is out only while the feet are at or above the top of
+    // the water in its column: a buddy below that water's level (a cave under the sea's level) is not up at the surface
+    public static boolean topOn() {
+        return Tuning.get("ocean_rule_top", 0) > 0;
+    }
+
     public static final class Kept {
         private final java.util.concurrent.ConcurrentHashMap<Long, Long> at = new java.util.concurrent.ConcurrentHashMap<>();
         private volatile Object world;

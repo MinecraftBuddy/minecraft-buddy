@@ -735,6 +735,9 @@ public final class Tuning {
             // the brew errand's ring point Baritone finds no path to three times is given up at once, not after 20 s: in the deltas
             // every point lay across open air, eight minutes standing, CollectBlazeRodsTask (box 3 heel-160-mc3 r3)
             java.util.Map.entry("errand_nopath_skip", 1.0),
+            // canReach's ocean rule leaves a block under the sea out only while the feet are at or above that water's top: in a cave
+            // under sea level the walk crossed the rule's y line and the block flipped out and in for 43 minutes, WorldHelper (look 205)
+            java.util.Map.entry("ocean_rule_top", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),

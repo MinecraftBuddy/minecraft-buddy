@@ -450,7 +450,12 @@ public interface WorldHelper {
                 long now = mod.getWorld().getGameTime();
                 if (loaded && isOcean(mod.getWorld().getBiome(pos))) {
                     // Block is in an ocean biome. If it's below sea level...
-                    if (pos.getY() < 64 && getGroundHeight(mod, pos.getX(), pos.getZ(), Blocks.WATER) > pos.getY()) {
+                    // (Tuning ocean_rule_top, a fix of 21 Nov 2026, on) and only while the feet are at or above that water's top: the
+                    // line at 47 says nothing about a buddy in a cave under the sea's level. look 205 (heel-168-mc3 r1): the walk to
+                    // obsidian climbed from y 45 to 49, the line's band edges, so the block went out at 49 and the wander took the
+                    // buddy back to 45 where it came in again, 43 minutes and a stalled run
+                    int waterTop = pos.getY() < 64 ? getGroundHeight(mod, pos.getX(), pos.getZ(), Blocks.WATER) : -1;
+                    if (pos.getY() < 64 && waterTop > pos.getY() && (!OceanRule.topOn() || mod.getPlayer().getY() >= waterTop)) {
                         if (keep) OceanRule.KEPT.note(mod.getWorld(), pos.asLong(), now);
                         return false;
                     }
