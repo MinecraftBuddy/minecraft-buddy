@@ -1869,6 +1869,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
 
     // the walk round the spawner in rings while nothing is in sight: a point reached (ERRAND_POINT_NEAR of its column) or given
     // ERRAND_POINT_TICKS of the walk's own ticks makes way for the next; past the last one null (the dead end next tick)
+    // (errand_rim_retreat) the walk back to firm ground from a rim with no way on, and the last walk back the point was given up for
+    private final adris.altoclef.util.helpers.RimRetreat _errandOffRim = new adris.altoclef.util.helpers.RimRetreat();
+    private Task _errandRimBack;
+
     private Task errandWalk(AltoClef mod, long gap) {
         var me = mod.getPlayer();
         BlockPos sp = _foundBlazeSpawner;
@@ -1912,6 +1916,25 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Debug.logInternal("brew errand: nothing in sight, looking round the fortress: point " + (_errandPoint + 1) + " of " + points
                     + " at " + _errandPointAt[0] + " " + _errandPointAt[1] + " (ring " + ring + ", " + (int) adris.altoclef.util.helpers.RouteRules.ringRadius(ring, first)
                     + " blocks round the spawner), " + secs(_errandSinceGot) + " s at the fortress with nothing got");
+        }
+        // (Tuning errand_rim_retreat, a fix of 21 Nov 2026, on) on a rim with no way on for a second: back to firm ground first and
+        // the point given up, as the wander does (RimRetreat; his 55: never stand where a hit can throw the buddy off). look 204
+        // (heel-160 r3): ring point 4 had no path from a one-wide bridge in the deltas, the walk stood at its bend through 14 s
+        // of failed searches, a blaze's fireball from 34 blocks knocked the buddy off, 32 blocks down to the lava floor
+        if (adris.altoclef.util.helpers.Tuning.get("errand_rim_retreat", 0) > 0) {
+            Task off = _errandOffRim.next(mod);
+            if (off != null) {
+                if (off != _errandRimBack) {
+                    _errandRimBack = off;
+                    Debug.logInternal("brew errand: on a rim with no way on to point " + (_errandPoint + 1) + " at " + _errandPointAt[0] + " "
+                            + _errandPointAt[1] + ": " + _errandOffRim.what() + ", the point given up (errand_rim_retreat)");
+                    _errandPoint++;
+                    _errandPointAt = null;
+                }
+                errandSays("looking round the fortress: off a rim first");
+                setDebugState("Brew errand: " + _errandOffRim.what());
+                return off;
+            }
         }
         // (Tuning route_ring_level, off, 12 Nov 2026: the a2 read. a ring's point is an x and z with no height, so its walk went
         // at whatever height it began (the trade at y 98 to 114, a ghast shelter at 89) and bridged out over the lava sea till
