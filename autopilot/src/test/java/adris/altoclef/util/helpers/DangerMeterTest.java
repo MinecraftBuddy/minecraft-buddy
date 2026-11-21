@@ -491,4 +491,18 @@ public class DangerMeterTest {
         assertEquals(DangerMeter.read(us(20, false), List.of(close), behind, false, false).push(),
                 DangerMeter.read(us(20, false), List.of(close), behind, false, true).push(), 1e-9);
     }
+    // (a fix of 21 Nov 2026) the hostile kinds that had no row read 0: three pillagers in sight at 6 blocks are no longer calm,
+    // and a slime counts by its size (a small one hurts nobody)
+    @Test
+    public void pillagersAndOtherHostilesHaveRows() {
+        for (String kind : List.of("pillager", "vindicator", "evoker", "vex", "ravager", "silverfish", "phantom", "warden", "slime")) {
+            assertNotNull(kind, MobThreat.forMeter(kind, 4));
+        }
+        List<Mob> three = List.of(mob("pillager", 6, 0, 1, true, true), mob("pillager", 0, 6, 1, true, true), mob("pillager", -5, 3, 1, true, true));
+        Reading r = DangerMeter.read(us(20, false), three, List.of());
+        assertTrue(r.t() > 1);
+        assertNotEquals(Level.CALM, levelFrom(Level.CALM, r));
+        assertEquals(0, MobThreat.forMeter("slime", 1).melee(), 1e-9);
+        assertTrue(MobThreat.forMeter("slime", 4).melee() > MobThreat.forMeter("slime", 2).melee());
+    }
 }

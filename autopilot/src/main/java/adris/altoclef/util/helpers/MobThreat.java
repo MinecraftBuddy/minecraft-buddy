@@ -159,8 +159,68 @@ public record MobThreat(String kind, double width, double height, double eye, do
             Map.entry("wandering_trader", passive("wandering_trader", 0.6, 1.95, 20)),
             Map.entry("snow_golem", passive("snow_golem", 0.7, 1.9, 4)),
             // the nether's lava walker: harmless, and always beside lava
-            Map.entry("strider", passive("strider", 0.9, 1.7, 20))
+            Map.entry("strider", passive("strider", 0.9, 1.7, 20)),
+            // (a fix of 21 Nov 2026) the hostile kinds that had no row read 0 and the level stayed calm: three pillagers shot
+            // a buddy at its furnace from 20 to 0 with the meter "calm, risk 0" all the way (heel-120-mc2 r2). raw damage on
+            // Normal from the mobs' attributes and weapons, through iron as above (13 raw is 8.58, 9 is 5.22, 12 is 7.68, 30 is
+            // 26.4); magic (fangs, a guardian's beam, a sonic boom) goes through armour. not measured on the rig.
+            // a pillager: a crossbow bolt of 4 raw every 2.3 to 3.3 s within 8 with a line (RangedCrossbowAttackGoal, 8 blocks),
+            // as a crossbow piglin; 24 hp, 3.5 blocks a second, takes a target within 32
+            Map.entry("pillager", new MobThreat("pillager", 0.6, 1.95, 1.62, 3.5, false, 32, false,
+                    0, 0, false, 0.69, 8, 8, 0, 1.92, SafeStand.HIT, false, 24)),
+            // a vindicator: an iron axe, 13 raw once a second; 24 hp, 3.5 blocks a second, follows within 12
+            Map.entry("vindicator", new MobThreat("vindicator", 0.6, 1.95, 1.62, 3.5, false, 12, false,
+                    8.58, 1.43, false, 0, 0, 0, 0, 8.58, SafeStand.HIT, false, 24)),
+            // an evoker: fangs of 6 (magic) about every 5 s within 16, and vexes; keeps away, 24 hp
+            Map.entry("evoker", new MobThreat("evoker", 0.6, 1.95, 1.62, 5.0, false, 12, false,
+                    0, 0, false, 1.2, 16, 16, 0, 6.0, SafeStand.HIT, false, 24)),
+            // a vex: flies through blocks, an iron sword, 9 raw once a second; 14 hp
+            Map.entry("vex", new MobThreat("vex", 0.4, 0.8, 0.5, 6.0, true, 16, false,
+                    5.22, 0.2 + 0.83 + 0.3, false, 0, 0, 0, 0, 5.22, SafeStand.HIT, false, 14)),
+            // a ravager: 12 raw once a second with a big knock; 100 hp
+            Map.entry("ravager", new MobThreat("ravager", 1.95, 2.2, 1.9, 3.0, false, 32, false,
+                    7.68, 0.98 + 0.83 + 0.3, false, 0, 0, 0, 0, 7.68, SafeStand.GHAST, false, 100)),
+            // an illusioner: a bow as a skeleton's; 32 hp
+            Map.entry("illusioner", new MobThreat("illusioner", 0.6, 1.95, 1.62, 3.0, false, 18, false,
+                    0, 0, false, 0.64, 16, 4, 0, 1.92, SafeStand.HIT, false, 32)),
+            // a silverfish: 1 raw once a second; 8 hp, small
+            Map.entry("silverfish", new MobThreat("silverfish", 0.4, 0.3, 0.13, 2.5, false, 16, false,
+                    0.42, 0.2 + 0.83 + 0.3, false, 0, 0, 0, 0, 0.42, SafeStand.HIT, false, 8)),
+            // an endermite: 2 raw once a second; 8 hp, small
+            Map.entry("endermite", new MobThreat("endermite", 0.4, 0.3, 0.13, 2.5, false, 16, false,
+                    0.88, 0.2 + 0.83 + 0.3, false, 0, 0, 0, 0, 0.88, SafeStand.HIT, false, 8)),
+            // a phantom: swoops of 6 raw now and then from the air; 20 hp
+            Map.entry("phantom", new MobThreat("phantom", 0.9, 0.5, 0.18, 6.0, true, 64, false,
+                    1.5, 0.45 + 0.83 + 0.3, false, 0, 0, 0, 0, 3.12, SafeStand.HIT, false, 20)),
+            // a warden: 30 raw a blow and a sonic boom of 10 (magic) every 2 s within 15; 500 hp: no fight
+            Map.entry("warden", new MobThreat("warden", 0.9, 2.9, 2.5, 3.0, false, 24, false,
+                    26.4, 0.45 + 0.83 + 0.3, false, 5.0, 15, 15, 0, 26.4, SafeStand.GHAST, false, 500)),
+            // a breeze: wind charges of 1 raw with a big knock within 16; 30 hp
+            Map.entry("breeze", new MobThreat("breeze", 0.6, 1.77, 1.3, 3.0, false, 24, false,
+                    0, 0, false, 0.4, 16, 16, 0, 0.88, SafeStand.GHAST, false, 30)),
+            // guardians: a beam of 6 (8 for an elder; magic) after a 4 s charge within 16 with a line; 30 and 80 hp
+            Map.entry("guardian", new MobThreat("guardian", 0.85, 0.85, 0.43, 2.0, false, 16, false,
+                    0, 0, false, 1.5, 16, 16, 0, 6.0, SafeStand.HIT, false, 30)),
+            Map.entry("elder_guardian", new MobThreat("elder_guardian", 2.0, 2.0, 1.0, 1.0, false, 16, false,
+                    0, 0, false, 2.0, 16, 16, 0, 8.0, SafeStand.HIT, false, 80)),
+            // a creaking: 3 raw once a second, moving only while nobody looks; blows never kill it (only its heart does), so
+            // its hp here is a race the buddy never wins
+            Map.entry("creaking", new MobThreat("creaking", 0.9, 2.7, 2.3, 4.0, false, 32, false,
+                    1.38, 0.45 + 0.83 + 0.3, false, 0, 0, 0, 0, 1.38, SafeStand.HIT, false, 1000)),
+            // a shulker: a homing bullet of 4 raw and levitation every 1 to 5.5 s within 16; does not move
+            Map.entry("shulker", new MobThreat("shulker", 1.0, 1.0, 0.5, 0, false, 16, false,
+                    0, 0, false, 0.6, 16, 16, 0, 1.92, SafeStand.HIT, false, 30))
     );
+
+    // (a fix of 21 Nov 2026) a slime by its size, for the meter alone: box 0.52 x size; a contact hit of size raw (4 big, 2
+    // medium; a small one does none) twice a second; hp size squared; it hops slowly
+    static MobThreat slime(int size) {
+        double w = 0.52 * size;
+        double hit = size >= 4 ? 1.92 : size >= 2 ? 0.88 : 0;
+        double speed = size >= 4 ? 1.0 : size >= 2 ? 0.6 : 0.3;
+        return new MobThreat("slime", w, w, 0.325 * size, speed, false, 16, false,
+                2 * hit, w / 2 + 0.83 + 0.3, false, 0, 0, 0, 0, hit, SafeStand.HIT, false, size * size);
+    }
 
     private static MobThreat passive(String kind, double width, double height, double hp) {
         return new MobThreat(kind, width, height, height * 0.85, 2.0, false, 0, false, 0, 0, false, 0, 0, 0, 0, 0, 1.0, false, hp);
@@ -169,6 +229,7 @@ public record MobThreat(String kind, double width, double height, double eye, do
     // the danger meter's row of a kind: ROWS first, then MORE; null for a kind in neither (the meter treats it as a body)
     public static MobThreat forMeter(String kind, int size) {
         MobThreat row = of(kind, size);
+        if (row == null && kind.equals("slime")) return slime(Math.max(1, size));
         return row != null ? row : MORE.get(kind);
     }
 
