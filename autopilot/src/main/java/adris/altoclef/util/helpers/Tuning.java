@@ -1007,6 +1007,9 @@ public final class Tuning {
             // a log beside planks, wooden stairs, slabs, fences or a banner is part of something built (an outpost's tower, a
             // house), never a tree to chop: BuiltLog, MineAndCollectTask.usable (21 Nov 2026)
             java.util.Map.entry("built_log_skip", 1.0),
+            // water the flow box lets the search walk through is waded with dry feet too, never clicked at till the movement
+            // times out: FlowEscape.boxPasses, Movement.prepared (21 Nov 2026)
+            java.util.Map.entry("flow_box_wade", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

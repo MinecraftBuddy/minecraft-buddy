@@ -89,6 +89,15 @@ public final class FlowEscape {
         return isWater(feet) && isWater(inTheWay);
     }
 
+    // (Tuning flow_box_wade, a fix of 21 Nov 2026, on) the executor's side of the box: water the box lets the search walk
+    // through is waded with dry feet too. a descend from a dry ledge into the box's water clicked at it until the movement's
+    // timeout, twice (5.5 s each), while a skeleton shot the buddy from 10.7 to 0 (heel-120-mc1 r5)
+    public static boolean boxPasses(int x, int y, int z, BlockState state, long now) {
+        if (adris.altoclef.util.helpers.Tuning.get("flow_box_wade", 0) <= 0) return false;
+        Box b = current(now);
+        return b != null && b.passes(x, y, z, state);
+    }
+
     // tests
     static synchronized void reset() {
         box = null;

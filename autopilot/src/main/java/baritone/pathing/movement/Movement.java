@@ -749,6 +749,9 @@ public abstract class Movement implements IMovement, MovementHelper {
             if (FlowEscape.on() && FlowEscape.wades(BlockStateInterface.get(ctx, ctx.playerFeet()), BlockStateInterface.get(ctx, blockPos))) {
                 continue;
             }
+            if (FlowEscape.on() && FlowEscape.boxPasses(blockPos.x, blockPos.y, blockPos.z, BlockStateInterface.get(ctx, blockPos), ctx.world().getGameTime())) {
+                continue;
+            }
             if (!MovementHelper.canWalkThrough(ctx, blockPos) && fallsOnUs(blockPos)) {
                 BetterBlockPos feet = ctx.playerFeet();
                 if (feet.x != blockPos.x || feet.z != blockPos.z) {
