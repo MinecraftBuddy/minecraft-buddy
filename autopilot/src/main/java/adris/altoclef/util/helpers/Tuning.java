@@ -715,6 +715,11 @@ public final class Tuning {
             // (read by the buddy, ObtainSafe.Shelter.logsEnd) a night shelter's logs step that brought nothing keeps the shelter's tries
             // counted: "no log in reach" after 0 s set them back, and an empty bag waited open for ten minutes (21 Nov 2026, look 195)
             java.util.Map.entry("shelter_logs_keep_tries", 1.0),
+            // the gold step's stone pickaxe counts every stone a stone pickaxe takes, not cobblestone alone, TradeGold (21 Nov 2026)
+            java.util.Map.entry("gold_stone_any", 1.0),
+            // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
+            // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
+            java.util.Map.entry("nether_keep_cobble", 1.0),
             // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
             // none: a stone one takes no gold ore); with no wood in the bag the try ends as before (no trip up from the deep
             // with a worn pickaxe, look 127):

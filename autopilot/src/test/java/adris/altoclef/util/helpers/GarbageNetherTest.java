@@ -35,11 +35,19 @@ public class GarbageNetherTest {
         assertArrayEquals(new boolean[]{true, false, false}, GarbageRules.netherKept(bag(Items.NETHERRACK, 64, Items.NETHERRACK, 64, Items.NETHERRACK, 10)));
     }
 
+    // (nether_keep_cobble) the biggest stack of cobblestone or cobbled deepslate, one stack
+    @Test
+    public void theBiggestStoneStackIsKept() {
+        assertArrayEquals(new boolean[]{false, true, false}, GarbageRules.netherKept(bag(Items.COBBLESTONE, 5, Items.COBBLESTONE, 30, Items.COBBLED_DEEPSLATE, 20)));
+        assertArrayEquals(new boolean[]{true, false, true}, GarbageRules.netherKept(bag(Items.NETHERRACK, 64, Items.GRAVEL, 10, Items.COBBLED_DEEPSLATE, 9)));
+    }
+
     @Test
     public void netherrackIsKeptFirstWhereverItSits() {
         // basalt and blackstone first in the bag: netherrack is counted first, then blackstone, then basalt
+        // (nether_keep_cobble) and the cobblestone, the stone pickaxes' and the brewing stand's
         boolean[] kept = GarbageRules.netherKept(bag(Items.BASALT, 40, Items.BLACKSTONE, 40, Items.NETHERRACK, 64, Items.COBBLESTONE, 12));
-        assertArrayEquals(new boolean[]{false, false, true, false}, kept);
+        assertArrayEquals(new boolean[]{false, false, true, true}, kept);
         // little netherrack: the basalt makes the rest up
         assertArrayEquals(new boolean[]{true, true}, GarbageRules.netherKept(bag(Items.BASALT, 25, Items.NETHERRACK, 20)));
         // the biggest stack of a kind first

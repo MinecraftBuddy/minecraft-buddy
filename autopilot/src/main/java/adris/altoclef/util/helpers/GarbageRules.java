@@ -296,6 +296,18 @@ public final class GarbageRules {
             kept[i] = true;
             total += c;
         }
+        // (Tuning nether_keep_cobble, a fix of 21 Nov 2026, on) and the biggest stack of cobblestone or cobbled deepslate: the
+        // stone pickaxes of the gold step and the brewing stand's three are made of it, and a full bag in the nether threw the
+        // cobblestone out, so the gold step had no stone for a pickaxe and ended at the pickaxes kept with 23 gold (heel-145 r2)
+        if (Tuning.get("nether_keep_cobble", 0) > 0) {
+            int best = -1;
+            for (int i = 0; i < bag.size(); i++) {
+                ItemStack s = bag.get(i);
+                if (s == null || s.isEmpty() || (s.getItem() != Items.COBBLESTONE && s.getItem() != Items.COBBLED_DEEPSLATE)) continue;
+                if (best < 0 || s.getCount() > bag.get(best).getCount()) best = i;
+            }
+            if (best >= 0) kept[best] = true;
+        }
         return kept;
     }
 

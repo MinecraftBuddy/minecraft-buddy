@@ -386,6 +386,12 @@ final class TradeGold {
         int logs = 0;
         for (var item : adris.altoclef.util.helpers.ItemHelper.LOG) logs += st.getItemCount(item);
         int cobble = st.getItemCount(Items.COBBLESTONE);
+        // (Tuning gold_stone_any, a fix of 21 Nov 2026, on) every stone a stone pickaxe takes (cobblestone, cobbled deepslate,
+        // blackstone: CollectStoneMaterialTask.MATERIALS, the craft's own stone_material), not cobblestone alone
+        if (adris.altoclef.util.helpers.Tuning.get("gold_stone_any", 0) > 0) {
+            cobble = 0;
+            for (var item : CollectStoneMaterialTask.MATERIALS) cobble += st.getItemCount(item);
+        }
         // (Tuning gold_keep_stand_stone, a fix of 21 Nov 2026, on) the brewing stand's stone (brew_keep_stone) is never the
         // stone pickaxe's: the boxes kept it, the gold step's pickaxes did not, so the brew found 0 of 3 and was skipped
         // (the brew gate fired 3 times in 51 heel runs, 20-21 Nov)
