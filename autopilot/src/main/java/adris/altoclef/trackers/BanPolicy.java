@@ -37,6 +37,9 @@ public final class BanPolicy {
     public static final long LAVA_SHORE = 1200;
     // the neighbours of a block a search proved unreachable (MineAndCollectTask)
     public static final long NO_PATH_VEIN = 600;
+    // a thing a closest task let go and picked again eight times in three minutes while it was still there (flip_guard,
+    // PursuitFlips). five minutes like the block strikes: the walk that made it flip is somewhere else by then
+    public static final long FLIP_GUARD = 6000;
     // a coal detour that ran out of time or wandered off. 5 minutes, then the cluster gets one more 30 s try
     public static final long COAL = 6000;
 

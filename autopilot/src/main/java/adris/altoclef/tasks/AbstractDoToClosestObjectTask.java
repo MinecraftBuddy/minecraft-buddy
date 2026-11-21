@@ -3,15 +3,20 @@ package adris.altoclef.tasks;
 import adris.altoclef.AltoClef;
 import adris.altoclef.tasks.movement.TimeoutWanderTask;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.trackers.BanPolicy;
+import adris.altoclef.trackers.Bans;
 import adris.altoclef.util.helpers.DropExpect;
 import adris.altoclef.util.helpers.MineStick;
 import adris.altoclef.util.helpers.NoReturn;
+import adris.altoclef.util.helpers.PursuitFlips;
 import adris.altoclef.util.helpers.PursuitProgress;
 import adris.altoclef.util.helpers.ScanWait;
+import adris.altoclef.util.helpers.Tuning;
 import adris.altoclef.util.helpers.WorldHelper;
 import java.util.HashMap;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -28,6 +33,8 @@ public abstract class AbstractDoToClosestObjectTask<T> extends Task {
     // is the current pursuit getting anywhere, see PursuitProgress
     private final PursuitProgress _progress = new PursuitProgress();
     private final NoReturn _noReturn = new NoReturn();
+    // the same thing let go and picked again over and over, see flipGuard
+    private static final PursuitFlips FLIPS = new PursuitFlips();
     // the block the controller was last seen breaking, so a break on the way to the pursuit counts as progress
     private BlockPos _lastBreaking;
     private Task _goalTask = null;
@@ -165,6 +172,7 @@ public abstract class AbstractDoToClosestObjectTask<T> extends Task {
             _heuristicMap.remove(_currentlyPursuing);
             T gone = _currentlyPursuing;
             _currentlyPursuing = null;
+            flipGuard(mod, gone);
             onPursuitGone(mod, gone);
         }
 
@@ -289,6 +297,40 @@ public abstract class AbstractDoToClosestObjectTask<T> extends Task {
             setDebugState("Staying with the current pursuit");
         }
         return true;
+    }
+
+    // (Tuning flip_guard, a fix of 21 Nov 2026, on) the pursuit let go of a thing that is still there (a block not yet air, a
+    // mob or a drop still alive): the eighth time in three minutes it goes into the ban book for five minutes, so the pick
+    // hands out another or the task wanders on. one count for every closest task, as a parent that rebuilds its child would
+    // start a count per task over each time (PursuitFlips, look 205)
+    private void flipGuard(AltoClef mod, T gone) {
+        if (Tuning.get("flip_guard", 0) <= 0 || !stillThere(mod, gone)) {
+            return;
+        }
+        long now = WorldHelper.getTicks();
+        long first = FLIPS.firstDrop(gone);
+        if (!FLIPS.dropped(gone, now)) {
+            return;
+        }
+        Bans.Key key = gone instanceof BlockPos b ? Bans.Key.block(WorldHelper.getCurrentDimension(), b.getX(), b.getY(), b.getZ())
+                : gone instanceof Entity e ? Bans.Key.entity(e.getId()) : null;
+        if (key != null) {
+            mod.getBans().ban(key, "flip guard: dropped and picked again " + PursuitFlips.LIMIT + " times in "
+                    + (first < 0 ? 0 : (now - first) / 20) + " s (" + getClass().getSimpleName() + ")", BanPolicy.FLIP_GUARD);
+        }
+    }
+
+    // whether a pursuit that stopped being valid is still in the world: a block not air (in a loaded chunk), an entity alive.
+    // a block broken or a drop picked up is gone for good and never counts (an obsidian cast at one spot is mined there again
+    // and again)
+    protected boolean stillThere(AltoClef mod, T obj) {
+        if (obj instanceof BlockPos b) {
+            return mod.getChunkTracker().isChunkLoaded(b) && !mod.getWorld().getBlockState(b).isAir();
+        }
+        if (obj instanceof Entity e) {
+            return e.isAlive();
+        }
+        return false;
     }
 
     // every swap of one live target for another goes through here so the old one gets remembered (NoReturn)
