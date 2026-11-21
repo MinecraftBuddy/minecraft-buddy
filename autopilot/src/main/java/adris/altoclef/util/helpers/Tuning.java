@@ -1021,6 +1021,9 @@ public final class Tuning {
             java.util.Map.entry("hit_keeps_reach", 1.0),
             // the take-along never digs the block under the feet or the one under it: TakeAlongRules.underFoot (21 Nov 2026)
             java.util.Map.entry("take_along_not_underfoot", 1.0),
+            // the creeper step's last fallback, the one-down hole, gets its top shut over the head: CornerWallTask.creeper (21
+            // Nov 2026)
+            java.util.Map.entry("creeper_hole_cap", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)

@@ -109,8 +109,13 @@ public final class CornerWallTask extends Task {
     // (the buddy's fork, Tuning creeper_no_heading_block, a fix of 13 Nov 2026) a creeper step with no safe heading: a block
     // from the bag in a cell beside the buddy toward the creeper (the head's height first, which takes its line and stops the
     // swell, then the feet's, which takes the blast's rays at its feet), else one down where the buddy stands (CreeperStepTask)
+    // (Tuning creeper_hole_cap, a fix of 21 Nov 2026, on) the one-down hole gets its top shut over the head (the ROOF stage, as
+    // digIn's): with it open, a creeper coming down from higher ground never came within 3 to light, walked on and dropped into
+    // the column, and blew 0.7 and 0.6 off, 20 to 0 (heel-127-mc3 r2, heel-128-mc3 r3). capped, it cannot get in, and one on the
+    // cap is 3 above the feet and never lights (SwellGoal: within 3, feet to feet)
     public static CornerWallTask creeper(int creeperId) {
-        return new CornerWallTask(creeperId, false, "creeper with no way out: ", CREEPER_DEPTH, false);
+        return new CornerWallTask(creeperId, false, "creeper with no way out: ", CREEPER_DEPTH,
+                adris.altoclef.util.helpers.Tuning.get("creeper_hole_cap", 0) > 0);
     }
 
     public static final int CREEPER_DEPTH = 1;
