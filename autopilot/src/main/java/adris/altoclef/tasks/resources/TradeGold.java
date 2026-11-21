@@ -634,12 +634,25 @@ final class TradeGold {
                 || now - _pointSince > FireResTradeRules.POINT_TICKS;
         if (next) {
             FireResTradeRules.Spot point = null;
+            BlockPos feet = player.blockPosition();
             while (++_searchK < FireResTradeRules.RING_POINTS * FireResTradeRules.RINGS) {
                 FireResTradeRules.Spot s = FireResTradeRules.searchPoint(_searchK, _anchor0().getX(), _anchor0().getZ(), _searchFrom);
-                if (TradeGoldRules.awayFromSpawner(s.x(), s.z(), _spawner)) {
-                    point = s;
-                    break;
+                if (!TradeGoldRules.awayFromSpawner(s.x(), s.z(), _spawner)) continue;
+                // (gold_search_way) a point across the lava sea is left as the ore trips leave such ore (gold_way_open, his 55)
+                int max = TradeGoldRules.wayOpenMax();
+                if (TradeGoldRules.searchWayOn() && max > 0) {
+                    var level = mod.getWorld();
+                    int sea = level.getSeaLevel();
+                    int open = TradeGoldRules.openColumns(feet.getX(), feet.getY(), feet.getZ(), s.x(), feet.getY(), s.z(),
+                            (x, y, z) -> openUnder(level, x, y, z, sea), max);
+                    if (open > max) {
+                        Debug.logInternal(String.format(Locale.ROOT, "trade gold: search point %d at %d %d left, its way over the lava sea (gold_search_way)",
+                                _searchK, s.x(), s.z()));
+                        continue;
+                    }
                 }
+                point = s;
+                break;
             }
             if (point == null) return null;
             _pointSince = now;

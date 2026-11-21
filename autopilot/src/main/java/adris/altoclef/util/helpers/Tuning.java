@@ -861,6 +861,9 @@ public final class Tuning {
             // the trade's gold step leaves an ore whose straight way is open to a fall in more than 2 columns: it went across the
             // lava sea on its own bridge and along basalt rims, and a ghast or a magma cube knocked the buddy off, TradeGold (19 Nov 2026)
             java.util.Map.entry("gold_way_open", 2.0),
+            // the search for ore with none known leaves a ring point whose straight way crosses the lava sea: the search walk bridged
+            // over the sea in 5 of 63 segments while the ore trips never did, TradeGold (21 Nov 2026, look 192)
+            java.util.Map.entry("gold_search_way", 1.0),
             // a failed search for a way to the ore gives it up at once, not after its minute on the tip of a bridge, TradeGold
             // (19 Nov 2026)
             java.util.Map.entry("gold_path_fail", 1.0),

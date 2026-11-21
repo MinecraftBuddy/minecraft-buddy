@@ -164,6 +164,13 @@ public final class TradeGoldRules {
         return (int) Tuning.get("gold_way_open", 0);
     }
 
+    // (Tuning gold_search_way, a fix of 21 Nov 2026, on) the search for ore with none known leaves a ring point whose straight way
+    // from the feet crosses the lava sea in more than wayOpenMax columns (nothing to stand on from the feet's height down to the
+    // sea, lava first): the ore trips never crossed it, but the search walk bridged over the sea in 5 of 63 segments (look 192)
+    public static boolean searchWayOn() {
+        return Tuning.get("gold_search_way", 0) > 0;
+    }
+
     // whether the column at (x, z) is open under the way's height y
     public interface OpenColumn {
         boolean open(int x, int y, int z);
