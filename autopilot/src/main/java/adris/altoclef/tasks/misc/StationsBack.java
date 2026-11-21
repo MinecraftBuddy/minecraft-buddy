@@ -68,6 +68,21 @@ public final class StationsBack {
     // (cut_parent_hold) the cut entries whose hold was said, by position and cut tick
     private static final java.util.Map<BlockPos, Long> HOLD_SAID = new java.util.HashMap<>();
 
+    // (Tuning stations_back_calm, a fix of 21 Nov 2026, on) no take-back while the danger meter is not calm: with a zombie 7 blocks
+    // off and the meter at fight, the table was broken with the buddy's back to the zombie, which hit 8 three times (heel-144
+    // r2, E1121-0905.7). the clock of what waits stands still meanwhile, so no station is lost to the wait: this class's clock
+    // is the game's less the ticks spent waiting (paused), notCalmSince the tick the wait began
+    private static long paused;
+    private static long notCalmSince = Long.MIN_VALUE;
+
+    public static boolean calmOn() {
+        return adris.altoclef.util.helpers.Tuning.get("stations_back_calm", 0) > 0;
+    }
+
+    private static long clock(AltoClef mod) {
+        return mod.getWorld().getGameTime() - paused;
+    }
+
     private StationsBack() {
     }
 
@@ -137,7 +152,7 @@ public final class StationsBack {
         }
         BlockPos at = pos.immutable();
         LEFT.removeIf(l -> l.pos().equals(at));
-        LEFT.add(new Left(at, item, WorldHelper.getCurrentDimension().name(), mod.getWorld().getGameTime(), null, false));
+        LEFT.add(new Left(at, item, WorldHelper.getCurrentDimension().name(), clock(mod), null, false));
     }
 
     // (Tuning root_done_table, a fix of 14 Nov 2026, on) a user task is done and dropped without a stop (UserTaskChain.onTaskFinish),
@@ -192,7 +207,7 @@ public final class StationsBack {
             return;
         }
         boolean known = LEFT.removeIf(l -> l.pos().equals(at));
-        LEFT.add(new Left(at, item, WorldHelper.getCurrentDimension().name(), mod.getWorld().getGameTime(), owner, true));
+        LEFT.add(new Left(at, item, WorldHelper.getCurrentDimension().name(), clock(mod), owner, true));
         if (!known) {
             Debug.logInternal("stations back: the craft at the crafting table at " + at.toShortString()
                     + " was cut, the table goes back in the bag once the craft is over (table_back_on_cut)");
@@ -210,7 +225,22 @@ public final class StationsBack {
             current = null;
             return null;
         }
-        long now = mod.getWorld().getGameTime();
+        long game = mod.getWorld().getGameTime();
+        if (calmOn()) {
+            if (!"calm".equals(adris.altoclef.util.helpers.DangerShadow.level().word())) {
+                if (notCalmSince == Long.MIN_VALUE || game < notCalmSince) {
+                    notCalmSince = game;
+                    Debug.logInternal("stations back: the danger meter at " + adris.altoclef.util.helpers.DangerShadow.level().word()
+                            + ", the take-back waits for calm (stations_back_calm)");
+                }
+                return null;
+            }
+            if (notCalmSince != Long.MIN_VALUE) {
+                if (game > notCalmSince) paused += game - notCalmSince;
+                notCalmSince = Long.MIN_VALUE;
+            }
+        }
+        long now = game - paused;
         if (current != null) {
             int count = mod.getItemStorage().getItemCount(current.item());
             // (a cut one's time runs from when the walk to it began, it may have waited minutes for its craft)

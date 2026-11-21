@@ -742,6 +742,9 @@ public final class Tuning {
             // a shimmy out of a block that ends still stuck counts a strike against the click's target, so the blacklist is reached:
             // a bucket's click on lava out of reach waited 7.5 minutes with one strike, InteractWithBlockTask (look 202)
             java.util.Map.entry("shimmy_strike", 1.0),
+            // no station taken back while the danger meter is not calm, its clock standing still meanwhile: a table was broken with
+            // the buddy's back to a zombie 7 blocks off, StationsBack (heel-144 r2)
+            java.util.Map.entry("stations_back_calm", 1.0),
             // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
             // none: a stone one takes no gold ore); with no wood in the bag the try ends as before (no trip up from the deep
             // with a worn pickaxe, look 127):
