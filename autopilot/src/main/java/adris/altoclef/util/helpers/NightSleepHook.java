@@ -82,4 +82,23 @@ public final class NightSleepHook {
         long at = shelterAt;
         return at != Long.MIN_VALUE && gameTime >= at && gameTime - at <= STALE_TICKS;
     }
+    // (Tuning bed_failed_hole, a fix of 21 Nov 2026, on) the game time the last night trip ended given up (the night did not
+    // pass with others awake, woken, no room): a bed in the bag that could not end the night is no bed for the buddy's night
+    // hole (Obtain.holeNight). the hole waited on that bed, the trip gave up twice and the buddy worked the night in the open
+    // with no armour till a creeper blew (heel-123-mc2 r2)
+    private static volatile long bedGaveUpAt = Long.MIN_VALUE;
+
+    public static void noteBedGaveUp(long gameTime) {
+        bedGaveUpAt = gameTime;
+    }
+
+    public static long bedGaveUpAt() {
+        return bedGaveUpAt;
+    }
+
+    // whether a trip gave up within the span of one night before now
+    public static boolean bedGaveUpTonight(long gameTime, long nightSpan) {
+        long at = bedGaveUpAt;
+        return Tuning.get("bed_failed_hole", 0) > 0 && at != Long.MIN_VALUE && gameTime >= at && gameTime - at < nightSpan;
+    }
 }

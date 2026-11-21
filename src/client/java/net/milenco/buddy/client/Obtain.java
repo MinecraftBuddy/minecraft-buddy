@@ -1037,7 +1037,7 @@ final class Obtain {
 		// (a bed Soprano has just put down counts too: it puts its bed down to sleep, the bag held none that moment, and the
 		// hole shut it in for the night with the bed beside it, over a quarter of an order in holes)
 		// (and a bed on the ground Soprano is taking back: ObtainSafe.bedDropNear)
-		if (!ObtainSafe.needsShelter(p) || ObtainSafe.hasBed(p) || ObtainSafe.bedNear(p, 6) || ObtainSafe.bedDropNear(p, 6)) return false;
+		if (!ObtainSafe.needsShelter(p) || Alto.bedTonight(p) || ObtainSafe.bedNear(p, 6) || ObtainSafe.bedDropNear(p, 6)) return false;
 		// (the autopilot's food_one_trip, a fix of 13 Nov 2026: on the route's deep stretch the mine is the night's shelter, the
 		// order's staircase takes the buddy down and the mine goes on through the night; Alto.deepNight)
 		if (Alto.deepNight(p)) {

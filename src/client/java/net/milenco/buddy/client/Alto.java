@@ -616,8 +616,21 @@ final class Alto {
 	 * it is hurt with nothing to eat. With a bed the night is slept where it is, as before.
 	 */
 	static boolean deepNight(net.minecraft.client.player.LocalPlayer p) {
-		return oneTrip() && routeDeep(p) && Obtain.dark(p) && !ObtainSafe.hasBed(p);
+		return oneTrip() && routeDeep(p) && Obtain.dark(p) && !bedTonight(p);
 	}
+
+	/**
+	 * A bed in the bag that may still end tonight: none once Soprano's night trip gave up this night (the autopilot's
+	 * bed_failed_hole, a fix of 21 Nov 2026, on: the night did not pass with others awake). The night's hole waited on that
+	 * bed, the trip gave up twice, and the buddy worked the night in the open with no armour till a creeper blew.
+	 */
+	static boolean bedTonight(net.minecraft.client.player.LocalPlayer p) {
+		if (!ObtainSafe.hasBed(p)) return false;
+		return !present() || !adris.altoclef.util.helpers.NightSleepHook.bedGaveUpTonight(p.level().getGameTime(), NIGHT_SPAN);
+	}
+
+	/** Longer than one night's dark (11520 to 23300) and shorter than a day: a give-up counts for the night it fell in. */
+	static final long NIGHT_SPAN = 12_000;
 
 	/**
 	 * A nether portal being built: a portal build anywhere in Soprano's task stack, or a frame half built nearby (a whole
