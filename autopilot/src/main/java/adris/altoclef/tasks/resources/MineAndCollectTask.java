@@ -505,6 +505,8 @@ public class MineAndCollectTask extends ResourceTask {
         private static final TreeStrikes STRIKES = new TreeStrikes();
         private final TreeReachScan _scan = new TreeReachScan();
         private final BuriedLogs _buried = new BuriedLogs();
+        // (Tuning built_log_skip) the logs of something built found so far (the same latch as the buried ones)
+        private final BuriedLogs _built = new BuriedLogs();
         // no digging for dirt before this tick. static for the same reason as the strikes, a rebuilt task would start another trip
         private static int dirtOffUntil = Integer.MIN_VALUE;
         // the last tree we dug dirt for, and when
@@ -801,7 +803,15 @@ public class MineAndCollectTask extends ResourceTask {
             if (hangsInTheNether(mod, check)) return false;
             // ahead of worthTheTrip, so a mine post doesn't spend a column scan on the way out
             if (buriedLog(mod, check)) return false;
+            if (builtLog(mod, check)) return false;
             return WorldHelper.canBreak(mod, check) && _only.test(check) && (!sparing || worthTheTrip(mod, check));
+        }
+
+        // (Tuning built_log_skip) a log of something built (BuiltLog) is no tree; once caught it stays caught, as a buried one
+        private boolean builtLog(AltoClef mod, BlockPos pos) {
+            return _logsOnly && adris.altoclef.util.helpers.BuiltLog.on()
+                    && _built.buried(pos, check -> adris.altoclef.util.helpers.BuiltLog.built(check,
+                    cell -> adris.altoclef.util.helpers.BuiltLog.foreign(mod.getWorld().getBlockState(cell))));
         }
 
         // sparing leaves out the logs we have no way up to (TreeReach.skip)

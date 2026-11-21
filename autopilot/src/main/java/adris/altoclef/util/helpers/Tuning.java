@@ -1004,6 +1004,9 @@ public final class Tuning {
             // the gold step's stone pickaxe leaves the brewing stand's stone (brew_keep_stone) in the bag, as the boxes do:
             // the brew found 0 of 3 and was skipped, TradeGold.bagOf (21 Nov 2026)
             java.util.Map.entry("gold_keep_stand_stone", 1.0),
+            // a log beside planks, wooden stairs, slabs, fences or a banner is part of something built (an outpost's tower, a
+            // house), never a tree to chop: BuiltLog, MineAndCollectTask.usable (21 Nov 2026)
+            java.util.Map.entry("built_log_skip", 1.0),
             // the slime hunt chases a slime within 48 blocks and keeps it 5 s past the last sight; a farther or banned one leaves
             // the mine digging: one hopping across the edge of the client's list flipped the chase and the mine every 1 to 4 s,
             // KillAndLootTask (20 Nov 2026)
