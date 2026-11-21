@@ -676,4 +676,8 @@ public final class TakeAlongRules {
                 .thenComparingInt(Offset::dz));
         return List.copyOf(cells);
     }
+    // (Tuning take_along_not_underfoot) the block under the feet or the one under that: a take-along never digs the floor away
+    public static boolean underFoot(int fx, int fy, int fz, int x, int y, int z) {
+        return x == fx && z == fz && y < fy && y >= fy - 2;
+    }
 }

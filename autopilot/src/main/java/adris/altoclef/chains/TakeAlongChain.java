@@ -700,6 +700,15 @@ public class TakeAlongChain extends SingleTaskChain {
         if (BanPolicy.takeAlongBanned(mod.getBans(), WorldHelper.getCurrentDimension(), pos.getX(), pos.getY(), pos.getZ())) {
             return false;
         }
+        // (Tuning take_along_not_underfoot, a fix of 21 Nov 2026, on) never the block the buddy stands on, nor the one under it:
+        // the take-along dug the gravel under its own feet for flint, the buddy dropped three blocks into water under a stone
+        // ceiling, its own gravel fell in beside it, and it drowned at 21 game minutes (heel-131-mc1 r1)
+        if (adris.altoclef.util.helpers.Tuning.get("take_along_not_underfoot", 0) > 0 && mod.getPlayer() != null) {
+            BlockPos feet = mod.getPlayer().blockPosition();
+            if (TakeAlongRules.underFoot(feet.getX(), feet.getY(), feet.getZ(), pos.getX(), pos.getY(), pos.getZ())) {
+                return false;
+            }
+        }
         // (take_along_falling_ban) gravel in a column given up, and gravel whose flint would land in water
         if (kind.column() && fallingBanOn()) {
             ClientLevel level = mod.getWorld();

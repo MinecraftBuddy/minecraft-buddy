@@ -482,4 +482,13 @@ public class TakeAlongRulesTest {
         assertEquals(24 * 5 + 8 * 5 * 0.6, c.value(), EPS);
         assertEquals(2 * 4 / 4.0 + 2 * 3 + 1 + 3, c.cost(), EPS);
     }
+    // take_along_not_underfoot: the two blocks under the feet are never a take-along's; beside or three down they are
+    @Test
+    public void neverTheFloorUnderTheFeet() {
+        org.junit.Assert.assertTrue(TakeAlongRules.underFoot(10, 64, 5, 10, 63, 5));
+        org.junit.Assert.assertTrue(TakeAlongRules.underFoot(10, 64, 5, 10, 62, 5));
+        org.junit.Assert.assertFalse(TakeAlongRules.underFoot(10, 64, 5, 10, 61, 5));
+        org.junit.Assert.assertFalse(TakeAlongRules.underFoot(10, 64, 5, 11, 63, 5));
+        org.junit.Assert.assertFalse(TakeAlongRules.underFoot(10, 64, 5, 10, 64, 5));
+    }
 }
