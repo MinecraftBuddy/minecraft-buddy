@@ -513,7 +513,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_netherPickFails >= NETHER_PICK_TRIES) return null;
         var p = mod.getPlayer();
         if (TradeGold.dangerNear(mod) || p.isOnFire() || p.isInLava()) return null;
-        if (!adris.altoclef.tasks.speedrun.gamer.NetherPick.covered(pickBag(mod), adris.altoclef.tasks.speedrun.gamer.NetherPick.Tier.STONE)) return null;
+        // (Tuning nether_pick_making, a fix of 21 Nov 2026, on) not asked while the craft is under way: its own table, set down,
+        // is out of the bag and the bag read "no table", the craft was cut the same tick, the errand's walk took over and the
+        // table was left; the buddy went on with no pickaxe, every path priced by hand (look 203, heel-157-mc2 r4). the craft's
+        // own check, with its table grace, ends a real shortage (as gold_stone_making in TradeGold)
+        boolean making = _netherPick != null && !_netherPick.failed() && adris.altoclef.util.helpers.Tuning.get("nether_pick_making", 0) > 0;
+        if (!making && !adris.altoclef.tasks.speedrun.gamer.NetherPick.covered(pickBag(mod), adris.altoclef.tasks.speedrun.gamer.NetherPick.Tier.STONE)) return null;
         if (_netherPick == null) {
             _netherPick = new adris.altoclef.tasks.speedrun.gamer.tasks.NetherPickTask(adris.altoclef.tasks.speedrun.gamer.NetherPick.Tier.STONE,
                     () -> pickBag(mod), () -> usablePick(mod));

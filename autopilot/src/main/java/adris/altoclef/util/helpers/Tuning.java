@@ -726,6 +726,9 @@ public final class Tuning {
             // the gold step's stone pickaxe craft under way counts as covered by the bag: its own table, set down, was out of the
             // bag, the step ended "the pickaxes kept" mid-craft with stone and sticks left, TradeGold (heel-152-mc2 r1)
             java.util.Map.entry("gold_stone_making", 1.0),
+            // the same for the rods task's stone pickaxe with none usable left (nether_pick_make): the craft under way is not cut
+            // for the bag's table set down, CollectBlazeRodsTask (look 203)
+            java.util.Map.entry("nether_pick_making", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),
