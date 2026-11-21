@@ -720,6 +720,9 @@ public final class Tuning {
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),
+            // the breaker's dry spots to stand on reach one layer further down, five under the block: the dry top of a trunk in the sea
+            // under one log left hanging was never asked, and the buddy swung from the water 288 times, DestroyBlockTask (look 197)
+            java.util.Map.entry("land_spot_below", 1.0),
             // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
             // none: a stone one takes no gold ore); with no wood in the bag the try ends as before (no trip up from the deep
             // with a worn pickaxe, look 127):

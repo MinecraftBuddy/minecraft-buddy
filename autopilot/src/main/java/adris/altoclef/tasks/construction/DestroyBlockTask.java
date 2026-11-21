@@ -325,8 +325,12 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         double reachSq = reach * reach;
         Vec3 center = Vec3.atCenterOf(target);
+        // (Tuning land_spot_below, a fix of 21 Nov 2026, on) and one layer further down: feet five under the block still reach it
+        // (eyes 1.62 up, reach 4.5). a tree in the sea cut from below left one log over the open trunk, the dry trunk top five
+        // under it was never asked, and the buddy swung at it from the bobbing water 288 times in eight minutes (look 197)
+        int below = adris.altoclef.util.helpers.Tuning.get("land_spot_below", 0) > 0 ? LAND_RADIUS + 1 : LAND_RADIUS;
         for (int dx = -LAND_RADIUS; dx <= LAND_RADIUS; dx++) {
-            for (int dy = -LAND_RADIUS; dy <= LAND_RADIUS; dy++) {
+            for (int dy = -below; dy <= LAND_RADIUS; dy++) {
                 for (int dz = -LAND_RADIUS; dz <= LAND_RADIUS; dz++) {
                     int x = target.getX() + dx;
                     int y = target.getY() + dy;

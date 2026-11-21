@@ -292,6 +292,26 @@ public class WaterBreakGuardTest {
         }
     }
 
+    // (land_spot_below) a trunk in the sea cut from below, one log left over the open trunk: the trunk's dry top five under it
+    // is a spot (look 197)
+    @Test
+    public void theTrunkTopFiveUnderAHangingLogIsASpot() {
+        MapGetter w = new MapGetter();
+        for (int x = -6; x <= 6; x++) {
+            for (int z = -6; z <= 6; z++) {
+                w.set(x, 60, z, Blocks.SAND.defaultBlockState());
+                w.set(x, 61, z, Blocks.WATER.defaultBlockState());
+                w.set(x, 62, z, Blocks.WATER.defaultBlockState());
+            }
+        }
+        w.set(0, 61, 0, Blocks.DARK_OAK_LOG.defaultBlockState());
+        w.set(0, 62, 0, Blocks.DARK_OAK_LOG.defaultBlockState());
+        BlockPos log = new BlockPos(0, 68, 0);
+        w.set(0, 68, 0, Blocks.DARK_OAK_LOG.defaultBlockState());
+        List<BlockPos> spots = DestroyBlockTask.landSpots(w, log, 4.5, new BlockPos(1, 62, 0));
+        assertTrue("the trunk top under the log: " + spots, spots.contains(new BlockPos(0, 63, 0)));
+    }
+
     @Test
     public void aLakeWithNoShoreInRangeHasNoSpots() {
         MapGetter w = lake();
