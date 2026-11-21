@@ -302,6 +302,11 @@ public interface WorldHelper {
                 BlockState state = level.getBlockState(at.set(x, y, z));
                 return state.getFluidState().isEmpty() && state.getCollisionShape(level, at).isEmpty();
             }
+
+            @Override
+            public boolean loose(int x, int y, int z) {
+                return level.getBlockState(at.set(x, y, z)).getBlock() instanceof net.minecraft.world.level.block.FallingBlock;
+            }
         }, pos.getX(), pos.getY(), pos.getZ(), body);
     }
 

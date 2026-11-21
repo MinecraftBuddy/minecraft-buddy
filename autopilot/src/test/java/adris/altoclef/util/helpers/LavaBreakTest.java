@@ -10,7 +10,7 @@ import org.junit.Test;
 // no block broken that lets lava into its cell (dig_lava_check): LavaBreak.refuse
 public class LavaBreakTest {
 
-    private enum C {STONE, AIR, LAVA, WATER}
+    private enum C {STONE, AIR, LAVA, WATER, GRAVEL}
 
     // a world of stone with the cells set here
     private static final class World implements LavaBreak.Cells {
@@ -32,7 +32,12 @@ public class LavaBreakTest {
 
         @Override
         public boolean solid(int x, int y, int z) {
-            return at(x, y, z) == C.STONE;
+            return at(x, y, z) == C.STONE || at(x, y, z) == C.GRAVEL;
+        }
+
+        @Override
+        public boolean loose(int x, int y, int z) {
+            return at(x, y, z) == C.GRAVEL;
         }
 
         @Override
@@ -48,6 +53,20 @@ public class LavaBreakTest {
         assertFalse(LavaBreak.refuse(new World().set(2, 0, 0, C.LAVA), 0, 0, 0));
         // water beside: not lava
         assertFalse(LavaBreak.refuse(new World().set(1, 0, 0, C.WATER), 0, 0, 0));
+    }
+
+    // (dig_lava_loose) the block over gravel that rests on lava is not broken: the gravel falls, and the buddy after it
+    @Test
+    public void gravelOnLavaUnderTheBlockRefuses() {
+        assertTrue(LavaBreak.refuse(new World().set(0, -1, 0, C.GRAVEL).set(0, -2, 0, C.LAVA), 0, 0, 0));
+        // two of gravel, then lava
+        assertTrue(LavaBreak.refuse(new World().set(0, -1, 0, C.GRAVEL).set(0, -2, 0, C.GRAVEL).set(0, -3, 0, C.LAVA), 0, 0, 0));
+        // gravel over an open cell over lava
+        assertTrue(LavaBreak.refuse(new World().set(0, -1, 0, C.GRAVEL).set(0, -2, 0, C.AIR).set(0, -3, 0, C.LAVA), 0, 0, 0));
+        // gravel on stone: breaks
+        assertFalse(LavaBreak.refuse(new World().set(0, -1, 0, C.GRAVEL), 0, 0, 0));
+        // gravel over air with no lava under: breaks (a fall, not lava)
+        assertFalse(LavaBreak.refuse(new World().set(0, -1, 0, C.GRAVEL).set(0, -2, 0, C.AIR), 0, 0, 0));
     }
 
     @Test

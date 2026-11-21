@@ -248,10 +248,18 @@ public final class CreeperStep {
     // creeper relight and the step start again about every second, with the arrows landing in between. there it holds until the
     // swell is fully drained and we are past 7 (SWELL_STOP). not SAFE: the goal counts a cell by its corner, so walking -x or -z
     // it is done at 7.5 live, and waiting on 8 would sit there till the cap
+    //
+    // (Tuning creeper_hold_drain, a fix of 21 Nov 2026, on) outside a run the same: a step that let go at "unlit and over 5"
+    // with the fuse still charged gave the wheel back to a pickup whose drop lay past the creeper, the pickup walked back in,
+    // and the next step found no heading before the blast (heel-138-mc1 r1, 8.7 game minutes)
     private boolean fuseOut(Seen held, CombatCommit.Mode mode) {
         if (held.lit()) return false;
-        if (mode == CombatCommit.Mode.RUN) return !held.fusing() && held.distance() > SWELL_STOP;
+        if (mode == CombatCommit.Mode.RUN || holdDrainOn()) return !held.fusing() && held.distance() > SWELL_STOP;
         return held.distance() > HOLD_RADIUS;
+    }
+
+    private static boolean holdDrainOn() {
+        return Tuning.get("creeper_hold_drain", 0) > 0;
     }
 
     // the nearest lit creeper other than the one held, leaving out the capped ones

@@ -706,6 +706,12 @@ public final class Tuning {
             // a take-along that ends blocked (in water, lava or fire, or no tool) bans what is left too: one began dry, went into water
             // on its way to a flint, ended, and began again after every cooldown, 264 times in 28 minutes, TakeAlongChain (look 194)
             java.util.Map.entry("take_along_blocked_ban", 1.0),
+            // the creeper step outside a run holds until the fuse has no charge and the creeper is past 7, as inside a run: it let go at
+            // unlit and over 5 with the fuse charged, and a pickup walked back in to the blast, CreeperStep (21 Nov 2026)
+            java.util.Map.entry("creeper_hold_drain", 1.0),
+            // no break over sand or gravel that rests on lava: the gravel falls into the lava and the buddy after it, LavaBreak
+            // (21 Nov 2026, heel-140-mc2 r1)
+            java.util.Map.entry("dig_lava_loose", 1.0),
             // for gold, with a diamond pickaxe's diamonds in the bag, the next pickaxe is a diamond one (the bag's stone makes
             // none: a stone one takes no gold ore); with no wood in the bag the try ends as before (no trip up from the deep
             // with a worn pickaxe, look 127):

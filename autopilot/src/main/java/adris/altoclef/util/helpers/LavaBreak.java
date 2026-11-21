@@ -16,6 +16,9 @@ public final class LavaBreak {
 
     // the switch as the main thread last read it: the break avoider runs on baritone's path thread, many times a search
     private static volatile boolean on;
+    // (Tuning dig_lava_loose, a fix of 21 Nov 2026, on; true until the first read, as the tests see it) sand or gravel under the
+    // block followed down to what holds it up
+    private static volatile boolean looseOn = true;
 
     private LavaBreak() {
     }
@@ -23,6 +26,7 @@ public final class LavaBreak {
     // once a client tick, on the main thread
     public static void refresh() {
         on = Tuning.get(KEY, 0) > 0;
+        looseOn = Tuning.get("dig_lava_loose", 0) > 0;
     }
 
     public static boolean on() {
@@ -39,7 +43,15 @@ public final class LavaBreak {
 
         // nothing in the cell for lava to stop at: no collision shape and no fluid
         boolean open(int x, int y, int z);
+
+        // a block that falls when nothing holds it up: sand, gravel, concrete powder
+        default boolean loose(int x, int y, int z) {
+            return false;
+        }
     }
+
+    // the loose blocks followed down under a break, at most
+    static final int LOOSE_MAX = 8;
 
     private static final int[][] SIDES = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 
@@ -62,6 +74,17 @@ public final class LavaBreak {
             for (int[] e : SIDES) {
                 if (c.lava(nx + e[0], y, nz + e[1])) return true;
             }
+        }
+        // (dig_lava_loose) gravel resting on lava under the block: the break lets it fall into the lava, and the buddy standing
+        // on the block above falls after it. a dig straight down in M3.2 broke the deepslate over such gravel at y -55, the gravel
+        // went, and the buddy dropped into a pool three deep with no way up (heel-140-mc2 r1)
+        if (looseOn) {
+            int k = y - 1, n = 0;
+            while (n < LOOSE_MAX && c.loose(x, k, z)) {
+                k--;
+                n++;
+            }
+            if (n > 0 && (c.lava(x, k, z) || c.open(x, k, z) && c.lava(x, k - 1, z))) return true;
         }
         return false;
     }
