@@ -124,6 +124,8 @@ public class PokeMineTask extends Task {
         final Map<Long, Watched> watch = new HashMap<>();
         long lastDig = Long.MIN_VALUE / 2;
         final ArrayDeque<Long> resets = new ArrayDeque<>();
+        // (poke_loop_fallback) the game times the empty-segment rule began a new run, within RESET_WINDOW
+        final ArrayDeque<Long> loops = new ArrayDeque<>();
         // the segment under way: cells dug by kind, hole cells passed over, caves met, cells shown, ores seen, which pick broke what
         int tunnel, holes, connector, skipped, caves, faces, oresSeen, wanted, segments;
         // (poke_empty_new_run) segments in a row that dug nothing
@@ -452,7 +454,8 @@ public class PokeMineTask extends Task {
         boolean nothing = m.run != null && m.tunnel + m.holes + m.connector + m.skipped == 0;
         logSegment(m, "the way closed");
         if (nothing && adris.altoclef.util.helpers.Tuning.get("poke_turn_empty", 0) > 0) m.empty++;
-        if (emptyLoop(mod, m, feet)) return false;
+        // (a new run goes on this tick; the loop fallback ends the run, as the resets below do)
+        if (emptyLoop(mod, m, feet)) return m.run == null;
         PokePattern.Turn t = m.run.blocked();
         if (t == PokePattern.Turn.TURNED) {
             logTurn(m, "the step to " + step.toShortString() + " is not taken: " + why);
@@ -648,6 +651,23 @@ public class PokeMineTask extends Task {
         if (m.run == null || m.empty < EMPTY_SEGMENTS || adris.altoclef.util.helpers.Tuning.get("poke_empty_new_run", 0) <= 0) return false;
         int n = m.empty;
         m.empty = 0;
+        // (Tuning poke_loop_fallback, a fix of 21 Nov 2026, on) the new run undone at once, again and again: its first station
+        // met a cave at the feet, the connector turned away from it straight back down the run's own tunnel, and the rule began
+        // a new run at the other end, 63 times in 168 s between two caves 10 blocks apart, till the place watch (heel-130-mc1
+        // r4, look 190). RESETS new runs in a game minute: the old tunnel for a while, as when the rock has no way in
+        if (adris.altoclef.util.helpers.Tuning.get("poke_loop_fallback", 0) > 0) {
+            long now = mod.getWorld().getGameTime();
+            while (!m.loops.isEmpty() && (now < m.loops.peekFirst() || now - m.loops.peekFirst() > RESET_WINDOW)) m.loops.removeFirst();
+            m.loops.addLast(now);
+            if (m.loops.size() >= RESETS) {
+                m.loops.clear();
+                m.run = null;
+                _fallback = true;
+                Debug.logInternal("branch mine: poke holes began a new run " + RESETS + " times in a game minute at "
+                        + feet.toShortString() + ", each undone at once, the old tunnel for a game minute (poke_loop_fallback)");
+                return true;
+            }
+        }
         Debug.logInternal("branch mine: " + n + " poke segments in a row dug nothing at " + feet.toShortString()
                 + ", back along the run's own tunnels: a new run into rock not dug yet (poke_empty_new_run)");
         newRun(mod, m, feet, -m.run.dz(), m.run.dx(), n + " segments with nothing dug");
