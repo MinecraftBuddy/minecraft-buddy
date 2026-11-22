@@ -509,7 +509,7 @@ class ObtainRouteTest {
 		assertEquals(List.of("m1.1/wood", "m1.2/stone pickaxes", "m1.2/stone sword", "m1.2/furnace", "m1.3/food", "m1.3/bed", "m1.3/sand",
 			"m2.1/shield", "m2.1/copper_chestplate", "m2.1/copper_leggings", "m2.1/copper_boots", "m2.1/iron_chestplate",
 			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.1/iron_helmet", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m3.1/diamonds",
-			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/slime ball", "m3.3/golden boots", "m3.3/golden boots again", "m3.3/gold", "m3.3b/slime ball",
+			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/slime ball", "m3.3/golden boots", "m3.3/golden boots again", "m3.3/gold", "m3.3b/golden boots again", "m3.3b/slime ball",
 			"m3.4/flint and steel", "m3.4/rest", "m3.4/crafting table", "m3.4/sticks", "m3.4/food", "m3.4/bed", "m3.4/water bucket",
 			"m3.4/iron pickaxes", "m3.4/diamonds", "m3.4/redstone", "m3.4/obsidian", "m3.4/raw gold", "m3.4/golden boots", "m3.4/gold",
 			"m3.4/water bottles", "m3.4/crafting table last"), names);
@@ -737,5 +737,11 @@ class ObtainRouteTest {
 		assertFalse(ObtainRoute.slimeWayDue(ObtainRoute.M3_2, 599_999, 600_000, 1, 0, false));
 		assertFalse(ObtainRoute.slimeWayDue(ObtainRoute.M3_2, 0, 0, 0, 1, false));
 		assertFalse(ObtainRoute.slimeWayDue(ObtainRoute.M3_2, 0, 0, 0, 0, true));
+	}
+
+	// the golden boots taken off by a craft's cursor steps go on again in the slime phase, before its check
+	@Test
+	void theSlimePhaseWearsTheGoldenBootsAgain() {
+		assertTrue(ObtainRoute.piece("m3.3b/golden boots again") != null);
 	}
 }
