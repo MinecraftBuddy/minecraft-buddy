@@ -499,6 +499,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
     static final int NETHER_PICK_TRIES = 3;
     private adris.altoclef.tasks.speedrun.gamer.tasks.NetherPickTask _netherPick;
     private int _netherPickFails;
+    // (nether_pick_wood) the tier of the craft under way, and whether "none to make" was said since the last craft
+    private NetherPick.Tier _netherPickTier = NetherPick.Tier.STONE;
+    private boolean _netherPickNoneSaid;
 
     private Task netherPick(AltoClef mod) {
         if (adris.altoclef.util.helpers.Tuning.get("nether_pick_make", 0) <= 0 || usablePick(mod)) {
@@ -508,7 +511,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_netherPick != null && _netherPick.failed()) {
             _netherPickFails++;
             _netherPick = null;
-            Debug.logInternal("nether pick: the stone pickaxe's craft failed (" + _netherPickFails + " of " + NETHER_PICK_TRIES + ")");
+            Debug.logInternal("nether pick: the pickaxe's craft failed (" + _netherPickFails + " of " + NETHER_PICK_TRIES + ")");
         }
         if (_netherPickFails >= NETHER_PICK_TRIES) return null;
         var p = mod.getPlayer();
@@ -518,14 +521,32 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // table was left; the buddy went on with no pickaxe, every path priced by hand (look 203, heel-157-mc2 r4). the craft's
         // own check, with its table grace, ends a real shortage (as gold_stone_making in TradeGold)
         boolean making = _netherPick != null && !_netherPick.failed() && adris.altoclef.util.helpers.Tuning.get("nether_pick_making", 0) > 0;
-        if (!making && !adris.altoclef.tasks.speedrun.gamer.NetherPick.covered(pickBag(mod), adris.altoclef.tasks.speedrun.gamer.NetherPick.Tier.STONE)) return null;
-        if (_netherPick == null) {
-            _netherPick = new adris.altoclef.tasks.speedrun.gamer.tasks.NetherPickTask(adris.altoclef.tasks.speedrun.gamer.NetherPick.Tier.STONE,
-                    () -> pickBag(mod), () -> usablePick(mod));
-            Debug.logInternal("nether pick: no usable pickaxe left, a stone one from the bag's " + mod.getItemStorage().getItemCount(Items.COBBLESTONE)
-                    + " cobblestone (" + standStoneKeep(mod) + " kept for the stand)");
+        NetherPick.Bag bag = pickBag(mod);
+        // (Tuning nether_pick_wood, a fix of 22 Nov 2026, on) with too little cobblestone past the stand's, a wooden pickaxe from
+        // the bag's planks and sticks: it digs netherrack and stone, and the stand keeps its stone. the stone one alone was asked,
+        // the stand's 3 of the bag's 4 cobblestone left 1, the step gave up without a word, and every path was priced by hand
+        // for 40 minutes with 5 planks, 7 sticks and a table in the bag (look 230, heel-214-mc2 r2)
+        NetherPick.Tier tier = making ? _netherPickTier
+                : NetherPick.covered(bag, NetherPick.Tier.STONE) ? NetherPick.Tier.STONE
+                : adris.altoclef.util.helpers.Tuning.get("nether_pick_wood", 0) > 0 && NetherPick.covered(bag, NetherPick.Tier.WOODEN) ? NetherPick.Tier.WOODEN
+                : null;
+        if (tier == null) {
+            if (!_netherPickNoneSaid) {
+                _netherPickNoneSaid = true;
+                Debug.logInternal("nether pick: no usable pickaxe left and none to make: " + bag.cobble() + " cobblestone past the stand's, "
+                        + bag.planks() + " planks, " + bag.sticks() + " sticks");
+            }
+            return null;
         }
-        setDebugState("No pickaxe left: making a stone one");
+        _netherPickNoneSaid = false;
+        if (_netherPick == null) {
+            _netherPickTier = tier;
+            _netherPick = new adris.altoclef.tasks.speedrun.gamer.tasks.NetherPickTask(tier, () -> pickBag(mod), () -> usablePick(mod));
+            Debug.logInternal("nether pick: no usable pickaxe left, a " + (tier == NetherPick.Tier.WOODEN ? "wooden" : "stone") + " one from the bag's "
+                    + mod.getItemStorage().getItemCount(Items.COBBLESTONE) + " cobblestone (" + standStoneKeep(mod) + " kept for the stand), "
+                    + bag.planks() + " planks, " + bag.sticks() + " sticks");
+        }
+        setDebugState("No pickaxe left: making a " + (_netherPickTier == NetherPick.Tier.WOODEN ? "wooden" : "stone") + " one");
         return _netherPick;
     }
 
