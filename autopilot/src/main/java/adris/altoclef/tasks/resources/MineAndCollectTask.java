@@ -1180,6 +1180,12 @@ public class MineAndCollectTask extends ResourceTask {
                 if (!pitColumnOk(mod, c, direct)) {
                     continue;
                 }
+                // (Tuning dry_walk_pit_free, a fix of 22 Nov 2026, on) not beside a pit already tried: a pit there is refused at
+                // the stand (nearPit, PIT_SAME_RANGE), so the walk was spent: two of three walks went 1-2 blocks from the empty
+                // pit and dug nothing, while a dry spot 8 off was in reach (box 1 heel-199-mc1 r3, look 219)
+                if (adris.altoclef.util.helpers.Tuning.get("dry_walk_pit_free", 0) > 0 && StoneDigRank.nearPit(PITS, c.getX(), c.getZ(), now)) {
+                    continue;
+                }
                 DRY_TRIED.add(c.asLong());
                 if (DRY_TRIED.size() > 256) {
                     DRY_TRIED.clear();

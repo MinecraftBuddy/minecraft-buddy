@@ -847,7 +847,10 @@ final class Obtain {
 			// check came only after the food step, and a food run under way was ticked here and returned, so the boat of attempt
 			// 97 never came (box 1 t3 heel-191-mc1 r4: one island circled for 46 game minutes, the sea turned back from 11 times,
 			// the food bar at 5 with nothing in the bag)
-			if (b.food() && now - boatTriedAt > 600_000 && Alto.wantsBoat(p)) {
+			// (22 Nov 2026, look 219) only after real turn-backs from the sea (LandFinder): wantsBoat's water on the path or ahead
+			// alone fired at once at a swamp start, two seconds into a food run that had turned back from nothing
+			if (b.food() && now - boatTriedAt > 600_000
+					&& adris.altoclef.util.helpers.LandFinder.steersSince(p.level().getGameTime() - 6000) >= 2 && Alto.wantsBoat(p)) {
 				exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:boat", 1, null, 0, List.of(), "a boat by Soprano");
 				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock

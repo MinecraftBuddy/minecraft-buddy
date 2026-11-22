@@ -416,6 +416,10 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
     // points RotationUtils.reachable tries, so gravel that only blocks the ray to one face still counts. anything else in
     // the way (leaves, a wall) isn't ours to clear from here, and neither is loose stuff when the block itself is out of
     // reach: chewing through gravel three blocks short of a far ore gets us nowhere
+    static boolean clearPlantsOn() {
+        return adris.altoclef.util.helpers.Tuning.get("clear_plants", 0) > 0;
+    }
+
     static BlockPos clearableInTheWay(BlockGetter world, Vec3 eye, BlockPos target, double reach) {
         boolean targetClose = eye.distanceToSqr(Vec3.atCenterOf(target)) <= reach * reach;
         for (Vec3 point : rayPoints(world, target)) {
@@ -428,6 +432,13 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
             BlockState state = world.getBlockState(hit.getBlockPos());
             // vines too: cutting the one that's in the ray to a log we can't reach yet just takes our way up away
             if (targetClose && (state.is(Blocks.VINE) || looseInTheWay(state))) {
+                return hit.getBlockPos();
+            }
+            // (Tuning clear_plants, a fix of 22 Nov 2026, on) a plant with nothing to stand on or bump into (short grass, a fern,
+            // a flower) in the feet's cell took the ray to the grass block under it: a swamp start's first stone pit dug
+            // nothing in 30 s and its dry walks were spent beside it, 20 minutes with no stone (box 1 heel-199-mc1 r3, look 219)
+            if (targetClose && clearPlantsOn() && state.canBeReplaced() && state.getFluidState().isEmpty()
+                    && state.getCollisionShape(world, hit.getBlockPos()).isEmpty()) {
                 return hit.getBlockPos();
             }
         }

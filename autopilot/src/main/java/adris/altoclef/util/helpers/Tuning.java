@@ -776,6 +776,12 @@ public final class Tuning {
             // the gold search's ring points: a floor counts under the way only within 16 (and 6) blocks, the sea's level the
             // lowest; ground 29 under a bridge was a floor (look 217, heel-190-mc3 r3), TradeGold, TradeGoldRules.SEARCH_FALL
             java.util.Map.entry("gold_search_fall", 1.0),
+            // a plant with no collision in the ray to the block to break (short grass in the feet's cell) is cut first, as a vine
+            // is: a swamp start's stone pit dug nothing (look 219), DestroyBlockTask.clearableInTheWay
+            java.util.Map.entry("clear_plants", 1.0),
+            // the stone pit's dry walks pass over a stand beside a pit already tried (it would be refused there), MineAndCollectTask
+            // (look 219)
+            java.util.Map.entry("dry_walk_pit_free", 1.0),
             // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)
