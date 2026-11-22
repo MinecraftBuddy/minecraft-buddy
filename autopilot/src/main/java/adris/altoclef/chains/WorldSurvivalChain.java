@@ -121,7 +121,10 @@ public class WorldSurvivalChain extends SingleTaskChain {
         }
 
         // Drowning
-        handleDrowning(mod);
+        // (drown_lid) the lid break of the last tick, read by handleDrowning before this tick's pick
+        boolean lidWas = _lidBreaking;
+        _lidBreaking = false;
+        handleDrowning(mod, lidWas);
         // (the buddy's fork: low on air in water under a solid block, ice over a frozen ocean: swimming up only bumps the
         // head on it. the block is broken instead. attempts 194 and 197 drowned under packed ice, 4 Nov 2026)
         // (Tuning drown_escape_keep, a fix of 19 Nov 2026, on) the swim to air first when a cell is near, the break only with
@@ -135,6 +138,7 @@ public class WorldSurvivalChain extends SingleTaskChain {
         }
         Task upThrough = blockOverhead(mod);
         if (upThrough != null) {
+            _lidBreaking = true;
             setTask(upThrough);
             return 100;
         }
@@ -523,6 +527,12 @@ public class WorldSurvivalChain extends SingleTaskChain {
     private final java.util.Set<BlockPos> _toAirBanned = new java.util.HashSet<>();
     private long _toAirSince;
     private double _toAirBest;
+    // (drown_lid) when the cell under way was picked, and whether the lid break ran last tick
+    private long _toAirPick;
+    private boolean _lidBreaking;
+    // (drown_lid) the stuck clock waits this long at most for the first path: a search of 1.5 s used the whole 30 ticks, and
+    // the three cells of one column were shut out in 4 s with no step taken (look 223)
+    static final int TO_AIR_CALC = 40;
 
     // in water, low on air: the nearest cell up to 8 above and 6 aside where the head is in air, or null
     private Task toAir(AltoClef mod) {
@@ -540,6 +550,8 @@ public class WorldSurvivalChain extends SingleTaskChain {
             double d = player.position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(_toAirCell));
             if (d < _toAirBest - 0.5) {
                 _toAirBest = d;
+                _toAirSince = now;
+            } else if (toAirClockWaits(drownLidOn(), mod.getClientBaritone().getPathingBehavior().isPathing(), now - _toAirPick)) {
                 _toAirSince = now;
             } else if (now - _toAirSince > TO_AIR_STUCK) {
                 Debug.logInternal("to air: no closer to " + _toAirCell.toShortString() + " in " + TO_AIR_STUCK + " ticks, another cell");
@@ -588,6 +600,7 @@ public class WorldSurvivalChain extends SingleTaskChain {
             _toAirCell = best;
             _toAir = new adris.altoclef.tasks.movement.GetToBlockTask(best);
             _toAirSince = now;
+            _toAirPick = now;
             _toAirBest = player.position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(best));
         }
         return _toAir;
@@ -598,6 +611,29 @@ public class WorldSurvivalChain extends SingleTaskChain {
 
     static boolean drownEscapeKeepOn() {
         return adris.altoclef.util.helpers.Tuning.get("drown_escape_keep", 0) > 0;
+    }
+
+    // ---- (Tuning drown_lid, a fix of 22 Nov 2026, on) the escape under a lid, look 223 (heel-202-mc3 r4): the walk to air shut
+    // its cells out while the first path was still being searched, the lid break ran afloat with the jump held, and a bite cut
+    // the break and began it again; the buddy drowned under one diorite
+    static boolean drownLidOn() {
+        return adris.altoclef.util.helpers.Tuning.get("drown_lid", 0) > 0;
+    }
+
+    // in water and low on air: what the escapes go by. a bite then only takes the hands from the escape (FoodChain)
+    static boolean drowningLow(net.minecraft.world.entity.player.Player player) {
+        return player.isInWater() && player.getAirSupply() < LOW_AIR;
+    }
+
+    // the jump is let go for the lid break only with the floor right under the feet: deeper water would sink the buddy away
+    // from the lid
+    static boolean lidStands(boolean on, boolean lidBreaking, boolean floorUnder) {
+        return on && lidBreaking && floorUnder;
+    }
+
+    // the walk to air's stuck clock waits while no path runs yet, for TO_AIR_CALC ticks from the pick at most
+    static boolean toAirClockWaits(boolean on, boolean pathing, long sincePick) {
+        return on && !pathing && sincePick <= TO_AIR_CALC;
     }
 
     // a cell to stand in with the head in air: nothing solid in it or over it, no fluid at the head, no lava
@@ -665,7 +701,7 @@ public class WorldSurvivalChain extends SingleTaskChain {
         return null;
     }
 
-    private void handleDrowning(AltoClef mod) {
+    private void handleDrowning(AltoClef mod, boolean lidWas) {
         // Swim
         boolean avoidedDrowning = false;
         if (Baritone.settings().altoAvoidDrowning.value) {
@@ -673,7 +709,14 @@ public class WorldSurvivalChain extends SingleTaskChain {
             // while baritone worked out a path, forty game seconds, and drowned in its armour, the practice runner, 2 Nov 2026,
             // attempt 65)
             boolean lowAir = mod.getPlayer().getAirSupply() < LOW_AIR;
-            if (!mod.getClientBaritone().getPathingBehavior().isPathing() || lowAir) {
+            // (Tuning drown_lid, a fix of 22 Nov 2026, on) breaking the lid with the floor right under the feet: the jump is let
+            // go so the feet stand on the floor. held, it kept the buddy afloat against the lid and a block breaks five times
+            // slower off the ground than on it (25 times slower than dry, not 5): 12 s on one diorite overhead with a stone
+            // pickaxe and the buddy drowned under it (look 223, heel-202-mc3 r4)
+            BlockPos under = mod.getPlayer().blockPosition().below();
+            boolean floor = !mod.getWorld().getBlockState(under).getCollisionShape(mod.getWorld(), under).isEmpty();
+            boolean lidStand = lidStands(drownLidOn(), lidWas, floor);
+            if ((!mod.getClientBaritone().getPathingBehavior().isPathing() || lowAir) && !lidStand) {
                 if (mod.getPlayer().isInWater() && mod.getPlayer().getAirSupply() < mod.getPlayer().getMaxAirSupply()) {
                     // Swim up!
                     mod.getInputControls().hold(Input.JUMP);

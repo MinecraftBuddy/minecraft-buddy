@@ -596,6 +596,9 @@ public class FoodChain extends SingleTaskChain {
         if (!Baritone.settings().altoAutoEat.value) return true;
         // a lit creeper with nowhere to run: the shield or the cap has the hands
         if (mod.getMobDefenseChain().creeperBoxedIn()) return true;
+        // (Tuning drown_lid, a fix of 22 Nov 2026, on) in water and low on air the escape has the hands: a bite heals nothing
+        // drowning takes, and it cut the break through the lid, which began again and the buddy drowned under it (look 223)
+        if (WorldSurvivalChain.drownLidOn() && mod.getPlayer() != null && WorldSurvivalChain.drowningLow(mod.getPlayer())) return true;
         // a fireball or an arrow is on its way and the shield is up for it: a bite swaps the food into the hand and lets go of the use
         // key, and that is the shield gone
         if (mod.getMobDefenseChain().projectileDodging(mod)) return true;

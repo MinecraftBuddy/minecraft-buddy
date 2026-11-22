@@ -788,6 +788,10 @@ public final class Tuning {
             // the buddy's night shelter walks to flat ground also once its three hand digs are spent, twice at most: it waited 11
             // minutes in the open with 9 blocks (look 220), ObtainSafe
             java.util.Map.entry("shelter_flat_after_hand", 1.0),
+            // the escape under a lid when drowning: no bite while low on air in water, the jump let go for the lid break with
+            // the floor under the feet (afloat a block breaks five times slower), and the walk to air's stuck clock waits up to
+            // 2 s for the first path; the buddy drowned under one diorite (look 223, heel-202-mc3 r4), WorldSurvivalChain
+            java.util.Map.entry("drown_lid", 1.0),
             // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)
