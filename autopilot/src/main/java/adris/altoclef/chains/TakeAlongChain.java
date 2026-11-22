@@ -803,6 +803,10 @@ public class TakeAlongChain extends SingleTaskChain {
             Kind kind = kindAt(mod, pos);
             return kind != null && d.target.containsKey(kind) && inBox(d, pos) && pickable(mod, pos, kind, cfg);
         });
+        // (Tuning take_along_local, a fix of 22 Nov 2026, on) the tracker's short list may hold none of the detour's blocks,
+        // all turned down by the box and the sight: then the world itself is searched round the feet as far as the sight,
+        // where the miner wandered off and the detour ended with nothing got (3 of a run's 33 take-alongs, look 209)
+        if (adris.altoclef.util.helpers.Tuning.get("take_along_local", 0) > 0) mine.localSearch((int) Math.ceil(cfg.sightRange));
         setTask(mine);
         Debug.logInternal("take along: started on " + ch.items() + ", " + ch.blocks() + " blocks worth " + round(ch.value())
                 + " s against a cost of " + round(ch.cost()) + " s, nearest " + round(ch.near()) + " away, targets " + targetsText(d));

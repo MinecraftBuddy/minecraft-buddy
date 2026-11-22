@@ -750,6 +750,9 @@ public final class Tuning {
             // height: the level step lay up to eight under the feet over a cave's open space, three minutes of searches that got
             // two blocks, BranchMineTask (look 208)
             java.util.Map.entry("tunnel_stair_down", 1.0),
+            // the take-along's miner searches the world round the feet as far as the sight when the tracker's short list holds
+            // none of the detour's blocks: it wandered off and the detour ended with nothing got, TakeAlongChain (look 209)
+            java.util.Map.entry("take_along_local", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),
