@@ -766,6 +766,10 @@ public final class Tuning {
             // step into the cell beside the feet: bobbing in water by the bottom cell, the wait and the walk back in (whose first
             // step leaves a portal) took turns every second, 874 times in 40 minutes, EnterNetherPortalTask (look 212)
             java.util.Map.entry("portal_wait_touch", 1.0),
+            // the gold step's piglin guard (gold ore on Baritone's global never-break list) is one state for every step: a step
+            // replaced the tick it guarded left gold ore on the list for the run, 4 rounds and 40 minutes with no ore broken,
+            // TradeGold (look 213, heel-183 r4)
+            java.util.Map.entry("gold_guard_shared", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),

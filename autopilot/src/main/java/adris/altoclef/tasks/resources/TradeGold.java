@@ -92,6 +92,12 @@ final class TradeGold {
     private int _stepTarget;
     private boolean _guarding;
     private int _guardHold;
+    // (Tuning gold_guard_shared, a fix of 22 Nov 2026, on) the guard's state for every gold step at once: the list it writes is
+    // Baritone's global one, and a step dropped while it guarded (its task replaced, a new round) left gold ore on it for the
+    // rest of the run, so every later step's "Block in range, mining" never broke an ore: 4 rounds, 40 minutes, 0 gold
+    // (look 213, heel-183 r4). shared, the next step's tick counts the hold down and takes the guard off
+    private static boolean GUARDING;
+    private static int GUARD_HOLD;
     private List<BlockPos> _piglins = List.of();
     // the search for ore while none is known: rings round where the step began, away from the spawner (FireResTradeRules'
     // points); the point under way, since when, and its walk
@@ -751,6 +757,19 @@ final class TradeGold {
         }
         _piglins = seen;
         boolean inBox = !mod.getWorld().getEntitiesOfClass(Piglin.class, NetherGold.angerBox(p.getBoundingBox()), Entity::isAlive).isEmpty();
+        if (goldGuardSharedOn()) {
+            if (inBox) {
+                GUARD_HOLD = GUARD_HOLD_TICKS;
+                if (!GUARDING) {
+                    for (Block b : GUARDED) baritone.api.BaritoneAPI.getSettings().blocksToDisallowBreaking.value.add(b);
+                    GUARDING = true;
+                    Debug.logInternal("trade gold: a piglin within " + (int) NetherGold.ANGER_BLOCKS + " blocks, no gold ore broken till it is off");
+                }
+            } else if (GUARDING && --GUARD_HOLD <= 0) {
+                unguard();
+            }
+            return;
+        }
         if (inBox) {
             _guardHold = GUARD_HOLD_TICKS;
             if (!_guarding) {
@@ -764,9 +783,20 @@ final class TradeGold {
     }
 
     private void unguard() {
+        if (goldGuardSharedOn()) {
+            if (!GUARDING) return;
+            for (Block b : GUARDED) baritone.api.BaritoneAPI.getSettings().blocksToDisallowBreaking.value.remove(b);
+            GUARDING = false;
+            Debug.logInternal("trade gold: no piglin within " + (int) NetherGold.ANGER_BLOCKS + " blocks, gold ore may break again");
+            return;
+        }
         if (!_guarding) return;
         for (Block b : GUARDED) baritone.api.BaritoneAPI.getSettings().blocksToDisallowBreaking.value.remove(b);
         _guarding = false;
+    }
+
+    static boolean goldGuardSharedOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_guard_shared", 0) > 0;
     }
 
     // a hostile within TradeGoldRules.DANGER_BLOCKS: no craft out in the open then (the mine goes on, the defence chain fights)
