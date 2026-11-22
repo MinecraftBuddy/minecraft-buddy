@@ -758,6 +758,10 @@ public final class Tuning {
             // with no floor there it drops through. two falls from a nether rim to the lava, mining gold (22 Nov 2026, the
             // evaluation of 03:05: heel-178-mc1 r2, heel-173-mc3 r3), MovementDiagonal
             java.util.Map.entry("diag_edge_floor", 1.0),
+            // the gold step's "at the fortress" (within 32 of the spawner) once seen holds for the step: on a rim 31.4 and 32.3
+            // off, the step flipped every second between its fold and handing the tick to the pillbox walk, 4.3 minutes, TradeGold
+            // (look 211, 22 Nov 2026)
+            java.util.Map.entry("gold_fortress_latch", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),

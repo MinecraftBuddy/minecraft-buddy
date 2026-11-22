@@ -60,6 +60,8 @@ final class TradeGold {
 
     private boolean _begun;
     private boolean _over;
+    // (gold_fortress_latch) the step was by the spawner once: its end "at the fortress" holds from then on
+    private boolean _fortressSeen;
     private long _begunAt;
     private long _riseAt;
     private long _noOreSince = -1;
@@ -180,6 +182,15 @@ final class TradeGold {
     Task tick(AltoClef mod, boolean enough, boolean atFortress, boolean blazeNear, BlockPos spawner) {
         if (_over || !on()) return null;
         _spawner = spawner;
+        // (Tuning gold_fortress_latch, a fix of 22 Nov 2026, on) "at the fortress" is a line at FORTRESS_NEAR from the spawner, and
+        // its end is final: once by the spawner the step stays there. on a rim 31.4 and 32.3 blocks off, each step across the
+        // line flipped the step between the fold (inside, the end) and nothing (outside, no ore known), which handed the tick to
+        // the rods' pillbox walk, which crossed the line back: every second for 4.3 minutes, the pillbox and its corner given up
+        // (look 211, heel-180-mc1 r3)
+        if (goldFortressLatchOn()) {
+            if (atFortress) _fortressSeen = true;
+            atFortress |= _fortressSeen;
+        }
         LocalPlayer player = mod.getPlayer();
         long now = mod.getWorld().getGameTime();
         int ingots = mod.getItemStorage().getItemCount(Items.GOLD_INGOT);
@@ -474,6 +485,10 @@ final class TradeGold {
 
     static boolean goldDangerHoldOn() {
         return adris.altoclef.util.helpers.Tuning.get("gold_danger_hold", 0) > 0;
+    }
+
+    static boolean goldFortressLatchOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_fortress_latch", 0) > 0;
     }
 
     static boolean goldTargetKeepOn() {
