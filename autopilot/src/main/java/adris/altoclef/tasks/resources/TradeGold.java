@@ -85,6 +85,13 @@ final class TradeGold {
     private int _oreFails;
     private long _oreTick = Long.MIN_VALUE / 2;
     private final java.util.Set<BlockPos> _givenUp = new java.util.HashSet<>();
+    // (gold_piglin_hold) the ores left for a piglin by them, and the game tick they may be taken again
+    private final java.util.Map<BlockPos, Long> _piglinHeld = new java.util.HashMap<>();
+    static final long PIGLIN_HOLD_TICKS = 90 * 20;
+
+    static boolean goldPiglinHoldOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_piglin_hold", 0) > 0;
+    }
     private int _broken;
     private long _pickupSince = Long.MIN_VALUE;
     private Task _step;
@@ -314,6 +321,14 @@ final class TradeGold {
                 _broken++;
                 _pickupSince = now;
                 _scannedAt = Long.MIN_VALUE;
+            } else if (goldPiglinHoldOn()) {
+                // (Tuning gold_piglin_hold, a fix of 22 Nov 2026, on) an ore left for a piglin by it is not taken again for
+                // PIGLIN_HOLD_TICKS: once the buddy walked away the piglin was out of the client's sight, the ore looked clear
+                // and was picked again, the same five ores 60 to 75 blocks apart walked to in turn for three minutes (box 2
+                // heel-188-mc2 r1, look 216); the drop said nothing
+                _piglinHeld.put(_target.immutable(), now + PIGLIN_HOLD_TICKS);
+                Debug.logInternal(String.format(java.util.Locale.ROOT, "trade gold: a piglin by the ore at %d, %d, %d, %.0f blocks off: left for %d s (gold_piglin_hold)",
+                        _target.getX(), _target.getY(), _target.getZ(), Math.sqrt(_target.distSqr(feet)), PIGLIN_HOLD_TICKS / 20));
             }
             _target = null;
         }
@@ -516,6 +531,8 @@ final class TradeGold {
         if (now >= _wayLeftAt && now - _wayLeftAt < WAY_AGAIN_TICKS) return null;
         List<BlockPos> ok = new ArrayList<>();
         for (BlockPos p : _ores) {
+            Long held = _piglinHeld.get(p);
+            if (held != null && now < held) continue;
             if (_givenUp.contains(p) || !TradeGoldRules.clearOfPiglins(p, _piglins) || !TradeGoldRules.awayFromSpawner(p.getX(), p.getZ(), _spawner)
                     || !mod.getWorld().getBlockState(p).is(Blocks.NETHER_GOLD_ORE)) continue;
             ok.add(p);
