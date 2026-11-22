@@ -782,6 +782,9 @@ public final class Tuning {
             // the stone pit's dry walks pass over a stand beside a pit already tried (it would be refused there), MineAndCollectTask
             // (look 219)
             java.util.Map.entry("dry_walk_pit_free", 1.0),
+            // the buddy's night shelter walks to flat ground also once its three hand digs are spent, twice at most: it waited 11
+            // minutes in the open with 9 blocks (look 220), ObtainSafe
+            java.util.Map.entry("shelter_flat_after_hand", 1.0),
             // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)

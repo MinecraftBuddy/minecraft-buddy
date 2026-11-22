@@ -762,6 +762,13 @@ final class ObtainSafe {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_flat_walk", 0) > 0;
 	}
 
+	/** (shelter_flat_after_hand) the walks to flat ground once the hand digs are spent, at most. */
+	static final int FLAT_AFTER_HAND = 2;
+
+	static boolean flatAfterHandOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_flat_after_hand", 0) > 0;
+	}
+
 	/** The autopilot's shelter_none_go_on switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
 	static boolean noneGoOnOn() {
 		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("shelter_none_go_on", 0) > 0;
@@ -1397,6 +1404,8 @@ final class ObtainSafe {
 		 */
 		boolean handWalk;
 		int handDigs;
+		/** (shelter_flat_after_hand) walks to flat ground after the hand digs were spent. */
+		int flatWalks;
 		long handLookAt;
 		/**
 		 * (the autopilot's shelter_down_from_tree, a fix of 14 Nov 2026, on) treeGround: the ground cell walked down to from a
@@ -1859,11 +1868,16 @@ final class ObtainSafe {
 					}
 					boolean spent = elsewhere >= DigIn.ELSEWHERE_TRIES;
 					boolean handAsk = DigIn.handDig(handDigOn(), digHereOn(), duck, blocksNow, handDigs, DigIn.triesSpent(stuckWayOut, elsewhere));
+					// (the autopilot's shelter_flat_after_hand, a fix of 22 Nov 2026, on) the walk to flat ground also once the three
+					// hand digs are spent, FLAT_AFTER_HAND times: it was looked for only while a hand dig was still allowed, so with 9
+					// blocks in the bag beside a water pocket the buddy waited 11 minutes in the open (box 3 heel-201-mc3 r1, look 220)
+					boolean flatAsk = !handAsk && flatAfterHandOn() && flatWalks < FLAT_AFTER_HAND
+						&& DigIn.flatWalk(flatWalkOn(), blocksNow, DigIn.triesSpent(stuckWayOut, elsewhere));
 					BlockPos hand = null;
 					boolean flat = false;
-					if (late && now - handLookAt > 10_000 && handAsk) {
+					if (late && now - handLookAt > 10_000 && (handAsk || flatAsk)) {
 						handLookAt = now;
-						hand = handSite(level, p, f, bad);
+						hand = handAsk ? handSite(level, p, f, bad) : null;
 						// (the autopilot's shelter_flat_walk, a fix of 14 Nov 2026, on) no cell to dig in by hand: flat ground within 24
 						// where the four walls stand, with blocks enough for them and the top. The test heel's second night on a snowy
 						// slope: a wall cell over a drop would not shut with 13 blocks in the bag, and the wait went on 2 min 20 s
@@ -1875,7 +1889,8 @@ final class ObtainSafe {
 						handNone = hand == null;
 					}
 					if (late && (hand != null || elsewhere < DigIn.ELSEWHERE_TRIES)) {
-						if (hand != null) handDigs++;
+						if (hand != null && flat && !handAsk) flatWalks++;
+						else if (hand != null) handDigs++;
 						else elsewhere++;
 						bad.add(f.immutable());
 						bottom = null; site = null; siteSince = 0; dug = 0; extra = 0; stuckSince = 0; since = now;
