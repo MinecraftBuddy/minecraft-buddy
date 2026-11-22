@@ -819,6 +819,12 @@ public final class Tuning {
             // bag's planks and sticks: the stone one alone was asked and every path was priced by hand for 40 minutes (look 230),
             // CollectBlazeRodsTask.netherPick
             java.util.Map.entry("nether_pick_wood", 1.0),
+            // the lava escape's goal counts lava at head height too, in the cell and beside it: on a slope under a lava flow three
+            // cells in a row were taken as out of the lava and the buddy burned in each (look 233), EscapeFromLavaTask.isSafeCell
+            java.util.Map.entry("lava_goal_head", 1.0),
+            // (read by the buddy, Alto.routeHome) back in the overworld from the route's nether, a food run begun under the ground
+            // goes up to the surface first: in a dead-end tunnel by the portal 716 searches got no further than 0 blocks (look 232)
+            java.util.Map.entry("food_home_surface", 1.0),
             // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)

@@ -23,4 +23,20 @@ public class EscapeFromLavaGoalTest {
         assertFalse(EscapeFromLavaTask.isSafeCell(true, false, true));
         assertFalse(EscapeFromLavaTask.isSafeCell(false, true, true));
     }
+
+    // (lava_goal_head) lava at head height, in the cell or beside it, makes a dry cell unsafe; off, only the feet's layer counts
+    @Test
+    public void lavaAtHeadHeightCountsWhenOn() {
+        assertFalse(EscapeFromLavaTask.isSafeCell(false, false, true, false, true, true));
+        assertFalse(EscapeFromLavaTask.isSafeCell(false, false, false, true, true, true));
+        assertTrue(EscapeFromLavaTask.isSafeCell(false, false, false, false, true, true));
+        assertTrue(EscapeFromLavaTask.isSafeCell(false, false, true, true, true, false));
+    }
+
+    @Test
+    public void theFeetsLayerAndTheFloorStillCountWithTheHead() {
+        assertFalse(EscapeFromLavaTask.isSafeCell(true, false, false, false, true, true));
+        assertFalse(EscapeFromLavaTask.isSafeCell(false, true, false, false, true, true));
+        assertFalse(EscapeFromLavaTask.isSafeCell(false, false, false, false, false, true));
+    }
 }

@@ -300,7 +300,23 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
         return !lava && !lavaAdjacent && hasFloor;
     }
 
+    // (Tuning lava_goal_head, a fix of 22 Nov 2026, on) the head's layer counts too: lava in the cell at head height, or beside
+    // it there, flows down into the cell or burns the head. on a slope with a lava flow above, three cells in a row were
+    // reached as out of the lava with lava at head height by each, the buddy burned in every one and died in the third
+    // (box 2 heel-205-mc2 r4, look 233)
+    static boolean isSafeCell(boolean lava, boolean lavaAdjacent, boolean headLava, boolean headLavaAdjacent, boolean hasFloor,
+                              boolean headCounts) {
+        return isSafeCell(lava || headCounts && headLava, lavaAdjacent || headCounts && headLavaAdjacent, hasFloor);
+    }
+
+    static boolean headCounts() {
+        return adris.altoclef.util.helpers.Tuning.get("lava_goal_head", 0) > 0;
+    }
+
     private class EscapeFromLavaGoal implements Goal {
+
+        // read once a goal: isInGoal runs for every node the search opens
+        private final boolean _head = headCounts();
 
         private static boolean isLava(int x, int y, int z) {
             if (Minecraft.getInstance().level == null) return false;
@@ -328,7 +344,9 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
 
         @Override
         public boolean isInGoal(int x, int y, int z) {
-            return isSafeCell(isLava(x, y, z), isLavaAdjacent(x, y, z), hasFloor(x, y, z) || isWater(x, y, z));
+            boolean head = _head;
+            return isSafeCell(isLava(x, y, z), isLavaAdjacent(x, y, z), head && isLava(x, y + 1, z),
+                    head && isLavaAdjacent(x, y + 1, z), hasFloor(x, y, z) || isWater(x, y, z), head);
         }
 
         @Override
