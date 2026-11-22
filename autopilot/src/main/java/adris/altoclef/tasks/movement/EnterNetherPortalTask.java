@@ -179,6 +179,20 @@ public class EnterNetherPortalTask extends Task {
         return feet.y >= feetCell.getY() + 4 && dx * dx + dz * dz <= 3.5 * 3.5;
     }
 
+    static boolean portalWaitTouchOn() {
+        return adris.altoclef.util.helpers.Tuning.get("portal_wait_touch", 0) > 0;
+    }
+
+    // a portal cell at the feet's height on one of the four sides, or null
+    private static BlockPos portalBeside(AltoClef mod) {
+        BlockPos feet = mod.getPlayer().blockPosition();
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+            BlockPos p = feet.relative(d);
+            if (mod.getWorld().getBlockState(p).is(Blocks.NETHER_PORTAL)) return p;
+        }
+        return null;
+    }
+
     @Override
     protected void onStart(AltoClef mod) {
         mod.getBlockTracker().trackBlock(Blocks.NETHER_PORTAL);
@@ -199,7 +213,14 @@ public class EnterNetherPortalTask extends Task {
             return _wanderTask;
         }
 
-        if (mod.getWorld().getBlockState(mod.getPlayer().blockPosition()).getBlock() == Blocks.NETHER_PORTAL) {
+        // (Tuning portal_wait_touch, a fix of 22 Nov 2026, on) the wait holds while the body is in the portal at all (the game's
+        // flag, the feet's cell or the one above), not the feet's cell alone: bobbing in water beside the portal's bottom cell, the
+        // feet left the cell every second, this task handed the tick to the walk back in, and that walk's first step is getting
+        // out of a portal (CustomBaritoneGoalTask), so the buddy stood about a second at a time in its own lit portal, never the
+        // four the crossing takes: 874 spells in 40 minutes, the run stalled there (look 212, heel-182 r1)
+        boolean feetIn = mod.getWorld().getBlockState(mod.getPlayer().blockPosition()).getBlock() == Blocks.NETHER_PORTAL;
+        boolean touching = !feetIn && portalWaitTouchOn() && WorldHelper.isStandingInPortal(mod);
+        if (feetIn || touching) {
 
             if (_portalTimeout.elapsed() && !_leftPortal) {
                 return _wanderTask;
@@ -216,6 +237,12 @@ public class EnterNetherPortalTask extends Task {
             mod.getInputControls().release(Input.SNEAK);
             mod.getInputControls().release(Input.MOVE_BACK);
             mod.getInputControls().release(Input.MOVE_FORWARD);
+            // (portal_wait_touch) half in: a step on into the portal's cell beside the feet, so the body stays in it
+            BlockPos cell = touching ? portalBeside(mod) : null;
+            if (cell != null) {
+                adris.altoclef.util.helpers.LookHelper.lookAt(mod, new Vec3(cell.getX() + 0.5, mod.getPlayer().getEyeY(), cell.getZ() + 0.5));
+                mod.getInputControls().tryPress(Input.MOVE_FORWARD);
+            }
             return null;
         } else {
             _portalTimeout.reset();

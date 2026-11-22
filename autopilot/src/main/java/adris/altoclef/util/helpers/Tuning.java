@@ -762,6 +762,10 @@ public final class Tuning {
             // off, the step flipped every second between its fold and handing the tick to the pillbox walk, 4.3 minutes, TradeGold
             // (look 211, 22 Nov 2026)
             java.util.Map.entry("gold_fortress_latch", 1.0),
+            // the portal's wait holds while the body is in the portal at all (the flag, the feet's cell or the one above), with a
+            // step into the cell beside the feet: bobbing in water by the bottom cell, the wait and the walk back in (whose first
+            // step leaves a portal) took turns every second, 874 times in 40 minutes, EnterNetherPortalTask (look 212)
+            java.util.Map.entry("portal_wait_touch", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),
