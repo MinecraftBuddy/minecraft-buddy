@@ -125,6 +125,10 @@ public class WorldSurvivalChain extends SingleTaskChain {
         boolean lidWas = _lidBreaking;
         _lidBreaking = false;
         handleDrowning(mod, lidWas);
+        // (drown_ore_ban) the escape's first tick: the block the task was breaking under water is left a while
+        boolean drowning = drowningLow(mod.getPlayer());
+        if (drownBanNow(drownOreBanOn(), mod.getControllerExtras().isBreakingBlock(), _drowningWas, drowning)) drownedAtBan(mod);
+        _drowningWas = drowning;
         // (the buddy's fork: low on air in water under a solid block, ice over a frozen ocean: swimming up only bumps the
         // head on it. the block is broken instead. attempts 194 and 197 drowned under packed ice, 4 Nov 2026)
         // (Tuning drown_escape_keep, a fix of 19 Nov 2026, on) the swim to air first when a cell is near, the break only with
@@ -634,6 +638,36 @@ public class WorldSurvivalChain extends SingleTaskChain {
     // the walk to air's stuck clock waits while no path runs yet, for TO_AIR_CALC ticks from the pick at most
     static boolean toAirClockWaits(boolean on, boolean pathing, long sincePick) {
         return on && !pathing && sincePick <= TO_AIR_CALC;
+    }
+
+    // ---- (Tuning drown_ore_ban, a fix of 22 Nov 2026, on) the walk to air got the buddy out, the air came back, and the task
+    // walked straight back into the same flooded cells for the same copper ore, which takes 28 s to break afloat: the second
+    // escape failed and the buddy drowned (look 223, heel-202-mc3 r4). the block being broken when the escape begins, and the
+    // same kind within two of it, are out of the picks two minutes
+    private boolean _drowningWas;
+
+    static boolean drownOreBanOn() {
+        return adris.altoclef.util.helpers.Tuning.get("drown_ore_ban", 0) > 0;
+    }
+
+    // the first tick low on air in water, with a block being broken
+    static boolean drownBanNow(boolean on, boolean breaking, boolean drowningWas, boolean drowning) {
+        return on && breaking && drowning && !drowningWas;
+    }
+
+    private void drownedAtBan(AltoClef mod) {
+        BlockPos at = mod.getControllerExtras().getBreakingBlockPos();
+        if (at == null) return;
+        var level = mod.getWorld();
+        net.minecraft.world.level.block.Block kind = level.getBlockState(at).getBlock();
+        if (kind == Blocks.AIR || kind == Blocks.WATER) return;
+        Dimension dim = WorldHelper.getCurrentDimension();
+        java.util.Set<adris.altoclef.trackers.Bans.Key> keys = new java.util.LinkedHashSet<>();
+        keys.add(adris.altoclef.trackers.Bans.Key.block(dim, at.getX(), at.getY(), at.getZ()));
+        for (BlockPos p : BlockPos.betweenClosed(at.offset(-2, -2, -2), at.offset(2, 2, 2))) {
+            if (level.getBlockState(p).getBlock() == kind) keys.add(adris.altoclef.trackers.Bans.Key.block(dim, p.getX(), p.getY(), p.getZ()));
+        }
+        adris.altoclef.trackers.BanPolicy.drownedAt(mod.getBans(), keys, at.getX(), at.getY(), at.getZ());
     }
 
     // a cell to stand in with the head in air: nothing solid in it or over it, no fluid at the head, no lava

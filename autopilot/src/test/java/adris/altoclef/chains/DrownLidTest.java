@@ -49,4 +49,30 @@ public class DrownLidTest {
     public void offTheClockRunsFromThePick() {
         assertFalse(WorldSurvivalChain.toAirClockWaits(false, false, 0));
     }
+
+    // (drown_ore_ban) the block under the pick is left once, on the escape's first tick
+    @Test
+    public void theFirstLowAirTickWhileBreakingBans() {
+        assertTrue(WorldSurvivalChain.drownBanNow(true, true, false, true));
+    }
+
+    @Test
+    public void laterTicksOfTheSameEscapeDoNot() {
+        assertFalse(WorldSurvivalChain.drownBanNow(true, true, true, true));
+    }
+
+    @Test
+    public void noBreakNoBan() {
+        assertFalse(WorldSurvivalChain.drownBanNow(true, false, false, true));
+    }
+
+    @Test
+    public void breathingNoBan() {
+        assertFalse(WorldSurvivalChain.drownBanNow(true, true, false, false));
+    }
+
+    @Test
+    public void offNoBan() {
+        assertFalse(WorldSurvivalChain.drownBanNow(false, true, false, true));
+    }
 }

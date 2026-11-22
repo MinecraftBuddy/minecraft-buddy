@@ -792,6 +792,10 @@ public final class Tuning {
             // the floor under the feet (afloat a block breaks five times slower), and the walk to air's stuck clock waits up to
             // 2 s for the first path; the buddy drowned under one diorite (look 223, heel-202-mc3 r4), WorldSurvivalChain
             java.util.Map.entry("drown_lid", 1.0),
+            // the block being broken under water when the drown escape begins, and its kind within two, are out of the picks
+            // two minutes: the task walked back into the same flooded cells for the same copper and the second escape failed
+            // (look 223), WorldSurvivalChain.drownedAtBan
+            java.util.Map.entry("drown_ore_ban", 1.0),
             // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)

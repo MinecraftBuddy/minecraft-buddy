@@ -262,6 +262,14 @@ public final class BanPolicy {
         return bans.banAll(blocks, "by a creeper we ran from, or past it", CREEPER_WAY, "logs/ores by or past the creeper near " + x + " " + z);
     }
 
+    // WorldSurvivalChain (drown_ore_ban): the drown escape began while a block was being broken under water; it and the same
+    // kind within two of it are out two minutes, so the next pick is not the same ore from the same water
+    public static final long DROWNED_AT = 2400;
+
+    public static int drownedAt(Bans bans, Iterable<Key> blocks, int x, int y, int z) {
+        return bans.banAll(blocks, "the drown escape began while breaking it under water", DROWNED_AT, "the block and its kind within 2 at " + x + " " + y + " " + z);
+    }
+
     // DeepDarkRules: wool down low or in the deep dark, one pass, one line. never lifted, the warden is not going anywhere
     public static int deepDarkWool(Bans bans, Iterable<Key> blocks, long x, long z) {
         return bans.banAll(blocks, DEEP_DARK_REASON, Bans.RUN, "wool down low or in the deep dark near " + x + " " + z);
