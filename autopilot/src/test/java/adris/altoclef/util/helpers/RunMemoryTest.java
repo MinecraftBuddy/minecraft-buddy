@@ -46,7 +46,7 @@ public class RunMemoryTest {
     public void theForkRegistersWhatTheBriefNames() {
         List<String> names = RunMemory.all().stream().map(RunMemory.Memory::name).toList();
         for (String n : List.of("trackers", "portals_and_dry_land", "bans", "baritone_cache", "brew_stand", "portal_frame",
-                "land_steers", "legit_mine_y", "route", "obtain_sweep")) {
+                "land_steers", "legit_mine_y", "route", "obtain_sweep", "rod_spawner")) {
             assertTrue(n + " registered", names.contains(n));
         }
     }

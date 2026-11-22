@@ -605,6 +605,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (_netherSince < 0 && farOn()) _netherSince = mod.getWorld().getGameTime();
         // the spawner is what starts the dry timer, finding one only between fights meant a long fight never found it
         pickSpawner(mod);
+        noteRodSpawner(mod);
         // (Tuning fr_hold: by this spawner the held potion goes down at the first fire; the open attack counts at it)
         if (_foundBlazeSpawner != null) adris.altoclef.util.helpers.FireRes.spawnerSeen(mod.getWorld().getGameTime(), _foundBlazeSpawner);
         _fight.spawner(_foundBlazeSpawner);
@@ -1176,6 +1177,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 setDebugState("Restocking building blocks");
                 return dig;
             }
+        }
+        // (Tuning spawner_keep) back to the spawner the rods came from before any search: once loaded, the pick takes it
+        Task back = backToRodSpawner(mod);
+        if (back != null) {
+            setDebugState("Back to the blaze spawner the rods came from");
+            return back;
         }
         // We need to find our fortress.
         // (the buddy's fork, Tuning fortress_sweep, steering 68: the region sweep with a memory per server and dimension, a
@@ -3662,6 +3669,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _foundBlazeSpawner = null;
         }
         if (_foundBlazeSpawner != null || !mod.getBlockTracker().isTracking(Blocks.SPAWNER)) return;
+        // (Tuning spawner_keep) the one the rods came from first, once it is loaded, before a nearer one
+        if (adris.altoclef.util.helpers.SpawnerKeepRules.on() && _rodSpawner != null && !mod.getBlockTracker().unreachable(_rodSpawner)
+                && isValidBlazeSpawner(mod, _rodSpawner)) {
+            _foundBlazeSpawner = _rodSpawner;
+            _rodWalk = null;
+            Debug.logInternal("blaze spawner found at " + _rodSpawner.toShortString() + " (the one the rods came from, spawner_keep)");
+            return;
+        }
         // nearest one we can actually look at: asking for the single nearest and then throwing it out for being in an
         // unloaded chunk meant a perfectly good loaded spawner one tile further never got a look
         Optional<BlockPos> spawner = mod.getBlockTracker().getNearestTracking(p -> isValidBlazeSpawner(mod, p), Blocks.SPAWNER);
@@ -3670,6 +3685,70 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // (the drills time the way to the fortress by this line)
             Debug.logInternal("blaze spawner found at " + found.toShortString());
         });
+    }
+
+    // (Tuning spawner_keep, a fix of 22 Nov 2026, on; SpawnerKeepRules) the spawner the rods came from, kept for the run (a fresh
+    // run forgets it, RunMemory): a trip home makes a new rods task that knew no spawner
+    private static BlockPos _rodSpawner;
+    private int _rodsSeen = -1;
+    private Task _rodWalk;
+    private double _rodWalkBest;
+    private long _rodWalkBestAt;
+
+    public static int rodSpawnerKept() {
+        return _rodSpawner != null ? 1 : 0;
+    }
+
+    public static void forgetRodSpawner() {
+        _rodSpawner = null;
+    }
+
+    // a rod came in by the spawner: that spawner is the one the rods come from
+    private void noteRodSpawner(AltoClef mod) {
+        int rods = mod.getItemStorage().getItemCount(Items.BLAZE_ROD);
+        BlockPos s = _foundBlazeSpawner;
+        double from = s == null ? Double.MAX_VALUE : Math.sqrt(s.distSqr(mod.getPlayer().blockPosition()));
+        if (adris.altoclef.util.helpers.SpawnerKeepRules.rodFrom(adris.altoclef.util.helpers.SpawnerKeepRules.on(), _rodsSeen, rods, s != null, from)
+                && !s.equals(_rodSpawner)) {
+            _rodSpawner = s.immutable();
+            Debug.logInternal("blaze spawner: the rods come from the one at " + s.toShortString() + ", kept for the run (spawner_keep)");
+        }
+        _rodsSeen = rods;
+    }
+
+    // with no spawner known: the walk back to the kept one, given up for the run when it comes no nearer
+    private Task backToRodSpawner(AltoClef mod) {
+        BlockPos at = _rodSpawner;
+        if (at == null || _foundBlazeSpawner != null) {
+            _rodWalk = null;
+            return null;
+        }
+        double away = Math.sqrt(at.distSqr(mod.getPlayer().blockPosition()));
+        if (!adris.altoclef.util.helpers.SpawnerKeepRules.walkBack(adris.altoclef.util.helpers.SpawnerKeepRules.on(), true,
+                mod.getBlockTracker().unreachable(at), WorldHelper.getCurrentDimension() == Dimension.NETHER, away)) {
+            _rodWalk = null;
+            return null;
+        }
+        long now = mod.getWorld().getGameTime();
+        if (_rodWalk == null) {
+            _rodWalk = new adris.altoclef.tasks.movement.GetWithinRangeOfBlockTask(at, 8);
+            _rodWalkBest = away;
+            _rodWalkBestAt = now;
+            Debug.logInternal(String.format(java.util.Locale.ROOT, "blaze spawner: no spawner known, back to the one the rods came from at %s, %.0f blocks off (spawner_keep)",
+                    at.toShortString(), away));
+        }
+        if (away <= _rodWalkBest - adris.altoclef.util.helpers.SpawnerKeepRules.GAIN) {
+            _rodWalkBest = away;
+            _rodWalkBestAt = now;
+        }
+        if (adris.altoclef.util.helpers.SpawnerKeepRules.stuck(_rodWalkBestAt, now) || _rodWalk.isFinished(mod)) {
+            Debug.logInternal(String.format(java.util.Locale.ROOT, "blaze spawner: the walk back to %s came no nearer than %.0f blocks%s: forgotten for the run, the search (spawner_keep)",
+                    at.toShortString(), _rodWalkBest, _rodWalk.isFinished(mod) ? " and ended with no spawner in sight" : ""));
+            _rodSpawner = null;
+            _rodWalk = null;
+            return null;
+        }
+        return _rodWalk;
     }
 
     private boolean isValidBlazeSpawner(AltoClef mod, BlockPos pos) {

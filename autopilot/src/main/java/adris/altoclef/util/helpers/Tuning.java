@@ -825,6 +825,10 @@ public final class Tuning {
             // a gold round over by the no-ore clock while it held in place, with no ore and no search point gone to, is a dead end for
             // gold_rounds: three rounds held 5 minutes each at one spot with 0 gold (box 2 heel-221-mc2 r1), TradeGoldRules.stillEnd
             java.util.Map.entry("gold_round_still", 1.0),
+            // the blaze spawner the rods came from is kept for the run: a rods task with no spawner (after a trip home) walks back to
+            // it before any search, and the pick takes it before a nearer one (look 234: a new spawner across the lava sea, the
+            // bridges 30 blocks short, a stall), SpawnerKeepRules
+            java.util.Map.entry("spawner_keep", 1.0),
             // (read by the buddy, Alto.routeHome) back in the overworld from the route's nether, a food run begun under the ground
             // goes up to the surface first: in a dead-end tunnel by the portal 716 searches got no further than 0 blocks (look 232)
             java.util.Map.entry("food_home_surface", 1.0),

@@ -4,6 +4,7 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.tasks.construction.compound.ConstructNetherPortalObsidianTask;
 import adris.altoclef.tasks.container.AsyncSmelting;
 import adris.altoclef.tasks.container.BrewFireResistanceTask;
+import adris.altoclef.tasks.resources.CollectBlazeRodsTask;
 import adris.altoclef.tasks.resources.ObtainSweep;
 import baritone.Baritone;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -50,6 +51,9 @@ final class RunMemoryFork {
                 P + "tasks.container.BrewFireResistanceTask#_stand", P + "tasks.container.BrewFireResistanceTask#_standDim",
                 P + "tasks.container.BrewFireResistanceTask#_standStage", P + "tasks.container.BrewFireResistanceTask#_standFuel",
                 P + "tasks.container.BrewFireResistanceTask#_boxStand");
+        // (spawner_keep) the blaze spawner the rods came from
+        RunMemory.register("rod_spawner", () -> CollectBlazeRodsTask.rodSpawnerKept(), () -> CollectBlazeRodsTask.forgetRodSpawner(),
+                P + "tasks.resources.CollectBlazeRodsTask#_rodSpawner");
         RunMemory.register("portal_frame", () -> ConstructNetherPortalObsidianTask.remembered(), () -> ConstructNetherPortalObsidianTask.forgetRun(),
                 P + "tasks.construction.compound.ConstructNetherPortalObsidianTask#_lastOrigin",
                 P + "tasks.construction.compound.ConstructNetherPortalObsidianTask#_lastDimension",
