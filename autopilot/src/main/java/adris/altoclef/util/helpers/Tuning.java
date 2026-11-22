@@ -774,6 +774,10 @@ public final class Tuning {
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)
             java.util.Map.entry("dig_grace_water", 1.0),
+            // the brew errand passes over ring points beyond a rim it walked to its dead end (within 35 degrees of that end's
+            // bearing from the spawner, at least half as far out): one rim walked four times in 40 s under two ghasts, then the
+            // fall, CollectBlazeRodsTask, RouteRules.beyondDeadEnd (heel-183-mc2 r3)
+            java.util.Map.entry("errand_dead_end", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),

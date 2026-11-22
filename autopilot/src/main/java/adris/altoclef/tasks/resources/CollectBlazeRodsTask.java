@@ -1482,6 +1482,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _errandNearSaid = false;
             _errandPoint = 0;
             _errandPointAt = null;
+            _errandDeadEnds.clear();
             _errandActSaid = null;
             Debug.logInternal("brew errand: begun (rods " + mod.getItemStorage().getItemCount(Items.BLAZE_ROD) + ", cream " + cream + ", wart " + wart
                     + "), " + (!trade ? "no trade" : secs(Math.max(0, now - _tradeOverAt)) + " s after the trade's end")
@@ -1872,6 +1873,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // (errand_rim_retreat) the walk back to firm ground from a rim with no way on, and the last walk back the point was given up for
     private final adris.altoclef.util.helpers.RimRetreat _errandOffRim = new adris.altoclef.util.helpers.RimRetreat();
     private Task _errandRimBack;
+    // (Tuning errand_dead_end) where the errand's rim retreats began, x and z: ring points beyond one are passed over
+    private final java.util.ArrayList<double[]> _errandDeadEnds = new java.util.ArrayList<>();
     // (Tuning errand_nopath_skip, a fix of 21 Nov 2026, on) a ring point Baritone found no path to ERRAND_NOPATH_MAX times, with no
     // path walked in between, is given up at once rather than after the point's ERRAND_POINT_TICKS: in the basalt deltas every
     // point of the rings lay across open air, the buddy stood 20 s at each, eight minutes for 24 points (box 3 heel-160-mc3
@@ -1879,6 +1882,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
     static final int ERRAND_NOPATH_MAX = 3;
     private final adris.altoclef.util.helpers.NoPathScope.Watch _errandNoPath = new adris.altoclef.util.helpers.NoPathScope.Watch();
     private int _errandNoPaths;
+
+    // (Tuning errand_dead_end) whether a ring point lies beyond a rim this errand walked to its dead end, RouteRules.beyondDeadEnd
+    private boolean beyondDeadEnd(BlockPos sp, int[] point) {
+        for (double[] end : _errandDeadEnds) {
+            if (adris.altoclef.util.helpers.RouteRules.beyondDeadEnd(sp.getX(), sp.getZ(), end[0], end[1], point[0], point[1])) return true;
+        }
+        return false;
+    }
 
     private Task errandWalk(AltoClef mod, long gap) {
         var me = mod.getPlayer();
@@ -1925,13 +1936,20 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _errandPointAt = adris.altoclef.util.helpers.RouteRules.errandPoint(_errandPoint, sp.getX(), sp.getZ(), _errandFrom, first);
             // (Tuning route_away_zone: points in a zone walked away from are passed over, at most one round of them)
             int passed = 0;
-            while (zones && passed < adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS && _errandPoint + 1 < points
-                    && adris.altoclef.util.helpers.RouteRules.inAwayZone(_errandPointAt[0], _errandPointAt[1], tick)) {
+            int beyond = 0;
+            while (passed + beyond < adris.altoclef.util.helpers.RouteRules.ERRAND_POINTS && _errandPoint + 1 < points) {
+                if (zones && adris.altoclef.util.helpers.RouteRules.inAwayZone(_errandPointAt[0], _errandPointAt[1], tick)) {
+                    passed++;
+                } else if (beyondDeadEnd(sp, _errandPointAt)) {
+                    beyond++;
+                } else {
+                    break;
+                }
                 _errandPoint++;
-                passed++;
                 _errandPointAt = adris.altoclef.util.helpers.RouteRules.errandPoint(_errandPoint, sp.getX(), sp.getZ(), _errandFrom, first);
             }
             if (passed > 0) Debug.logInternal("brew errand: " + passed + " point(s) passed over where the buddy walked away from blazes");
+            if (beyond > 0) Debug.logInternal("brew errand: " + beyond + " point(s) passed over beyond a rim walked to its dead end (errand_dead_end)");
             _errandPointTicks = 0;
             _errandNoPaths = 0;
             _errandNoPath.disarm();
@@ -1954,6 +1972,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
                             + _errandPointAt[1] + ": " + _errandOffRim.what() + ", the point given up (errand_rim_retreat)");
                     _errandPoint++;
                     _errandPointAt = null;
+                    if (adris.altoclef.util.helpers.RouteRules.deadEndOn()) {
+                        _errandDeadEnds.add(new double[]{mod.getPlayer().getX(), mod.getPlayer().getZ()});
+                    }
                 }
                 errandSays("looking round the fortress: off a rim first");
                 setDebugState("Brew errand: " + _errandOffRim.what());

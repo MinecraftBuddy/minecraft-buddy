@@ -760,4 +760,16 @@ public class RouteRulesTest {
         assertEquals(0, RouteRules.exitStoneFree(false, false, 37, 3));
         assertEquals(0, RouteRules.exitStoneFree(true, false, 2, 3));
     }
+
+    // heel-183-mc2 r3: the brew errand walked one rim west to its dead end four times; points beyond that end are passed over
+    @Test
+    public void ringPointsBeyondARimsDeadEndArePassedOver() {
+        // spawner at 0,0, the dead end 60 west
+        assertTrue(RouteRules.beyondDeadEnd(0, 0, -60, 0, -48, 10));   // west, about 12 degrees off, far enough
+        assertTrue(RouteRules.beyondDeadEnd(0, 0, -60, 0, -70, -40));  // about 30 degrees off
+        assertFalse(RouteRules.beyondDeadEnd(0, 0, -60, 0, -40, -40)); // 45 degrees off
+        assertFalse(RouteRules.beyondDeadEnd(0, 0, -60, 0, -20, 0));   // west but nearer than half the end
+        assertFalse(RouteRules.beyondDeadEnd(0, 0, -60, 0, 48, 0));    // the other side
+        assertFalse(RouteRules.beyondDeadEnd(0, 0, 0, 0, -48, 0));     // a dead end at the spawner says nothing
+    }
 }

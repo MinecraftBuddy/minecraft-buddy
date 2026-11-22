@@ -738,6 +738,24 @@ public final class RouteRules {
         AWAY_ZONES.addLast(new double[]{x, z, now + AWAY_ZONE_TICKS});
     }
 
+    // (Tuning errand_dead_end, a fix of 22 Nov 2026, on) a ring point that lies beyond a rim the errand walked to its dead end:
+    // within DEAD_END_ARC degrees of the dead end's bearing from the spawner and at least half as far out. Its walk takes the
+    // same rim to the same end: heel-183-mc2 r3 walked one rim west four times in 40 s (points 11 to 14), each time 60 blocks
+    // out and back, with two ghasts in sight, and fell when their balls broke the rim
+    public static final double DEAD_END_ARC = 35;
+
+    public static boolean deadEndOn() {
+        return Tuning.get("errand_dead_end", 0) > 0;
+    }
+
+    public static boolean beyondDeadEnd(double spX, double spZ, double endX, double endZ, double px, double pz) {
+        double ex = endX - spX, ez = endZ - spZ, qx = px - spX, qz = pz - spZ;
+        double end = Math.hypot(ex, ez), point = Math.hypot(qx, qz);
+        if (end < 1 || point < end / 2) return false;
+        double cos = (ex * qx + ez * qz) / (end * point);
+        return cos >= Math.cos(Math.toRadians(DEAD_END_ARC));
+    }
+
     // whether (x, z) lies in a zone still live at game tick now
     public static synchronized boolean inAwayZone(double x, double z, long now) {
         for (double[] zone : AWAY_ZONES) {
