@@ -800,6 +800,10 @@ public final class Tuning {
             // cancel lines say what the break was doing: in a flooded pocket a move was cancelled at its limit some 300 times in
             // 45 minutes at one stone (look 225, heel-199-mc1 r3), PathExecutor, HighWater.digStillGoing
             java.util.Map.entry("dig_grace_window", 1.0),
+            // a night trip's give-up counts against the bed in the bag (bed_failed_hole) only when the buddy lay in it: a give-up
+            // for the place ("standing in liquid") shut the bed out for the night and the buddy waited 11 minutes in the open
+            // (look 220), NightSleepHook.countsAgainstTheBed
+            java.util.Map.entry("bed_failed_slept", 1.0),
             // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)

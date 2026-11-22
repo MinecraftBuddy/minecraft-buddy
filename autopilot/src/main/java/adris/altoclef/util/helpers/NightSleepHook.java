@@ -96,6 +96,15 @@ public final class NightSleepHook {
         return bedGaveUpAt;
     }
 
+    // (Tuning bed_failed_slept, a fix of 22 Nov 2026, on) a give-up counts against the bed when the buddy lay in it (the
+    // night did not pass, woken early) or when no other try comes tonight: a give-up before lying down with tries left is the
+    // place's ("standing in liquid" by a water pocket at the feet) and the next try may still end the night. counted, it shut
+    // the bed out for the night, the shelter's hand digs failed in the water and the buddy waited 11 minutes in the open
+    // (look 220, heel-201-mc3 r1)
+    public static boolean countsAgainstTheBed(boolean on, boolean layInIt, boolean retryLikely) {
+        return !on || layInIt || !retryLikely;
+    }
+
     // whether a trip gave up within the span of one night before now
     public static boolean bedGaveUpTonight(long gameTime, long nightSpan) {
         long at = bedGaveUpAt;

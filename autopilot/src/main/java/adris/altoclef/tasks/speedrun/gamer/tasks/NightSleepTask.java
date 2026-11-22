@@ -1129,7 +1129,9 @@ public class NightSleepTask extends Task {
         if (outcome == Outcome.GAVE_UP && !why.isEmpty() && !cleanup) {
             say.accept(failLine(why, retryLikely()));
         }
-        if (outcome == Outcome.GAVE_UP && mod != null && mod.getWorld() != null) {
+        if (outcome == Outcome.GAVE_UP && mod != null && mod.getWorld() != null
+                && adris.altoclef.util.helpers.NightSleepHook.countsAgainstTheBed(
+                        adris.altoclef.util.helpers.Tuning.get("bed_failed_slept", 0) > 0, wasAsleep, retryLikely())) {
             adris.altoclef.util.helpers.NightSleepHook.noteBedGaveUp(mod.getWorld().getGameTime());
         }
         Debug.logInternal("night: over, " + outcome + (why.isEmpty() ? "" : " (" + why + ")"));
