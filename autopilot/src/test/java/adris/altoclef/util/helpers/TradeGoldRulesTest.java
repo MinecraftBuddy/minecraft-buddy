@@ -174,4 +174,15 @@ public class TradeGoldRulesTest {
         assertFalse(TradeGoldRules.recentreDue(true, TradeGoldRules.RECENTRE_MAX, 50));
         assertFalse(TradeGoldRules.recentreDue(false, 0, 50));
     }
+
+    // (gold_piglin_hold_grow) look 228: the hold doubles for an ore left again, up to 8 times the base
+    @Test
+    public void thePiglinHoldGrowsForAnOreLeftAgain() {
+        assertEquals(1800, TradeGoldRules.piglinHold(1800, 1, true));
+        assertEquals(3600, TradeGoldRules.piglinHold(1800, 2, true));
+        assertEquals(7200, TradeGoldRules.piglinHold(1800, 3, true));
+        assertEquals(14400, TradeGoldRules.piglinHold(1800, 4, true));
+        assertEquals(14400, TradeGoldRules.piglinHold(1800, 9, true));
+        assertEquals(1800, TradeGoldRules.piglinHold(1800, 3, false));
+    }
 }

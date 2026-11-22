@@ -812,6 +812,9 @@ public final class Tuning {
             // most), else the step holds where it is: in each gap the parent walked to the blaze spawner on ways no rule checked,
             // a third of the step's time (look 227), TradeGold.search, TradeGoldRules.recentreDue
             java.util.Map.entry("gold_search_recentre", 1.0),
+            // an ore the nether gold left for a piglin by it is held twice as long each time it is left again (90 s, 3, 6, 12
+            // minutes): the same ores by the same piglins were walked to again and again (look 228), TradeGoldRules.piglinHold
+            java.util.Map.entry("gold_piglin_hold_grow", 1.0),
             // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)

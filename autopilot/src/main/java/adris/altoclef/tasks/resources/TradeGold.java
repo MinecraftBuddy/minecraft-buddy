@@ -88,6 +88,8 @@ final class TradeGold {
     // (gold_piglin_hold) the ores left for a piglin by them, and the game tick they may be taken again
     private final java.util.Map<BlockPos, Long> _piglinHeld = new java.util.HashMap<>();
     static final long PIGLIN_HOLD_TICKS = 90 * 20;
+    // (gold_piglin_hold_grow) how often each ore was left for a piglin by it in this step
+    private final java.util.Map<BlockPos, Integer> _piglinDrops = new java.util.HashMap<>();
 
     static boolean goldPiglinHoldOn() {
         return adris.altoclef.util.helpers.Tuning.get("gold_piglin_hold", 0) > 0;
@@ -326,9 +328,14 @@ final class TradeGold {
                 // PIGLIN_HOLD_TICKS: once the buddy walked away the piglin was out of the client's sight, the ore looked clear
                 // and was picked again, the same five ores 60 to 75 blocks apart walked to in turn for three minutes (box 2
                 // heel-188-mc2 r1, look 216); the drop said nothing
-                _piglinHeld.put(_target.immutable(), now + PIGLIN_HOLD_TICKS);
-                Debug.logInternal(String.format(java.util.Locale.ROOT, "trade gold: a piglin by the ore at %d, %d, %d, %.0f blocks off: left for %d s (gold_piglin_hold)",
-                        _target.getX(), _target.getY(), _target.getZ(), Math.sqrt(_target.distSqr(feet)), PIGLIN_HOLD_TICKS / 20));
+                // (Tuning gold_piglin_hold_grow, a fix of 22 Nov 2026, on) the hold doubles each time the same ore is left again:
+                // after its 90 s the same ores by the same piglins were walked to again, one three times, walks of 33 to 88 blocks
+                // each dropped 21 to 24 short, gold at 0.86 a minute for 9 minutes (look 228, heel-214-mc1 r6)
+                int drops = _piglinDrops.merge(_target.immutable(), 1, Integer::sum);
+                long hold = TradeGoldRules.piglinHold(PIGLIN_HOLD_TICKS, drops, adris.altoclef.util.helpers.Tuning.get("gold_piglin_hold_grow", 0) > 0);
+                _piglinHeld.put(_target.immutable(), now + hold);
+                Debug.logInternal(String.format(java.util.Locale.ROOT, "trade gold: a piglin by the ore at %d, %d, %d, %.0f blocks off: left for %d s (gold_piglin_hold, time %d)",
+                        _target.getX(), _target.getY(), _target.getZ(), Math.sqrt(_target.distSqr(feet)), hold / 20, drops));
             }
             _target = null;
         }

@@ -184,6 +184,14 @@ public final class TradeGoldRules {
         return on && done < RECENTRE_MAX && fromCentre >= RECENTRE_AWAY;
     }
 
+    // (Tuning gold_piglin_hold_grow, a fix of 22 Nov 2026, on) an ore left for a piglin by it the n-th time is held base times
+    // 2^(n-1), at most 8 times base (90 s, 3, 6, 12 minutes): the same ores by the same piglins were walked to again and again
+    // (look 228)
+    public static long piglinHold(long base, int drops, boolean grow) {
+        if (!grow || drops <= 1) return base;
+        return base << Math.min(drops - 1, 3);
+    }
+
     public static int wayOpenMax() {
         return (int) Tuning.get("gold_way_open", 0);
     }
