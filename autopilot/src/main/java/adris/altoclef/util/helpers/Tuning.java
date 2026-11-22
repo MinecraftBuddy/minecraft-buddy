@@ -781,6 +781,9 @@ public final class Tuning {
             // (off: test bal-onderweg, the critic's narrowed A of 20 Nov) the buddy's route takes a slime met in M3.1 to M3.3 along
             // while no slime ball is in the bag, five minutes at most, three in an order (the buddy's Obtain.slimeWayDue)
             java.util.Map.entry("slime_on_way", 0.0),
+            // (off: test slijmpost, the critic's B) the slime hunt first stands at a post 28 across from the nearest slime seen below
+            // y 40 outside a swamp earlier in the run, within 128, at its height, 15 min at most, then digs as before, SlimePost
+            java.util.Map.entry("slime_post", 0.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),

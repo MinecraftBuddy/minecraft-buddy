@@ -850,6 +850,11 @@ final class Alto {
 
 	static final String SLIME_ON_WAY = "take a slime along";
 
+	/** The autopilot's slime_post switch (test slijmpost, 22 Nov 2026, off): the slime hunt's post by a slime seen earlier, Sightings. */
+	static boolean slimePostOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("slime_post", 0) > 0;
+	}
+
 	/** The autopilot's gold_runs_on switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
 	static boolean slimeSearchWholeOn() {
 		return present() && adris.altoclef.util.helpers.Tuning.get("slime_search_whole", 0) > 0;

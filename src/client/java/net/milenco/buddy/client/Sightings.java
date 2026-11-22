@@ -9,8 +9,9 @@ import net.minecraft.world.entity.monster.cubemob.Slime;
 /**
  * Things seen on the way during an obtain order, for the practice rig's reading of the overworld's phases: each slime newly in
  * view (where, its size, how far, the biome) and each swamp newly in view, one event "seen" apiece. Written only while an
- * order runs and the autopilot's sight_log switch is on (the rig sets it); the buddy acts on none of it. What was seen is a
- * memory of this run only (RunMemories: a fresh run forgets it).
+ * order runs and the autopilot's sight_log switch is on (the rig sets it); the buddy acts on none of it, except with the
+ * slime_post switch on: then each slime below y 40 outside a swamp goes to the autopilot's SlimePost as well. What was seen is
+ * a memory of this run only (RunMemories: a fresh run forgets it).
  */
 final class Sightings {
 	private Sightings() {}
@@ -29,22 +30,31 @@ final class Sightings {
 	static void forgetRun() {
 		SEEN.clear();
 		SWAMPS.clear();
+		if (Alto.present()) adris.altoclef.util.helpers.SlimePost.forget();
 	}
 
 	/** Once a client tick; looks once a second. */
 	static void tick(Minecraft mc) {
-		if (++tick % 20 != 0 || mc.player == null || mc.level == null || !Obtain.on() || !Alto.sightLog()) return;
+		if (++tick % 20 != 0 || mc.player == null || mc.level == null || !Obtain.on()) return;
+		// (slime_post, off: test slijmpost) the slimes seen below y 40 outside a swamp go to the autopilot's SlimePost too,
+		// switch or no sight_log: the slime hunt's post by a chunk known to have slimes
+		boolean post = Alto.slimePostOn(), log = Alto.sightLog();
+		if (!post && !log) return;
 		var p = mc.player;
 		for (Entity e : mc.level.entitiesForRendering()) {
 			if (!(e instanceof Slime s) || e instanceof MagmaCube || !s.isAlive()) continue;
 			double dx = e.getX() - p.getX(), dz = e.getZ() - p.getZ();
 			double across = Math.sqrt(dx * dx + dz * dz);
-			if (across > SLIME_RANGE || !SEEN.add(e.getUUID())) continue;
+			if (across > SLIME_RANGE) continue;
 			BlockPos at = e.blockPosition();
+			if (post && at.getY() < adris.altoclef.util.helpers.SlimePost.BELOW_Y && !mc.level.getBiome(at).getRegisteredName().contains("swamp"))
+				adris.altoclef.util.helpers.SlimePost.note(at.getX(), at.getY(), at.getZ());
+			if (!log || !SEEN.add(e.getUUID())) continue;
 			Exchange.emit("seen", "kind", "slime", "x", at.getX(), "y", at.getY(), "z", at.getZ(), "size", s.getSize(),
 				"dist", Math.round(p.distanceTo(e) * 10) / 10.0, "biome", mc.level.getBiome(at).getRegisteredName(),
 				"buddy_y", (int) Math.floor(p.getY()));
 		}
+		if (!log) return;
 		BlockPos here = p.blockPosition();
 		for (int r : RINGS) {
 			for (int k = 0; k < (r == 0 ? 1 : 8); k++) {

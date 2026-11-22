@@ -146,6 +146,14 @@ public class KillAndLootTask extends ResourceTask {
                 setDebugState("Going to correct dimension.");
                 return getToCorrectDimensionTask(mod);
             }
+            // (Tuning slime_post, off: test slijmpost) first a post by a slime chunk seen earlier in the run, see SlimePost
+            Task post = slimePost(mod);
+            if (post != null) {
+                setDebugState(post instanceof adris.altoclef.tasks.movement.IdleTask
+                        ? "Standing at the slime post for a slime within " + (int) adris.altoclef.util.helpers.Tuning.get("slime_chase_near", 0)
+                        : "Going to the slime post by a slime seen earlier");
+                return post;
+            }
             Task dig = slimeDig(mod);
             if (dig != null) {
                 setDebugState("Searching for slimes below y 40: a branch mine at y " + slimeDigY(adris.altoclef.util.helpers.Tuning.get("gold_mine_y", SLIME_DIG_Y)));
@@ -191,6 +199,55 @@ public class KillAndLootTask extends ResourceTask {
 
     // (slime_dig_keep) the hunt's one mine, made at its first dig
     private adris.altoclef.tasks.movement.BranchMineTask _slimeMine;
+
+    // (Tuning slime_post, off) the post of this hunt (null till chosen), its walk, when it was chosen and reached (-1 not yet),
+    // and done once given up or used up: then the mine as before
+    private int[] _post;
+    private Task _postWalk;
+    private final Task _postStand = new adris.altoclef.tasks.movement.IdleTask();
+    private int _postBegun, _postAt = -1;
+    private boolean _postDone;
+
+    private Task slimePost(AltoClef mod) {
+        if (_postDone || !adris.altoclef.util.helpers.SlimePost.on() || _toKill != net.minecraft.world.entity.monster.cubemob.Slime.class
+                || _onlyId >= 0 || WorldHelper.getCurrentDimension() != baritone.api.utils.Dimension.OVERWORLD) {
+            return null;
+        }
+        var me = mod.getPlayer();
+        int now = WorldHelper.getTicks();
+        if (_post == null) {
+            int[] seen = adris.altoclef.util.helpers.SlimePost.nearest(me.getX(), me.getZ());
+            if (seen == null) {
+                _postDone = true;
+                adris.altoclef.Debug.logInternal("slime post: no slime seen below y " + adris.altoclef.util.helpers.SlimePost.BELOW_Y
+                        + " within " + (int) adris.altoclef.util.helpers.SlimePost.REACH + " earlier in the run, the mine (slime_post)");
+                return null;
+            }
+            _post = adris.altoclef.util.helpers.SlimePost.post(seen, me.getX(), me.getZ());
+            _postWalk = new adris.altoclef.tasks.movement.GetToBlockTask(new net.minecraft.core.BlockPos(_post[0], _post[1], _post[2]), false);
+            _postBegun = now;
+            adris.altoclef.Debug.logInternal("slime post: a slime was seen at " + seen[0] + " " + seen[1] + " " + seen[2] + ", the post at "
+                    + _post[0] + " " + _post[1] + " " + _post[2] + " (slime_post)");
+        }
+        boolean there = Math.hypot(me.getX() - (_post[0] + 0.5), me.getZ() - (_post[2] + 0.5)) <= 1.5 && Math.abs(me.getY() - _post[1]) <= 1.5;
+        if (there && _postAt < 0) {
+            _postAt = now;
+            adris.altoclef.Debug.logInternal("slime post: at the post after " + (now - _postBegun) / 20 + " s, standing at most "
+                    + adris.altoclef.util.helpers.SlimePost.STAND_TICKS / 1200 + " min (slime_post)");
+        }
+        if (_postAt < 0 && now - _postBegun > adris.altoclef.util.helpers.SlimePost.WALK_TICKS) {
+            _postDone = true;
+            adris.altoclef.Debug.logInternal("slime post: not reached in " + adris.altoclef.util.helpers.SlimePost.WALK_TICKS / 1200 + " min, the mine (slime_post)");
+            return null;
+        }
+        if (_postAt >= 0 && now - _postAt > adris.altoclef.util.helpers.SlimePost.STAND_TICKS) {
+            _postDone = true;
+            adris.altoclef.Debug.logInternal("slime post: " + adris.altoclef.util.helpers.SlimePost.STAND_TICKS / 1200 + " min at the post with no slime in chase range, the mine (slime_post)");
+            return null;
+        }
+        // (once reached, a step off it by a fight or a hop is walked back)
+        return there ? _postStand : _postWalk;
+    }
 
     // (Tuning slime_chase_near, a fix of 20 Nov 2026, on at 48 blocks) with the slime mine as the other choice, the chase takes
     // the wheel for a slime within that many blocks, keeps it while one is within a third more, and for CHASE_HOLD_TICKS after
