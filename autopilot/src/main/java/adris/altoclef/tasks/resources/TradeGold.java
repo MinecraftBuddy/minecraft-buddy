@@ -708,8 +708,13 @@ final class TradeGold {
                 if (TradeGoldRules.searchWayOn() && max > 0) {
                     var level = mod.getWorld();
                     int sea = level.getSeaLevel();
+                    // (Tuning gold_search_fall, a fix of 22 Nov 2026, on) a floor counts only within SEARCH_FALL (and WAY_FLOOR_DOWN)
+                    // under the way, the sea's level the lowest: with the sea's level alone, ground 29 blocks under a way at y 70
+                    // was a floor, a point 75 off was taken by a bridge of 36 blocks with 13 in the bag, and a ghast's ball blew the
+                    // buddy off its tip (box 3 heel-190-mc3 r3, look 217)
+                    int low = TradeGoldRules.searchFallOn() ? Math.max(sea, feet.getY() - TradeGoldRules.SEARCH_FALL) : sea;
                     int open = TradeGoldRules.openColumns(feet.getX(), feet.getY(), feet.getZ(), s.x(), feet.getY(), s.z(),
-                            (x, y, z) -> openUnder(level, x, y, z, sea), max);
+                            (x, y, z) -> openUnder(level, x, y, z, low), max);
                     if (open > max) {
                         if (seaLeft++ == 0) seaFirst = _searchK;
                         continue;

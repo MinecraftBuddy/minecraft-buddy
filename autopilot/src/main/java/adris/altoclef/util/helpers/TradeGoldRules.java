@@ -160,6 +160,14 @@ public final class TradeGoldRules {
     // a magma cube knocked the buddy off, 4 of 5 deaths in the step read on 19 Nov (heel-59, -60, -64)
     public static final int WAY_FLOOR_DOWN = 6;
 
+    // (Tuning gold_search_fall, a fix of 22 Nov 2026, on) for the search's ring points: a floor more than this (and
+    // WAY_FLOOR_DOWN) under the way at the feet's height is no floor, a fall from there kills (TradeGold, look 217)
+    public static final int SEARCH_FALL = 16;
+
+    public static boolean searchFallOn() {
+        return Tuning.get("gold_search_fall", 0) > 0;
+    }
+
     public static int wayOpenMax() {
         return (int) Tuning.get("gold_way_open", 0);
     }

@@ -773,6 +773,9 @@ public final class Tuning {
             // an ore the gold step left for a piglin by it is not taken again for 90 s: out of sight the piglin seemed gone and
             // the same far ores were walked to in turn, TradeGold (look 216, heel-188-mc2 r1)
             java.util.Map.entry("gold_piglin_hold", 1.0),
+            // the gold search's ring points: a floor counts under the way only within 16 (and 6) blocks, the sea's level the
+            // lowest; ground 29 under a bridge was a floor (look 217, heel-190-mc3 r3), TradeGold, TradeGoldRules.SEARCH_FALL
+            java.util.Map.entry("gold_search_fall", 1.0),
             // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)
