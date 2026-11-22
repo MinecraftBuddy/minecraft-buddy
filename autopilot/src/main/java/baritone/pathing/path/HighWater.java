@@ -71,4 +71,17 @@ final class HighWater {
         ticks = 0;
         halves = 0;
     }
+
+    static final int DIG_GRACE = 600;
+
+    // (dig_timeout_progress, dig_grace_water) a movement over its time limit is kept while its block still breaks a bit more
+    // each tick, up to DIG_GRACE ticks past the limit; in water up to 24 times the estimate past it, since a break there takes
+    // 5 times as long with the head under and 25 times off the ground as well, which the estimate does not count
+    static boolean digGrace(boolean digGoing, int ticks, double cost, int timeout, boolean wet) {
+        if (!digGoing) {
+            return false;
+        }
+        double grace = wet ? Math.max(DIG_GRACE, 24 * cost) : DIG_GRACE;
+        return ticks <= cost + timeout + grace;
+    }
 }

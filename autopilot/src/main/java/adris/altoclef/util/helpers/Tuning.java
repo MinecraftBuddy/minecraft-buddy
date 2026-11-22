@@ -770,6 +770,10 @@ public final class Tuning {
             // replaced the tick it guarded left gold ore on the list for the run, 4 rounds and 40 minutes with no ore broken,
             // TradeGold (look 213, heel-183 r4)
             java.util.Map.entry("gold_guard_shared", 1.0),
+            // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
+            // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
+            // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)
+            java.util.Map.entry("dig_grace_water", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),

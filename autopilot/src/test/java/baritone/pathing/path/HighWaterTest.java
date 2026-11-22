@@ -119,4 +119,18 @@ public class HighWaterTest {
         assertFalse(water.tick(0, 10, 100));
         assertEquals(0, water.high());
     }
+
+    // look 214 (heel-187 r2): a flooded pit, the high-water check cancelled a break the movement's own check let run
+    @Test
+    public void aBreakThatGoesOnIsKeptLongerInWater() {
+        // dry: 600 ticks past the limit at most, as dig_timeout_progress had it
+        assertTrue(HighWater.digGrace(true, 82 + 100 + 600, 82, 100, false));
+        assertFalse(HighWater.digGrace(true, 82 + 100 + 601, 82, 100, false));
+        // wet: 24 times the estimate past the limit, never less than the dry grace
+        assertTrue(HighWater.digGrace(true, 82 + 100 + 1968, 82, 100, true));
+        assertFalse(HighWater.digGrace(true, 82 + 100 + 1969, 82, 100, true));
+        assertTrue(HighWater.digGrace(true, 10 + 100 + 600, 10, 100, true));
+        // a break that does not go on is never kept
+        assertFalse(HighWater.digGrace(false, 150, 82, 100, true));
+    }
 }

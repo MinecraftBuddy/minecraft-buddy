@@ -84,9 +84,8 @@ public class PathExecutor implements IPathExecutor, Helper {
     private int pathPosition;
     private int ticksAway;
     private int ticksOnCurrent;
-    // (dig_timeout_progress) the break's progress last tick, and how far past the limit a break that still goes on may run
+    // (dig_timeout_progress) the break's progress last tick; how far past the limit a break that still goes on may run: HighWater.digGrace
     private float lastDigProgress;
-    private static final int DIG_GRACE = 600;
     // the furthest we've got on this path and how long ago, see HighWater
     private HighWater highWater = new HighWater();
     private Double currentMovementOriginalCostEstimate;
@@ -500,8 +499,13 @@ public class PathExecutor implements IPathExecutor, Helper {
                 digGoing = dig > 0 && dig > lastDigProgress;
                 lastDigProgress = dig;
             }
-            if (ticksOnCurrent > currentMovementOriginalCostEstimate + Baritone.settings().movementTimeoutTicks.value
-                    && !(digGoing && ticksOnCurrent <= currentMovementOriginalCostEstimate + Baritone.settings().movementTimeoutTicks.value + DIG_GRACE)) {
+            // (Tuning dig_grace_water, look 214) the grace holds for the high-water check below too, and in water it scales with
+            // the estimate; with the switch off, the check above as before and none below
+            boolean graceWide = adris.altoclef.util.helpers.Tuning.get("dig_grace_water", 0) > 0;
+            boolean wet = graceWide && (ctx.player().isInWater() || ctx.player().isUnderWater());
+            int timeoutTicks = Baritone.settings().movementTimeoutTicks.value;
+            if (ticksOnCurrent > currentMovementOriginalCostEstimate + timeoutTicks
+                    && !HighWater.digGrace(digGoing, ticksOnCurrent, currentMovementOriginalCostEstimate, timeoutTicks, wet)) {
                 // only cancel if the total time has exceeded the initial estimate
                 // as you break the blocks required, the remaining cost goes down, to the point where
                 // ticksOnCurrent is greater than recalculateCost + 100
@@ -512,7 +516,8 @@ public class PathExecutor implements IPathExecutor, Helper {
                 cancel();
                 return true;
             }
-            if (highWater.tick(pathPosition, currentMovementOriginalCostEstimate, Baritone.settings().movementTimeoutTicks.value)) {
+            if (highWater.tick(pathPosition, currentMovementOriginalCostEstimate, timeoutTicks)
+                    && !(graceWide && pathPosition == highWater.high() && HighWater.digGrace(digGoing, highWater.ticks(), highWater.cost(), timeoutTicks, wet))) {
                 // bouncing between two movements resets ticksOnCurrent every bounce, so the check above never fires. the one
                 // we keep reaching and never get past is the one to blame
                 Movement stuck = (Movement) path.movements().get(highWater.high());
