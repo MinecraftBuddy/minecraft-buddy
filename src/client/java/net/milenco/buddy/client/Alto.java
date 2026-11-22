@@ -1597,12 +1597,26 @@ final class Alto {
 	}
 
 	/**
-	 * The food run a food step starts: from the surface when it begins under the ground on the route's deep stretch
-	 * (SurfaceFoodTask: up a staircase first, then the hunt under the sky), else where it stands. Twenty game minutes for
-	 * the climb and the hunt, thirty with food_one_trip.
+	 * (Tuning food_home_surface, a fix of 22 Nov 2026, on) Back in the overworld from the route's nether: the trip home for
+	 * food. The portal often stands in a cave, and the food run there searched where it stood: in a dead-end tunnel at y 43,
+	 * 716 searches that got no further than 0 blocks in 35 minutes, the run stalled (heel-217 on box 2, look 232).
+	 */
+	static boolean routeHome(net.minecraft.client.player.LocalPlayer p) {
+		return ObtainRoute.on() && !ObtainRoute.walking() && p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)
+			&& adris.altoclef.util.helpers.Tuning.get("food_home_surface", 1) > 0;
+	}
+
+	/**
+	 * The food run a food step starts: from the surface when it begins under the ground on the route's deep stretch or on a
+	 * trip home from its nether (SurfaceFoodTask: up a staircase first, then the hunt under the sky), else where it stands.
+	 * Twenty game minutes for the climb and the hunt, thirty with food_one_trip and for a trip home's NETHER_FOOD.
 	 */
 	static Run foodRun(net.minecraft.client.player.LocalPlayer p, double units) {
-		// (thirty game minutes for food_one_trip's twice as much)
+		// (thirty game minutes for food_one_trip's twice as much, and for the trip home's 160 points: fifteen were asked
+		// for them where the hunt began under the sky)
+		if (routeHome(p) && !p.level().canSeeSky(p.blockPosition().above()))
+			return new Run("collect food from the surface, " + Math.round(units) + " points", 30 * 60_000L,
+				() -> night(new adris.altoclef.tasks.resources.SurfaceFoodTask(units)));
 		if (routeDeep(p) && !p.level().canSeeSky(p.blockPosition().above()))
 			return new Run("collect food from the surface, " + Math.round(units) + " points", (oneTrip() ? 30 : 20) * 60_000L,
 				() -> night(new adris.altoclef.tasks.resources.SurfaceFoodTask(units)));
