@@ -822,6 +822,9 @@ public final class Tuning {
             // the lava escape's goal counts lava at head height too, in the cell and beside it: on a slope under a lava flow three
             // cells in a row were taken as out of the lava and the buddy burned in each (look 233), EscapeFromLavaTask.isSafeCell
             java.util.Map.entry("lava_goal_head", 1.0),
+            // a gold round over by the no-ore clock while it held in place, with no ore and no search point gone to, is a dead end for
+            // gold_rounds: three rounds held 5 minutes each at one spot with 0 gold (box 2 heel-221-mc2 r1), TradeGoldRules.stillEnd
+            java.util.Map.entry("gold_round_still", 1.0),
             // (read by the buddy, Alto.routeHome) back in the overworld from the route's nether, a food run begun under the ground
             // goes up to the surface first: in a dead-end tunnel by the portal 716 searches got no further than 0 blocks (look 232)
             java.util.Map.entry("food_home_surface", 1.0),

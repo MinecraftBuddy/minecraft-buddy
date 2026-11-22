@@ -149,9 +149,11 @@ final class TradeGold {
         return _overWhy;
     }
 
-    // the step ended for a reason another round cannot change: the pickaxes kept for the way on, or the cap of all the rounds
+    // the step ended for a reason another round cannot change: the pickaxes kept for the way on, or the cap of all the rounds;
+    // (gold_round_still) or the no-ore clock while it held in place all round, with no ore and no search point to go to
     boolean deadEnd() {
-        return _overWhy != null && (_overWhy.startsWith("the pickaxes kept") || _overWhy.startsWith("the cap"));
+        return _overWhy != null && (_overWhy.startsWith("the pickaxes kept") || _overWhy.startsWith("the cap")
+                || TradeGoldRules.stillEnd(TradeGoldRules.roundStillOn(), _overWhy, _searchHoldSaid, _anyTarget || _anyWalk));
     }
 
     java.util.Set<BlockPos> givenUp() {
@@ -360,6 +362,7 @@ final class TradeGold {
         }
         if (_target == null) {
             _target = nearestOre(mod, feet, now);
+            if (_target != null) _anyTarget = true;
             _targetSince = now;
             _targetNear = false;
             _oreTick = Long.MIN_VALUE / 2;
@@ -762,6 +765,7 @@ final class TradeGold {
             _searchHoldSaid = false;
             _pointSince = now;
             _searchWalk = new adris.altoclef.tasks.movement.GetToXZTask(point.x(), point.z(), 4);
+            _anyWalk = true;
             Debug.logInternal(String.format(Locale.ROOT, "trade gold: searching for ore, point %d at %d %d, %.0f blocks off",
                     _searchK, point.x(), point.z(), point.distanceTo(player.getX(), player.getZ())));
         }
@@ -777,6 +781,9 @@ final class TradeGold {
     private BlockPos _searchCentre;
     private int _recentres;
     private boolean _searchHoldSaid;
+    // (gold_round_still) an ore was picked to go to, or a search point walked to, at some time this round
+    private boolean _anyTarget;
+    private boolean _anyWalk;
 
     private BlockPos searchCentre() {
         return _searchCentre != null ? _searchCentre : _anchor0();
@@ -802,6 +809,9 @@ final class TradeGold {
         Debug.logInternal(String.format(Locale.ROOT, "trade gold: over (%s), %d gold, %d nuggets left, %d gold dug in %s s (%.1f an hour), %d trips, %d ores broken; %d stone pickaxes begun, %d cobblestone left",
                 why, ingots, nuggets, got / 9, seconds(now - _begunAt), got / 9.0 / hours, _anchors, _broken, _stonePicks,
                 mod.getItemStorage().getItemCount(Items.COBBLESTONE)));
+        if (TradeGoldRules.stillEnd(TradeGoldRules.roundStillOn(), why, _searchHoldSaid, _anyTarget || _anyWalk)) {
+            Debug.logInternal("trade gold: held in place all round with no ore to go to: no other round from here (gold_round_still)");
+        }
     }
 
     // a died buddy, or an order dropped: the guard off and the tracker freed (the trade's own end does not ask it)

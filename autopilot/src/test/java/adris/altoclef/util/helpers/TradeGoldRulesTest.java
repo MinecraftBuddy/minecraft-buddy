@@ -185,4 +185,16 @@ public class TradeGoldRulesTest {
         assertEquals(14400, TradeGoldRules.piglinHold(1800, 9, true));
         assertEquals(1800, TradeGoldRules.piglinHold(1800, 3, false));
     }
+
+    // (gold_round_still) a round over by the no-ore clock, held in place, no ore all round: a dead end; anything else is not
+    @Test
+    public void aStillRoundIsADeadEnd() {
+        String noOre = TradeGoldRules.overWhy(0, 0, 20 * 300, 20 * 5400, 20 * 600);
+        assertTrue(TradeGoldRules.stillEnd(true, noOre, true, false));
+        assertFalse("an ore or a search point gone to this round", TradeGoldRules.stillEnd(true, noOre, true, true));
+        assertFalse("still walking search points", TradeGoldRules.stillEnd(true, noOre, false, false));
+        assertFalse("the switch off", TradeGoldRules.stillEnd(false, noOre, true, false));
+        assertFalse("over by the dry spell", TradeGoldRules.stillEnd(true, TradeGoldRules.overWhy(0, 20 * 600, 0, 20 * 5400, 20 * 600), true, false));
+        assertFalse("not over", TradeGoldRules.stillEnd(true, null, true, false));
+    }
 }

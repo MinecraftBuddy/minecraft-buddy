@@ -184,6 +184,18 @@ public final class TradeGoldRules {
         return on && done < RECENTRE_MAX && fromCentre >= RECENTRE_AWAY;
     }
 
+    // (Tuning gold_round_still, a fix of 22 Nov 2026, on) a round over by the no-ore clock while it held in place (no search
+    // point left) and never went anywhere, no ore and no search point, is a dead end for gold_rounds: the next round starts
+    // where the buddy stands and sees the same nothing (a round that walked moved the buddy, the next may see more). three rounds held 5 minutes each at one spot with 0 gold, 15 minutes standing in the nether
+    // (box 2 heel-221-mc2 r1, 22 Nov)
+    public static boolean roundStillOn() {
+        return Tuning.get("gold_round_still", 0) > 0;
+    }
+
+    public static boolean stillEnd(boolean on, String overWhy, boolean holding, boolean wentAnywhere) {
+        return on && overWhy != null && overWhy.startsWith("no gold ore known") && holding && !wentAnywhere;
+    }
+
     // (Tuning gold_piglin_hold_grow, a fix of 22 Nov 2026, on) an ore left for a piglin by it the n-th time is held base times
     // 2^(n-1), at most 8 times base (90 s, 3, 6, 12 minutes): the same ores by the same piglins were walked to again and again
     // (look 228)
