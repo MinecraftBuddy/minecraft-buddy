@@ -143,6 +143,8 @@ public class CalculationContext {
     public boolean cliffEdges;
     // outside the nether: price the nodes next to lava below, see CliffAvoidance.lavaNear. A* only, as cliffEdges
     public boolean lavaEdges;
+    // a diagonal edging round a blocked corner needs a floor under the open corner (MovementDiagonal.cost)
+    public boolean diagEdgeFloor;
     // (Tuning flow_escape) water near where a search began with the feet in a current, walked through; see FlowEscape. both
     // A* and calculateCost read it, or the executor's recheck would cancel the wade out. set by the search too (a context
     // built before the note), never cleared on a context
@@ -300,6 +302,8 @@ public class CalculationContext {
         // pool at the feet's height too, where no drop is. the fortress search walked a bastion's bridge by a pool and stepped
         // into its edge at full health, and the potion kept for the blazes nearly went for it, route jar 2 run 1)
         this.lavaEdges = !nether || adris.altoclef.util.helpers.Tuning.get("nether_lava_edges", 0) > 0;
+        // (Tuning diag_edge_floor, a fix of 22 Nov 2026, on) see MovementDiagonal.cost
+        this.diagEdgeFloor = adris.altoclef.util.helpers.Tuning.get("diag_edge_floor", 0) > 0;
         this.fastModeMinHealth = Baritone.settings().fastModeMinHealth.value;
         this.fallDamageCost = Baritone.settings().fallDamageCost.value;
         this.jumpBias = ExperimentalMovement.jumpBias();

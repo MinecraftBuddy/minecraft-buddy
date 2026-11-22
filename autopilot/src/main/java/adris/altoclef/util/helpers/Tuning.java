@@ -753,6 +753,11 @@ public final class Tuning {
             // the take-along's miner searches the world round the feet as far as the sight when the tracker's short list holds
             // none of the detour's blocks: it wandered off and the detour ended with nothing got, TakeAlongChain (look 209)
             java.util.Map.entry("take_along_local", 1.0),
+            // a flat or falling diagonal that edges round a blocked corner needs a floor under the open corner, at the feet's
+            // floor or one lower: to clear the blocked column the 0.6 wide box stands for a tick wholly in the open one, and
+            // with no floor there it drops through. two falls from a nether rim to the lava, mining gold (22 Nov 2026, the
+            // evaluation of 03:05: heel-178-mc1 r2, heel-173-mc3 r3), MovementDiagonal
+            java.util.Map.entry("diag_edge_floor", 1.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),

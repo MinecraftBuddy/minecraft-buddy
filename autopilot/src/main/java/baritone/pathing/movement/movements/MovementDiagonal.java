@@ -287,6 +287,19 @@ public class MovementDiagonal extends Movement {
                 // edging around doesn't work if doing so would climb a ladder or vine instead of moving sideways
                 return;
             }
+            // (Tuning diag_edge_floor, a fix of 22 Nov 2026, on) to clear the blocked corner's column the 0.6 wide box has to
+            // leave it wholly first, and for that tick it stands wholly in the open corner's column, feet at our height. with
+            // nothing to stand on there, at our floor or one lower, the steering drops us through it: twice from a nether
+            // rim into the lava, the box pinned at the blocked column's side while the other axis carried it over the gap
+            if (context.diagEdgeFloor && !water) {
+                boolean edgeViaB = optionA != 0;
+                int ex = edgeViaB ? destX : x;
+                int ez = edgeViaB ? z : destZ;
+                if (!MovementHelper.canWalkOn(context, ex, y - 1, ez, edgeViaB ? cuttingOver2 : cuttingOver1)
+                        && !MovementHelper.canWalkOn(context, ex, y - 2, ez)) {
+                    return;
+                }
+            }
         } else {
             // only can sprint if not edging around
             if (context.canSprint && !water && !sneaking) {
