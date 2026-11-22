@@ -168,6 +168,22 @@ public final class TradeGoldRules {
         return Tuning.get("gold_search_fall", 0) > 0;
     }
 
+    // (Tuning gold_search_recentre, a fix of 22 Nov 2026, on) the search's points all walked or left: the rings again round the
+    // feet, at most RECENTRE_MAX times a step and only RECENTRE_AWAY or more from the last centre; with none of that the step
+    // holds where it is till its no-ore clock ends it. before, the step had nothing to do and its parent walked to the blaze
+    // spawner in each gap, 27 times in 27 minutes, a third of the step's time, on ways no rule checked (look 227, heel-203-mc2 r1);
+    // in 24 h of heel 8 of the 21 deaths in this step were blazes and skeletons of the fortress
+    public static final int RECENTRE_MAX = 4;
+    public static final double RECENTRE_AWAY = 24;
+
+    public static boolean searchRecentreOn() {
+        return Tuning.get("gold_search_recentre", 0) > 0;
+    }
+
+    public static boolean recentreDue(boolean on, int done, double fromCentre) {
+        return on && done < RECENTRE_MAX && fromCentre >= RECENTRE_AWAY;
+    }
+
     public static int wayOpenMax() {
         return (int) Tuning.get("gold_way_open", 0);
     }

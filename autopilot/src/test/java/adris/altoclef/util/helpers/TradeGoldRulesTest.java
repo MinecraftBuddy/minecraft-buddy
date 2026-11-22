@@ -164,4 +164,14 @@ public class TradeGoldRulesTest {
         assertEquals(5, TradeGoldRules.cobbleFree(5, 5, 0));
         assertEquals(0, TradeGoldRules.cobbleFree(0, 2, 2));
     }
+
+    // (gold_search_recentre) look 227: the rings again round the feet once all points were walked or left, a few times a step
+    @Test
+    public void theSearchRecentresAwayFromTheLastCentre() {
+        assertTrue(TradeGoldRules.recentreDue(true, 0, 50));
+        assertTrue(TradeGoldRules.recentreDue(true, TradeGoldRules.RECENTRE_MAX - 1, TradeGoldRules.RECENTRE_AWAY));
+        assertFalse(TradeGoldRules.recentreDue(true, 0, TradeGoldRules.RECENTRE_AWAY - 1));
+        assertFalse(TradeGoldRules.recentreDue(true, TradeGoldRules.RECENTRE_MAX, 50));
+        assertFalse(TradeGoldRules.recentreDue(false, 0, 50));
+    }
 }

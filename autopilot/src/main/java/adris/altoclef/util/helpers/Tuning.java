@@ -808,6 +808,10 @@ public final class Tuning {
             // then goes in the rock where the buddy is: one climb was seen through for 45 minutes in a flooded pocket (look 225),
             // DefaultGoToDimensionTask.climbStuck
             java.util.Map.entry("portal_climb_stuck", 1.0),
+            // the nether gold's search: once all its points are walked or left, the rings again round the feet (4 times a step at
+            // most), else the step holds where it is: in each gap the parent walked to the blaze spawner on ways no rule checked,
+            // a third of the step's time (look 227), TradeGold.search, TradeGoldRules.recentreDue
+            java.util.Map.entry("gold_search_recentre", 1.0),
             // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)

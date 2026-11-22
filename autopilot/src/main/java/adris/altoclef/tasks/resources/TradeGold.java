@@ -691,7 +691,7 @@ final class TradeGold {
     private Task search(AltoClef mod, long now) {
         LocalPlayer player = mod.getPlayer();
         if (_searchK < 0) {
-            _searchFrom = TradeGoldRules.searchFrom(_anchor0().getX(), _anchor0().getZ(), _spawner, Math.toRadians(player.getYRot() + 90));
+            _searchFrom = TradeGoldRules.searchFrom(searchCentre().getX(), searchCentre().getZ(), _spawner, Math.toRadians(player.getYRot() + 90));
         }
         boolean next = _searchWalk == null || _searchWalk.isFinished(mod) || now < _pointSince
                 || now - _pointSince > FireResTradeRules.POINT_TICKS;
@@ -701,7 +701,7 @@ final class TradeGold {
             // (gold_search_way) the points left are said in one line: a line each made the live watch's "over and over"
             int seaLeft = 0, seaFirst = -1;
             while (++_searchK < FireResTradeRules.RING_POINTS * FireResTradeRules.RINGS) {
-                FireResTradeRules.Spot s = FireResTradeRules.searchPoint(_searchK, _anchor0().getX(), _anchor0().getZ(), _searchFrom);
+                FireResTradeRules.Spot s = FireResTradeRules.searchPoint(_searchK, searchCentre().getX(), searchCentre().getZ(), _searchFrom);
                 if (!TradeGoldRules.awayFromSpawner(s.x(), s.z(), _spawner)) continue;
                 // (gold_search_way) a point across the lava sea is left as the ore trips leave such ore (gold_way_open, his 55)
                 int max = TradeGoldRules.wayOpenMax();
@@ -727,7 +727,32 @@ final class TradeGold {
                 Debug.logInternal(String.format(Locale.ROOT, "trade gold: %d search points from %d on left, their way over the lava sea (gold_search_way)",
                         seaLeft, seaFirst));
             }
-            if (point == null) return null;
+            if (point == null) {
+                // (gold_search_recentre) all walked or left: the rings again round the feet, else hold here
+                boolean on = TradeGoldRules.searchRecentreOn();
+                BlockPos centre = searchCentre();
+                double away = Math.hypot(feet.getX() - centre.getX(), feet.getZ() - centre.getZ());
+                if (TradeGoldRules.recentreDue(on, _recentres, away)) {
+                    _recentres++;
+                    _searchCentre = feet.immutable();
+                    _searchK = -1;
+                    _searchWalk = null;
+                    Debug.logInternal(String.format(Locale.ROOT, "trade gold: the search's points all walked or left, the rings again round %d %d, %.0f from the last centre (%d of %d, gold_search_recentre)",
+                            feet.getX(), feet.getZ(), away, _recentres, TradeGoldRules.RECENTRE_MAX));
+                    return search(mod, now);
+                }
+                if (on) {
+                    if (!_searchHoldSaid) {
+                        _searchHoldSaid = true;
+                        Debug.logInternal("trade gold: no search point left, holding here till ore shows or the step's no-ore clock ends it (gold_search_recentre)");
+                    }
+                    _hud = "Waiting for gold ore in sight";
+                    if (!(_searchWalk instanceof adris.altoclef.tasks.movement.IdleTask)) _searchWalk = new adris.altoclef.tasks.movement.IdleTask();
+                    return _searchWalk;
+                }
+                return null;
+            }
+            _searchHoldSaid = false;
             _pointSince = now;
             _searchWalk = new adris.altoclef.tasks.movement.GetToXZTask(point.x(), point.z(), 4);
             Debug.logInternal(String.format(Locale.ROOT, "trade gold: searching for ore, point %d at %d %d, %.0f blocks off",
@@ -739,6 +764,15 @@ final class TradeGold {
     // where the step began (the first anchor), the search's centre
     private BlockPos _anchor0() {
         return _start != null ? _start : _anchor;
+    }
+
+    // (gold_search_recentre) the search's rings: round where the step began, or round the feet once they were all walked or left
+    private BlockPos _searchCentre;
+    private int _recentres;
+    private boolean _searchHoldSaid;
+
+    private BlockPos searchCentre() {
+        return _searchCentre != null ? _searchCentre : _anchor0();
     }
 
     // a new task object only when its kind or target changes, or its pathing and crafting would start again every tick
