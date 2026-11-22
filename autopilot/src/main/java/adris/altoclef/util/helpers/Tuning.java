@@ -778,6 +778,9 @@ public final class Tuning {
             // bearing from the spawner, at least half as far out): one rim walked four times in 40 s under two ghasts, then the
             // fall, CollectBlazeRodsTask, RouteRules.beyondDeadEnd (heel-183-mc2 r3)
             java.util.Map.entry("errand_dead_end", 1.0),
+            // (off: test bal-onderweg, the critic's narrowed A of 20 Nov) the buddy's route takes a slime met in M3.1 to M3.3 along
+            // while no slime ball is in the bag, five minutes at most, three in an order (the buddy's Obtain.slimeWayDue)
+            java.util.Map.entry("slime_on_way", 0.0),
             // the nether keeps the bag's biggest stack of cobblestone or cobbled deepslate: a full bag threw the cobblestone out and
             // the gold step had no stone for its pickaxe, GarbageRules (21 Nov 2026, heel-145 r2)
             java.util.Map.entry("nether_keep_cobble", 1.0),

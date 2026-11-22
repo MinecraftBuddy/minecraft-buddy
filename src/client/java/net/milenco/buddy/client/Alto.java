@@ -838,6 +838,18 @@ final class Alto {
 	/** A new order: every piece may be asked again (the gold's clock is reset by ObtainRoute.reset). */
 	static void kitReset() { KIT_FAILED.clear(); }
 
+	/** The autopilot's slime_on_way switch (test bal-onderweg, 22 Nov 2026, off): a slime met in M3.1 to M3.3 taken along, Obtain. */
+	static boolean slimeOnWayOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("slime_on_way", 0) > 0;
+	}
+
+	/** (slime_on_way) the slime met taken along: the slime ball's own fetch, five minutes at most. */
+	static Run slimeOnWay() {
+		return new Run(SLIME_ON_WAY, 5 * 60_000, () -> night(adris.altoclef.TaskCatalogue.getItemTask("slime_ball", 1)));
+	}
+
+	static final String SLIME_ON_WAY = "take a slime along";
+
 	/** The autopilot's gold_runs_on switch (a fix of 14 Nov 2026, on by default); off without the autopilot. */
 	static boolean slimeSearchWholeOn() {
 		return present() && adris.altoclef.util.helpers.Tuning.get("slime_search_whole", 0) > 0;
@@ -1648,6 +1660,9 @@ final class Alto {
 		boolean kit() { return what.startsWith("equip ") || what.startsWith("kit "); }
 
 		boolean slimeSearch() { return what.equals("kit a slime ball"); }
+
+		/** The slime phase's search or a slime on the way (slime_on_way): never cut in on by another slime. */
+		boolean slimeRun() { return slimeSearch() || what.equals(SLIME_ON_WAY); }
 
 		@Override
 		ObtainSteps.Result tick(net.minecraft.client.Minecraft mc, net.minecraft.client.player.LocalPlayer p, long now) {

@@ -283,6 +283,8 @@ final class Obtain {
 		goldTriedAt = -60_000;
 		boatTriedAt = -600_000;
 		boatLook = holeOffUntil = holeStarted = upFailedAt = dryFailedAt = armourLook = 0;
+		slimeWayNext = 0;
+		slimeWays = 0;
 		shelterGaveUpAt = null;
 		wasMidFrame = false;
 		armourFor = null;
@@ -551,6 +553,20 @@ final class Obtain {
 			stepSince = now;
 			exec = new ObtainSafe.Shelter(wound);
 			Exchange.emit("obtain", "action", "step", "step", wound ? "shelter to heal" : "shelter for the night", "way", "shelter", "armour", p.getArmorValue(), "hp", p.getHealth());
+		}
+		// (Tuning slime_on_way, off: test bal-onderweg, 22 Nov 2026) a slime met while the deep phases (M3.1 to M3.3) mine for
+		// something else, and no slime ball in the bag: the piece under way stops (asked again, no try spent) and the slime is
+		// taken along, five minutes at most, ten minutes between two and three in an order. 35 of the 49 runs with no ball after
+		// the slime phase's one search had met a slime below y 40 earlier in the run; the route took one only between pieces
+		if (exec instanceof Alto.Run run && !run.slimeRun() && !run.food() && !run.home() && slimeWayWanted(p, now)) {
+			exec.stop();
+			slimeWays++;
+			slimeWayNext = now + SLIME_WAY_GAP;
+			step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@slime", 1, null, 0, List.of(), "a slime on the way");
+			stepSince = now;
+			exec = Alto.slimeOnWay();
+			Exchange.emit("obtain", "action", "step", "step", "a slime on the way", "way", "slime_on_way", "phase", ObtainRoute.phase(),
+				"n", slimeWays, "x", p.getBlockX(), "y", p.getBlockY(), "z", p.getBlockZ());
 		}
 		if (exec == null) {
 			// the first round of the scan has to be in, or every block counts as far away
@@ -1364,8 +1380,20 @@ final class Obtain {
 	/** A furnace of this order: one it placed, or the one a broken-off smelt filled. */
 	static boolean ownStation(BlockPos at) { return at != null && (placed.containsKey(at) || at.equals(furnaceFull)); }
 
+	/** (slime_on_way) this far apart (ms); at most ObtainRoute.SLIME_WAYS in an order. */
+	static final long SLIME_WAY_GAP = 10 * 60_000L;
+
+	private static boolean slimeWayWanted(LocalPlayer p, long now) {
+		if (!Alto.slimeOnWayOn() || !ObtainRoute.on()) return false;
+		return ObtainRoute.slimeWayDue(ObtainRoute.phase(), now, slimeWayNext, slimeWays, ObtainSteps.count(p, "slime_ball"), inMenuNow(p))
+			&& ObtainSafe.slimeNear(p, ObtainSafe.SLIME_SIGHT);
+	}
+
 	private static long retryAt, nextThrow, lastMovedAt, upFailedAt, dryFailedAt, scanWaitFrom, kitRetryAt;
 	private static int kitUnmet;
+	/** (slime_on_way) when the next slime on the way may cut in, and how many did in this order. */
+	private static long slimeWayNext;
+	private static int slimeWays;
 
 	/**
 	 * A step only the surface has (trees, the animals of the fields), none of it near, and the buddy deep under the ground

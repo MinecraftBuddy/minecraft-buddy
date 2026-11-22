@@ -725,4 +725,17 @@ class ObtainRouteTest {
 		ObtainRoute.reset(true);
 		assertNull(ObtainRoute.goldOver(g));
 	}
+
+	// test bal-onderweg (slime_on_way): a slime met in the deep phases cuts in while no ball is in the bag, three at most, ten minutes apart
+	@Test
+	void aSlimeOnTheWayCutsInOnlyInTheDeepPhases() {
+		assertTrue(ObtainRoute.slimeWayDue(ObtainRoute.M3_1, 0, 0, 0, 0, false));
+		assertTrue(ObtainRoute.slimeWayDue(ObtainRoute.M3_3, 0, 0, 2, 0, false));
+		assertFalse(ObtainRoute.slimeWayDue(ObtainRoute.M2_2, 0, 0, 0, 0, false));
+		assertFalse(ObtainRoute.slimeWayDue(ObtainRoute.M3_3B, 0, 0, 0, 0, false));
+		assertFalse(ObtainRoute.slimeWayDue(ObtainRoute.M3_2, 0, 0, ObtainRoute.SLIME_WAYS, 0, false));
+		assertFalse(ObtainRoute.slimeWayDue(ObtainRoute.M3_2, 599_999, 600_000, 1, 0, false));
+		assertFalse(ObtainRoute.slimeWayDue(ObtainRoute.M3_2, 0, 0, 0, 1, false));
+		assertFalse(ObtainRoute.slimeWayDue(ObtainRoute.M3_2, 0, 0, 0, 0, true));
+	}
 }
