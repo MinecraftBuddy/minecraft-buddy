@@ -796,6 +796,10 @@ public final class Tuning {
             // two minutes: the task walked back into the same flooded cells for the same copper and the second escape failed
             // (look 223), WorldSurvivalChain.drownedAtBan
             java.util.Map.entry("drown_ore_ban", 1.0),
+            // a break whose progress rose within the last 10 ticks still counts as going on for the dig grace, and the movement's
+            // cancel lines say what the break was doing: in a flooded pocket a move was cancelled at its limit some 300 times in
+            // 45 minutes at one stone (look 225, heel-199-mc1 r3), PathExecutor, HighWater.digStillGoing
+            java.util.Map.entry("dig_grace_window", 1.0),
             // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)

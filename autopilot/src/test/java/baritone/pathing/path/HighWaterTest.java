@@ -133,4 +133,18 @@ public class HighWaterTest {
         // a break that does not go on is never kept
         assertFalse(HighWater.digGrace(false, 150, 82, 100, true));
     }
+
+    // look 225 (heel-199-mc1 r3): a bob lost the aim for a tick and the rise lapsed on the tick of the limit
+    @Test
+    public void aBreakThatRoseLatelyStillGoesOn() {
+        assertTrue(HighWater.digStillGoing(true, true, 0.2f, 0));
+        assertTrue(HighWater.digStillGoing(true, false, 0.2f, 1));
+        assertTrue(HighWater.digStillGoing(true, false, 0.2f, HighWater.DIG_WINDOW));
+        assertFalse(HighWater.digStillGoing(true, false, 0.2f, HighWater.DIG_WINDOW + 1));
+        // nothing broken yet, or the crack gone: not going on
+        assertFalse(HighWater.digStillGoing(true, false, 0f, 1));
+        // without the window only a rise this tick counts, as before
+        assertFalse(HighWater.digStillGoing(false, false, 0.2f, 1));
+        assertTrue(HighWater.digStillGoing(false, true, 0.2f, 0));
+    }
 }

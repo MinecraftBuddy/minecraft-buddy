@@ -86,6 +86,9 @@ public class PathExecutor implements IPathExecutor, Helper {
     private int ticksOnCurrent;
     // (dig_timeout_progress) the break's progress last tick; how far past the limit a break that still goes on may run: HighWater.digGrace
     private float lastDigProgress;
+    // (dig_grace_window) a tick count of this executor and the tick the break's progress last rose on
+    private int digClock;
+    private int lastDigRise = -1000;
     // the furthest we've got on this path and how long ago, see HighWater
     private HighWater highWater = new HighWater();
     private Double currentMovementOriginalCostEstimate;
@@ -496,9 +499,15 @@ public class PathExecutor implements IPathExecutor, Helper {
             if (adris.altoclef.util.helpers.Tuning.get("dig_timeout_progress", 0) > 0
                     && ctx.minecraft().gameMode instanceof baritone.utils.accessor.IClientBlockBreak gm) {
                 float dig = gm.getCurrentBreakingProgress();
-                digGoing = dig > 0 && dig > lastDigProgress;
+                boolean rose = dig > 0 && dig > lastDigProgress;
+                if (rose) lastDigRise = digClock;
+                // (Tuning dig_grace_window, a fix of 22 Nov 2026, on) the break goes on while its progress rose within the last
+                // HighWater.DIG_WINDOW ticks: bobbing in a flooded pocket a tick with no rise came at the limit, and the move was
+                // cancelled at cost + 100 some 300 times in 45 minutes at one stone (look 225, heel-199-mc1 r3)
+                digGoing = HighWater.digStillGoing(adris.altoclef.util.helpers.Tuning.get("dig_grace_window", 0) > 0, rose, dig, digClock - lastDigRise);
                 lastDigProgress = dig;
             }
+            digClock++;
             // (Tuning dig_grace_water, look 214) the grace holds for the high-water check below too, and in water it scales with
             // the estimate; with the switch off, the check above as before and none below
             boolean graceWide = adris.altoclef.util.helpers.Tuning.get("dig_grace_water", 0) > 0;
@@ -511,7 +520,7 @@ public class PathExecutor implements IPathExecutor, Helper {
                 // ticksOnCurrent is greater than recalculateCost + 100
                 // this is why we cache cost at the beginning, and don't recalculate for this comparison every tick
                 logDebug("This movement has taken too long (" + ticksOnCurrent + " ticks, expected " + currentMovementOriginalCostEstimate + ", "
-                        + movement.getClass().getSimpleName() + " " + movement.getSrc() + " -> " + movement.getDest() + "). Cancelling.");
+                        + movement.getClass().getSimpleName() + " " + movement.getSrc() + " -> " + movement.getDest() + "). Cancelling." + digState());
                 rememberFailure(movement, true);
                 cancel();
                 return true;
@@ -521,7 +530,7 @@ public class PathExecutor implements IPathExecutor, Helper {
                 // bouncing between two movements resets ticksOnCurrent every bounce, so the check above never fires. the one
                 // we keep reaching and never get past is the one to blame
                 Movement stuck = (Movement) path.movements().get(highWater.high());
-                logDebug("Haven't got past movement " + highWater.high() + " in " + highWater.ticks() + " ticks (expected " + highWater.cost() + "). Cancelling.");
+                logDebug("Haven't got past movement " + highWater.high() + " in " + highWater.ticks() + " ticks (expected " + highWater.cost() + "). Cancelling." + digState());
                 rememberFailure(stuck, true);
                 cancel();
                 return true;
@@ -1682,6 +1691,16 @@ public class PathExecutor implements IPathExecutor, Helper {
     private void clearKeys() {
         // i'm just sick and tired of this snippet being everywhere lol
         behavior.baritone.getInputOverrideHandler().clearAllKeys();
+    }
+
+    // (dig_grace_window) what the break was doing at a cancel, for the reads: its progress (0 to 1), how many ticks since it
+    // last rose, and whether the feet stood on the ground, the feet were in water, the eyes were under it (1 or 0: digits only,
+    // so the live watch counts the line as one kind)
+    private String digState() {
+        float dig = ctx.minecraft().gameMode instanceof baritone.utils.accessor.IClientBlockBreak gm ? gm.getCurrentBreakingProgress() : -1;
+        return String.format(java.util.Locale.ROOT, " (dig %.2f, rose %d ago, ground %d, feet wet %d, eyes wet %d)", dig,
+                Math.min(999, digClock - lastDigRise), ctx.player().onGround() ? 1 : 0, ctx.player().isInWater() ? 1 : 0,
+                ctx.player().isUnderWater() ? 1 : 0);
     }
 
     // before the cancel, so the replan it triggers already sees it and a fast fail loop climbs the ladder. only the movement

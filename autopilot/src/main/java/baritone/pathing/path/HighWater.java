@@ -74,6 +74,18 @@ final class HighWater {
 
     static final int DIG_GRACE = 600;
 
+    // (Tuning dig_grace_window, a fix of 22 Nov 2026, on) a break whose progress rose within this many ticks still goes on: a
+    // bob in a flooded pocket lost the aim for a tick, the rise lapsed on the tick of the limit and the move was cancelled, about
+    // 300 times at one stone in 45 minutes (look 225)
+    static final int DIG_WINDOW = 10;
+
+    // whether the break counts as going on this tick: it rose this tick, or (with the window) it stands above 0 and rose within
+    // DIG_WINDOW ticks
+    static boolean digStillGoing(boolean window, boolean rose, float progress, int sinceRise) {
+        if (rose) return true;
+        return window && progress > 0 && sinceRise <= DIG_WINDOW;
+    }
+
     // (dig_timeout_progress, dig_grace_water) a movement over its time limit is kept while its block still breaks a bit more
     // each tick, up to DIG_GRACE ticks past the limit; in water up to 24 times the estimate past it, since a break there takes
     // 5 times as long with the head under and 25 times off the ground as well, which the estimate does not count
