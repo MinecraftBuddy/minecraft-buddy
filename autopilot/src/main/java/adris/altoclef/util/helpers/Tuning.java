@@ -782,6 +782,9 @@ public final class Tuning {
             // the stone pit's dry walks pass over a stand beside a pit already tried (it would be refused there), MineAndCollectTask
             // (look 219)
             java.util.Map.entry("dry_walk_pit_free", 1.0),
+            // Baritone's mob avoidance: a slime of the smallest size is not avoided, and a crowd's stacked factor stops at 1024: 19
+            // tiny slimes priced every block past COST_INF and the buddy stood 23 minutes (look 222), Avoidance
+            java.util.Map.entry("avoid_crowd_cap", 1.0),
             // the buddy's night shelter walks to flat ground also once its three hand digs are spent, twice at most: it waited 11
             // minutes in the open with 9 blocks (look 220), ObtainSafe
             java.util.Map.entry("shelter_flat_after_hand", 1.0),

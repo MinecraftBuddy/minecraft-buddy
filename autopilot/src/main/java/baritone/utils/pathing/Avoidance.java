@@ -60,6 +60,13 @@ public class Avoidance {
         return xDiff * xDiff + yDiff * yDiff + zDiff * zDiff <= radiusSq ? coefficient : 1.0D;
     }
 
+    // (avoid_crowd_cap) the most a crowd's avoidance multiplies a block's cost by: ten mobs' worth at the coefficient 2
+    static final double CROWD_CAP = 1024;
+
+    static boolean crowdCapOn() {
+        return adris.altoclef.util.helpers.Tuning.get("avoid_crowd_cap", 0) > 0;
+    }
+
     public static List<Avoidance> create(IPlayerContext ctx) {
         if (!Baritone.settings().avoidance.value) {
             return Collections.emptyList();
@@ -79,6 +86,8 @@ public class Avoidance {
                     .filter(entity -> (!(entity instanceof Spider)) || ctx.player().getLightLevelDependentMagicValue() < 0.5)
                     .filter(entity -> !(entity instanceof ZombifiedPiglin) || ((ZombifiedPiglin) entity).getLastHurtByMob() != null)
                     .filter(entity -> !(entity instanceof Enderman) || ((Enderman) entity).isCreepy())
+                    // (Tuning avoid_crowd_cap, a fix of 22 Nov 2026, on) a slime of the smallest size does no harm: not avoided
+                    .filter(entity -> !crowdCapOn() || !(entity instanceof net.minecraft.world.entity.monster.cubemob.Slime slime) || slime.getSize() > 1)
                     .forEach(entity -> res.add(new Avoidance(entity.blockPosition(), mobCoeff, Baritone.settings().mobAvoidanceRadius.value)));
         }
         return res;
@@ -90,7 +99,11 @@ public class Avoidance {
                 for (int z = -radius; z <= radius; z++) {
                     if (x * x + y * y + z * z <= radius * radius) {
                         long hash = BetterBlockPos.longHash(centerX + x, centerY + y, centerZ + z);
-                        map.put(hash, map.get(hash) * coefficient);
+                        // (Tuning avoid_crowd_cap, a fix of 22 Nov 2026, on) the factors of a crowd multiply, so 19 tiny slimes made
+                        // every block round the buddy cost 2^19 times a step, past COST_INF: no search got past its first node
+                        // and the buddy stood 23 minutes in a trial chamber (box 1 heel-203-mc1 r4, look 222). at most CROWD_CAP
+                        double f = map.get(hash) * coefficient;
+                        map.put(hash, crowdCapOn() ? Math.min(f, CROWD_CAP) : f);
                     }
                 }
             }
