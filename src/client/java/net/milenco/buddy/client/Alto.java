@@ -838,7 +838,7 @@ final class Alto {
 	/** A new order: every piece may be asked again (the gold's clock is reset by ObtainRoute.reset). */
 	static void kitReset() { KIT_FAILED.clear(); }
 
-	/** The autopilot's slime_on_way switch (test bal-onderweg, 22 Nov 2026, off): a slime met in M3.1 to M3.3 taken along, Obtain. */
+	/** The autopilot's slime_on_way switch (test bal-onderweg, 22 Nov 2026, off): a slime met at the diamonds or the obsidian (M3.1, M3.2) taken along, Obtain. */
 	static boolean slimeOnWayOn() {
 		return present() && adris.altoclef.util.helpers.Tuning.get("slime_on_way", 0) > 0;
 	}

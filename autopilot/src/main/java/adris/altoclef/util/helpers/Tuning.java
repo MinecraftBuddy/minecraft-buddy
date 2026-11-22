@@ -778,8 +778,9 @@ public final class Tuning {
             // bearing from the spawner, at least half as far out): one rim walked four times in 40 s under two ghasts, then the
             // fall, CollectBlazeRodsTask, RouteRules.beyondDeadEnd (heel-183-mc2 r3)
             java.util.Map.entry("errand_dead_end", 1.0),
-            // (off: test bal-onderweg, the critic's narrowed A of 20 Nov) the buddy's route takes a slime met in M3.1 to M3.3 along
-            // while no slime ball is in the bag, five minutes at most, three in an order (the buddy's Obtain.slimeWayDue)
+            // (off: test bal-onderweg, the critic's narrowed A of 20 Nov) the buddy's route takes a slime met at the diamonds or the
+            // obsidian (M3.1, M3.2) along while no slime ball is in the bag, five minutes at most, three in an order (the buddy's
+            // ObtainRoute.slimeWayDue; the gold gives way to one already)
             java.util.Map.entry("slime_on_way", 0.0),
             // (off: test slijmpost, the critic's B) the slime hunt first stands at a post 28 across from the nearest slime seen below
             // y 40 outside a swamp earlier in the run, within 128, at its height, 15 min at most, then digs as before, SlimePost

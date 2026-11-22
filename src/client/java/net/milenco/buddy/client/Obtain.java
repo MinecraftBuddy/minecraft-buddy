@@ -554,10 +554,11 @@ final class Obtain {
 			exec = new ObtainSafe.Shelter(wound);
 			Exchange.emit("obtain", "action", "step", "step", wound ? "shelter to heal" : "shelter for the night", "way", "shelter", "armour", p.getArmorValue(), "hp", p.getHealth());
 		}
-		// (Tuning slime_on_way, off: test bal-onderweg, 22 Nov 2026) a slime met while the deep phases (M3.1 to M3.3) mine for
-		// something else, and no slime ball in the bag: the piece under way stops (asked again, no try spent) and the slime is
-		// taken along, five minutes at most, ten minutes between two and three in an order. 35 of the 49 runs with no ball after
-		// the slime phase's one search had met a slime below y 40 earlier in the run; the route took one only between pieces
+		// (Tuning slime_on_way, off: test bal-onderweg, 22 Nov 2026) a slime met while the diamonds or the obsidian (M3.1, M3.2)
+		// are mined, and no slime ball in the bag: the piece under way stops (asked again, no try spent) and the slime is taken
+		// along, five minutes at most, ten minutes between two and three in an order. 35 of the 49 runs with no ball after the
+		// slime phase's one search had met a slime below y 40 earlier in the run; only the gold (M3.3) gave way to one, every
+		// 30 s through kitGivesWay and the route's piece, and that stays as it is
 		if (exec instanceof Alto.Run run && !run.slimeRun() && !run.food() && !run.home() && slimeWayWanted(p, now)) {
 			exec.stop();
 			slimeWays++;
@@ -840,6 +841,18 @@ final class Obtain {
 				exec.stop();
 				exec = null;
 				step = null;
+				return true;
+			}
+			// (food_boat, a fix of 22 Nov 2026) a food run that keeps turning back from the sea gives way to the boat: the boat's
+			// check came only after the food step, and a food run under way was ticked here and returned, so the boat of attempt
+			// 97 never came (box 1 t3 heel-191-mc1 r4: one island circled for 46 game minutes, the sea turned back from 11 times,
+			// the food bar at 5 with nothing in the bag)
+			if (b.food() && now - boatTriedAt > 600_000 && Alto.wantsBoat(p)) {
+				exec.stop();
+				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:boat", 1, null, 0, List.of(), "a boat by Soprano");
+				stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
+				exec = Alto.boat();
+				Exchange.emit("obtain", "action", "step", "step", "a boat by Soprano, for the water ahead: the food run turned back from the sea", "way", "soprano:boat");
 				return true;
 			}
 			// a piece of the kit gives way to food when it is hurt or hungry with nothing to eat: at 9 hp it went on for the

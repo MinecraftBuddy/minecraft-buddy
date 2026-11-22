@@ -271,9 +271,9 @@ final class ObtainRoute {
 	/** (slime_on_way, off) at most this many slimes taken along on the way in an order (Obtain). */
 	static final int SLIME_WAYS = 3;
 
-	/** (slime_on_way) a slime met may cut in: a deep phase (M3.1 to M3.3), its time come, fewer than SLIME_WAYS so far, no ball, no menu open. */
+	/** (slime_on_way) a slime met may cut in: the diamonds or the obsidian (M3.1, M3.2; the gold has its own piece), its time come, fewer than SLIME_WAYS so far, no ball, no menu open. */
 	static boolean slimeWayDue(int phase, long now, long next, int ways, int balls, boolean menu) {
-		return phase >= M3_1 && phase <= M3_3 && now >= next && ways < SLIME_WAYS && balls < 1 && !menu;
+		return (phase == M3_1 || phase == M3_2) && now >= next && ways < SLIME_WAYS && balls < 1 && !menu;
 	}
 
 	/** Out of the overworld: the route is behind the buddy, the rest of the order is the old kit's. */
