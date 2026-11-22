@@ -804,6 +804,10 @@ public final class Tuning {
             // for the place ("standing in liquid") shut the bed out for the night and the buddy waited 11 minutes in the open
             // (look 220), NightSleepHook.countsAgainstTheBed
             java.util.Map.entry("bed_failed_slept", 1.0),
+            // the portal's climb to the surface for the frame is given up after 2 game minutes with no gain in height, the frame
+            // then goes in the rock where the buddy is: one climb was seen through for 45 minutes in a flooded pocket (look 225),
+            // DefaultGoToDimensionTask.climbStuck
+            java.util.Map.entry("portal_climb_stuck", 1.0),
             // a break that still goes on holds off the path's "not past movement N" timeout too, not only the movement's own, and
             // in water it may run 24 times the estimate: the high-water check cancelled a break the other check let run, 48
             // times in 45 minutes in a flooded pit, PathExecutor.digGrace (look 214, heel-187 r2)

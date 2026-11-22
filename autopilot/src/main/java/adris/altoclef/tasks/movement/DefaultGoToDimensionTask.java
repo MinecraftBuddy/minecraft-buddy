@@ -179,11 +179,24 @@ public class DefaultGoToDimensionTask extends Task {
         }
         if (!begun && water < SEA_DEPTH) {
             // the climb picked is seen through; on top, the ground there decides whether there is more to climb
-            if (_upForFrame != null && !_upForFrame.isFinished(mod)) {
-                setDebugState("Up to the surface at y " + _upForFrameY + " for the portal");
-                return _upForFrame;
-            }
             long now = mod.getWorld().getGameTime();
+            if (_upForFrame != null && !_upForFrame.isFinished(mod)) {
+                if (at.getY() > _climbBestY) {
+                    _climbBestY = at.getY();
+                    _climbRoseTick = now;
+                }
+                if (climbStuck(adris.altoclef.util.helpers.Tuning.get("portal_climb_stuck", 0) > 0, now - _climbRoseTick)) {
+                    adris.altoclef.Debug.logInternal("portal: the climb to y " + _upForFrameY + " got no higher than y " + _climbBestY + " in "
+                            + CLIMB_STUCK_TICKS / 1200 + " game minutes: the frame goes in the rock here, no climb within " + CLIMB_HOLD_RANGE
+                            + " blocks for " + CLIMB_HOLD_TICKS / 1200 + " game minutes (portal_climb_stuck)");
+                    _climbStuckAt = at;
+                    _climbStuckTick = now;
+                    _upForFrame = null;
+                } else {
+                    setDebugState("Up to the surface at y " + _upForFrameY + " for the portal");
+                    return _upForFrame;
+                }
+            }
             boolean holdOn = adris.altoclef.util.helpers.Tuning.get("portal_climb_hold", 0) > 0;
             if (holdOn && _upForFrame != null) {
                 _climbDoneAt = at;
@@ -203,10 +216,14 @@ public class DefaultGoToDimensionTask extends Task {
             // in 46 minutes (heel-74-mc3, look 162)
             boolean fetching = adris.altoclef.util.helpers.Tuning.get("portal_fetch_no_climb", 0) > 0
                     && _cachedNetherObsidianConstructionTask.fetchingObsidian(mod);
-            if (at.getY() < top - 1 && !held && !fetching) {
+            boolean stuckHeld = _climbStuckAt != null && now >= _climbStuckTick && now - _climbStuckTick <= CLIMB_HOLD_TICKS
+                    && Math.abs(at.getX() - _climbStuckAt.getX()) <= CLIMB_HOLD_RANGE && Math.abs(at.getZ() - _climbStuckAt.getZ()) <= CLIMB_HOLD_RANGE;
+            if (at.getY() < top - 1 && !held && !fetching && !stuckHeld) {
                 _climbs.addLast(now);
                 _upForFrame = new GetToYTask(top);
                 _upForFrameY = top;
+                _climbBestY = at.getY();
+                _climbRoseTick = now;
                 setDebugState("Up to the surface at y " + top + " for the portal");
                 return _upForFrame;
             }
@@ -227,6 +244,20 @@ public class DefaultGoToDimensionTask extends Task {
     // CLIMB_HOLD_DEPTH, and the climb took the buddy back up about 45 times in 7.5 minutes till a creeper's run pushed it out
     // (heel-130 r2, look 191)
     static final int CLIMB_LOOP = 3;
+
+    // (Tuning portal_climb_stuck, a fix of 22 Nov 2026, on) a climb for the frame that gets no higher in CLIMB_STUCK_TICKS is
+    // given up: the frame goes in the rock where the buddy is, and no climb starts within CLIMB_HOLD_RANGE for CLIMB_HOLD_TICKS.
+    // the climb had no end of its own: in a flooded pocket every way up was cancelled at one stone and the one climb was seen
+    // through for 45 minutes till the run stalled (look 225, heel-199-mc1 r3)
+    static final long CLIMB_STUCK_TICKS = 2400;
+    private int _climbBestY;
+    private long _climbRoseTick;
+    private BlockPos _climbStuckAt;
+    private long _climbStuckTick;
+
+    static boolean climbStuck(boolean on, long sinceRose) {
+        return on && sinceRose > CLIMB_STUCK_TICKS;
+    }
     private final java.util.ArrayDeque<Long> _climbs = new java.util.ArrayDeque<>();
 
     private boolean climbLoop(long now) {
