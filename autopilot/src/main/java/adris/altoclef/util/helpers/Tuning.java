@@ -829,6 +829,10 @@ public final class Tuning {
             // it before any search, and the pick takes it before a nearer one (look 234: a new spawner across the lava sea, the
             // bridges 30 blocks short, a stall), SpawnerKeepRules
             java.util.Map.entry("spawner_keep", 1.0),
+            // every walk to the blaze camp, the fire-proof one too, that comes no closer for 90 s while still beyond 8 blocks drops
+            // its spawner for the run and the search takes over: 20 minutes on a ridge's tip across a lava-sea gap (look 235),
+            // CampStallRules
+            java.util.Map.entry("camp_stall", 1.0),
             // (read by the buddy, Alto.routeHome) back in the overworld from the route's nether, a food run begun under the ground
             // goes up to the surface first: in a dead-end tunnel by the portal 716 searches got no further than 0 blocks (look 232)
             java.util.Map.entry("food_home_surface", 1.0),
