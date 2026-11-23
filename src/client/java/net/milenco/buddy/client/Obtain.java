@@ -931,7 +931,10 @@ final class Obtain {
 			// (and for gold the same: the golden helmet worn through at nine rods of ten, the trip home for gold left the blaze
 			// fight's corner under fire and the buddy burned on the way with all ten in the bag, the blazeroom drill, 4 Nov 2026;
 			// the last one first with or without gold)
-			boolean lastOne = count >= 4 && count - ObtainSteps.count(p, item) <= 1 && Alto.foodScore(false) >= 12;
+			// (and never with the whole order in the bag: the route's exit is the way home then, with its own portal, the frames it
+			// passed over and its stall rules; with nine rods of nine and 11 points the home run took over from the exit and walked
+			// to a frame the exit had passed over, 10 minutes and 159 searches "no path" till the stall, box 3 heel-232-mc3 r3)
+			boolean lastOne = lastOneFirst(count, ObtainSteps.count(p, item), Alto.foodScore(false));
 			if (!lastOne && now - homeTriedAt > 180_000 && Alto.wantsHome(p) && homeIsSafe(p)) {
 				if (exec != null) exec.stop();
 				step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:home", 1, null, 0, List.of(), "home for food by Soprano");
@@ -1124,6 +1127,14 @@ final class Obtain {
 
 	private static boolean hurtAndNoFood(LocalPlayer p) {
 		return Alto.foodScore() < 12 && (p.getHealth() < 14 || p.getFoodData().getFoodLevel() < 14);
+	}
+
+	/**
+	 * Whether the order's last one comes before a home run for food or gold: an order of 4 or more one short with 12 food points or
+	 * more in the bag, or with the whole order in the bag at any food (the way out is the way home then).
+	 */
+	static boolean lastOneFirst(int count, int have, int foodScore) {
+		return count >= 4 && count - have <= 1 && (have >= count || foodScore >= 12);
 	}
 
 	/** Whether the home run for food may begin here: nothing in sight is on the buddy and nothing burns, or the bag is all but empty. */
