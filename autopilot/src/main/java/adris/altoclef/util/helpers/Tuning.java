@@ -1075,6 +1075,10 @@ public final class Tuning {
             // a fight's bail with a witch that hit lately takes the cover where it holds, and a witch's splash ends a run into
             // it as an arrow does, CombatCommit (19 Nov 2026)
             java.util.Map.entry("witch_cover_bail", 1.0),
+            // skel_cover_bail: a fight's bail for low hp or arrows with a skeleton that shot us lately takes the cover where it
+            // holds (no melee mob in contact unless shut in), as idle() does; off: only its note ("would cover"), CombatCommit
+            // (23 Nov 2026, off: the first fight rule after steering 206, judged in a situation drill)
+            java.util.Map.entry("skel_cover_bail", 0.0),
             // the server's time packet never sets the client's game time back; the count holds still instead: a step back of a
             // few ticks began every "since" timer again, 20000 new poke mine runs in a day, ClockStep (19 Nov 2026)
             java.util.Map.entry("clock_no_step_back", 1.0),

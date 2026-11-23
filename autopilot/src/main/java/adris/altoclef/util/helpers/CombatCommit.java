@@ -1252,6 +1252,29 @@ public final class CombatCommit {
         return Tuning.get("witch_cover_bail", 0) > 0;
     }
 
+    // (Tuning skel_cover_bail, off: E1123-2105.3) test heel, overworld since 19 Nov: a fight's bail at low hp with a skeleton
+    // about ran 24 blocks with the shield down and died within 40 s in 49 of 140 runs (35%); the same run from idle(), where
+    // the cover is asked first, became the cover in 551 and died in 12%. fight() asked the cover only for a witch or a mount.
+    // narrowed by the critic (23 Nov): only a bail for low hp or arrows, only with a skeleton kind that shot us lately and
+    // still has a line, and never a fresh dig with a melee mob in contact (one can drop into the open hole before its top is
+    // shut; mobs do not push each other) unless the buddy stands shut in already. a crowd's run stays a run (5% died)
+    static boolean skelCoverBailOn() {
+        return Tuning.get("skel_cover_bail", 0) > 0;
+    }
+
+    // the skeleton kind behind a LOW_HP or SHOT bail where the cover holds and takes the buddy, nearest first, or null
+    private Foe skelBailShooter(Tick t, Why bail) {
+        if (skel == null || (bail != Why.LOW_HP && bail != Why.SHOT)) return null;
+        Foe best = null;
+        for (Foe foe : t.foes()) {
+            if (foe.melee() && foe.distance() <= CONTACT && !skel.shut()) return null;
+            if (!foe.shooting() || !skel.coverKind(foe.id())) continue;
+            if (best == null || foe.distance() < best.distance()) best = foe;
+        }
+        if (best == null || !coverInstead(t, bail, LOW_HP_RANGE)) return null;
+        return best;
+    }
+
     // (witch_cover_bail) the witch the cover acts on that hit the buddy within WITCH_BAIL_TICKS, nearest first, or null
     static final long WITCH_BAIL_TICKS = 100;
 
@@ -3073,6 +3096,16 @@ public final class CombatCommit {
                 if (witch != null && witchCoverInstead(t, witch)) {
                     skelNote(t, "witch_cover_bail: witch #" + witch.id() + " hit us, the cover in place of the fight's run [" + bail + "]");
                     return end(t, Event.FIGHT_TO_COVER);
+                }
+                // (Tuning skel_cover_bail, off) a skeleton's arrows behind the bail: into the cover where it holds, as idle()
+                // does before the same run. with the key off only its note, so the would-be covers can be counted in A
+                Foe shooter = skelBailShooter(t, bail);
+                if (shooter != null) {
+                    if (skelCoverBailOn()) {
+                        skelNote(t, "skel_cover_bail: skeleton #" + shooter.id() + " shot us, the cover in place of the fight's run [" + bail + "]");
+                        return end(t, Event.FIGHT_TO_COVER);
+                    }
+                    skelNote(t, "skel_cover_bail would cover: skeleton #" + shooter.id() + " shot us [" + bail + "]");
                 }
                 return startRun(t, bail, Event.FIGHT_TO_RUN);
             }
