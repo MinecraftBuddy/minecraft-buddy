@@ -82,6 +82,20 @@ public class SkelCoverExitNearTest {
         assertFalse(off.on());
     }
 
+    // at most NEAR_HOLD_TICKS past the due exit: a skeleton behind rock must not hold the box for the stall's 5 minutes
+    @Test
+    public void theHoldIsCapped() {
+        SkelCover.Hold h = held();
+        long due = 10 + SkelCover.LINE_GONE_TICKS;
+        h.step(due, false, true, 20, LINE, 0, Double.POSITIVE_INFINITY, 4, false, null, true, false);
+        assertTrue(h.on());
+        assertEquals("skeleton cover: hp 20.0, but a skeleton 4.0 off: the cover held up to 40 s more (cover_exit_near)", h.takeNote());
+        h.step(due + SkelCover.NEAR_HOLD_TICKS - 1, false, true, 20, LINE, 0, Double.POSITIVE_INFINITY, 4, false, null, true, false);
+        assertTrue(h.on());
+        h.step(due + SkelCover.NEAR_HOLD_TICKS, false, true, 20, LINE, 0, Double.POSITIVE_INFINITY, 4, false, null, true, false);
+        assertFalse(h.on());
+    }
+
     @Test
     public void withTheKeyOffTheHpLineLetsGoBesideIt() throws Exception {
         set(false);

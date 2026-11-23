@@ -135,6 +135,8 @@ public final class SkelCover {
     public static final long LINE_GONE_TICKS = 100;
     // (skel_cover_hold) the stall stays this much longer at most while a skeleton is about (4 minutes)
     public static final long STALL_CAP_TICKS = 4800;
+    // (cover_exit_near) how long a due hp exit waits on a skeleton within RANGE at most
+    public static final long NEAR_HOLD_TICKS = 800;
     // (skel_cover_wet_fail) off the ground this long in the cover task (1 s): in water, the cover cannot be had
     public static final long OFF_GROUND_TICKS = 20;
     // (skel_cover_over_runs) a creeper within this is the run's, never the hole's
@@ -290,6 +292,9 @@ public final class SkelCover {
         private long gainAt;
         private float lastHp;
         private long farSince = -1;
+        // (cover_exit_near) since when an hp exit was due with a skeleton within RANGE, and whether that was said
+        private long nearSince = -1;
+        private boolean nearSaid;
         private long lineAt;
         private boolean stallSaid;
         private boolean holdRules;
@@ -426,6 +431,8 @@ public final class SkelCover {
                 gainAt = now;
                 lastHp = hp;
                 farSince = -1;
+                nearSince = -1;
+                nearSaid = false;
                 nightSaid = false;
                 surfaceTaken = surfaceNow;
                 dawnSaid = false;
@@ -464,16 +471,30 @@ public final class SkelCover {
             if (mountOn && (mountNearest <= RANGE || now < mountAt)) mountAt = now;
             witchClear &= !mountOn || now - mountAt >= LINE_GONE_TICKS;
             if (holdRules) {
-                // (cover_exit_near) full hp too: the cave drill's box was left 2 s after it shut, at 20 hp with three skeletons
-                // and a zombie 2 to 7 blocks off (full saturation healed it in 2.5 s), and the buddy died on their rim
-                if (hp >= FULL_HP && witchClear && !(exitNearOn() && nearest <= RANGE)) {
+                // (Tuning cover_exit_near, off) neither hp exit while a skeleton kind stands within RANGE (its follow range) by
+                // where it stands, as the stall's exit asks, for at most NEAR_HOLD_TICKS past the moment the hp exit was due:
+                // two down with the top shut there is never a line, so the hp line let the buddy out at 19 hp beside two
+                // skeletons 1.4 to 4 blocks off (heel-248-mc3 r2), and the cave drill's box was left 2 s after it shut, at 20 hp
+                // with three skeletons and a zombie 2 to 7 blocks off; both died on the rim. the cap keeps a skeleton behind
+                // rock from holding the box for the stall's 5 minutes (the critic, 23 Nov 2026)
+                boolean hpDue = witchClear && (hp >= FULL_HP || (hp >= hpLine && lineGone));
+                boolean nearHold = false;
+                if (hpDue && exitNearOn() && nearest <= RANGE) {
+                    if (nearSince < 0 || now < nearSince) nearSince = now;
+                    nearHold = now - nearSince < NEAR_HOLD_TICKS;
+                    if (nearHold && !nearSaid) {
+                        nearSaid = true;
+                        note = String.format(Locale.ROOT, "%s: hp %.1f, but a skeleton %.1f off: the cover held up to %d s more (cover_exit_near)",
+                                name(), hp, nearest, NEAR_HOLD_TICKS / 20);
+                    }
+                } else if (!hpDue) {
+                    nearSince = -1;
+                }
+                if (hp >= FULL_HP && witchClear && !nearHold) {
                     away(now, String.format(Locale.ROOT, "hp %.1f", hp) + witchSaid(), 0, hp, failed);
                     return;
                 }
-                // (Tuning cover_exit_near, off) and no skeleton within RANGE by where it stands, as the stall's exit asks: two
-                // down with the top shut there is never a line, so the hp line let the buddy out at 19 hp beside two skeletons
-                // 1.4 to 4 blocks off, a fight at once and a run at 11 hp into arrows (heel-248-mc3 r2, 23 Nov 2026)
-                if (hp >= hpLine && lineGone && witchClear && !(exitNearOn() && nearest <= RANGE)) {
+                if (hp >= hpLine && lineGone && witchClear && !nearHold) {
                     away(now, String.format(Locale.ROOT, "hp %.1f, no line for %d s", hp, LINE_GONE_TICKS / 20) + witchSaid(), 0, hp, failed);
                     return;
                 }

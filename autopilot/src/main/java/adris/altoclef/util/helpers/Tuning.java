@@ -1082,9 +1082,6 @@ public final class Tuning {
             // cover_exit_near: the skeleton cover's exit at the hp line ("no line for 5 s") waits until no skeleton stands within
             // its RANGE by position too, as the stall's exit does: shut in there is never a line, SkelCover (23 Nov 2026, off)
             java.util.Map.entry("cover_exit_near", 0.0),
-            // cover_melee_fight: the dug-in cover does not hold while a plain melee mob in contact hit within 2 s (unless shut in
-            // already): that mob is fought first, CombatCommit.coverHolds (23 Nov 2026, off)
-            java.util.Map.entry("cover_melee_fight", 0.0),
             // the server's time packet never sets the client's game time back; the count holds still instead: a step back of a
             // few ticks began every "since" timer again, 20000 new poke mine runs in a day, ClockStep (19 Nov 2026)
             java.util.Map.entry("clock_no_step_back", 1.0),
