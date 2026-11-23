@@ -10,6 +10,7 @@
 		"ConnectFailMixin",
 		"DeathScreenAccessor",
 		"DisconnectedScreenAccessor",
+		"ChatSessionAccessor",
 		"OpenScreenMixin",
 		"SendPacketMixin",
 		"ResourcePackMixin",

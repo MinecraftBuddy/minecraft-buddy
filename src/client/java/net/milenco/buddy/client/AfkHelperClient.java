@@ -41,6 +41,9 @@ public class AfkHelperClient implements ClientModInitializer {
 	private long ignoreLookUntil = 0;
 	private boolean afkCrouching = false;
 	private static long combatUntil = 0;          // until when the server considers you 'in combat'
+
+	/** The server considers the buddy in combat: leaving now would be combat logging. */
+	static boolean inCombat() { return System.currentTimeMillis() < combatUntil; }
 	private static long combatTagMs = 25_000;     // how long the tag lasts after a hit: the server's seconds plus a margin
 	private static boolean combatReported = false;
 	private static boolean reconnectPlanned = false;
@@ -595,6 +598,7 @@ public class AfkHelperClient implements ClientModInitializer {
 		}
 		inWorld = true;
 		outTicks = 0;
+		ChatKey.tick(mc, p);
 		if (!AfkConfig.get().modEnabled) { Jobs.stop("mod off"); return; }
 		Modules.tick();
 
@@ -1029,7 +1033,10 @@ public class AfkHelperClient implements ClientModInitializer {
 	 * until it times out (the body stays visible, logging in again fails). ClientLevel.disconnect() does close it.
 	 * And it has to happen outside the tick: from another thread Minecraft.execute queues it.
 	 */
-	public static void logOut(String why) {
+	public static void logOut(String why) { logOut(why, false); }
+
+	/** The same, and with quit the game ends after it: the container starts it again, with a fresh login. */
+	static void logOut(String why, boolean quit) {
 		new Thread(() -> mc().execute(() -> {
 			Minecraft m = mc();
 			try {
@@ -1040,6 +1047,7 @@ public class AfkHelperClient implements ClientModInitializer {
 				m.disconnectWithProgressScreen();
 			}
 			Exchange.emit("connection", "action", "logged out", "reason", why);
+			if (quit) m.stop();
 		}), "buddy-logout").start();
 	}
 

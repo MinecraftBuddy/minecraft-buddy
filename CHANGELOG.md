@@ -3,6 +3,14 @@
 What is new and what changed in each version. Each section is also the text of that version's
 [release](https://github.com/MinecraftBuddy/minecraft-buddy/releases).
 
+## 0.5.29
+
+- Chat keeps working in a game that runs for days. After two days the server refused everything the buddy said ("Chat
+  disabled due to expired profile public key"), and joining again did not help. The game now starts anew by itself
+  before then, at a quiet moment: about a minute off the server, once every two days.
+- Telegram: what the server answers to a line you typed, such as a refusal or a command's reply, always comes in, also
+  with server lines off.
+
 ## 0.5.28
 
 - The buddy joins again after a server restart, also when the server's machine cannot be reached for a while. Before,

@@ -37,7 +37,8 @@ Every buddy needs a separate bot: Telegram lets one program at a time read a bot
 ## What comes in
 
 Seven kinds, each on or off, in Settings, Telegram or with `!show` in the chat (`!show` lists them, `!show joins off`,
-`!show all on`). A change counts at once.
+`!show all on`). A change counts at once. What the server answers right after a line typed in the chat, such as a
+command's reply or a refusal, always comes in, also with `server` off.
 
 | Kind | What |
 |---|---|

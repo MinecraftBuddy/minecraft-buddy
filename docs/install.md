@@ -32,8 +32,9 @@ the **owner password**. The panel then opens **Getting started**, four steps:
 2. Log in the buddy's Minecraft account: the panel shows a Microsoft link; sign in there with that account.
 3. Type the address of the server to play on. A [server profile](profiles.md) is optional.
 4. Join. The buddy stays on: after a crash, a restart of the container or a reboot the game starts again, and after a
-   kick or a lost connection the buddy joins again after about half a minute. Leave, in the panel's header, keeps the
-   buddy off the server until Join.
+   kick or a lost connection the buddy joins again after about half a minute. Once every two days the game also starts
+   anew by itself, at a quiet moment, and is off the server for about a minute: without a fresh login the server would
+   refuse the buddy's chat. Leave, in the panel's header, keeps the buddy off the server until Join.
 
 ## Another buddy
 

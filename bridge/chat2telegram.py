@@ -1693,6 +1693,9 @@ def buddy_online():
 
 BUDDY_OUT = queue.Queue()        # (time asked, line) for the buddy to say, one a second
 MAX_LINES = 5                    # the most lines one Telegram message may make the buddy say
+FROM_WINDOW = {}                 # line -> when the buddy was told to say it: its chat_sent is then one of the window's
+ANSWER = [0.0]                   # until when (the game's clock, in seconds) a server line answers a line from the window
+ANSWER_S = 2.0
 
 
 def buddy_writer():
@@ -1700,6 +1703,10 @@ def buddy_writer():
         at, line = BUDDY_OUT.get()
         if time.time() - at > 60:
             continue                 # a line that waited a minute is dropped, not said late
+        now = time.time()
+        for old in [k for k, v in FROM_WINDOW.items() if now - v > 120]:
+            FROM_WINDOW.pop(old, None)
+        FROM_WINDOW[line] = now
         order({"cmd": "chat", "text": line})
         time.sleep(1)
 
@@ -1726,6 +1733,12 @@ def buddy_line(ev):
     """What of the buddy's events comes into the window: every line of the game's chat (the bar above the hotbar is no chat),
     the connection, and what is lacking to help."""
     t = ev.get("type")
+    if t == "chat_sent":
+        # a line from the window, said: what the server says right after it is its answer (a refusal, a command's
+        # reply), which comes in also while server lines are off
+        if FROM_WINDOW.pop(str(ev.get("text") or ""), None) is not None:
+            ANSWER[0] = (ev.get("t") or 0) / 1000 + ANSWER_S
+        return None
     if t == "chat":
         text = str(ev.get("text") or "").strip()
         if not text:
@@ -1735,6 +1748,8 @@ def buddy_line(ev):
         kind = ev.get("is") or ("chat" if ev.get("kind") == "chat" else "server")
         if kind in ("join", "leave"):
             return None
+        if kind == "server" and (ev.get("t") or 0) / 1000 <= ANSWER[0]:
+            return escape(text)
         if not show({"pm": "pm", "chat": "chat", "death": "deaths", "advancement": "advancements"}.get(kind, "server")):
             return None
         who, said = ev.get("player"), ev.get("said")
