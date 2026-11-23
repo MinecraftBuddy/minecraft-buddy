@@ -34,4 +34,11 @@ public class SpawnerKeepRulesTest {
         assertTrue(SpawnerKeepRules.stuck(1000, 1001 + SpawnerKeepRules.STUCK_TICKS));
         assertFalse("a clock that went back", SpawnerKeepRules.stuck(1000, 500));
     }
+
+    @Test
+    public void theFirstSpawnerFoundIsKeptWhenNoneIs() {
+        assertTrue(SpawnerKeepRules.keepFound(true, false));
+        assertFalse("one already kept (a rod came from it, or found first)", SpawnerKeepRules.keepFound(true, true));
+        assertFalse("the switch off", SpawnerKeepRules.keepFound(false, false));
+    }
 }

@@ -3704,6 +3704,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _foundBlazeSpawner = found;
             // (the drills time the way to the fortress by this line)
             Debug.logInternal("blaze spawner found at " + found.toShortString());
+            // (Tuning spawner_keep_found) the first one found kept for the run too, so a rods task made after a trip home walks back
+            // to it before any search
+            if (adris.altoclef.util.helpers.SpawnerKeepRules.keepFound(adris.altoclef.util.helpers.SpawnerKeepRules.foundOn(), _rodSpawner != null)) {
+                _rodSpawner = found.immutable();
+                Debug.logInternal("blaze spawner: the one found at " + found.toShortString() + " kept for the run (spawner_keep_found)");
+            }
         });
     }
 

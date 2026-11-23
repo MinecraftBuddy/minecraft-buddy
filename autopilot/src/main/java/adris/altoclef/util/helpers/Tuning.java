@@ -833,6 +833,10 @@ public final class Tuning {
             // its spawner for the run and the search takes over: 20 minutes on a ridge's tip across a lava-sea gap (look 235),
             // CampStallRules
             java.util.Map.entry("camp_stall", 1.0),
+            // the first blaze spawner found is kept for the run too, not only one a rod came from: after a trip home phase 3 began
+            // again with no spawner known and searched away from the one found before (4 of 9 phase-3 stalls on 22 Nov),
+            // SpawnerKeepRules.keepFound
+            java.util.Map.entry("spawner_keep_found", 1.0),
             // (read by the buddy, Alto.routeHome) back in the overworld from the route's nether, a food run begun under the ground
             // goes up to the surface first: in a dead-end tunnel by the portal 716 searches got no further than 0 blocks (look 232)
             java.util.Map.entry("food_home_surface", 1.0),

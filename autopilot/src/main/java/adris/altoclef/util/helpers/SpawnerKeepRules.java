@@ -24,6 +24,19 @@ public final class SpawnerKeepRules {
         return Tuning.get("spawner_keep", 0) > 0;
     }
 
+    // (Tuning spawner_keep_found, a fix of 23 Nov 2026, on) the first spawner found is kept too, before any rod came from it:
+    // after a trip home for food the route's phase 3 began again with "no spawner yet" and searched 11 to 20 minutes away from
+    // a spawner found before the trip, until the stall (4 of 9 phase-3 stalls on 22 Nov: box 1 heel-209-mc1 r1, box 2
+    // heel-193-mc2 r4 and heel-215-mc2 r4, cascade heel-180 r1). A rod from another spawner still takes its place
+    public static boolean foundOn() {
+        return on() && Tuning.get("spawner_keep_found", 0) > 0;
+    }
+
+    // whether a spawner just found is kept for the run: none is kept yet
+    public static boolean keepFound(boolean on, boolean kept) {
+        return on && !kept;
+    }
+
     // whether a rod that came in now marks the spawner as the one the rods come from
     public static boolean rodFrom(boolean on, int rodsBefore, int rodsNow, boolean spawnerKnown, double fromSpawner) {
         return on && rodsBefore >= 0 && rodsNow > rodsBefore && spawnerKnown && fromSpawner <= RODS_FROM;
