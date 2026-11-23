@@ -336,6 +336,31 @@ public class NetherRestockTest {
         assertEquals("restock: dig end, 10 -> 10 blocks in 3 s, no pick", noPick.endLine(10, 3));
     }
 
+    // (exit_restock) the exit's short top up: 1 cobblestone starts it, it ends at 32, not the sweep's 64; a bag of 16 walks on;
+    // two dry digs in a row are counted, the exit's stop after EXIT_RESTOCK_DRY
+    @Test
+    public void theExitsTopUpStartsBelowSixteenAndEndsAtThirtyTwo() {
+        int low = adris.altoclef.util.helpers.RouteRules.EXIT_RESTOCK_LOW, to = adris.altoclef.util.helpers.RouteRules.EXIT_RESTOCK_TO;
+        assertEquals(16, low);
+        assertEquals(32, to);
+        NetherRestock r = new NetherRestock();
+        assertTrue(r.update(1, low, to, true, false, 0));
+        assertTrue(r.update(20, low, to, true, false, 20));
+        assertFalse(r.update(32, low, to, true, false, 40));
+        NetherRestock enough = new NetherRestock();
+        assertFalse(enough.update(16, low, to, true, false, 0));
+        NetherRestock dry = new NetherRestock();
+        assertTrue(dry.update(1, low, to, true, false, 0));
+        assertTrue(dry.update(1, low, to, true, true, 1));
+        assertFalse(dry.update(1, low, to, true, true, 1 + NetherRestock.EXHAUSTED_SECONDS));
+        assertEquals(1, dry.exhaustedEnds());
+        // an empty bag digs again at once after a dry end (the exit's own count stops it)
+        assertTrue(dry.update(1, low, to, true, false, 6));
+        assertTrue(dry.update(1, low, to, true, true, 7));
+        assertFalse(dry.update(1, low, to, true, true, 7 + NetherRestock.EXHAUSTED_SECONDS));
+        assertEquals(2, dry.exhaustedEnds());
+    }
+
     @Test
     public void theFallbackOnlyDigsWhatIsInArmsReach() {
         Vec3 eye = new Vec3(0.5, 65.62, 0.5);

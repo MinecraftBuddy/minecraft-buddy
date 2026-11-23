@@ -983,6 +983,17 @@ public final class RouteRules {
         return Tuning.get("exit_free_stone", 0) > 0;
     }
 
+    // ---- (Tuning exit_restock, a fix of 23 Nov 2026, on) the exit's walk with fewer than EXIT_RESTOCK_LOW blocks it may place
+    // digs netherrack round the buddy first, up to EXIT_RESTOCK_TO (NetherBlockRestock: its band, never by lava, 75 s at most,
+    // then a cool-down): out of a valley or over the lava sea the way to a portal needs a pillar or a bridge. 9 rods and 1
+    // cobblestone, three portals passed over in 20 minutes with 279 searches "no further than 0 blocks" (box 3 heel-232-mc3 r3)
+    public static final int EXIT_RESTOCK_LOW = 16;
+    public static final int EXIT_RESTOCK_TO = 32;
+
+    public static boolean exitRestockOn() {
+        return Tuning.get("exit_restock", 0) > 0;
+    }
+
     // how much of the stone the walk may take: what the bag holds above keep, none when the walk has a block of its own already
     public static int exitStoneFree(boolean on, boolean walkHasBlock, int stone, int keep) {
         if (!on || walkHasBlock) return 0;

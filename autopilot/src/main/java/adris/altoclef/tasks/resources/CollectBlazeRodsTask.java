@@ -2479,6 +2479,17 @@ public class CollectBlazeRodsTask extends ResourceTask {
             if (first) mod.getClientBaritone().getPathingBehavior().cancelEverything();
             return null;
         }
+        // (Tuning exit_restock, a fix of 23 Nov 2026, on) too few blocks for the way to a portal beyond EXIT_RESTOCK_FAR: netherrack
+        // first. the dig is not the exit's time, its ticks go back off the cap and the walk's stall clock never sees them
+        BlockPos target = tracked.orElse(kept);
+        if (first && target != null && me.position().distanceTo(Vec3.atBottomCenterOf(target)) > EXIT_RESTOCK_FAR) {
+            Task dig = exitRestock(mod);
+            if (dig != null) {
+                _exitTicks -= step;
+                setDebugState("Out of the nether: netherrack first, for the way");
+                return dig;
+            }
+        }
         if (tracked.isPresent() && trackedStall) {
             Task t = exitTracked(mod, tracked.get(), step, good);
             if (t != null) return t;
@@ -2496,6 +2507,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
         if (!kept.equals(_exitWalkTo)) {
             _exitWalkTo = kept;
+            exitRestockFresh();
             _exitWalk = new GetToBlockTask(kept, false);
             _exitWay = 0;
             _exitBest = null;
@@ -2584,6 +2596,24 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // and a finished root is dropped without a stop, so none of its levels is popped. 37 cobblestone counted as all spoken for
     private static final long FREE_HOLD_MS = 5000;
 
+    // (Tuning exit_restock) the restock's dig while the bag holds fewer than EXIT_RESTOCK_LOW blocks the walk may place, to
+    // EXIT_RESTOCK_TO; null when off, full enough, cooling down after a dig, with no pickaxe, or after EXIT_RESTOCK_DRY digs in
+    // a row came up dry (an empty bag digs again at once, so a band with no netherrack would swap the dig and the walk every few
+    // seconds); a new walk to a portal gets its own tries (exitRestockFresh)
+    private static final double EXIT_RESTOCK_FAR = 16;
+    private static final int EXIT_RESTOCK_DRY = 2;
+
+    private Task exitRestock(AltoClef mod) {
+        if (!adris.altoclef.util.helpers.RouteRules.exitRestockOn()) return null;
+        if (!_restock.isActive() && _restock.exhaustedEnds() >= EXIT_RESTOCK_DRY) return null;
+        return _restock.tick(mod, adris.altoclef.util.helpers.RouteRules.EXIT_RESTOCK_LOW,
+                adris.altoclef.util.helpers.RouteRules.EXIT_RESTOCK_TO, WorldHelper.getTicks() / 20.0);
+    }
+
+    private void exitRestockFresh() {
+        if (adris.altoclef.util.helpers.RouteRules.exitRestockOn() && !_restock.isActive()) _restock.clearExhaustedEnds();
+    }
+
     private void exitFreeStone(AltoClef mod) {
         if (!adris.altoclef.util.helpers.RouteRules.exitFreeStoneOn()) return;
         int keep = standStoneKeep(mod);
@@ -2611,6 +2641,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 _exitTrackedTo.getX(), _exitTrackedTo.getY(), _exitTrackedTo.getZ())) {
             _exitTrackedTo = portal;
             _exitTrackedNear = null;
+            exitRestockFresh();
             // (the kept walk's counts are its own: it begins anew when it takes over again)
             _exitWalkTo = null;
             _exitEnter = new adris.altoclef.tasks.movement.EnterNetherPortalTask(new adris.altoclef.tasks.movement.IdleTask(), Dimension.OVERWORLD, good);
