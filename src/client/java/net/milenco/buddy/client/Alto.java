@@ -1079,14 +1079,19 @@ final class Alto {
 		// the deaths of the kit were in the caves without armour (zombies, a witch, skeletons). copper is common and an ore
 		// gives two to five; a set is ten points of armour where nothing is none, and the iron takes its place piece by piece
 		// (the kit still asks for iron, ObtainKit's IRON_UP)
+		// (23 Nov 2026) and out of the overworld no armour piece is made, only one in the bag put on: the iron helmet broke
+		// during the trade, the kit asked a copper one, its raw copper sent the order home through a portal it could not
+		// reach, and 20 minutes went to that walk and a portal build until the stall (box 1 heel-233-mc1 r1)
+		boolean madeHere = p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD);
 		for (String slot : new String[] { "chestplate", "leggings", "helmet", "boots" }) {
+			if (!madeHere) break;
 			if (!armour.contains("iron_" + slot) || !worn(p, slot).isEmpty() || ironFor(p, slot)) continue;
 			if (ObtainSteps.count(p, "copper_" + slot) > 0 || skip.test("equip copper_" + slot)) continue;
 			String piece = "copper_" + slot;
 			return new Run("equip " + piece, (6 + 2 * ingots(slot)) * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget(piece, 1))));
 		}
 		for (String piece : new String[] { "iron_chestplate", "iron_leggings", "iron_helmet", "iron_boots" })
-			if (armour.contains(piece) && !skip.test("equip " + piece))
+			if (armour.contains(piece) && !skip.test("equip " + piece) && (madeHere || ObtainSteps.count(p, piece) > 0))
 				return new Run("equip " + piece, pieceMinutes(piece) * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget(piece, 1))));
 		// the golden helmet for an order into the nether, worn in place of the iron one (as much armour, and the piglins
 		// leave the buddy be): five ingots of gold, the time of five of iron
