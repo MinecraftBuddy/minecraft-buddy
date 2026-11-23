@@ -12,7 +12,7 @@ import org.junit.Test;
 
 // Tuning cover_exit_near (off by default): the cover's exit at the hp line ("no line for 5 s") waits until no skeleton stands
 // within RANGE by position too: shut in there is never a line, and the buddy came out at 19 hp beside two skeletons 1.4 to 4
-// blocks off. full hp still lets go, and with the key off the exit is as before
+// blocks off. full hp waits too, and with the key off the exits are as before
 public class SkelCoverExitNearTest {
 
     private static final float LINE = SkelCover.HP_LINE;
@@ -67,11 +67,19 @@ public class SkelCoverExitNearTest {
         assertEquals("skeleton cover: out of cover: hp 18.5, no line for 5 s", h.takeNote());
     }
 
+    // full hp too: the cave drill's box was left at 20 hp beside three skeletons and a zombie
     @Test
-    public void fullHpStillLetsGo() {
+    public void fullHpWaitsTooWhileASkeletonStandsClose() throws Exception {
         SkelCover.Hold h = held();
         h.step(10 + SkelCover.LINE_GONE_TICKS, false, true, 20, LINE, 0, Double.POSITIVE_INFINITY, 4, false, null, true, false);
+        assertTrue(h.on());
+        h.step(30 + SkelCover.LINE_GONE_TICKS, false, true, 20, LINE, 0, Double.POSITIVE_INFINITY, SkelCover.RANGE + 1, false, null, true, false);
         assertFalse(h.on());
+
+        set(false);
+        SkelCover.Hold off = held();
+        off.step(10 + SkelCover.LINE_GONE_TICKS, false, true, 20, LINE, 0, Double.POSITIVE_INFINITY, 4, false, null, true, false);
+        assertFalse(off.on());
     }
 
     @Test

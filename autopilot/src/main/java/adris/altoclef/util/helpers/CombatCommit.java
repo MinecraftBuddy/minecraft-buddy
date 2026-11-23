@@ -1262,6 +1262,13 @@ public final class CombatCommit {
         return Tuning.get("skel_cover_bail", 0) > 0;
     }
 
+    // (cover_melee_fight) how lately a plain melee mob in contact must have hit for the fresh dig to wait on its fight
+    static final long MELEE_FIGHT_TICKS = 40;
+
+    static boolean coverMeleeFightOn() {
+        return Tuning.get("cover_melee_fight", 0) > 0;
+    }
+
     // the skeleton kind behind a LOW_HP or SHOT bail where the cover holds and takes the buddy, nearest first, or null
     private Foe skelBailShooter(Tick t, Why bail) {
         if (skel == null || (bail != Why.LOW_HP && bail != Why.SHOT)) return null;
@@ -1304,6 +1311,11 @@ public final class CombatCommit {
                 continue;
             }
             if (!foe.melee() || foe.kind() != Kind.NORMAL || foe.wither()) return false;
+            // (Tuning cover_melee_fight, off) a fresh dig with a plain melee mob on the buddy does not hold: the cave drill of
+            // 23 Nov dug three down with a zombie biting (5 bites, 11 hp, no swing), the zombie stood in the top cell so the
+            // top never went on, and the skeletons shot down the shaft. that mob is fought first (the paths that asked the cover
+            // fall back to the fight with a weapon, else the run); once it is dead or off for MELEE_FIGHT_TICKS, the cover again
+            if (coverMeleeFightOn() && !skel.shut() && foe.distance() <= CONTACT && foe.sinceHit() <= MELEE_FIGHT_TICKS) return false;
             melee = true;
         }
         return !melee || skel.dig() || skel.shut();

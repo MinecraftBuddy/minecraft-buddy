@@ -464,7 +464,9 @@ public final class SkelCover {
             if (mountOn && (mountNearest <= RANGE || now < mountAt)) mountAt = now;
             witchClear &= !mountOn || now - mountAt >= LINE_GONE_TICKS;
             if (holdRules) {
-                if (hp >= FULL_HP && witchClear) {
+                // (cover_exit_near) full hp too: the cave drill's box was left 2 s after it shut, at 20 hp with three skeletons
+                // and a zombie 2 to 7 blocks off (full saturation healed it in 2.5 s), and the buddy died on their rim
+                if (hp >= FULL_HP && witchClear && !(exitNearOn() && nearest <= RANGE)) {
                     away(now, String.format(Locale.ROOT, "hp %.1f", hp) + witchSaid(), 0, hp, failed);
                     return;
                 }
