@@ -237,6 +237,11 @@ final class ObtainKit {
 		// of the overworld they wait for the way back, in the kit and in the order's own check of the kit: an order in the
 		// nether without torches gave up as having no safe way
 		if ((n.name().equals("torches") || n.name().equals("water bucket")) && h.dim() != Nature.Dim.OVERWORLD) return true;
+		// (23 Nov 2026) the stone blocks are the overworld's too: the nether has no stone, and its building blocks are the
+		// netherrack the fork digs on the way. with 11 cobblestone left by the portal (12 is enough) the kit sent the buddy to
+		// wander for cobblestone at the route's first nether step for 20 minutes, until the stall (cascade heel-233 r4, box 1
+		// heel-209 r4, a third on 20 Nov). in the End they are still asked
+		if ((n.name().equals("blocks") || n.name().equals("more blocks")) && h.dim() == Nature.Dim.NETHER) return true;
 		// the brew's: filled in the overworld only, and only Soprano brews (the buddy's own steps have no way to a water bottle)
 		if ((n.name().equals("water bottles") || n.name().equals("redstone")) && (h.dim() != Nature.Dim.OVERWORLD || !sopranoBrews)) return true;
 		if (!n.name().equals("wood")) return false;
