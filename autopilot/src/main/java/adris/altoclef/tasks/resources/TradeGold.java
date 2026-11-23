@@ -108,6 +108,8 @@ final class TradeGold {
     private static boolean GUARDING;
     private static int GUARD_HOLD;
     private List<BlockPos> _piglins = List.of();
+    // (gold_blaze_yield) the step's yield to a blaze and its end, each said once
+    private boolean _blazeYieldLogged;
     // the search for ore while none is known: rings round where the step began, away from the spawner (FireResTradeRules'
     // points); the point under way, since when, and its walk
     private int _searchK = -1;
@@ -195,8 +197,9 @@ final class TradeGold {
 
     // the dig's step this tick, or null: once there is nothing (more) to dig, the trade then going on with the bag's gold, or
     // for this tick while a blaze is near (the rods' own fight has it; the step goes on after). enough: the trade's target is in
-    // the bag already (a potion); atFortress: by the spawner; spawner: the one known, or null
-    Task tick(AltoClef mod, boolean enough, boolean atFortress, boolean blazeNear, BlockPos spawner) {
+    // the bag already (a potion); atFortress: by the spawner; blazeNear: a blaze within BLAZE_RANGE (no step begins then);
+    // yieldBlaze: the step gives the tick to the rods' fight (FireResTradeRules.goldYields); spawner: the one known, or null
+    Task tick(AltoClef mod, boolean enough, boolean atFortress, boolean blazeNear, boolean yieldBlaze, BlockPos spawner) {
         if (_over || !on()) return null;
         _spawner = spawner;
         // (Tuning gold_fortress_latch, a fix of 22 Nov 2026, on) "at the fortress" is a line at FORTRESS_NEAR from the spawner, and
@@ -246,9 +249,17 @@ final class TradeGold {
         guard(mod);
         // a blaze near: the rods' own fight has the tick, the step goes on after it (an end said now would also find the trade
         // with a blaze near, which never begins then)
-        if (blazeNear && !atFortress) {
+        if (yieldBlaze && !atFortress) {
+            if (!_blazeYieldLogged) {
+                _blazeYieldLogged = true;
+                Debug.logInternal("trade gold: a blaze near, the fight first");
+            }
             _hud = "Digging gold for the piglins: a blaze near, the fight first";
             return null;
+        }
+        if (_blazeYieldLogged) {
+            _blazeYieldLogged = false;
+            Debug.logInternal("trade gold: on after the blaze" + (blazeNear ? " (one still near, out of the fight's reach)" : ""));
         }
         // the end: the target in ingots, the fortress (the walk there went on while no ore was known), or a clock; the last
         // nuggets folded first

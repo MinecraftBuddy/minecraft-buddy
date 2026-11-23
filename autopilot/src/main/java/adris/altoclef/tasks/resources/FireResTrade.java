@@ -116,6 +116,7 @@ public final class FireResTrade {
     private boolean _yieldLogged;
     private boolean _yielding;
     private long _yieldTakenAt = -1;
+    private long _yieldAskedAt = Long.MIN_VALUE;
     private boolean _blazeOnLogged;
     private int _progressLogged;
     private String _hud = "Trading gold with piglins for fire resistance";
@@ -277,6 +278,22 @@ public final class FireResTrade {
         return Tuning.get("route_trade_known", 0) > 0;
     }
 
+    private static boolean goldBlazeYieldOn() {
+        return Tuning.get("gold_blaze_yield", 0) > 0;
+    }
+
+    // (look 28: the yield to a blaze only while the fight would take one, with a margin in blocks and in time,
+    // FireResTradeRules.yields) asked once a tick, by the gold step (gold_blaze_yield) and the trade alike
+    private boolean yieldNow(double blaze, java.util.function.DoublePredicate fight, long now) {
+        if (_yieldAskedAt == now) return _yielding;
+        _yieldAskedAt = now;
+        double line = FireResTradeRules.yieldLine(_yielding);
+        boolean fightTakes = blaze <= line && fight.test(line);
+        if (fightTakes) _yieldTakenAt = now;
+        _yielding = FireResTradeRules.yields(fightTakes, _yieldTakenAt < 0 || now < _yieldTakenAt ? Long.MAX_VALUE : now - _yieldTakenAt);
+        return _yielding;
+    }
+
     private static long stallTicks() {
         return Math.round(Tuning.get("route_trade_stall_s", FireResTradeRules.STALL_S) * 20);
     }
@@ -318,7 +335,13 @@ public final class FireResTrade {
         if (_state == State.WAITING) {
             // (Tuning nether_gold, on by default, steering 200: the gold for the trade is dug here first, out of the
             // piglins' reach, TradeGold; the trade's first look waits for it)
-            Task dig = _gold.tick(mod, enough, atFortress, blazeNear, spawner);
+            // (Tuning gold_blaze_yield, a fix of 23 Nov 2026, on) the gold step yields to a blaze by the trade's rule of look 28,
+            // FireResTradeRules.goldYields: with no margin a blaze at 15 to 16.5 blocks handed the tick back and forth about
+            // once a second between the dig and the rods' walk to their camp, and the fight's run was cut off each time; the
+            // buddy stood burning in a fortress and died (heel-243-mc2 r2, heel-240-mc1 r1, heel-237-mc1 r4, 23 Nov)
+            boolean goldYield = FireResTradeRules.goldYields(goldBlazeYieldOn(), blazeNear,
+                    goldBlazeYieldOn() && yieldNow(blaze, fight, now));
+            Task dig = _gold.tick(mod, enough, atFortress, blazeNear, goldYield, spawner);
             if (dig != null || _gold.running()) {
                 _firstLookAt = -1;
                 _hud = _gold.hud();
@@ -410,12 +433,7 @@ public final class FireResTrade {
             }
             _piglinSeenAt = now;
         }
-        // (look 28: the yield to a blaze only while the fight would take one, with a margin in blocks and in time,
-        // FireResTradeRules.yields)
-        double line = FireResTradeRules.yieldLine(_yielding);
-        boolean fightTakes = blaze <= line && fight.test(line);
-        if (fightTakes) _yieldTakenAt = now;
-        _yielding = FireResTradeRules.yields(fightTakes, _yieldTakenAt < 0 || now < _yieldTakenAt ? Long.MAX_VALUE : now - _yieldTakenAt);
+        yieldNow(blaze, fight, now);
         if (blazeNear && !_yielding && !_blazeOnLogged) {
             _blazeOnLogged = true;
             Debug.logInternal(String.format(Locale.ROOT, "strategy trade: a blaze %.0f blocks off, out of the fight's reach: the trade goes on", blaze));

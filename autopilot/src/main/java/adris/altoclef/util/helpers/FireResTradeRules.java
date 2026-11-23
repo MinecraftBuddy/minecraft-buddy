@@ -223,6 +223,12 @@ public final class FireResTradeRules {
         return fightTakes || sinceTaken < YIELD_HOLD_TICKS;
     }
 
+    // (Tuning gold_blaze_yield, 23 Nov 2026) whether the trade's gold step gives the tick to the rods' fight: by the yield
+    // above when on (yielding, from yields), else, as before, while any blaze is within BLAZE_RANGE (blazeNear)
+    public static boolean goldYields(boolean on, boolean blazeNear, boolean yielding) {
+        return on ? yielding : blazeNear;
+    }
+
     // a piglin in sight to trade with, with a margin: one is taken up within enter, and kept while within keep, so the trade
     // does not flick between the walk and the piglin at the edge
     public static final double ENTER_RANGE = 40;

@@ -213,4 +213,15 @@ public class FireResTradeRulesTest {
         assertFalse(FireResTradeRules.yields(false, 40));
         assertFalse(FireResTradeRules.yields(false, NEVER));
     }
+
+    // gold_blaze_yield (23 Nov 2026): the gold step yields by the trade's rule when on; off, at any blaze within 16 as before
+    @Test
+    public void theGoldStepYieldsByTheTradesRule() {
+        // on: a blaze at 15.4 the fight would not take does not stop the dig; one it takes (or took within 2 s) does
+        assertFalse(FireResTradeRules.goldYields(true, true, false));
+        assertTrue(FireResTradeRules.goldYields(true, false, true));
+        // off: the old line
+        assertTrue(FireResTradeRules.goldYields(false, true, false));
+        assertFalse(FireResTradeRules.goldYields(false, false, true));
+    }
 }

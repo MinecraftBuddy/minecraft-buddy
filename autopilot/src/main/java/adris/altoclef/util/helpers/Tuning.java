@@ -812,6 +812,11 @@ public final class Tuning {
             // most), else the step holds where it is: in each gap the parent walked to the blaze spawner on ways no rule checked,
             // a third of the step's time (look 227), TradeGold.search, TradeGoldRules.recentreDue
             java.util.Map.entry("gold_search_recentre", 1.0),
+            // the nether gold step yields to a blaze by the trade's rule of look 28 (16 blocks in, 24 out, 2 s held, only while
+            // the fight would take one): with no margin a blaze at the 16-block line flipped the tick between the dig and the
+            // rods' camp walk each second and cut the fight's run off; three deaths by blazes in the step on 23 Nov,
+            // FireResTradeRules.goldYields
+            java.util.Map.entry("gold_blaze_yield", 1.0),
             // an ore the nether gold left for a piglin by it is held twice as long each time it is left again (90 s, 3, 6, 12
             // minutes): the same ores by the same piglins were walked to again and again (look 228), TradeGoldRules.piglinHold
             java.util.Map.entry("gold_piglin_hold_grow", 1.0),
