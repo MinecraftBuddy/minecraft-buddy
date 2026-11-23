@@ -363,6 +363,10 @@ public final class SkelCover {
             return Tuning.get("witch_cover_hold_wanted", 0) > 0;
         }
 
+        static boolean exitNearOn() {
+            return Tuning.get("cover_exit_near", 0) > 0;
+        }
+
         public void witchFacts(boolean on, boolean wanted, boolean poisoned, int lines, double lineDist, double nearest) {
             witchOn = on;
             witchWanted = on && wanted;
@@ -464,7 +468,10 @@ public final class SkelCover {
                     away(now, String.format(Locale.ROOT, "hp %.1f", hp) + witchSaid(), 0, hp, failed);
                     return;
                 }
-                if (hp >= hpLine && lineGone && witchClear) {
+                // (Tuning cover_exit_near, off) and no skeleton within RANGE by where it stands, as the stall's exit asks: two
+                // down with the top shut there is never a line, so the hp line let the buddy out at 19 hp beside two skeletons
+                // 1.4 to 4 blocks off, a fight at once and a run at 11 hp into arrows (heel-248-mc3 r2, 23 Nov 2026)
+                if (hp >= hpLine && lineGone && witchClear && !(exitNearOn() && nearest <= RANGE)) {
                     away(now, String.format(Locale.ROOT, "hp %.1f, no line for %d s", hp, LINE_GONE_TICKS / 20) + witchSaid(), 0, hp, failed);
                     return;
                 }
