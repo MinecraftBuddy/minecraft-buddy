@@ -54,6 +54,9 @@ final class RunMemoryFork {
         // (spawner_keep) the blaze spawner the rods came from
         RunMemory.register("rod_spawner", () -> CollectBlazeRodsTask.rodSpawnerKept(), () -> CollectBlazeRodsTask.forgetRodSpawner(),
                 P + "tasks.resources.CollectBlazeRodsTask#_rodSpawner");
+        // (camp_stall) the spawners dropped once for a far walk to their camp
+        RunMemory.register("camp_far_dropped", () -> CollectBlazeRodsTask.campFarDropped(), () -> CollectBlazeRodsTask.forgetCampFarDropped(),
+                P + "tasks.resources.CollectBlazeRodsTask#_campFarDropped");
         RunMemory.register("portal_frame", () -> ConstructNetherPortalObsidianTask.remembered(), () -> ConstructNetherPortalObsidianTask.forgetRun(),
                 P + "tasks.construction.compound.ConstructNetherPortalObsidianTask#_lastOrigin",
                 P + "tasks.construction.compound.ConstructNetherPortalObsidianTask#_lastDimension",

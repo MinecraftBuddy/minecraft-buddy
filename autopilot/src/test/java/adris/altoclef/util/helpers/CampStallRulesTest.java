@@ -28,4 +28,12 @@ public class CampStallRulesTest {
         assertFalse("no distance read yet", CampStallRules.giveUp(true, STALL * 10, null));
         assertFalse("the switch off", CampStallRules.giveUp(false, STALL * 10, 75.0));
     }
+
+    @Test
+    public void aNearStallBansForTheRunAFarOneOnlyTheSecondTime() {
+        assertTrue("look 235: 76 blocks off", CampStallRules.forRun(76, false));
+        assertTrue(CampStallRules.forRun(CampStallRules.RUN_RANGE, false));
+        assertFalse("heel-234 r4: 183 blocks off, the first time", CampStallRules.forRun(183, false));
+        assertTrue("the same spawner dropped so before", CampStallRules.forRun(183, true));
+    }
 }

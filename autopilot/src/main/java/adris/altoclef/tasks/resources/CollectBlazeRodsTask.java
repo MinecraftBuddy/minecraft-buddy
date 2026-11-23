@@ -2693,6 +2693,17 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // own is its top block, and a walk onto it that comes no closer in RouteRules.CAMP_NEAR_S of its own ticks walks to within
     // CAMP_RADIUS of it instead, what the camp's own check asks: the top was out of reach from a perch over open air, 45 failed
     // searches in six minutes and the potion spent with no rod, look 51; 203 "No path found" to the top in tsearch B:19)
+    // (camp_stall) the spawners a far walk to their camp was dropped from once, this run (RunMemory camp_far_dropped)
+    private static final java.util.Set<BlockPos> _campFarDropped = new java.util.HashSet<>();
+
+    public static int campFarDropped() {
+        return _campFarDropped.size();
+    }
+
+    public static void forgetCampFarDropped() {
+        _campFarDropped.clear();
+    }
+
     private Task campWalk(AltoClef mod, BlockPos camp) {
         if (!camp.equals(_campWalkFor)) {
             _campWalkFor = camp;
@@ -2734,19 +2745,24 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // STALL_S while still beyond NEAR, the spawner dropped for the run and the search for another (look 235: 20 minutes on a
         // ridge's tip across a lava-sea gap from the fire-proof camp, which neither give-up here covered)
         if (_foundBlazeSpawner != null && adris.altoclef.util.helpers.CampStallRules.giveUp(adris.altoclef.util.helpers.CampStallRules.on(), _campWalkStall, _campWalkBest)) {
-            BlockPos spawner = _foundBlazeSpawner;
+            BlockPos spawner = _foundBlazeSpawner.immutable();
+            boolean forRun = adris.altoclef.util.helpers.CampStallRules.forRun(_campWalkBest, _campFarDropped.contains(spawner));
             Debug.logInternal("blaze camp: the walk to the camp at " + camp.toShortString() + (_campFireproof ? " (fire-proof)" : "") + " came no closer than "
                     + Math.round(_campWalkBest) + " blocks in " + Math.round(adris.altoclef.util.helpers.CampStallRules.STALL_S)
-                    + " s, the spawner at " + spawner.toShortString() + " dropped for the run (camp_stall)");
+                    + " s, the spawner at " + spawner.toShortString() + (forRun ? " dropped for the run" : " dropped for a while, kept for later") + " (camp_stall)");
             _campWalkFor = null;
             _campLureWatch.reset();
             _lure = null;
             _fight.corner(null);
             _campSpotFor = null;
             _campSpot = null;
-            mod.getBans().ban(adris.altoclef.trackers.Bans.Key.block(WorldHelper.getCurrentDimension(), spawner.getX(), spawner.getY(), spawner.getZ()),
-                    "no way to its blaze camp", adris.altoclef.trackers.Bans.RUN);
-            if (spawner.equals(_rodSpawner)) _rodSpawner = null;
+            if (forRun) {
+                mod.getBans().ban(adris.altoclef.trackers.Bans.Key.block(WorldHelper.getCurrentDimension(), spawner.getX(), spawner.getY(), spawner.getZ()),
+                        "no way to its blaze camp", adris.altoclef.trackers.Bans.RUN);
+                if (spawner.equals(_rodSpawner)) _rodSpawner = null;
+            } else {
+                _campFarDropped.add(spawner);
+            }
             dropSpawner(mod);
             return null;
         }
