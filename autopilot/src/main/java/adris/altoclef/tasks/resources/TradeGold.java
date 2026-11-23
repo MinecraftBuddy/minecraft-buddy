@@ -112,6 +112,8 @@ final class TradeGold {
     private boolean _blazeYieldLogged;
     // (gold_fold_table) since when the step has had no table, in the bag or standing near, and no wood for one
     private long _tableGoneAt = Long.MIN_VALUE;
+    // (gold_kit_off_rock) the kit's pickaxe was kept off the rock by this step
+    private boolean _kitOffSet;
     // the search for ore while none is known: rings round where the step began, away from the spawner (FireResTradeRules'
     // points); the point under way, since when, and its walk
     private int _searchK = -1;
@@ -287,7 +289,19 @@ final class TradeGold {
             boolean making = goldStoneMakingOn() && _stoneMaking && _stonePick != null && !_stonePick.failed();
             switch (TradeGoldRules.pickWay(goldStoneDigOn(), picksLeft, PICK_KEEP, PICK_FLOOR, usable,
                     making || NetherPick.covered(bagOf(mod), NetherPick.Tier.STONE), _stonePickFailed, dangerNow)) {
-                case DIG -> picksKept = false;
+                case DIG -> {
+                    picksKept = false;
+                    // (Tuning gold_kit_off_rock, a fix of 23 Nov 2026, on) under the reserve the stone pickaxe digs: the kit's
+                    // diamond one off the netherrack and the ore while another pickaxe takes them (ToolPick.kitOffRock), and
+                    // the cheap one into the hotbar, where baritone's tools look (HotbarTools.forBlocks), as the branch mine
+                    // does. without it the paths' breaks took the diamond one from 245 uses to 0 in twelve minutes with three
+                    // stone pickaxes in the backpack, and the reserve for the fortress and the way out was gone (heel-242-mc3 r3)
+                    if (goldKitOffOn() && usable) {
+                        adris.altoclef.util.helpers.ToolPick.kitOffRock(System.currentTimeMillis() + 30_000);
+                        adris.altoclef.util.helpers.HotbarTools.forBlocks(mod, Blocks.NETHERRACK, Blocks.NETHER_GOLD_ORE);
+                        _kitOffSet = true;
+                    }
+                }
                 case MAKE -> {
                     Task make = stonePick(mod, picksLeft);
                     if (make != null) return make;
@@ -637,6 +651,10 @@ final class TradeGold {
         return adris.altoclef.util.helpers.Tuning.get("gold_path_fail", 0) > 0;
     }
 
+    static boolean goldKitOffOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_kit_off_rock", 0) > 0;
+    }
+
     static boolean goldFoldTableOn() {
         return adris.altoclef.util.helpers.Tuning.get("gold_fold_table", 0) > 0;
     }
@@ -838,6 +856,11 @@ final class TradeGold {
         _over = true;
         _overWhy = why;
         unguard();
+        // (gold_kit_off_rock) the kit's pickaxe digs again after the step
+        if (_kitOffSet) {
+            _kitOffSet = false;
+            adris.altoclef.util.helpers.ToolPick.kitOffRockOff();
+        }
         int got = TradeGoldRules.ninths(ingots, nuggets) - _ninthsAtBegin;
         double hours = Math.max(1e-9, (now - _begunAt) / 72000.0);
         Debug.logInternal(String.format(Locale.ROOT, "trade gold: over (%s), %d gold, %d nuggets left, %d gold dug in %s s (%.1f an hour), %d trips, %d ores broken; %d stone pickaxes begun, %d cobblestone left",
@@ -851,6 +874,10 @@ final class TradeGold {
     // a died buddy, or an order dropped: the guard off and the tracker freed (the trade's own end does not ask it)
     void stop(AltoClef mod) {
         if (_begun && !_over) unguard();
+        if (_kitOffSet) {
+            _kitOffSet = false;
+            adris.altoclef.util.helpers.ToolPick.kitOffRockOff();
+        }
     }
 
     // the piglins we can see of (the client's entity list) within the range the pick asks, and baritone kept off gold ore

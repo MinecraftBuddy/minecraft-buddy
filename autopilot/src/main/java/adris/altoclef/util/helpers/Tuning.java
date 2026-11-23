@@ -821,6 +821,10 @@ public final class Tuning {
             // wood for one): its gold is nuggets only. a lost table left the fold beginning 45 times, each a craft wandering the
             // nether for logs, the end held back ten minutes at 84 ingots and 108 nuggets, TradeGoldRules.noTableEnd
             java.util.Map.entry("gold_fold_table", 1.0),
+            // under the reserve of the kit's pickaxe the nether gold step's stone pickaxe digs the paths and the ore: the kit's
+            // diamond one kept off them and the cheap one into the hotbar, as the branch mine does; without it the paths took
+            // the diamond one from 245 uses to 0 with stone pickaxes in the backpack, TradeGold
+            java.util.Map.entry("gold_kit_off_rock", 1.0),
             // an ore the nether gold left for a piglin by it is held twice as long each time it is left again (90 s, 3, 6, 12
             // minutes): the same ores by the same piglins were walked to again and again (look 228), TradeGoldRules.piglinHold
             java.util.Map.entry("gold_piglin_hold_grow", 1.0),
