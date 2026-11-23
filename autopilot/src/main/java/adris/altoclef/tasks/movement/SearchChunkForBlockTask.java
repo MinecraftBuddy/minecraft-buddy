@@ -41,6 +41,20 @@ public class SearchChunkForBlockTask extends SearchChunksExploreTask {
         return mod.getChunkTracker().chunkHas(pos, state -> _toSearchFor.contains(state.getBlock()));
     }
 
+    // sayNear's line: the chunks round the buddy with the block anywhere in them, seen or not (an anti-xray sends hidden ones)
+    @Override
+    protected String describeNear(AltoClef mod, ChunkPos at) {
+        if (!_exposedOnly) return "";
+        int any = 0;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                ChunkPos c = new ChunkPos(at.x() + dx, at.z() + dz);
+                if (mod.getChunkTracker().isChunkLoaded(c) && mod.getChunkTracker().chunkHas(c, state -> _toSearchFor.contains(state.getBlock()))) any++;
+            }
+        }
+        return " (" + any + " with the block in them at all)";
+    }
+
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof SearchChunkForBlockTask blockTask) {

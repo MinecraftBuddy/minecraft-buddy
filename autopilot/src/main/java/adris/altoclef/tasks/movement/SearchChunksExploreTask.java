@@ -80,9 +80,45 @@ public abstract class SearchChunksExploreTask extends Task {
                     onChunkLoad(start);
                 }
             }
+            sayNear(mod);
             return;
         }
         resetSearch(mod);
+        sayNear(mod);
+    }
+
+    // (a read of 23 Nov 2026) why a start began no searcher: what the search space test sees in the 3x3 chunks round the
+    // buddy, at most once a game minute. the fortress search wandered 20 minutes on from a wart room's chunks with no
+    // "New searcher" (cascade heel-200 r2, box 3 heel-215-mc3 r2), and the log said nothing of why
+    private long _nearSaidAt = Long.MIN_VALUE;
+
+    private void sayNear(AltoClef mod) {
+        if (_searcher != null || mod.getPlayer() == null || mod.getWorld() == null) return;
+        long now = mod.getWorld().getGameTime();
+        if (_nearSaidAt != Long.MIN_VALUE && now >= _nearSaidAt && now - _nearSaidAt < 1200) return;
+        _nearSaidAt = now;
+        ChunkPos at = mod.getPlayer().chunkPosition();
+        int loaded = 0;
+        int within = 0;
+        int explored = 0;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                ChunkPos c = new ChunkPos(at.x() + dx, at.z() + dz);
+                if (!mod.getChunkTracker().isChunkLoaded(c)) continue;
+                loaded++;
+                synchronized (_searcherMutex) {
+                    if (_alreadyExplored.contains(c)) explored++;
+                }
+                if (isChunkWithinSearchSpace(mod, c)) within++;
+            }
+        }
+        Debug.logInternal(String.format(Locale.ROOT, "chunk search: no searcher at [%d, %d]; round the buddy %d of 9 chunks loaded, %d in the search space%s, %d explored; %d chunks tracked as loaded",
+                at.x(), at.z(), loaded, within, describeNear(mod, at), explored, mod.getChunkTracker().getLoadedChunks().size()));
+    }
+
+    // more for sayNear's line, about the 3x3 chunks round at
+    protected String describeNear(AltoClef mod, ChunkPos at) {
+        return "";
     }
 
     @Override
