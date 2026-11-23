@@ -110,6 +110,8 @@ final class TradeGold {
     private List<BlockPos> _piglins = List.of();
     // (gold_blaze_yield) the step's yield to a blaze and its end, each said once
     private boolean _blazeYieldLogged;
+    // (gold_fold_table) since when the step has had no table, in the bag or standing near, and no wood for one
+    private long _tableGoneAt = Long.MIN_VALUE;
     // the search for ore while none is known: rings round where the step began, away from the spawner (FireResTradeRules'
     // points); the point under way, since when, and its walk
     private int _searchK = -1;
@@ -294,7 +296,23 @@ final class TradeGold {
                 }
             }
         }
-        String end = ingots >= target ? "the target reached" : atFortress ? "at the fortress"
+        // (Tuning gold_fold_table, a fix of 23 Nov 2026, on) the nether's gold drops as nuggets only, and nine fold into an ingot
+        // only at a table: with none in the bag or standing near and no wood for one, no ingot can come any more. the step ends
+        // and the trade goes on with the ingots in the bag. the take-back had broken the bag's table and lost its drop; the fold
+        // began 45 times, each a craft that wandered the nether for logs, and held the end back for ten minutes at 84 ingots and
+        // 108 nuggets (heel-237-mc1 r4)
+        // a table set down by the craft, or broken by the take-back and lying as a drop, is neither in the bag nor in the
+        // station book for a while: only TABLE_GONE_TICKS in a row without one count; a table of ours standing within
+        // TABLE_FAR (a take-back cut off by a danger, to come back for) counts as one
+        var pl = mod.getPlayer();
+        boolean tableNow = tableOrWood(mod) || adris.altoclef.util.helpers.StationHook.standingWithin(
+                adris.altoclef.util.helpers.StationHook.Kind.TABLE, pl.getX(), pl.getY(), pl.getZ(), TradeGoldRules.TABLE_FAR) != null;
+        if (tableNow) _tableGoneAt = Long.MIN_VALUE;
+        else if (_tableGoneAt == Long.MIN_VALUE || now < _tableGoneAt) _tableGoneAt = now;
+        boolean foldable = !goldFoldTableOn()
+                || TradeGoldRules.foldable(tableNow, _tableGoneAt == Long.MIN_VALUE ? 0 : now - _tableGoneAt);
+        String noTable = TradeGoldRules.noTableEnd(foldable);
+        String end = ingots >= target ? "the target reached" : noTable != null ? noTable : atFortress ? "at the fortress"
                 : picksKept ? "the pickaxes kept for the way on (" + picksLeft + " uses left)"
                 : TradeGoldRules.overWhy(Math.max(0, now - capFrom()), now - _riseAt, _noOreSince < 0 ? 0 : now - _noOreSince, capTicks(), dryTicks());
         // (Tuning gold_danger_hold, a fix of 19 Nov 2026, on) a hostile seen within DANGER_BLOCKS counts for DANGER_HOLD after: a mob
@@ -308,7 +326,7 @@ final class TradeGold {
         // (20 Nov 2026, look 157) burning or in lava is a danger for the fold too: the buddy folded nuggets at a table with fire on
         // it after a lava stream beside the way, and went from 20 hp to 1
         if (goldDangerHoldOn() && (player.isOnFire() || player.isInLava())) danger = true;
-        if (TradeGoldRules.fold(ingots, nuggets, target, end != null) && !danger) {
+        if (TradeGoldRules.fold(ingots, nuggets, target, end != null) && !danger && foldable) {
             int to = Math.min(target, ingots + nuggets / NetherGold.NUGGETS_PER_INGOT);
             return step(mod, "fold", to, () -> {
                 ItemTarget n = new ItemTarget(Items.GOLD_NUGGET);
@@ -316,7 +334,8 @@ final class TradeGold {
                 return new CraftInTableTask(new RecipeTarget(Items.GOLD_INGOT, to, recipe), false, true);
             }, "Folding gold nuggets into ingots for the piglins");
         }
-        if (end != null && (!danger || nuggets < NetherGold.NUGGETS_PER_INGOT)) {
+        // (gold_fold_table) a danger holds the end back only for a fold that can be made after it
+        if (end != null && (!danger || nuggets < NetherGold.NUGGETS_PER_INGOT || !foldable)) {
             over(mod, now, end, ingots, nuggets);
             return null;
         }
@@ -616,6 +635,10 @@ final class TradeGold {
 
     static boolean goldPathFailOn() {
         return adris.altoclef.util.helpers.Tuning.get("gold_path_fail", 0) > 0;
+    }
+
+    static boolean goldFoldTableOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_fold_table", 0) > 0;
     }
 
     // (19 Nov 2026, the second smoke: the block tracker's scan takes the 25 nearest gold ores and only then drops the ones with

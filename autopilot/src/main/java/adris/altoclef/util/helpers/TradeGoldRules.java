@@ -92,6 +92,24 @@ public final class TradeGoldRules {
     }
 
     // whether the nuggets are folded now: a set of nine at least, and the target reached by folding, a stack full, or the end
+    // (Tuning gold_fold_table, 23 Nov 2026) the step's end when no fold can be made any more: no crafting table in the bag or
+    // standing near and no wood for one (foldable false); the nether's gold is nuggets only, so no ingot can come
+    public static final String NO_TABLE = "no crafting table or wood for the fold";
+
+    public static String noTableEnd(boolean foldable) {
+        return foldable ? null : NO_TABLE;
+    }
+
+    // a fold can still be made: a table or wood now, or none for less than TABLE_GONE_TICKS (a table the craft set down, or
+    // one the take-back broke, is out of the bag and the station book for a while; the take-back gives up after 30 s)
+    public static final long TABLE_GONE_TICKS = 1200;
+    // a table of ours standing this near counts (the bench's own search for one reaches as far)
+    public static final double TABLE_FAR = 128;
+
+    public static boolean foldable(boolean tableNow, long goneFor) {
+        return tableNow || goneFor < TABLE_GONE_TICKS;
+    }
+
     public static boolean fold(int ingots, int nuggets, int target, boolean ending) {
         if (nuggets < NUGGETS_PER_INGOT || ingots >= target) return false;
         return ingots + nuggets / NUGGETS_PER_INGOT >= target || nuggets >= FOLD_AT || ending;

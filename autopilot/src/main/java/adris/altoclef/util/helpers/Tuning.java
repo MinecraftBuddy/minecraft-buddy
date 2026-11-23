@@ -817,6 +817,10 @@ public final class Tuning {
             // rods' camp walk each second and cut the fight's run off; three deaths by blazes in the step on 23 Nov,
             // FireResTradeRules.goldYields
             java.util.Map.entry("gold_blaze_yield", 1.0),
+            // the nether gold step ends when no fold can be made any more (no crafting table in the bag or standing near, no
+            // wood for one): its gold is nuggets only. a lost table left the fold beginning 45 times, each a craft wandering the
+            // nether for logs, the end held back ten minutes at 84 ingots and 108 nuggets, TradeGoldRules.noTableEnd
+            java.util.Map.entry("gold_fold_table", 1.0),
             // an ore the nether gold left for a piglin by it is held twice as long each time it is left again (90 s, 3, 6, 12
             // minutes): the same ores by the same piglins were walked to again and again (look 228), TradeGoldRules.piglinHold
             java.util.Map.entry("gold_piglin_hold_grow", 1.0),

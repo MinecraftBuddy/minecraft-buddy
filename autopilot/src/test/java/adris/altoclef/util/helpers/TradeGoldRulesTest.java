@@ -197,4 +197,17 @@ public class TradeGoldRulesTest {
         assertFalse("over by the dry spell", TradeGoldRules.stillEnd(true, TradeGoldRules.overWhy(0, 20 * 600, 0, 20 * 5400, 20 * 600), true, false));
         assertFalse("not over", TradeGoldRules.stillEnd(true, null, true, false));
     }
+
+    // (gold_fold_table) no table and no wood: the step ends, whatever the nuggets; with a way to fold it goes on
+    @Test
+    public void noTableForTheFoldEndsTheStep() {
+        assertEquals(TradeGoldRules.NO_TABLE, TradeGoldRules.noTableEnd(false));
+        assertNull(TradeGoldRules.noTableEnd(true));
+        // heel-237-mc1 r4: 84 ingots and 108 nuggets of 96 asked a fold; with no table that fold never came
+        assertTrue(TradeGoldRules.fold(84, 108, 96, false));
+        // a table out of sight for less than a minute (set down by the craft, a drop of the take-back) still counts
+        assertTrue(TradeGoldRules.foldable(true, 0));
+        assertTrue(TradeGoldRules.foldable(false, 1199));
+        assertFalse(TradeGoldRules.foldable(false, 1200));
+    }
 }
