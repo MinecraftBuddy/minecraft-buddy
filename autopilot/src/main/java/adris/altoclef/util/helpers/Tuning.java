@@ -825,6 +825,9 @@ public final class Tuning {
             // diamond one kept off them and the cheap one into the hotbar, as the branch mine does; without it the paths took
             // the diamond one from 245 uses to 0 with stone pickaxes in the backpack, TradeGold
             java.util.Map.entry("gold_kit_off_rock", 1.0),
+            // the nether gold step's no-ore clock is cleared only by a target held 10 s: an ore dropped again at once for its
+            // piglin restarted the 300 s clock three times and the step held 13.8 minutes at one spot, TradeGoldRules.noOreCleared
+            java.util.Map.entry("gold_noore_keep", 1.0),
             // an ore the nether gold left for a piglin by it is held twice as long each time it is left again (90 s, 3, 6, 12
             // minutes): the same ores by the same piglins were walked to again and again (look 228), TradeGoldRules.piglinHold
             java.util.Map.entry("gold_piglin_hold_grow", 1.0),

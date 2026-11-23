@@ -106,6 +106,14 @@ public final class TradeGoldRules {
     // a table of ours standing this near counts (the bench's own search for one reaches as far)
     public static final double TABLE_FAR = 128;
 
+    // (Tuning gold_noore_keep, 23 Nov 2026) a target held this long clears the no-ore clock; one dropped sooner (its piglin
+    // back in sight) does not
+    public static final long NO_ORE_KEEP_TICKS = 200;
+
+    public static boolean noOreCleared(long heldTicks) {
+        return heldTicks >= NO_ORE_KEEP_TICKS;
+    }
+
     public static boolean foldable(boolean tableNow, long goneFor) {
         return tableNow || goneFor < TABLE_GONE_TICKS;
     }

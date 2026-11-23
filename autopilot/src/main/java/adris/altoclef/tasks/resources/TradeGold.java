@@ -425,7 +425,10 @@ final class TradeGold {
             _hud = "Looking for gold ore for the piglins";
             return search(mod, now);
         }
-        _noOreSince = -1;
+        // (Tuning gold_noore_keep, a fix of 23 Nov 2026, on) the no-ore clock is cleared only once a target has been held for
+        // TradeGoldRules.NO_ORE_KEEP_TICKS: an ore back from its piglin hold and dropped again 1-4 s later for the same piglin
+        // restarted the 300 s clock three times, and the step held 13.8 minutes at one spot for two ores (heel-242-mc3 r3)
+        if (!goldNoOreKeepOn() || TradeGoldRules.noOreCleared(now - _targetSince)) _noOreSince = -1;
         _searchWalk = null;
         // (Tuning gold_path_fail, a fix of 19 Nov 2026, on) a failed search for a way to the ore, away from it, gives it up at
         // once: after a bridge over the lava sea the search found no way on, eleven times, and the buddy stood 22 s on the tip
@@ -649,6 +652,10 @@ final class TradeGold {
 
     static boolean goldPathFailOn() {
         return adris.altoclef.util.helpers.Tuning.get("gold_path_fail", 0) > 0;
+    }
+
+    static boolean goldNoOreKeepOn() {
+        return adris.altoclef.util.helpers.Tuning.get("gold_noore_keep", 0) > 0;
     }
 
     static boolean goldKitOffOn() {

@@ -210,4 +210,12 @@ public class TradeGoldRulesTest {
         assertTrue(TradeGoldRules.foldable(false, 1199));
         assertFalse(TradeGoldRules.foldable(false, 1200));
     }
+
+    // (gold_noore_keep) a target dropped within 10 s (its piglin back) leaves the no-ore clock running
+    @Test
+    public void aTargetDroppedAtOnceLeavesTheNoOreClock() {
+        assertFalse(TradeGoldRules.noOreCleared(80));
+        assertFalse(TradeGoldRules.noOreCleared(199));
+        assertTrue(TradeGoldRules.noOreCleared(200));
+    }
 }
