@@ -1289,6 +1289,8 @@ final class CombatBrain {
             }
             String gapNote = _commit.takeGapNote();
             if (gapNote != null) Debug.logInternal("combat: wither gap: " + gapNote);
+            String pairNote = _commit.takePairNote();
+            if (pairNote != null) Debug.logInternal("combat: wither pair fight: " + pairNote);
         } else if (_commit.mode() != Mode.NONE) {
             // switched off in the middle of one: let go of it, no line (it is not a transition the machine made)
             _commit.reset();

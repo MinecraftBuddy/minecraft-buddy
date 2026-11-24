@@ -1714,6 +1714,7 @@ public final class CombatCommit {
         gapQuietSince = -1;
         gapAgainAt = Long.MIN_VALUE / 2;
         gapNote = null;
+        pairNote = null;
         lobberGaveUpAt = Long.MIN_VALUE / 2;
         sniperGaveUpAt = Long.MIN_VALUE / 2;
         atRange = false;
@@ -2315,6 +2316,14 @@ public final class CombatCommit {
     // a gap that failed holds the next one back till this tick (a clock that went back past it lets go at once)
     private long gapAgainAt = Long.MIN_VALUE / 2;
     private String gapNote;
+    // (wither_pair_fight) the pair fight just started, for the brain's line; null for none
+    private String pairNote;
+
+    public String takePairNote() {
+        String note = pairNote;
+        pairNote = null;
+        return note;
+    }
 
     public void gapFacts(WitherGapRules.Facts facts) {
         this.gapFacts = facts;
@@ -2605,6 +2614,10 @@ public final class CombatCommit {
                 // (Tuning wither_pair_fight: two of them and nothing else on us is the nearest one fought where we stand)
                 if (meter == null && witherPairFight() && t.health() > WITHER_PAIR_LINE + LINGER_HIT
                         && witherPair(t.foes(), false, t.guardHealth())) {
+                    // (its own line, so a drill can count the fights this switch started: the start itself reads "in our way" as a
+                    // lone one does)
+                    pairNote = String.format(java.util.Locale.ROOT, "two within %.0f, the nearest #%d at %.1f, hp %.1f",
+                            WITHER_PACK_RANGE, wither.id(), wither.distance(), t.health());
                     return startFight(t, wither, Why.IN_WAY, Event.FIGHT_START, false);
                 }
                 if (meter == null) {
