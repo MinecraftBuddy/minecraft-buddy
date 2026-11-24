@@ -886,6 +886,12 @@ public class MobDefenseChain extends SingleTaskChain {
         return adris.altoclef.util.helpers.Tuning.get("run_shield_no_pause", 0) > 0;
     }
 
+    // a skeleton kind with its bow drawn (the using item flag is synced to the client); also the committed run's "under fire"
+    // (CombatBrain.underFire, run_break_line)
+    static boolean drawsBow(Mob mob) {
+        return mob instanceof AbstractSkeleton && mob.isUsingItem() && mob.getUseItem().is(Items.BOW);
+    }
+
     private Mob drawingShooter(AltoClef mod, CombatCommit.Mode mode, LocalPlayer player) {
         _drawImpactTicks = Double.POSITIVE_INFINITY;
         if (_brain.perching()) return null;
@@ -902,7 +908,7 @@ public class MobDefenseChain extends SingleTaskChain {
             // a drowned holds its trident up for as long as it is attacking and throws every two seconds, so a raised one is a
             // bow at full draw. five tridents in eight seconds from the water, every one past a shield that was up but facing
             // the way it walked, took it from 20 to 0 (the runner, 3 Nov 2026, attempt 123; and 57 and 83 before it)
-            boolean bow = e instanceof AbstractSkeleton && ((Mob) e).getUseItem().is(Items.BOW);
+            boolean bow = e instanceof Mob m && drawsBow(m);
             boolean trident = e instanceof Drowned && ((Mob) e).getUseItem().is(Items.TRIDENT);
             if (!bow && !trident) continue;
             Mob shooter = (Mob) e;

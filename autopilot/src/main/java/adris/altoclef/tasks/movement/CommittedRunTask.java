@@ -8,15 +8,21 @@ import adris.altoclef.util.helpers.CombatCommit;
 import adris.altoclef.util.helpers.CombatRules;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.tasks.construction.PlaceStationTask;
+import adris.altoclef.tasks.speedrun.gamer.tasks.SkelCoverTask;
 import baritone.api.pathing.goals.Goal;
 import baritone.api.utils.Dimension;
 import baritone.api.pathing.goals.GoalBlock;
+import baritone.api.pathing.movement.IMovement;
 import baritone.pathing.movement.CliffAvoidance;
+import baritone.pathing.movement.Movement;
+import baritone.pathing.movement.MovementHelper;
 import baritone.utils.BlockStateInterface;
 import java.util.List;
 import java.util.function.Supplier;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 
 // the run CombatCommit asked for. it never finishes on its own: the commitment knows when 24 blocks and two quiet seconds
@@ -39,21 +45,43 @@ public class CommittedRunTask extends CustomBaritoneGoalTask {
     // how far from the origin the run has to get: RUN_DISTANCE, more for a run that goes on from the last (CombatCommit.RERUN_TICKS)
     private final double _distance;
     private final Supplier<List<Entity>> _crowd;
+    // (run_break_line) the skeleton kinds under fire, nearest first, for the goal's search (GoalCommittedRun); null for none
+    private final Supplier<? extends List<? extends Entity>> _shooters;
     private long _lastIssue = Long.MIN_VALUE / 2;
     // the goal in hand is the swim to the bank, not the run (see pickGoal)
     private boolean _toShore;
+
+    // the run's shape, one line when it ends, in both arms of run_break_line so the arms compare beyond lived or died.
+    // shapeStart: the game time of the run's first start (an interrupt's restart goes on with it), NONE with no run under way;
+    // arrows: hits by an arrow since (a hit is a new damage source, as CombatBrain.countShots reads them); clearAt: the first
+    // tick no skeleton kind within SHAPE_RANGE had a line to the buddy's eye, -1 before; breakFirst: the first path to the
+    // run's goal began with a block to break, null before a path was seen
+    static final long NONE = Long.MIN_VALUE;
+    static final double SHAPE_RANGE = 18;
+    private long _shapeStart = NONE;
+    private long _shapeLast;
+    private int _shapeArrows;
+    private long _shapeClearAt = -1;
+    private Boolean _shapeBreak;
+    private DamageSource _shapeSource;
 
     public CommittedRunTask(double originX, double originZ, Supplier<List<Entity>> crowd) {
         this(originX, originZ, CombatCommit.RUN_DISTANCE, crowd);
     }
 
     public CommittedRunTask(double originX, double originZ, double distance, Supplier<List<Entity>> crowd) {
+        this(originX, originZ, distance, crowd, null);
+    }
+
+    public CommittedRunTask(double originX, double originZ, double distance, Supplier<List<Entity>> crowd,
+            Supplier<? extends List<? extends Entity>> shooters) {
         // no wander: standing at the goal waiting out the quiet seconds is not "failed to make progress"
         super(false);
         _originX = originX;
         _originZ = originZ;
         _distance = distance;
         _crowd = crowd;
+        _shooters = shooters;
     }
 
     // the run the commitment asks for now is this one
@@ -86,7 +114,7 @@ public class CommittedRunTask extends CustomBaritoneGoalTask {
         // the goal is asked from the pathfinder thread, so it gets thread safe copies of the loaded chunks (remade by refresh)
         return new GoalCommittedRun(_originX, _originZ, _distance, CROWD_CLEAR, _crowd,
                 () -> CliffAvoidance.of(new BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true)),
-                WorldHelper.getCurrentDimension() == Dimension.NETHER);
+                WorldHelper.getCurrentDimension() == Dimension.NETHER, _shooters);
     }
 
     // ...unless we're in the air. a hard cancel mid fall drops the MovementFall doing the bucket or the clutch, and the mlg
@@ -137,6 +165,85 @@ public class CommittedRunTask extends CustomBaritoneGoalTask {
         // (a swim to the bank cut short: the cached goal is that bank, drop it so the run goal comes back)
         if (_toShore) _cachedGoal = null;
         _toShore = false;
+        if (_shapeStart == NONE) shapeBegins(mod);
+    }
+
+    @Override
+    protected Task onTick(AltoClef mod) {
+        shapeTick(mod);
+        return super.onTick(mod);
+    }
+
+    // a real stop is the run's end (the commitment let go of it, or a death); an interrupt comes back through onStart
+    @Override
+    protected void onStop(AltoClef mod, Task interruptTask) {
+        super.onStop(mod, interruptTask);
+        if (!isInterrupting()) shapeEnds(mod);
+    }
+
+    // stopped while an interrupt had it: the run ends there too
+    @Override
+    protected void onStopWhilePaused(AltoClef mod) {
+        super.onStopWhilePaused(mod);
+        shapeEnds(mod);
+    }
+
+    private void shapeBegins(AltoClef mod) {
+        LocalPlayer player = mod.getPlayer();
+        if (player == null || mod.getWorld() == null) return;
+        _shapeStart = mod.getWorld().getGameTime();
+        _shapeLast = _shapeStart;
+        _shapeArrows = 0;
+        _shapeClearAt = -1;
+        _shapeBreak = null;
+        // (the hit that started the run is not one of its arrows)
+        _shapeSource = player.getLastDamageSource();
+    }
+
+    // once a tick while the run has the wheel. the lines: one ray per skeleton kind within SHAPE_RANGE (SkelCoverTask.scan, the
+    // mob's eye to ours as its bow goal asks it), only until the first tick with none. the path: read once, when the first
+    // path to the run's goal is seen (its first move's blocks as they stand then)
+    private void shapeTick(AltoClef mod) {
+        LocalPlayer player = mod.getPlayer();
+        if (_shapeStart == NONE || player == null || mod.getWorld() == null) return;
+        long now = mod.getWorld().getGameTime();
+        _shapeLast = now;
+        DamageSource source = player.getLastDamageSource();
+        if (source != null && source != _shapeSource) {
+            _shapeSource = source;
+            if (source.is(DamageTypes.ARROW)) _shapeArrows++;
+        }
+        if (_shapeClearAt < 0 && SkelCoverTask.scan(mod, player, SHAPE_RANGE).lines().isEmpty()) _shapeClearAt = now;
+        if (_shapeBreak == null) _shapeBreak = firstMoveBreaks(mod);
+    }
+
+    // the walked path's first move has a block to break, null while no path to this run's goal walks
+    private Boolean firstMoveBreaks(AltoClef mod) {
+        var current = mod.getClientBaritone().getPathingBehavior().getCurrent();
+        if (current == null || _cachedGoal == null || current.getPath().getGoal() != _cachedGoal) return null;
+        List<IMovement> moves = current.getPath().movements();
+        if (moves.isEmpty() || !(moves.get(0) instanceof Movement move)) return false;
+        BlockStateInterface bsi = new BlockStateInterface(mod.getClientBaritone().getPlayerContext());
+        for (BlockPos p : move.toBreakAll()) {
+            if (!MovementHelper.canWalkThrough(bsi, p.getX(), p.getY(), p.getZ())) return true;
+        }
+        return false;
+    }
+
+    private void shapeEnds(AltoClef mod) {
+        if (_shapeStart == NONE) return;
+        long end = mod.getWorld() != null ? mod.getWorld().getGameTime() : _shapeLast;
+        adris.altoclef.Debug.logInternal(shapeLine(Math.max(0, end - _shapeStart), _shapeArrows,
+                _shapeClearAt < 0 ? -1 : Math.max(0, _shapeClearAt - _shapeStart), _shapeBreak, GoalCommittedRun.lineOn()));
+        _shapeStart = NONE;
+    }
+
+    // "run shape: ticks 212 arrows 2 clear 64 break no line 1": the run's game ticks, the arrows that hit during it, the ticks
+    // until no skeleton kind within SHAPE_RANGE had a line ("never": not before the end), whether the first path began with a
+    // block to break ("none": no path was walked), and the run_break_line key at the end
+    static String shapeLine(long ticks, int arrows, long clearTicks, Boolean breakFirst, boolean line) {
+        return "run shape: ticks " + ticks + " arrows " + arrows + " clear " + (clearTicks < 0 ? "never" : String.valueOf(clearTicks))
+                + " break " + (breakFirst == null ? "none" : breakFirst ? "yes" : "no") + " line " + (line ? 1 : 0);
     }
 
     @Override

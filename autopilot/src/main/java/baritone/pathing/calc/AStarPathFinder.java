@@ -59,9 +59,14 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
         // the vertical part of the heuristic is a lower bound on what a descent costs, and that depends on whether we can
         // actually fall far (a bucket, a clutch item). goals don't get to see the context so the thread carries it
         GoalYLevel.setDescentTicksPerBlock(calcContext.descentTicksPerBlock());
+        // (the buddy's fork) a goal that judges a whole search by one look takes it here, on this thread, before the first node
+        // (the committed run's shooters, GoalCommittedRun under run_break_line), and lets it go when the search is done
+        adris.altoclef.util.baritone.SearchSnapshot snapshot = goal instanceof adris.altoclef.util.baritone.SearchSnapshot s ? s : null;
+        if (snapshot != null) snapshot.searchStarts();
         try {
             return search(primaryTimeout, failureTimeout);
         } finally {
+            if (snapshot != null) snapshot.searchEnds();
             GoalYLevel.resetDescentTicksPerBlock();
         }
     }

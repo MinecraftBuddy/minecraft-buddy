@@ -377,8 +377,8 @@ public final class RiskField {
     // a straight line from a to b through the cells: false at the first cell on the way that stops a shot (Cells.blocksSight:
     // a block that spans its cell; not fire, which the walk cannot pass and a fireball can). the cell a starts in and the
     // cell b ends in are not looked at (the eye's own cell, and the cell we would stand in). fluids do not block, as in
-    // StandModel's line
-    static boolean clear(Cells cells, double ax, double ay, double az, double bx, double by, double bz) {
+    // StandModel's line. public for the committed run's search (GoalCommittedRun, run_break_line)
+    public static boolean clear(Cells cells, double ax, double ay, double az, double bx, double by, double bz) {
         int x = floor(ax), y = floor(ay), z = floor(az);
         int ex = floor(bx), ey = floor(by), ez = floor(bz);
         double dx = bx - ax, dy = by - ay, dz = bz - az;

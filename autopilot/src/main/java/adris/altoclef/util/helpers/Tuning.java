@@ -1168,6 +1168,12 @@ public final class Tuning {
             // note ("would hold"). one zombie at a pillbox not shut sent the buddy on the 24-block run, 9 of 18 deaths in the
             // cave drill, 7 with arrows in the back, CombatCommit, SkelCoverTask (24 Nov 2026, off)
             java.util.Map.entry("cover_melee_hold", 0.0),
+            // run_break_line: under skeleton fire the committed run's search adds run_break_line_cost ticks to a cell's estimate
+            // for each shooter within 18 with a line to it, so the way out leaves the lines early; the goal's end asks no line.
+            // 9 of 18 deaths in the cave drill came in this run, 7 with arrows in the back, GoalCommittedRun (24 Nov 2026, off).
+            // its "run shape" line goes out in both arms
+            java.util.Map.entry("run_break_line", 0.0),
+            java.util.Map.entry("run_break_line_cost", 20.0),
             // the fight's own target counts for the mid-fight bite whether or not the foe list holds it this tick: a cornered fight on a
             // spider read 'no melee mob within 4' and the buddy ate at hp 5.3 and 2.7 with the spider on it, CombatBrain (20 Nov 2026)
             java.util.Map.entry("fight_target_bite", 1.0),

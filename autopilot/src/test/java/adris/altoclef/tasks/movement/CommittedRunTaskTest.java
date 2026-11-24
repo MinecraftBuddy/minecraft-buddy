@@ -51,4 +51,15 @@ public class CommittedRunTaskTest {
         assertFalse(CommittedRunTask.afloat(false, false));
         assertFalse(CommittedRunTask.afloat(false, true));
     }
+
+    // the run's shape, one line in both arms of run_break_line
+    @Test
+    public void theShapeLineSaysTicksArrowsClearBreakAndTheKey() {
+        assertEquals("run shape: ticks 212 arrows 2 clear 64 break no line 1",
+                CommittedRunTask.shapeLine(212, 2, 64, false, true));
+        assertEquals("run shape: ticks 90 arrows 0 clear never break none line 0",
+                CommittedRunTask.shapeLine(90, 0, -1, null, false));
+        assertEquals("run shape: ticks 40 arrows 1 clear 0 break yes line 0",
+                CommittedRunTask.shapeLine(40, 1, 0, true, false));
+    }
 }

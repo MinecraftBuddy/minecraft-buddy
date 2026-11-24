@@ -105,6 +105,9 @@ final class CombatBrain {
     private final CombatCommit _commit = new CombatCommit();
     // this tick's angry hostiles as entities, nearest first (the run goal steers around them)
     private List<Mob> _foeMobs = List.of();
+    // (Tuning run_break_line, off) the skeleton kinds of them the buddy is under fire from, nearest first (underFire); the
+    // committed run's search prices their lines. empty with the key off
+    private List<Mob> _underFire = List.of();
     // every blaze the tracker has, calm or not (crowd() keeps the live ones in range). the hostile list only lists the charged ones, so a run steered back into the ones
     // that were just waiting for it to turn around
     private List<Mob> _crowdBlazes = List.of();
@@ -620,6 +623,7 @@ final class CombatBrain {
         _lastRunHp = -1;
         _ranSince = false;
         _foeMobs = List.of();
+        _underFire = List.of();
         _crowdBlazes = List.of();
         _swingAt.clear();
         _stance = CombatRules.Stance.CALM;
@@ -779,7 +783,7 @@ final class CombatBrain {
                 if (fleeSearch) return flee();
                 // (a run that goes on from the last one has the old origin and a longer way: the old task's goal is met already)
                 if (_run == null || _run.stopped() || !_run.sameRun(_commit.originX(), _commit.originZ(), _commit.runDistance())) {
-                    _run = new CommittedRunTask(_commit.originX(), _commit.originZ(), _commit.runDistance(), this::crowd);
+                    _run = new CommittedRunTask(_commit.originX(), _commit.originZ(), _commit.runDistance(), this::crowd, () -> _underFire);
                 }
                 return _run;
             }
@@ -907,6 +911,19 @@ final class CombatBrain {
         return null;
     }
 
+    // (run_break_line) under skeleton fire: a skeleton kind (SkelCover.kind) the skeleton cover's bail counts as shooting
+    // (Foe.shooting: a line now, within FOE_RANGE, hit us within SHOT_MEMORY) or one with its bow drawn (MobDefenseChain.drawsBow).
+    // every foe is within FOE_RANGE. mobs and foes in step, nearest first
+    static List<Mob> underFire(List<Mob> mobs, List<Foe> foes) {
+        List<Mob> out = new ArrayList<>();
+        for (int i = 0; i < mobs.size() && i < foes.size(); i++) {
+            Mob mob = mobs.get(i);
+            if (!SkelCover.kind(typeOf(mob))) continue;
+            if (foes.get(i).shooting() || MobDefenseChain.drawsBow(mob)) out.add(mob);
+        }
+        return out;
+    }
+
     // the goal asks this from the main thread once a tick
     private List<Entity> crowd() {
         LocalPlayer player = _player;
@@ -992,6 +1009,7 @@ final class CombatBrain {
         if (_commit.mode() == Mode.RUN && GoalFlee.on()) addBlazesInBite(mod, dimension, book, now, player, mobs, foes);
         sortNearestFirst(mobs, foes);
         _foeMobs = mobs;
+        _underFire = adris.altoclef.util.baritone.GoalCommittedRun.lineOn() ? underFire(mobs, foes) : List.of();
         // the hold's re-run source: who threw the last projectile at us, when it is a blaze or a skeleton. the run steers around it
         // like around any foe, the hostile list alone would leave it blind to a thrower it never carried
         Mob shooter = rangedSource(player, now);
