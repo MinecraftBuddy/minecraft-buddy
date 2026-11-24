@@ -1292,7 +1292,11 @@ public final class Tuning {
             // the buddy's full-bag throw (ObtainSafe.junkSlot) keeps the brewing stand's stone in all its kinds as it kept
             // cobblestone: a stack of cobbled deepslate, the bag's only stand stone, was thrown in the nether and the brew found
             // 0 of 3 (4 of 5 heel runs read; 8 of 12 such runs died to blazes), ObtainSafe.overflowSlot (24 Nov 2026)
-            java.util.Map.entry("stand_stone_junk_keep", 1.0));
+            java.util.Map.entry("stand_stone_junk_keep", 1.0),
+            // spare_shield_m2 (read by the buddy, ObtainRoute's M2.2 piece "spare shield"): a second shield at the tools' table
+            // visit, from an iron ingot and the bag's wood alone. 17 of 53 overworld deaths after M2.1 had no shield left (close
+            // creeper blasts wear one out in 7-13), and the shield again needs makings the bag seldom holds (24 Nov 2026)
+            java.util.Map.entry("spare_shield_m2", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
