@@ -1158,6 +1158,11 @@ public final class Tuning {
             // in the skeleton cover but not shut in (a hole with no top, or still digging it), the aura's hands answer a melee mob in
             // contact that hit us: a zombie bit 5 to 8 s with no swing back in 3 of 16 early deaths, CombatBrain (20 Nov 2026)
             java.util.Map.entry("cover_contact_hands", 1.0),
+            // while the skeleton cover's dig runs (in cover, not shut in, the dig's path going) the aura is all feet and no hands:
+            // its sword and the dig's pickaxe traded the hand every tick, and a swap resets both the sword's charge and the block's
+            // crack, so the 3-block dig took about 4 s against 2 with a zombie biting and no swing landing; a hole with no top
+            // keeps the hands (cover_contact_hands), MobDefenseChain (24 Nov 2026)
+            java.util.Map.entry("cover_dig_keep_tool", 1.0),
             // the fight's own target counts for the mid-fight bite whether or not the foe list holds it this tick: a cornered fight on a
             // spider read 'no melee mob within 4' and the buddy ate at hp 5.3 and 2.7 with the spider on it, CombatBrain (20 Nov 2026)
             java.util.Map.entry("fight_target_bite", 1.0),

@@ -110,6 +110,8 @@ public class MobDefenseChain extends SingleTaskChain {
     private BlockPos _capBeside;
     // CreeperEscape found nowhere to run, as of this tick's stepCreepers
     private boolean _creeperNoHeading;
+    // (cover_dig_keep_tool) the hands-off state last noted in the log, so a dig shows once when it starts and once when it ends
+    private boolean _coverDigNoted;
     // sneak while clicking, same reason as PlaceStationTask: a chest or a table in the wall opens instead of taking the block
     // game time of the last tick the projectile shield was called for. the food chain asks projectileDodging() and keeps its hands off
     // the use key for it: its swap back to the food and release on the way out is what dropped the shield mid volley
@@ -520,8 +522,17 @@ public class MobDefenseChain extends SingleTaskChain {
         // (Tuning pillbox_hold_melee, a fix of 14 Nov 2026, on: shut in the skeleton cover, the hands stay on what hits in reach with
         // a line, under the flee line too: a melee mob there is no reason to leave, and the swing list keeps to the ones that hit)
         boolean coverHands = _brain.coverHands();
-        _killAura.setPolicy(_brain.auraKiting() && !standHit, _brain.auraShield(), _brain.auraFighting() || standHit || coverHands,
-                standHit ? -1 : _brain.fightTarget());
+        // (Tuning cover_dig_keep_tool, a fix of 24 Nov 2026, on) while the cover's dig path runs the aura is all feet and no hands,
+        // as on a run: its weapon pick and the dig's pickaxe traded the hand every tick, a swap resets the sword's charge and the
+        // block's crack alike, so the dig took twice as long under a biting zombie and no swing landed
+        boolean coverDig = adris.altoclef.util.helpers.Tuning.get("cover_dig_keep_tool", 1) > 0 && _brain.coverDigging()
+                && mod.getClientBaritone().getPathingBehavior().isPathing();
+        if (coverDig != _coverDigNoted) {
+            _coverDigNoted = coverDig;
+            Debug.logInternal("cover dig: " + (coverDig ? "hands off, the pickaxe kept" : "hands back"));
+        }
+        _killAura.setPolicy((_brain.auraKiting() && !standHit) || coverDig, _brain.auraShield(),
+                !coverDig && (_brain.auraFighting() || standHit || coverHands), standHit ? -1 : _brain.fightTarget());
         _killAura.setRimGuard(_brain.auraRimGuard());
 
         // hit what is on us.

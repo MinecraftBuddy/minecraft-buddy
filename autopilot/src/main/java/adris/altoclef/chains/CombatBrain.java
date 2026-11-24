@@ -590,6 +590,12 @@ final class CombatBrain {
         return adris.altoclef.util.helpers.Tuning.get("cover_contact_hands", 0) > 0 && !coverPlacing() && !_swingAt.isEmpty();
     }
 
+    // (cover_dig_keep_tool) in the cover, not shut in yet, its dig under way (MobDefenseChain asks the path too: a hole with
+    // no top whose dig has stopped keeps the hands)
+    boolean coverDigging() {
+        return covering() && !_shutIn && _coverTask.digging();
+    }
+
     // (skel_cover) a block of the cover is on its way in: the arrow shield keeps its hands off the click
     boolean coverPlacing() {
         return covering() && _coverTask.placing();
