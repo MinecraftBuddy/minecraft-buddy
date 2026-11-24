@@ -25,7 +25,7 @@ class ObtainRouteTest {
 	static final class Kit implements ObtainRoute.Bag {
 		final Map<String, Integer> items = new HashMap<>();
 		final Map<String, String> worn = new HashMap<>();
-		boolean bedNear, rest, slimeNear, kitAgain, goldClockFix, rawGoldSmelt, netherGold;
+		boolean bedNear, rest, slimeNear, kitAgain, goldClockFix, rawGoldSmelt, netherGold, spareShield, makings;
 		int netherSticks;
 
 		Kit give(String item, int n) { items.merge(item, n, Integer::sum); return this; }
@@ -61,6 +61,10 @@ class ObtainRouteTest {
 		public boolean rawGoldSmelt() { return rawGoldSmelt; }
 
 		public boolean netherGold() { return netherGold; }
+
+		public boolean spareShieldOn() { return spareShield; }
+
+		public boolean shieldMakings() { return makings; }
 	}
 
 	private final List<String> said = new ArrayList<>();
@@ -443,6 +447,42 @@ class ObtainRouteTest {
 		assertEquals(List.of(), said);
 	}
 
+	/**
+	 * (spare_shield_m2) A second shield at the end of M2.2, once, only with its switch and its makings in the bag; without
+	 * either the phase goes on to the diamonds, and a try that ends passes it too.
+	 */
+	@Test
+	void theSpareShieldIsAskedOnceWithItsSwitchAndItsMakings() {
+		Kit k = from("m2.2");
+		walk(k);
+		k.give("water_bucket").give("iron_pickaxe", 2).give("iron_sword");
+		k.makings = true;
+		assertEquals("diamonds", next(k));
+
+		k = from("m2.2");
+		walk(k);
+		k.give("water_bucket").give("iron_pickaxe", 2).give("iron_sword");
+		k.spareShield = true;
+		assertEquals("diamonds", next(k));
+
+		k = from("m2.2");
+		walk(k);
+		k.give("water_bucket").give("iron_pickaxe", 2).give("iron_sword");
+		k.spareShield = true;
+		k.makings = true;
+		assertEquals("spare shield", next(k));
+		assertEquals(ObtainRoute.M2_2, ObtainRoute.phase());
+		ObtainRoute.tried("m2.2/spare shield");
+		assertEquals("diamonds", next(k));
+
+		k = from("m2.2");
+		walk(k);
+		k.give("water_bucket").give("iron_pickaxe", 2).give("iron_sword").give("shield");
+		k.spareShield = true;
+		k.makings = true;
+		assertEquals("diamonds", next(k));
+	}
+
 	/** (steering 204) One slime search: when it ends without a ball the route goes on to the portal. */
 	@Test
 	void theSlimePhaseHasOneTry() {
@@ -508,7 +548,7 @@ class ObtainRouteTest {
 		for (List<ObtainRoute.Piece> phase : ObtainRoute.PIECES) for (ObtainRoute.Piece p : phase) names.add(p.key());
 		assertEquals(List.of("m1.1/wood", "m1.2/stone pickaxes", "m1.2/stone sword", "m1.2/furnace", "m1.3/food", "m1.3/bed", "m1.3/sand",
 			"m2.1/shield", "m2.1/copper_chestplate", "m2.1/copper_leggings", "m2.1/copper_boots", "m2.1/iron_chestplate",
-			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.1/iron_helmet", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m3.1/diamonds",
+			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.1/iron_helmet", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m2.2/spare shield", "m3.1/diamonds",
 			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/slime ball", "m3.3/golden boots", "m3.3/golden boots again", "m3.3/gold", "m3.3b/golden boots again", "m3.3b/slime ball",
 			"m3.4/flint and steel", "m3.4/rest", "m3.4/crafting table", "m3.4/sticks", "m3.4/food", "m3.4/bed", "m3.4/water bucket",
 			"m3.4/iron pickaxes", "m3.4/diamonds", "m3.4/redstone", "m3.4/obsidian", "m3.4/raw gold", "m3.4/golden boots", "m3.4/gold",

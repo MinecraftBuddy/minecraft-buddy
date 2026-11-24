@@ -84,6 +84,12 @@ final class ObtainRoute {
 		/** The nether kit's rest has something to fetch (a good sword, torches, blocks). */
 		default boolean restMissing() { return false; }
 
+		/** The autopilot's spare_shield_m2 switch: a second shield at M2.2's table visit, from the bag alone. */
+		default boolean spareShieldOn() { return false; }
+
+		/** A shield's makings carried: one iron, raw or smelted, and wood worth six planks (ten with no crafting table). */
+		default boolean shieldMakings() { return false; }
+
 		/** The autopilot's m34_kit_again switch: before the portal a crafting table, and the M3 kit asked again. */
 		default boolean kitAgain() { return false; }
 
@@ -174,7 +180,12 @@ final class ObtainRoute {
 		// a water bucket (a fire put out, a fall caught), two iron pickaxes, an iron sword
 		List.of(piece(M2_2, "water bucket", b -> b.inv("water_bucket") < 1),
 			piece(M2_2, "iron pickaxes", b -> picksUp(b) < 2),
-			piece(M2_2, "iron sword", b -> !anyOf(b, "iron_sword", "diamond_sword", "netherite_sword"))),
+			piece(M2_2, "iron sword", b -> !anyOf(b, "iron_sword", "diamond_sword", "netherite_sword")),
+			// (spare_shield_m2, off: a kit change that waits for his word, 24 Nov 2026) a second shield at the tools' table visit,
+			// from the bag alone: of 53 overworld deaths after M2.1 whose shield could be read, 17 had none (a creeper's blast
+			// costs a shield 25-44 uses of 336), and the shield again needs its makings in the bag, which those runs lacked. One
+			// try; with no iron or wood for it the piece is passed over, never a trip for them
+			new Piece(M2_2, "spare shield", 1, b -> b.spareShieldOn() && b.inv("shield") < 2 && b.shieldMakings())),
 		// down to the diamonds for the pickaxe and the sword; the brew's redstone down there
 		List.of(piece(M3_1, "diamonds", b -> !anyOf(b, "diamond_pickaxe", "netherite_pickaxe") || !anyOf(b, "diamond_sword", "netherite_sword")),
 			piece(M3_1, "redstone", b -> b.inv("redstone") < 1)),

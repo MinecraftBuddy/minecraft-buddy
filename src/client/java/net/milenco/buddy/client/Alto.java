@@ -113,6 +113,7 @@ final class Alto {
 	static void tick() {
 		if (!present()) return;
 		if (up) watchDoing();
+		if (up) shieldWatch();
 		scaleTimeouts();
 		boolean want = on();
 		if (want != up) {
@@ -967,6 +968,50 @@ final class Alto {
 		return wood >= 6;
 	}
 
+	/** When the spare shield's skip was last said, wall clock ms: at most once in ten minutes. */
+	private static long spareSkipSaidAt = Long.MIN_VALUE;
+
+	/**
+	 * (spare_shield_m2) The spare shield's makings with no trip and no smelt: an iron ingot, six planks of wood, and a crafting
+	 * table carried or four planks more for one. Without them the piece is passed over, said once in ten minutes.
+	 */
+	private static boolean spareMakings(net.minecraft.client.player.LocalPlayer p) {
+		int wood = planks(p);
+		boolean ok = ObtainSteps.count(p, "iron_ingot") >= 1 && wood >= (ObtainSteps.count(p, "crafting_table") >= 1 ? 6 : 10);
+		long now = System.currentTimeMillis();
+		if (!ok && now - spareSkipSaidAt > 600_000) {
+			spareSkipSaidAt = now;
+			adris.altoclef.Debug.logInternal("route: piece m2.2/spare shield passed over: " + ObtainSteps.count(p, "iron_ingot")
+				+ " iron ingots and " + wood + " planks of wood in the bag (spare_shield_m2)");
+		}
+		return ok;
+	}
+
+	/** The shields carried at the last tick (-1 before the first) and whether the one in the off hand was at its last uses. */
+	private static int shieldsSeen = -1;
+	private static boolean shieldLow;
+
+	/**
+	 * A line when a shield breaks ("kit: shield broke, N left"), with every switch: the log never said so, and the overworld
+	 * deaths without a shield (17 of 53 after M2.1, 24 Nov 2026) could only be read from its absence. A shield that leaves
+	 * the bag another way (a chest, a throw) is not near its last uses and says nothing.
+	 */
+	private static void shieldWatch() {
+		var p = net.minecraft.client.Minecraft.getInstance().player;
+		if (p == null) { shieldsSeen = -1; return; }
+		var off = p.getOffhandItem();
+		int n = ObtainSteps.count(p, "shield");
+		if (shieldsSeen >= 0 && n < shieldsSeen && shieldLow) {
+			adris.altoclef.Debug.logInternal("kit: shield broke, " + n + " left, "
+				+ (p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD) ? "overworld" : "not the overworld")
+				+ ", route phase " + (ObtainRoute.on() ? ObtainRoute.PHASES.get(ObtainRoute.phase()) : "off"));
+			Exchange.emit("obtain", "action", "shield broke", "left", n);
+		}
+		if (off.is(net.minecraft.world.item.Items.SHIELD)) shieldLow = off.getMaxDamage() - off.getDamageValue() <= 50;
+		else if (n == 0) shieldLow = false;
+		shieldsSeen = n;
+	}
+
 	private static Run kit(net.minecraft.client.player.LocalPlayer p, long now, java.util.function.Predicate<String> skip) {
 		// an order into the nether begun in the overworld fetches its kit by the route's phases (ObtainRoute) until it is out
 		// of the overworld; the old kit from then on, as for any order
@@ -1176,6 +1221,10 @@ final class Alto {
 
 			public boolean restMissing() { return !routeRest(p, new java.util.ArrayList<>()).isEmpty(); }
 
+			public boolean spareShieldOn() { return present() && adris.altoclef.util.helpers.Tuning.get("spare_shield_m2", 0) > 0; }
+
+			public boolean shieldMakings() { return spareMakings(p); }
+
 			public boolean kitAgain() { return kitAgainOn(); }
 
 			public int netherSticks() { return netherSticksWanted(); }
@@ -1280,6 +1329,10 @@ final class Alto {
 			case "shield":
 				return new Run("equip shield", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(
 					new adris.altoclef.util.ItemTarget("shield", 1))));
+			// (spare_shield_m2) the second shield, only asked with its makings in the bag (spareMakings): a craft, no trip
+			case "spare shield":
+				return new Run("kit the spare shield (m2.2)", 3 * 60_000L, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
+					new adris.altoclef.util.ItemTarget("shield", 2))));
 			case "copper_chestplate", "copper_leggings", "copper_boots":
 				return new Run("equip " + name, (6 + 2 * ingots(name.substring("copper_".length()))) * 60_000L,
 					() -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget(name, 1))));
