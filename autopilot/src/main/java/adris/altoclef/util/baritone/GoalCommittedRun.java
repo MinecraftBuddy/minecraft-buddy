@@ -130,6 +130,7 @@ public class GoalCommittedRun extends GoalRunAwayFromCrowd implements SearchSnap
     // they are when it starts. no shooters, no cells (the tests' null maker) or the key off: no line, the plain heuristic
     @Override
     public void searchStarts() {
+        _searches.incrementAndGet();
         Shooters fire = _fire;
         Cells cells = _cells;
         if (fire == null || cells == null || !lineOn()) {
@@ -138,6 +139,18 @@ public class GoalCommittedRun extends GoalRunAwayFromCrowd implements SearchSnap
         }
         _line.set(new Line(fire, cells, Tuning.get("run_break_line_cost", LINE_COST)));
         _lineBound = true;
+        _priced.incrementAndGet();
+        _pricedShooters.accumulateAndGet(fire.x().length, Math::max);
+    }
+
+    // (run_break_line) for the run's 'run shape' line: the searches made for this goal, how many of them were priced, and the
+    // most shooters one priced search held. a smoke showed no way to tell from the log whether B priced anything at all
+    private final java.util.concurrent.atomic.AtomicInteger _searches = new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger _priced = new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger _pricedShooters = new java.util.concurrent.atomic.AtomicInteger();
+
+    public String searchNote() {
+        return "searches " + _searches.get() + " priced " + _priced.get() + " shooters " + _pricedShooters.get();
     }
 
     @Override

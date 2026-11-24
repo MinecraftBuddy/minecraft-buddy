@@ -59,6 +59,8 @@ public class CommittedRunTask extends CustomBaritoneGoalTask {
     static final long NONE = Long.MIN_VALUE;
     static final double SHAPE_RANGE = 18;
     private long _shapeStart = NONE;
+    // the newest run goal made (its search counts go on the 'run shape' line); null while only a bank or an inland point was asked
+    private GoalCommittedRun _runGoal;
     private long _shapeLast;
     private int _shapeArrows;
     private long _shapeClearAt = -1;
@@ -112,9 +114,11 @@ public class CommittedRunTask extends CustomBaritoneGoalTask {
             }
         }
         // the goal is asked from the pathfinder thread, so it gets thread safe copies of the loaded chunks (remade by refresh)
-        return new GoalCommittedRun(_originX, _originZ, _distance, CROWD_CLEAR, _crowd,
+        GoalCommittedRun run = new GoalCommittedRun(_originX, _originZ, _distance, CROWD_CLEAR, _crowd,
                 () -> CliffAvoidance.of(new BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true)),
                 WorldHelper.getCurrentDimension() == Dimension.NETHER, _shooters);
+        _runGoal = run;
+        return run;
     }
 
     // ...unless we're in the air. a hard cancel mid fall drops the MovementFall doing the bucket or the clutch, and the mlg
@@ -234,7 +238,8 @@ public class CommittedRunTask extends CustomBaritoneGoalTask {
         if (_shapeStart == NONE) return;
         long end = mod.getWorld() != null ? mod.getWorld().getGameTime() : _shapeLast;
         adris.altoclef.Debug.logInternal(shapeLine(Math.max(0, end - _shapeStart), _shapeArrows,
-                _shapeClearAt < 0 ? -1 : Math.max(0, _shapeClearAt - _shapeStart), _shapeBreak, GoalCommittedRun.lineOn()));
+                _shapeClearAt < 0 ? -1 : Math.max(0, _shapeClearAt - _shapeStart), _shapeBreak, GoalCommittedRun.lineOn())
+                + " " + (_runGoal != null ? _runGoal.searchNote() : "searches -"));
         _shapeStart = NONE;
     }
 
