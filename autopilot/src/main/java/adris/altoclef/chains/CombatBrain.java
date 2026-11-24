@@ -1114,9 +1114,16 @@ final class CombatBrain {
             // on what hits in reach with a line)
             _shutIn = coverOn && SkelCover.holdMeleeOn() && _cover.on() && _coverTask != null && player.onGround()
                     && SkelCoverTask.shutIn(mod.getWorld(), player.blockPosition());
+            // (Tuning cover_melee_hold, 24 Nov 2026, off) while the cover is in play, key on or off (off: the machine's note only):
+            // the cells at the eye's height around the feet, walled with all four up, counted for a pillbox under way while the
+            // cover's task runs, and the adult zombie kinds among the melee foes
+            boolean holdAsk = coverOn && (coverTakes || _cover.on());
+            int wallsUp = holdAsk ? SkelCoverTask.wallsUp(mod.getWorld(), SkelCoverTask.wallFeet(mod.getWorld(), player)) : 0;
+            boolean building = _cover.on() && _coverTask != null;
             _commit.skelFacts(coverOn || closeOn ? new CombatCommit.Skel(_seen.kinds(), _seen.lineIds(), closeOn,
                     closeOn && lines > 0 && hasSword(mod), closeOn && lines > 0 ? armourPieces(player) : 0, coverTakes,
-                    SkelCover.closeHp(), SkelCover.range(), digHere, lavaNear, overRuns, witchCover ? _seen.witchIds() : Set.of(), _shutIn) : null);
+                    SkelCover.closeHp(), SkelCover.range(), digHere, lavaNear, overRuns, witchCover ? _seen.witchIds() : Set.of(), _shutIn,
+                    wallsUp == 4, building ? wallsUp : 0, holdAsk ? adultZombieIds(mobs, foes) : Set.of()) : null);
             // (the flee fixes of 17 Nov 2026, test vlucht: one_melee_fight, cover_keep, flee_arrow_dig, all off) on the ground (the
             // overworld only: the other dimensions keep their own fights), a sword or an axe in the bag (asked only with
             // one_melee_fight on and a melee mob within the low hp range), the cover under way on the last step, its hp line
@@ -1137,6 +1144,8 @@ final class CombatBrain {
             if (note != null) Debug.logInternal("combat: [" + dimension.name().toLowerCase(java.util.Locale.ROOT) + "] " + note);
             String perchNote = _commit.takePerchNote();
             if (perchNote != null) Debug.logInternal("combat: [" + dimension.name().toLowerCase(java.util.Locale.ROOT) + "] " + perchNote);
+            String holdNote = _commit.takeHoldNote();
+            if (holdNote != null) Debug.logInternal("combat: [" + dimension.name().toLowerCase(java.util.Locale.ROOT) + "] " + holdNote);
             // (Tuning wither_gap, off: a run from two or three wither skeletons at good health, begun this step or going on, is
             // the fight from a cell they cannot enter, found or made, where there is one)
             if (_commit.mode() == Mode.RUN && dimension == Dimension.NETHER && WitherGapRules.on()) {
@@ -1453,6 +1462,16 @@ final class CombatBrain {
         for (int i = 0; i < mobs.size() && i < foes.size(); i++) {
             Mob mob = mobs.get(i);
             if (foes.get(i).id() == mob.getId() && foes.get(i).melee() && mob.isPassenger() && mob.getVehicle() instanceof net.minecraft.world.entity.LivingEntity) out.add(mob.getId());
+        }
+        return out;
+    }
+
+    // (cover_melee_hold) the ids of the melee foes that are adult zombie kinds (SkelCoverTask.adultZombie)
+    private static Set<Integer> adultZombieIds(List<Mob> mobs, List<Foe> foes) {
+        Set<Integer> out = new HashSet<>();
+        for (int i = 0; i < mobs.size() && i < foes.size(); i++) {
+            Mob mob = mobs.get(i);
+            if (foes.get(i).id() == mob.getId() && foes.get(i).melee() && SkelCoverTask.adultZombie(mob)) out.add(mob.getId());
         }
         return out;
     }

@@ -1159,8 +1159,18 @@ public final class CombatCommit {
     // (pillbox_hold_melee, a fix of 14 Nov 2026) shut: the buddy stands in the cover with the four cells at the eye's height and
     // the one over the head solid (a shut pillbox or a dug-in hole with its top), false with the key off: a melee mob at the walls
     // cannot reach in, so it holds against melee mobs as the dug-in cover does
+    // (cover_melee_hold, 24 Nov 2026) walled: the four cells at the eye's height around the feet solid, top or not; wallsUp: how
+    // many of those four stand while the cover's task runs (0 when it does not); adultZombies: the ids of the melee foes that
+    // are adult zombie kinds (a zombie, husk, drowned or zombie villager, not a baby, not riding). handed in with the key on or
+    // off (off: the hold's note only), false, 0 and empty in a bare machine
     public record Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
-                       double range, boolean dig, boolean lavaNear, boolean overRuns, Set<Integer> witches, boolean shut) {
+                       double range, boolean dig, boolean lavaNear, boolean overRuns, Set<Integer> witches, boolean shut,
+                       boolean walled, int wallsUp, Set<Integer> adultZombies) {
+        public Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
+                    double range, boolean dig, boolean lavaNear, boolean overRuns, Set<Integer> witches, boolean shut) {
+            this(kinds, lines, close, sword, armour, cover, closeHp, range, dig, lavaNear, overRuns, witches, shut, false, 0, Set.of());
+        }
+
         public Skel(Set<Integer> kinds, Set<Integer> lines, boolean close, boolean sword, int armour, boolean cover, float closeHp,
                     double range, boolean dig, boolean lavaNear, boolean overRuns, Set<Integer> witches) {
             this(kinds, lines, close, sword, armour, cover, closeHp, range, dig, lavaNear, overRuns, witches, false);
@@ -1190,6 +1200,22 @@ public final class CombatCommit {
 
     public void skelFacts(Skel facts) {
         skel = facts;
+        // (cover_melee_hold) a cover that ended: the next one gets its own note
+        if (facts == null || !facts.cover()) holdSaid = false;
+    }
+
+    // (cover_melee_hold) its note goes out once per cover (holdSaid), on a line of its own: the step's other notes come after it
+    private String holdNote;
+    private boolean holdSaid;
+
+    public String takeHoldNote() {
+        String note = holdNote;
+        holdNote = null;
+        return note;
+    }
+
+    public static boolean coverMeleeHoldOn() {
+        return Tuning.get("cover_melee_hold", 0) > 0;
     }
 
     // (skel_cover) the cover takes the buddy and every shooter with a line that hit us lately is a skeleton kind: no run from
@@ -1297,6 +1323,8 @@ public final class CombatCommit {
         if (!coverTakes(t) || skel.lavaNear()) return false;
         if (!coverForShots(t) || endermanAbout(t) != null || t.creeperRepeat()) return false;
         boolean melee = false;
+        int zombies = 0;
+        boolean others = false;
         for (Foe foe : t.foes()) {
             if (skel.coverKind(foe.id())) continue;
             if (foe.creeper()) {
@@ -1305,8 +1333,31 @@ public final class CombatCommit {
             }
             if (!foe.melee() || foe.kind() != Kind.NORMAL || foe.wither()) return false;
             melee = true;
+            if (skel.adultZombies().contains(foe.id())) zombies++;
+            else others = true;
         }
-        return !melee || skel.dig() || skel.shut();
+        if (!melee || skel.dig() || skel.shut()) return true;
+        return zombieHold(zombies, others);
+    }
+
+    // (Tuning cover_melee_hold, 24 Nov 2026, off) where the old rule leaves the cover for melee mobs (the ground will not dig, not
+    // shut in), the cover holds against adult zombie kinds alone: any number of them with the four cells at the eye's height solid,
+    // top or not (an adult zombie's attack box is its own box widened sideways only, so it cannot reach in over a wall at the
+    // eye's height), and exactly one with a side of a pillbox under way still open (two of its four walls up at least; the box's
+    // next cell goes toward it, SkelCoverTask). a baby, a spider or any other melee kind, or two zombies at an open side, break it
+    // as before. one plain zombie at a pillbox not shut sent the buddy on the 24-block run into the skeletons' lines: 9 of 18
+    // deaths in the cave drill, 7 with arrows in the back. with the key off only the note that it would have held
+    private boolean zombieHold(int zombies, boolean others) {
+        if (others || zombies == 0) return false;
+        String where = skel.walled() ? "walled" : zombies == 1 && skel.wallsUp() >= 2 ? "open side" : null;
+        if (where == null) return false;
+        boolean on = coverMeleeHoldOn();
+        if (!holdSaid) {
+            holdSaid = true;
+            String count = zombies + (zombies == 1 ? " zombie" : " zombies");
+            holdNote = (on ? "cover_melee_hold: held against " : "cover_melee_hold would hold: ") + count + " [" + where + "]";
+        }
+        return on;
     }
 
     // (skel_cover_over_runs) a run under the cover's hp line (the cover takes the buddy) that took a skeleton's arrow since it

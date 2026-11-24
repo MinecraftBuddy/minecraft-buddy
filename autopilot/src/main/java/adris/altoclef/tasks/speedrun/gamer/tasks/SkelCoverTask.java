@@ -17,6 +17,8 @@ import net.minecraft.world.entity.monster.skeleton.Bogged;
 import net.minecraft.world.entity.monster.skeleton.Parched;
 import net.minecraft.world.entity.monster.skeleton.Skeleton;
 import net.minecraft.world.entity.monster.skeleton.Stray;
+import net.minecraft.world.entity.monster.zombie.Zombie;
+import net.minecraft.world.entity.monster.zombie.ZombifiedPiglin;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -488,10 +490,31 @@ public final class SkelCoverTask extends Task {
 
     // the four cells at the eye's height are solid: a hole, a nook or a box of an earlier round, the top is all it lacks
     private static boolean walled(Level level, BlockPos feet) {
+        return wallsUp(level, feet) == 4;
+    }
+
+    // (cover_melee_hold) how many of the four cells at the eye's height around these feet are solid
+    public static int wallsUp(Level level, BlockPos feet) {
+        int up = 0;
         for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
-            if (!CornerWallTask.solid(level, feet.above().relative(d))) return false;
+            if (CornerWallTask.solid(level, feet.above().relative(d))) up++;
         }
-        return true;
+        return up;
+    }
+
+    // (cover_melee_hold) the cell whose walls the hold asks: the feet's, or in the air over an open cell the one under them (the
+    // pillbox's jump for its top's support lifts the feet a cell, and the walls would read as gone for that half second)
+    public static BlockPos wallFeet(Level level, LocalPlayer player) {
+        BlockPos feet = player.blockPosition();
+        return !player.onGround() && !CornerWallTask.solid(level, feet.below()) ? feet.below() : feet;
+    }
+
+    // (cover_melee_hold) an adult zombie kind: a zombie, husk, drowned or zombie villager, not a zombified piglin (a knocker that
+    // comes in packs), not a baby (one fits under a wall at the eye's height) and not riding (a rider's attack box takes its
+    // mount's in). its attack box is its own box widened sideways only (Mob.getAttackBoundingBox), so it cannot reach a buddy
+    // behind walls at the eye's height, top or not
+    public static boolean adultZombie(net.minecraft.world.entity.Entity e) {
+        return e instanceof Zombie z && !(e instanceof ZombifiedPiglin) && z.isAlive() && !z.isBaby() && !z.isPassenger();
     }
 
     private void startBox(LocalPlayer player, Seen s) {
@@ -648,6 +671,10 @@ public final class SkelCoverTask extends Task {
     // the pillbox's next cell: in order, the first not shut that a block can go into with a face beside it; a side cell with no
     // face yet gets the cell under it first (its top face is the one the side needs over open ground)
     private BlockPos nextBoxCell(Level level, LocalPlayer player) {
+        // (Tuning cover_melee_hold, 24 Nov 2026, off) an adult zombie kind within ZOMBIE_SIDE_NEAR: its side first, so the open
+        // side the hold lets one zombie stand at is the one shut next
+        BlockPos toward = CombatCommit.coverMeleeHoldOn() ? zombieSideCell(level, player) : null;
+        if (toward != null) return toward;
         for (BlockPos cell : boxCells) {
             if (CornerWallTask.solid(level, cell)) continue;
             if (boxUsable(level, player, cell)) return cell;
@@ -665,6 +692,39 @@ public final class SkelCoverTask extends Task {
             }
         }
         return null;
+    }
+
+    // (cover_melee_hold) how near an adult zombie kind turns the pillbox's next cell toward it
+    static final double ZOMBIE_SIDE_NEAR = 6;
+
+    // (cover_melee_hold) of the side cells not shut that a block can go into, the one whose side from the buddy lies nearest the
+    // direction of the nearest adult zombie kind within ZOMBIE_SIDE_NEAR; null with none about or no such cell (the order as
+    // before then)
+    private BlockPos zombieSideCell(Level level, LocalPlayer player) {
+        Zombie near = null;
+        double nearest = ZOMBIE_SIDE_NEAR;
+        for (Zombie z : level.getEntitiesOfClass(Zombie.class, player.getBoundingBox().inflate(ZOMBIE_SIDE_NEAR), SkelCoverTask::adultZombie)) {
+            double d = z.distanceTo(player);
+            if (d <= nearest) {
+                nearest = d;
+                near = z;
+            }
+        }
+        if (near == null) return null;
+        double dx = near.getX() - player.getX(), dz = near.getZ() - player.getZ();
+        if (dx * dx + dz * dz < 1e-6) return null;
+        BlockPos best = null;
+        double bestDot = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < 4 && i < boxCells.size(); i++) {
+            BlockPos cell = boxCells.get(i);
+            if (CornerWallTask.solid(level, cell) || !boxUsable(level, player, cell)) continue;
+            double dot = (cell.getX() - boxFeet.getX()) * dx + (cell.getZ() - boxFeet.getZ()) * dz;
+            if (dot > bestDot) {
+                bestDot = dot;
+                best = cell;
+            }
+        }
+        return best;
     }
 
     static boolean cornerFaceOn() {

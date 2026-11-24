@@ -1163,6 +1163,11 @@ public final class Tuning {
             // crack, so the 3-block dig took about 4 s against 2 with a zombie biting and no swing landing; a hole with no top
             // keeps the hands (cover_contact_hands), MobDefenseChain (24 Nov 2026)
             java.util.Map.entry("cover_dig_keep_tool", 1.0),
+            // cover_melee_hold: the skeleton cover holds against adult zombie kinds, any number with the four cells at the eye's
+            // height solid (top or not), one with a side of a pillbox under way still open, the next cell toward it; off: only its
+            // note ("would hold"). one zombie at a pillbox not shut sent the buddy on the 24-block run, 9 of 18 deaths in the
+            // cave drill, 7 with arrows in the back, CombatCommit, SkelCoverTask (24 Nov 2026, off)
+            java.util.Map.entry("cover_melee_hold", 0.0),
             // the fight's own target counts for the mid-fight bite whether or not the foe list holds it this tick: a cornered fight on a
             // spider read 'no melee mob within 4' and the buddy ate at hp 5.3 and 2.7 with the spider on it, CombatBrain (20 Nov 2026)
             java.util.Map.entry("fight_target_bite", 1.0),
