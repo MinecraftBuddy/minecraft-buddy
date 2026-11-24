@@ -894,19 +894,47 @@ final class ObtainSafe {
 		// Soprano's kit asks for (blocks, its stone tools), so a stack of it thrown was picked up again by its own pickup the
 		// next second, and round it went, thrown and picked up
 		if (blocks > 96) {
-			int cobble = 0, cobbleSlot = -1;
+			String[] ids = new String[36];
+			int[] counts = new int[36];
+			boolean[] eligible = new boolean[36];
 			for (int i = 0; i < 36; i++) {
 				var st = in.getItem(i);
-				if (!throwaway(st)) continue;
-				String id = AfkHelperClient.itemId(st);
-				if (id.equals(Obtain.item()) || held.test(id) || kept != null && kept[i]) continue;
-				if (!id.equals("cobblestone")) return i;
-				cobble += st.getCount();
-				cobbleSlot = i;
+				ids[i] = st.isEmpty() ? "" : AfkHelperClient.itemId(st);
+				counts[i] = st.getCount();
+				eligible[i] = throwaway(st) && !ids[i].equals(Obtain.item()) && !held.test(ids[i]) && !(kept != null && kept[i]);
 			}
-			if (cobble > 64) return cobbleSlot;
+			return overflowSlot(ids, counts, eligible, standStoneKeepOn());
 		}
 		return -1;
+	}
+
+	/** The brewing stand's stone in all its kinds (the recipe's stone crafting materials). */
+	static final java.util.Set<String> STAND_STONE = java.util.Set.of("cobblestone", "cobbled_deepslate", "blackstone");
+
+	/**
+	 * The stack the full-bag throw takes once the blocks pass 96 ({@link #junkSlot}), of the slots {@code eligible} marks: the
+	 * first that is no stone the kit asks for, then that stone above a stack. (Tuning stand_stone_junk_keep, a fix of 24 Nov
+	 * 2026, on: {@code standKeep}) the brewing stand's stone counts as that stone in all its kinds, and above a stack its
+	 * smallest stack goes, so the rest keeps the stand's three. Only "cobblestone" did: a stack of cobbled deepslate, all the
+	 * stand's stone the bag took into the nether, went first, and the brew found 0 of 3 (4 of 5 such heel runs read; of 12
+	 * such runs in 48 h, 8 died to blazes fighting on without the brew).
+	 */
+	static int overflowSlot(String[] ids, int[] counts, boolean[] eligible, boolean standKeep) {
+		int stone = 0, stoneSlot = -1;
+		for (int i = 0; i < ids.length; i++) {
+			if (!eligible[i]) continue;
+			boolean kitStone = ids[i].equals("cobblestone") || standKeep && STAND_STONE.contains(ids[i]);
+			if (!kitStone) return i;
+			stone += counts[i];
+			// (without standKeep the last such stack, as before)
+			if (stoneSlot < 0 || !standKeep || counts[i] < counts[stoneSlot]) stoneSlot = i;
+		}
+		return stone > 64 ? stoneSlot : -1;
+	}
+
+	/** The autopilot's stand_stone_junk_keep switch (a fix of 24 Nov 2026, on by default); off without the autopilot. */
+	static boolean standStoneKeepOn() {
+		return Alto.present() && adris.altoclef.util.helpers.Tuning.get("stand_stone_junk_keep", 0) > 0;
 	}
 
 	/**

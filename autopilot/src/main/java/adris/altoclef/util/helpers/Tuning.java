@@ -1288,7 +1288,11 @@ public final class Tuning {
             java.util.Map.entry("drown_open_column", 1.0),
             // a block's place resets its progress check after a failure, so the try from above gets more than one tick: the buddy
             // went back to the same stand with no face to click for 4.3 minutes, PlaceBlockTask (20 Nov 2026)
-            java.util.Map.entry("place_fail_reset", 1.0));
+            java.util.Map.entry("place_fail_reset", 1.0),
+            // the buddy's full-bag throw (ObtainSafe.junkSlot) keeps the brewing stand's stone in all its kinds as it kept
+            // cobblestone: a stack of cobbled deepslate, the bag's only stand stone, was thrown in the nether and the brew found
+            // 0 of 3 (4 of 5 heel runs read; 8 of 12 such runs died to blazes), ObtainSafe.overflowSlot (24 Nov 2026)
+            java.util.Map.entry("stand_stone_junk_keep", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
