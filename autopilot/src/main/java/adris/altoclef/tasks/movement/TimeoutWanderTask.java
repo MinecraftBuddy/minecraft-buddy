@@ -143,6 +143,10 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
 
     // true once the wander has run a good while without ever getting out of its spot. it keeps wandering, this is
     // only for whoever asked for it to read
+    static boolean shimmyDropSkip() {
+        return adris.altoclef.util.helpers.Tuning.get("shimmy_drop_skip", 1) > 0;
+    }
+
     public boolean failing() {
         return failing(timeOnTaskSeconds(), _excursion.max());
     }
@@ -321,7 +325,11 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
         }
         // shimmy holds sneak+forward+click, in a meadow of tall grass it never runs out of grass to be stuck in. a
         // failing wander drops it and goes back to exploring
-        if (!failing && _unstuckTask != null && _unstuckTask.isActive() && !_unstuckTask.isFinished(mod) && stuckInBlock(mod) != null) {
+        // (Tuning shimmy_drop_skip, on, a fix) no shimmy beside a drop: it holds still there (no step, no click) and this branch
+        // handed it back every tick with the stuck check reset, so the buddy stood on a rim for 5 minutes till the run stalled
+        // (heel, 25 Nov 2026). without it the wander goes on: off the rim, inland, exploring
+        boolean shimmyHeld = shimmyDropSkip() && SafeRandomShimmyTask.nearDrop(mod);
+        if (!failing && !shimmyHeld && _unstuckTask != null && _unstuckTask.isActive() && !_unstuckTask.isFinished(mod) && stuckInBlock(mod) != null) {
             setDebugState("Getting unstuck from block.");
             stuckCheck.reset();
             // Stop other tasks, we are JUST shimmying
@@ -337,7 +345,7 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
                 return new KillEntitiesTask(valid, mob.get().getClass());
             }
             BlockPos blockStuck = stuckInBlock(mod);
-            if (blockStuck != null && !failing) {
+            if (blockStuck != null && !failing && !shimmyHeld) {
                 _failCounter++;
                 _unstuckTask = getFenceUnstuckTask();
                 return _unstuckTask;

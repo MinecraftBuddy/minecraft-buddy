@@ -1304,7 +1304,10 @@ public final class Tuning {
             // the nether gold step's dry clock (nether_gold_dry_s) restarts only on this many gold more, not on any nugget: a dig
             // gaining under a gold a minute, piglins sending it off ore after ore, never ended and the run stalled there (3 of 9
             // nether stalls of heel-252/253); 0 is the old way, TradeGoldRules.dryRestart (25 Nov 2026)
-            java.util.Map.entry("gold_dry_step", 8.0));
+            java.util.Map.entry("gold_dry_step", 8.0),
+            // the wander starts or keeps no shimmy beside a drop: the shimmy holds still there and the wander handed it back
+            // every tick, a deadlock of 5 minutes on a rim till the run stalled (TimeoutWanderTask, 25 Nov 2026)
+            java.util.Map.entry("shimmy_drop_skip", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
