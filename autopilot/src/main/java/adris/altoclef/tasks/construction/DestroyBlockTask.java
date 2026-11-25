@@ -853,6 +853,15 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
                 steppingOff = true;
             }
         }
+        // (last_support_step, a fix of 25 Nov 2026, on) the test above measures the feet to the block's centre, and a box hung on
+        // the block's last edge is 0.94 from it: the edge brake held the buddy over a 29-block shaft on the ore's edge, the
+        // ore was mined, and the fall killed (heel-254-mc3 r1). The block that is the box's only support while another column
+        // under the box has no floor is stepped off first, whatever lies under the block itself
+        if (!steppingOff && lastSupportStepOn() && lastSupportOverDrop(mod.getWorld(), mod.getPlayer().getBoundingBox(),
+                mod.getPlayer().onGround(), _pos)) {
+            markFromSide(mod);
+            steppingOff = true;
+        }
         if (_stepOffs.tick(steppingOff)) {
             // we keep ending up on top of it. a different ore is a better idea than a tenth lap
             Debug.logInternal("Destroy " + _what + " at " + _pos.toShortString() + ": stepped off it too many times, giving it up");
@@ -1247,5 +1256,41 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         } catch (Throwable ignored) {
         }
         return "Breaking the block at " + HudText.pos(_pos);
+    }
+
+    // the autopilot's last_support_step switch (a fix of 25 Nov 2026, on)
+    private static boolean lastSupportStepOn() {
+        return adris.altoclef.util.helpers.Tuning.get("last_support_step", 0) > 0;
+    }
+
+    /**
+     * Whether breaking pos takes the box's last floor while the box hangs over a drop: the box stands on pos's top (on the
+     * ground, the feet within a step of it), pos is the only block with a collision shape under the box's corner columns, and
+     * one of those columns has no floor within three blocks under that level. A box's max side on a block's edge only touches
+     * the next column, as EdgeBrake.supportedUnder counts it.
+     */
+    static boolean lastSupportOverDrop(BlockGetter level, net.minecraft.world.phys.AABB box, boolean onGround, BlockPos pos) {
+        if (!onGround) return false;
+        double above = box.minY - (pos.getY() + 1);
+        if (above < -0.01 || above > 0.5) return false;
+        int x0 = (int) Math.floor(box.minX), x1 = (int) Math.floor(box.maxX - 1.0E-7);
+        int z0 = (int) Math.floor(box.minZ), z1 = (int) Math.floor(box.maxZ - 1.0E-7);
+        if (pos.getX() < x0 || pos.getX() > x1 || pos.getZ() < z0 || pos.getZ() > z1) return false;
+        boolean drop = false;
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        for (int x = x0; x <= x1; x++) {
+            for (int z = z0; z <= z1; z++) {
+                if (x == pos.getX() && z == pos.getZ()) continue;
+                at.set(x, pos.getY(), z);
+                if (!level.getBlockState(at).getCollisionShape(level, at).isEmpty()) return false;
+                boolean floor = false;
+                for (int dy = 1; dy <= 3 && !floor; dy++) {
+                    at.set(x, pos.getY() - dy, z);
+                    floor = !level.getBlockState(at).getCollisionShape(level, at).isEmpty();
+                }
+                if (!floor) drop = true;
+            }
+        }
+        return drop;
     }
 }

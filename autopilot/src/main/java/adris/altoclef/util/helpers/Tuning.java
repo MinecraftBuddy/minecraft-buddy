@@ -1340,7 +1340,11 @@ public final class Tuning {
             // cook_raw_m2 (read by the buddy, ObtainRoute's M2.2 piece "cook raw meat"): the raw meat the bag carries is cooked in the
             // bag's furnace at the end of M2.2, before the deep, as far as the bag's fuel goes (CookCarriedMeatTask): 9 of 29 heel
             // runs went down with 9 or more raw pieces, and 5 of 16 obsidian deaths had run out of food (25 Nov 2026)
-            java.util.Map.entry("cook_raw_m2", 1.0));
+            java.util.Map.entry("cook_raw_m2", 1.0),
+            // a block that is the box's last floor while another column under the box has no floor is stepped off before it is
+            // broken (DestroyBlockTask.lastSupportOverDrop): the centre-distance test missed a box on the ore's last edge over a
+            // 29-block shaft, and the buddy mined the ore it hung on (heel-254-mc3 r1, 25 Nov 2026)
+            java.util.Map.entry("last_support_step", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
