@@ -64,6 +64,12 @@ public final class NightSleepHook {
         if (now == NightSleep.Stage.LIFT && meleeHitLately(gameTime)) {
             return false;
         }
+        // (Tuning sleep_melee_any, a fix of 25 Nov 2026, on) a melee hit ends the stand-down in every stage, not on the climb
+        // alone: what hits in melee can reach the buddy, so it is a fight. the bed taken back at the surface with mob defense
+        // off took 8 zombie hits in 5 s, 20 to 7 hp, and the run died after (heel-252-mc1 r17)
+        if (now != null && Tuning.get("sleep_melee_any", 0) > 0 && meleeHitLately(gameTime)) {
+            return false;
+        }
         return now != null && NightSleep.standsDown(now, health);
     }
 

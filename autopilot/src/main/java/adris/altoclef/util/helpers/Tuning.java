@@ -1317,7 +1317,14 @@ public final class Tuning {
             // the fire-proof camp at the pillbox's open side, a walk that comes no closer in 30 s: that side is shut out and the
             // camp goes by the spawner. none of the camp walk's give-ups fit a door within 8 blocks with no way up to it: 171
             // searches in 18 minutes, the three brewed potions drunk for no blaze (heel-252-mc1 run 11, 25 Nov 2026)
-            java.util.Map.entry("fireproof_door_giveup", 1.0));
+            java.util.Map.entry("fireproof_door_giveup", 1.0),
+            // a melee hit ends the night trip's stand-down of mob defense in every stage, not on the climb alone: the bed taken
+            // back at the surface took 8 zombie hits in 5 s with no defense, 20 to 7 hp (NightSleepHook, 25 Nov 2026)
+            java.util.Map.entry("sleep_melee_any", 1.0),
+            // (read by the buddy, Alto.spareShield and shieldToEquip) outside the overworld a shield's makings are iron ingots, as
+            // many as the bill asks, never raw iron: its smelt asked fuel and the bill went home through the portal for logs,
+            // and back in the nether the route began at its gold again (heel-253-mc1 run 22, 25 Nov 2026)
+            java.util.Map.entry("nether_shield_ingots", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
