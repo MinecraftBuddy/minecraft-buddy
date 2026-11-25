@@ -910,8 +910,11 @@ final class Alto {
 		var off = p.getOffhandItem();
 		if (!off.is(net.minecraft.world.item.Items.SHIELD) || !adris.altoclef.util.helpers.ToolWear.wornOut(off.getDamageValue(), off.getMaxDamage())
 				|| ObtainSteps.count(p, "shield") >= 2 || skip.test("kit a spare shield")) return null;
-		boolean bagOnly = ObtainSafe.spareShieldBagOnly(spareShieldDeep(), p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD), routeDeep(p));
-		if (bagOnly && !shieldMakings(p)) return null;
+		boolean overworld = p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD);
+		boolean bagOnly = ObtainSafe.spareShieldBagOnly(spareShieldDeep(), overworld, routeDeep(p));
+		// (nether_shield_ingots) outside the overworld the bill's own ask: it crafts two shields, the worn one in the off hand not
+		// counted, so two iron ingots and twelve planks, no smelt
+		if (bagOnly && !(overworld || !netherShieldIngots() ? shieldMakings(p) : shieldMakings(p, 2, 12, false))) return null;
 		return new Run("kit a spare shield", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
 			new adris.altoclef.util.ItemTarget("shield", 2))));
 	}
@@ -950,12 +953,26 @@ final class Alto {
 	private static boolean shieldToEquip(net.minecraft.client.player.LocalPlayer p) {
 		if (p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return true;
 		int inHand = p.getOffhandItem().is(net.minecraft.world.item.Items.SHIELD) ? 1 : 0;
-		return ObtainSteps.count(p, "shield") > inHand || shieldMakings(p);
+		return ObtainSteps.count(p, "shield") > inHand || (netherShieldIngots() ? shieldMakings(p, 1, 6, false) : shieldMakings(p));
 	}
 
 	/** Whether a shield's makings are in the bag: an iron, raw or smelted, and six planks of wood (logs and stems count four). */
 	private static boolean shieldMakings(net.minecraft.client.player.LocalPlayer p) {
-		if (ObtainSteps.count(p, "raw_iron") + ObtainSteps.count(p, "iron_ingot") < 1) return false;
+		return shieldMakings(p, 1, 6, true);
+	}
+
+	/**
+	 * (nether_shield_ingots, a fix of 25 Nov 2026, on) Outside the overworld raw iron is no shield's makings: its smelt asked
+	 * fuel, and the bill went through the portal for logs, slept and came back, and the nether route began at its gold again
+	 * (heel-253-mc1 run 22, a shield worn out by a ghast's fireballs). The autopilot's switch; on without the autopilot too.
+	 */
+	static boolean netherShieldIngots() {
+		return !present() || adris.altoclef.util.helpers.Tuning.get("nether_shield_ingots", 0) > 0;
+	}
+
+	/** Whether the bag holds this many irons (raw ones too when raw) and planks of wood (logs and stems count four). */
+	private static boolean shieldMakings(net.minecraft.client.player.LocalPlayer p, int irons, int planks, boolean raw) {
+		if ((raw ? ObtainSteps.count(p, "raw_iron") : 0) + ObtainSteps.count(p, "iron_ingot") < irons) return false;
 		int wood = 0;
 		var inv = p.getInventory();
 		for (int i = 0; i < 36; i++) {
@@ -965,7 +982,7 @@ final class Alto {
 			if (id.endsWith("_planks")) wood += s.getCount();
 			else if (id.endsWith("_log") || id.endsWith("_stem")) wood += 4 * s.getCount();
 		}
-		return wood >= 6;
+		return wood >= planks;
 	}
 
 	/** When the spare shield's skip was last said, wall clock ms: at most once in ten minutes. */
