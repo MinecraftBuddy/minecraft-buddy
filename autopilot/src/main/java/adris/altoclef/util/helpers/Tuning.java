@@ -1313,7 +1313,11 @@ public final class Tuning {
             java.util.Map.entry("gold_dry_step", 8.0),
             // the wander starts or keeps no shimmy beside a drop: the shimmy holds still there and the wander handed it back
             // every tick, a deadlock of 5 minutes on a rim till the run stalled (TimeoutWanderTask, 25 Nov 2026)
-            java.util.Map.entry("shimmy_drop_skip", 1.0));
+            java.util.Map.entry("shimmy_drop_skip", 1.0),
+            // the fire-proof camp at the pillbox's open side, a walk that comes no closer in 30 s: that side is shut out and the
+            // camp goes by the spawner. none of the camp walk's give-ups fit a door within 8 blocks with no way up to it: 171
+            // searches in 18 minutes, the three brewed potions drunk for no blaze (heel-252-mc1 run 11, 25 Nov 2026)
+            java.util.Map.entry("fireproof_door_giveup", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

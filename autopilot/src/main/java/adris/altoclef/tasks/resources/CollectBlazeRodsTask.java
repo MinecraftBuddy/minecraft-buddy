@@ -2743,6 +2743,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         _campFarDropped.clear();
     }
 
+    private static boolean fireproofDoorGiveUpOn() {
+        return adris.altoclef.util.helpers.Tuning.get("fireproof_door_giveup", 0) > 0;
+    }
+
     private Task campWalk(AltoClef mod, BlockPos camp) {
         if (!camp.equals(_campWalkFor)) {
             _campWalkFor = camp;
@@ -2774,6 +2778,22 @@ public class CollectBlazeRodsTask extends ResourceTask {
             _shutOut.add(camp);
             _fight.campShutOut(camp);
             notePillboxSpot();
+            _lure = null;
+            _fight.corner(null);
+            _campSpotFor = null;
+            _campSpot = null;
+            return null;
+        }
+        // (Tuning fireproof_door_giveup, a fix of 25 Nov 2026, on) the fire-proof camp at the pillbox's open side, a walk that
+        // comes no closer in CAMP_CORNER_S: the side is shut out and the camp picked again, by the spawner. camp_stall below
+        // waits for a best beyond 8 blocks, and campNear only walks to the spawner's top: a door 4 blocks off with no floor
+        // took 171 searches in 18 minutes and the three brewed potions for no blaze (heel-252-mc1 run 11)
+        if (camp.equals(_campSpot) && _campFireproof && fireproofDoorGiveUpOn() && _campWalkStall >= Math.round(CAMP_CORNER_S * 20)) {
+            Debug.logInternal("blaze camp: the walk to the fire-proof camp at " + camp.toShortString() + " came no closer than "
+                    + Math.round(_campWalkBest) + " blocks in " + Math.round(CAMP_CORNER_S) + " s, that side shut out and the camp picked again (fireproof_door_giveup)");
+            _campWalkFor = null;
+            _campLureWatch.reset();
+            _shutOut.add(camp);
             _lure = null;
             _fight.corner(null);
             _campSpotFor = null;
@@ -2990,8 +3010,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // is the camp again, as fireproof_side asks)
             BlockPos side = _fireproofSpot;
             boolean top = adris.altoclef.util.helpers.Tuning.get("fireproof_top", 0) > 0;
+            // (Tuning fireproof_door_giveup: an open side the walk gave up on is shut out, campWalk)
             if ((!top || adris.altoclef.util.helpers.Tuning.get("fireproof_side", 0) > 0) && side != null
-                    && Math.hypot(side.getX() - sx, side.getZ() - sz) <= FIREPROOF_SPOT_RANGE) {
+                    && Math.hypot(side.getX() - sx, side.getZ() - sz) <= FIREPROOF_SPOT_RANGE
+                    && !(fireproofDoorGiveUpOn() && _shutOut.contains(side))) {
                 _campSpot = side;
                 Debug.logInternal("blaze camp: fire-proof, at the pillbox's open side " + side.toShortString() + " (spawner " + _foundBlazeSpawner.toShortString() + ")");
                 return;
