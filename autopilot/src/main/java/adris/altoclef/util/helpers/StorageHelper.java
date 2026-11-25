@@ -435,6 +435,7 @@ public class StorageHelper {
                 boolean keep = forTheEnd[i] || _bag.wear[i] || wouldWear(_mod, stack) || AltoSettings.isImportant(item)
                         || (GarbageRules.keepStationsOn() && GarbageRules.station(item))
                         || (Tuning.get("potion_room", 1) > 0 && _mod.getBehaviour().isProtected(item))
+                        || FireResTradeRules.keptAlways(stack)
                         || (stack.isEnchanted() && Baritone.settings().altoDontThrowAwayEnchantedItems.value)
                         || (stack.has(DataComponents.CUSTOM_NAME) && Baritone.settings().altoDontThrowAwayCustomNameItems.value)
                         || (units > 0 && GarbageRules.keepsFood(_foodUnits, units, _floor));

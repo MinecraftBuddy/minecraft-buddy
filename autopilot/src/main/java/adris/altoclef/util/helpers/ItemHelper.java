@@ -471,6 +471,10 @@ public class ItemHelper {
         // the gapple is the run saver, it is never the stack that goes
         if (FoodHelper.kindOf(stack.getItem()) == FoodHelper.Kind.RESERVED)
             return false;
+        // (Tuning fireres_keep, on, a fix) a fire resistance potion is never the stack that goes: the brew's keep holds only
+        // while the rods task runs, and a food trip home threw the traded splash potion out "to make room" in the overworld
+        if (FireResTradeRules.keptAlways(stack))
+            return false;
         int units = GarbageRules.keepUnits(stack);
         return units == 0 || !GarbageRules.keepsFood(bagUnits, units, Baritone.settings().altoFoodKeepUnits.value);
     }

@@ -1296,7 +1296,11 @@ public final class Tuning {
             // spare_shield_m2 (read by the buddy, ObtainRoute's M2.2 piece "spare shield"): a second shield at the tools' table
             // visit, from an iron ingot and the bag's wood alone. 17 of 53 overworld deaths after M2.1 had no shield left (close
             // creeper blasts wear one out in 7-13), and the shield again needs makings the bag seldom holds (24 Nov 2026)
-            java.util.Map.entry("spare_shield_m2", 1.0));
+            java.util.Map.entry("spare_shield_m2", 1.0),
+            // a fire resistance potion is never thrown for room nor pushed out by a core drop, in any task: the rods task's keep
+            // ends with it, and a food trip home threw a traded splash potion out in the overworld; back at the spawner the
+            // one left gave 1 rod (FireResTradeRules.keptAlways, 25 Nov 2026)
+            java.util.Map.entry("fireres_keep", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

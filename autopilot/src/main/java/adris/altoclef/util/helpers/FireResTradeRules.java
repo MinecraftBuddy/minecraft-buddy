@@ -48,6 +48,13 @@ public final class FireResTradeRules {
         return Form.NONE;
     }
 
+    // (Tuning fireres_keep, on, a fix) a fire resistance potion is kept in every task: never thrown for room, never the victim a
+    // core drop pushes out (ItemHelper.canDropStack, StorageHelper's room). the rods task's own keep ends with that task, and
+    // a food trip home with both traded potions threw the splash one out in the overworld (heel, 24 Nov 2026)
+    public static boolean keptAlways(ItemStack stack) {
+        return Tuning.get("fireres_keep", 1) > 0 && form(stack) != Form.NONE;
+    }
+
     // why the trade does not begin, null when it may: gold to give, no fire resistance potion yet, and the rods still to get
     // whyNot's word for an empty bag (FireResTrade's gold rounds look for it)
     public static final String NO_GOLD = "no gold";
