@@ -1336,7 +1336,11 @@ public final class Tuning {
             // a magma cream drop is picked up in the route's phases 1 and 2 too (the gold dig, the trade; within 8 while trading),
             // while the bag has neither cream nor a slime ball and the brew is to come: the gold dig took the tick within 2 s of a
             // fight's cube dropping its cream, twice (heel-253-mc3 r14; CollectBlazeRodsTask.creamDropEarly, 25 Nov 2026)
-            java.util.Map.entry("cream_pickup_any", 1.0));
+            java.util.Map.entry("cream_pickup_any", 1.0),
+            // cook_raw_m2 (read by the buddy, ObtainRoute's M2.2 piece "cook raw meat"): the raw meat the bag carries is cooked in the
+            // bag's furnace at the end of M2.2, before the deep, as far as the bag's fuel goes (CookCarriedMeatTask): 9 of 29 heel
+            // runs went down with 9 or more raw pieces, and 5 of 16 obsidian deaths had run out of food (25 Nov 2026)
+            java.util.Map.entry("cook_raw_m2", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
