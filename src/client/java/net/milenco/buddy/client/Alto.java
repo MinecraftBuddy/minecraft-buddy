@@ -1000,7 +1000,7 @@ final class Alto {
 		int wood = planks(p);
 		// (25 Nov 2026) raw iron counts with a furnace in the bag: a smelt of one, no trip. After the sword the bag held 1-8 raw
 		// iron and often no ingot, and the piece was passed over
-		int iron = ObtainSteps.count(p, "iron_ingot") + (ObtainSteps.count(p, "furnace") >= 1 ? ObtainSteps.count(p, "raw_iron") : 0);
+		int iron = ObtainSteps.count(p, "iron_ingot") + (furnaceAtHand(p) ? ObtainSteps.count(p, "raw_iron") : 0);
 		boolean ok = iron >= 1 && wood >= (ObtainSteps.count(p, "crafting_table") >= 1 ? 6 : 10);
 		long now = System.currentTimeMillis();
 		if (!ok && now - spareSkipSaidAt > 600_000) {
@@ -1029,6 +1029,15 @@ final class Alto {
 				&& !(ObtainRoute.phase() == ObtainRoute.M2_2 && ObtainRoute.met(ObtainRoute.M2_2, routeBag(p), false)))
 			keep = ObtainSteps.count(p, "crafting_table") >= 1 ? 6 : 10;
 		adris.altoclef.util.helpers.WoodFuel.keepForShield(keep);
+	}
+
+	/**
+	 * A furnace at hand for a smelt of the bag's own: in the bag, or put down to smelt this order (ObtainRoute.furnaceHeld). At the
+	 * end of the tools phase it still stood with the last iron in it, so the cook and the spare shield's raw iron read none
+	 * (kook-rook4 r1, 25 Nov 2026); the furnace task takes the one near, or places or makes one from the bag's cobblestone.
+	 */
+	static boolean furnaceAtHand(net.minecraft.client.player.LocalPlayer p) {
+		return ObtainSteps.count(p, "furnace") >= 1 || ObtainRoute.on() && ObtainRoute.furnaceHeld();
 	}
 
 	/** The shields carried at the last tick (-1 before the first) and whether the one in the off hand was at its last uses. */
@@ -1286,7 +1295,7 @@ final class Alto {
 				// (a cook under way keeps the piece: its meat is in the furnace, not the bag)
 				if (mod == null) return 0;
 				if (adris.altoclef.tasks.resources.CookCarriedMeatTask.active()) return ObtainRoute.COOK_MIN;
-				return adris.altoclef.tasks.resources.CookCarriedMeatTask.cookable(mod);
+				return adris.altoclef.tasks.resources.CookCarriedMeatTask.cookable(mod, furnaceAtHand(p));
 			}
 
 			public boolean kitAgain() { return kitAgainOn(); }
@@ -1401,7 +1410,7 @@ final class Alto {
 			// minute to put the furnace down and take it up, at most five minutes, one try
 			case "cook raw meat": {
 				var mod = instance();
-				int n = mod == null ? 0 : adris.altoclef.tasks.resources.CookCarriedMeatTask.cookable(mod);
+				int n = mod == null ? 0 : adris.altoclef.tasks.resources.CookCarriedMeatTask.cookable(mod, furnaceAtHand(p));
 				return new Run("cook the raw meat carried (m2.2)", Math.min(5 * 60_000L, 60_000L + 12_000L * n),
 					() -> night(new adris.altoclef.tasks.resources.CookCarriedMeatTask()));
 			}

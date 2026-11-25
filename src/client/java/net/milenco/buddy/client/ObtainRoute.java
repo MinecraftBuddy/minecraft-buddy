@@ -139,6 +139,9 @@ final class ObtainRoute {
 	private static int phase;
 	/** A furnace was in the bag at some time this order (it is put down to smelt, so the bag alone forgets it). */
 	private static boolean furnaceHeld;
+
+	/** A furnace was in the bag at some time this order (put down to smelt, it is still at hand). */
+	static boolean furnaceHeld() { return furnaceHeld; }
 	/** The pieces' tries, by key. */
 	private static final Map<String, Integer> TRIED = new HashMap<>();
 	/** The pieces that failed, by key, and when (the order's game clock, ms): passed over for {@link #SKIP} (kit_failed_skip). */
