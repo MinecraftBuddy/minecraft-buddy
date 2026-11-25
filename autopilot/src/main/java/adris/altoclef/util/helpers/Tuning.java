@@ -1324,7 +1324,11 @@ public final class Tuning {
             // (read by the buddy, Alto.spareShield and shieldToEquip) outside the overworld a shield's makings are iron ingots, as
             // many as the bill asks, never raw iron: its smelt asked fuel and the bill went home through the portal for logs,
             // and back in the nether the route began at its gold again (heel-253-mc1 run 22, 25 Nov 2026)
-            java.util.Map.entry("nether_shield_ingots", 1.0));
+            java.util.Map.entry("nether_shield_ingots", 1.0),
+            // obsidian_no_sky (off, the block onderdak): M3.2 stays out from under the open sky: no cast where the sky light
+            // reaches or in the deep dark, natural obsidian only near, in the own height's band and roofed; under the sky with no
+            // roofed cell near, down 16 blocks before any wander (CollectObsidianTask, 25 Nov 2026)
+            java.util.Map.entry("obsidian_no_sky", 0.0));
 
     private static Path file;
     private static Properties props = new Properties();

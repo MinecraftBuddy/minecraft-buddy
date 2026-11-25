@@ -42,6 +42,23 @@ public class CollectObsidianTask extends ResourceTask {
     private static final long CAST_RESCAN = 100;
     // how far sideways and up or down a cast's spot is looked for around the feet, and the cast's own half width
     static final int CAST_SCAN = 8, CAST_SCAN_DY = 3, CAST_HALF = 3;
+    // (Tuning obsidian_no_sky, off by default, the block onderdak of 25 Nov 2026) M3.2 stays out from under the open sky: no
+    // cast at a cell the sky light reaches, nor in the deep dark; natural obsidian only within NO_SKY_REACH sideways, within
+    // the lava band of the buddy's own height (LavaHunt.BAND) and with no sky above it; with the feet under the sky and no
+    // sheltered cell near, down NO_SKY_DESCEND blocks first instead of the wander. 4 of 16 obsidian deaths of heel-252/253
+    // were on the surface (a cast at the feet, a climb to surface obsidian, 2 at night), 1 more in the deep dark
+    static final int NO_SKY_REACH = 96, NO_SKY_DESCEND = 16;
+    // the height the descent out of the sky goes to, latched so the walk keeps one goal; MIN_VALUE when none
+    private int _descendY = Integer.MIN_VALUE;
+
+    static boolean noSkyOn() {
+        return adris.altoclef.util.helpers.Tuning.get("obsidian_no_sky", 0) > 0;
+    }
+
+    // a cell out of the sky's light and not in the deep dark (obsidian_no_sky)
+    static boolean sheltered(net.minecraft.world.level.Level level, BlockPos cell) {
+        return !level.canSeeSky(cell) && !level.getBiome(cell).is(net.minecraft.world.level.biome.Biomes.DEEP_DARK);
+    }
 
     public CollectObsidianTask(int count) {
         super(Items.OBSIDIAN, count);
@@ -49,6 +66,7 @@ public class CollectObsidianTask extends ResourceTask {
     }
 
     private static BlockPos getGoodObsidianPosition(AltoClef mod) {
+        if (noSkyOn() && !sheltered(mod.getWorld(), mod.getPlayer().blockPosition())) return null;
         BlockPos start = mod.getPlayer().blockPosition().offset(-3, -3, -3);
         BlockPos end = mod.getPlayer().blockPosition().offset(3, 3, 3);
         for (BlockPos pos : WorldHelper.scanRegion(mod, start, end)) {
@@ -85,6 +103,7 @@ public class CollectObsidianTask extends ResourceTask {
         BlockPos best = null;
         double bestD = Double.POSITIVE_INFINITY;
         var level = mod.getWorld();
+        boolean noSky = noSkyOn();
         for (int dx = -CAST_SCAN; dx <= CAST_SCAN; dx++) {
             for (int dy = -CAST_SCAN_DY; dy <= CAST_SCAN_DY; dy++) {
                 for (int dz = -CAST_SCAN; dz <= CAST_SCAN; dz++) {
@@ -98,7 +117,8 @@ public class CollectObsidianTask extends ResourceTask {
                     BlockPos c = feet.offset(dx, dy, dz);
                     if (!open(level, c) || !open(level, c.above())
                             || level.getBlockState(c.below()).getCollisionShape(level, c.below()).isEmpty()
-                            || mod.getBlockTracker().unreachable(c) || banned.contains(c)) continue;
+                            || mod.getBlockTracker().unreachable(c) || banned.contains(c)
+                            || (noSky && !sheltered(level, c))) continue;
                     double d = c.distSqr(feet);
                     if (d < bestD) {
                         bestD = d;
@@ -149,10 +169,15 @@ public class CollectObsidianTask extends ResourceTask {
             return _forceCompleteTask;
         }
 
+        // (Tuning obsidian_no_sky: near, in the own height's band, no sky above)
+        boolean noSky = noSkyOn();
+        int feetY = mod.getPlayer().blockPosition().getY();
         Predicate<BlockPos> goodObsidian = (blockPos ->
-                blockPos.closerToCenterThan(mod.getPlayer().position(), 800)
+                blockPos.closerToCenterThan(mod.getPlayer().position(), noSky ? NO_SKY_REACH : 800)
                         && WorldHelper.canBreak(mod, blockPos)
                         && !WorldHelper.dropWouldBurn(mod, blockPos)
+                        && (!noSky || (Math.abs(blockPos.getY() - feetY) <= adris.altoclef.tasks.speedrun.gamer.portal.LavaHunt.BAND
+                        && !mod.getWorld().canSeeSky(blockPos.above())))
         );
 
         /*
@@ -200,7 +225,7 @@ public class CollectObsidianTask extends ResourceTask {
             // lava crust obsidian is 9 seconds of digging to watch the drop burn. leave it be, the bucket cast below scoops that
             // same lava and makes obsidian that lands on something. obsidian with a floor under it still beats a cast
             return new MineAndCollectTask(new ItemTarget(Items.OBSIDIAN, _count), new Block[]{Blocks.OBSIDIAN}, MiningRequirement.DIAMOND)
-                    .onlyWhere(p -> !WorldHelper.dropWouldBurn(mod, p));
+                    .onlyWhere(p -> !WorldHelper.dropWouldBurn(mod, p) && (!noSky || goodObsidian.test(p)));
         }
 
         if (WorldHelper.getCurrentDimension() == Dimension.NETHER) {
@@ -244,6 +269,18 @@ public class CollectObsidianTask extends ResourceTask {
                         return new adris.altoclef.tasks.movement.GetToBlockTask(_castSpot);
                     }
                 }
+                // (Tuning obsidian_no_sky) under the open sky with no sheltered cell near: down out of it, not a wander on the surface
+                BlockPos feet = mod.getPlayer().blockPosition();
+                if (noSky && mod.getWorld().canSeeSky(feet)) {
+                    if (_descendY == Integer.MIN_VALUE || feet.getY() <= _descendY) {
+                        _descendY = Math.max(feet.getY() - NO_SKY_DESCEND, mod.getWorld().getMinY() + 8);
+                        Debug.logInternal("obsidian: no cast spot out of the open sky near " + feet.toShortString() + ", going down to y "
+                                + _descendY + " first (obsidian_no_sky)");
+                    }
+                    setDebugState("Going down out of the open sky to place obsidian");
+                    return new adris.altoclef.tasks.movement.GetToYTask(_descendY);
+                }
+                _descendY = Integer.MIN_VALUE;
                 setDebugState("Walking until we find a spot to place obsidian");
                 return new TimeoutWanderTask();
             }
