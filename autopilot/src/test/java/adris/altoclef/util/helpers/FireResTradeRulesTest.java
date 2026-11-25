@@ -224,4 +224,19 @@ public class FireResTradeRulesTest {
         assertTrue(FireResTradeRules.goldYields(false, true, false));
         assertFalse(FireResTradeRules.goldYields(false, false, true));
     }
+
+    // trade_at_fortress (25 Nov 2026): on the route, gold in the bag begins the trade by the fortress or a blaze too
+    @Test
+    public void theRouteTradesItsGoldByTheFortress() {
+        // away from the fortress and any blaze nothing stops it, either way
+        assertFalse(FireResTradeRules.fortressStops(false, false, true, true, 38));
+        assertFalse(FireResTradeRules.fortressStops(false, false, false, false, 38));
+        // on the route with the switch on and gold in the bag: begun by the fortress and beside a blaze
+        assertFalse(FireResTradeRules.fortressStops(true, false, true, true, 38));
+        assertFalse(FireResTradeRules.fortressStops(false, true, true, true, 14));
+        // the switch off, off the route, or no gold: the old end
+        assertTrue(FireResTradeRules.fortressStops(true, false, true, false, 38));
+        assertTrue(FireResTradeRules.fortressStops(true, true, false, true, 38));
+        assertTrue(FireResTradeRules.fortressStops(true, false, true, true, 0));
+    }
 }

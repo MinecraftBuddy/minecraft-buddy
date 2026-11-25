@@ -93,6 +93,26 @@ public class SimpleChunkTracker {
         return findExposedInSections(levelChunk.getSections(), levelChunk.getMinY(), chunk.getMinBlockX(), chunk.getMinBlockZ(), state) != null;
     }
 
+    // (a read of 25 Nov 2026) the exposed test at one block, for a log line: the section's state there against the world's,
+    // the section's state above it, and the open face. the fortress search said 0 chunks in its space 11 s after the buddy
+    // stood on nether bricks in one of them (box 2 heel-254-mc2 r2), and nothing told why
+    public String exposedAt(BlockPos pos) {
+        LevelChunk chunk = _mod.getWorld().getChunk(pos.getX() >> 4, pos.getZ() >> 4);
+        if (chunk instanceof EmptyLevelChunk) {
+            return "an empty chunk";
+        }
+        LevelChunkSection[] sections = chunk.getSections();
+        int rel = pos.getY() - chunk.getMinY();
+        int i = Math.floorDiv(rel, 16);
+        if (i < 0 || i >= sections.length || sections[i] == null) {
+            return "no section " + i;
+        }
+        int x = pos.getX() & 15, y = Math.floorMod(rel, 16), z = pos.getZ() & 15;
+        return String.format(java.util.Locale.ROOT, "section %d holds %s, the world %s, above it %s, open face %s",
+                i, sections[i].getBlockState(x, y, z).getBlock(), _mod.getWorld().getBlockState(pos).getBlock(),
+                _mod.getWorld().getBlockState(pos.above()).getBlock(), openFace(sections, i, x, y, z));
+    }
+
     // findInSections, a hit only with an open face inside the chunk (see chunkHasExposed)
     public static BlockPos findExposedInSections(LevelChunkSection[] sections, int minY, int minX, int minZ, Predicate<BlockState> state) {
         for (int i = 0; i < sections.length; ++i) {

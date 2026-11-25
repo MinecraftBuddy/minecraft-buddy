@@ -52,7 +52,11 @@ public class SearchChunkForBlockTask extends SearchChunksExploreTask {
                 if (mod.getChunkTracker().isChunkLoaded(c) && mod.getChunkTracker().chunkHas(c, state -> _toSearchFor.contains(state.getBlock()))) any++;
             }
         }
-        return " (" + any + " with the block in them at all)";
+        // (a read of 25 Nov 2026) with the block under the feet, what the exposed test sees there
+        net.minecraft.core.BlockPos below = mod.getPlayer().blockPosition().below();
+        String under = _toSearchFor.contains(mod.getWorld().getBlockState(below).getBlock())
+                ? "; under the feet at " + below.toShortString() + ": " + mod.getChunkTracker().exposedAt(below) : "";
+        return " (" + any + " with the block in them at all" + under + ")";
     }
 
     @Override

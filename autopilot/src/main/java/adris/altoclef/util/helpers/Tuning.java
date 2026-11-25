@@ -1348,7 +1348,11 @@ public final class Tuning {
             // spare_shield_wood (read by the buddy, Alto.spareWoodKeep): the spare shield's planks kept from the furnace from the
             // armour phase until the spare shield is made or tried (WoodFuel.keepForShield): it was passed over for want of wood
             // on all but one lane of 24 (25 Nov 2026)
-            java.util.Map.entry("spare_shield_wood", 1.0));
+            java.util.Map.entry("spare_shield_wood", 1.0),
+            // on the route, gold in the bag begins the trade by the fortress or a blaze too (FireResTradeRules.fortressStops): a
+            // gold dig that ended by the fortress with 14 to 38 gold left the trade unbegun, and the first rods were fought with
+            // no potion (3 runs of heel-254/255, 25 Nov 2026)
+            java.util.Map.entry("trade_at_fortress", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

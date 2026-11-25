@@ -66,6 +66,19 @@ public final class FireResTradeRules {
         return null;
     }
 
+    // whyNot's word for a trade not begun by the fortress or a blaze
+    public static final String AT_FORTRESS = "at the fortress already";
+
+    // (Tuning trade_at_fortress, a fix of 25 Nov 2026, on) whether the fortress or a blaze near keeps a trade that may begin
+    // from beginning: off the route always; on the route not while gold is in the bag, since the begun trade gives up neither
+    // there nor for a blaze (it yields to the fight) and the route's fallback without a potion comes only once all the gold
+    // is handed. A gold dig that ended by the fortress with 14 to 38 gold left the trade unbegun and the first rods were
+    // fought with no potion (3 runs of heel-254/255)
+    public static boolean fortressStops(boolean atFortress, boolean blazeNear, boolean route, boolean on, int gold) {
+        if (!atFortress && !blazeNear) return false;
+        return !(route && on && gold > 0);
+    }
+
     public enum Step {
         // give gold, wait on a piglin admiring it, or pick up what it threw
         TRADE,

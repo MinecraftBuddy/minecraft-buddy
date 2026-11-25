@@ -265,6 +265,10 @@ public final class FireResTrade {
         return Tuning.get("route_trade", 0) > 0;
     }
 
+    private static boolean tradeAtFortressOn() {
+        return Tuning.get("trade_at_fortress", 0) > 0;
+    }
+
     private static long deadTicks() {
         return Math.round(Tuning.get("route_trade_dead_s", FireResTradeRules.DEAD_S) * 20);
     }
@@ -350,7 +354,13 @@ public final class FireResTrade {
             if (_firstLookAt < 0) _firstLookAt = now;
             String why = fireTarget > 0 && enough ? "fire resistance for " + adris.altoclef.util.helpers.RouteRules.clock(fire) + " in the bag already"
                     : FireResTradeRules.whyNot(gold, fireTarget > 0 ? false : enough, mod.getItemStorage().getItemCount(Items.BLAZE_ROD));
-            if (why == null && (atFortress || blazeNear)) why = "at the fortress already";
+            // (Tuning trade_at_fortress, a fix of 25 Nov 2026, on) on the route, gold in the bag begins the trade by the fortress
+            // too, FireResTradeRules.fortressStops
+            if (why == null && FireResTradeRules.fortressStops(atFortress, blazeNear, routeOn(), tradeAtFortressOn(), gold)) {
+                why = FireResTradeRules.AT_FORTRESS;
+            } else if (why == null && (atFortress || blazeNear)) {
+                Debug.logInternal("strategy trade: by the fortress with " + gold + " gold: begun anyway (trade_at_fortress)");
+            }
             if (why != null) {
                 if (FireResTradeRules.NO_GOLD.equals(why) && newGoldRound(now, _handedTotal)) return null;
                 if (now - _firstLookAt >= BEGIN_GRACE_TICKS || now < _firstLookAt) {
