@@ -63,6 +63,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private final BrewFireResistanceTask _brew = new BrewFireResistanceTask(BrewRules.BATCH);
     // (Tuning cream_range, here and in CollectMagmaCreamTask: one default, the one the brew drills played)
     static final double CREAM_RANGE = 48;
+    // (Tuning cream_pickup_any) how far a cream drop is walked to while the trade is under way: no walk off a barter
+    static final double CREAM_TRADE_RANGE = 8;
     // (a count of the cubes about while the cream is wanted, every 20 s: how many, how far, why each was left; game ticks)
     private static final int CREAM_LOG_TICKS = 400;
     private int _creamLogAt = -1;
@@ -651,6 +653,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 setDebugState("Throwing fire resistance at the feet");
                 return splash;
             }
+            // (Tuning cream_pickup_any) a cream drop before the gold dig and the trade take the tick
+            Task creamDrop = creamDropEarly(mod);
+            if (creamDrop != null) return creamDrop;
             Task trade = _frTrade.tick(mod, _foundBlazeSpawner, within -> _fight.takesWithin(mod, within));
             if (_frTrade.begun()) routePhase(adris.altoclef.util.helpers.RouteRules.TRADE);
             if (!_frTrade.live()) noteNoPotion(mod);
@@ -2956,6 +2961,30 @@ public class CollectBlazeRodsTask extends ResourceTask {
             out.add(c.above());
         }
         return out;
+    }
+
+    // (Tuning cream_pickup_any, a fix of 25 Nov 2026, on) a cream drop is picked up in the gold dig and the trade (phases 1-2), while the
+    // bag holds no cream nor a slime ball for one and the brew is still to come; within CREAM_TRADE_RANGE while the trade is
+    // under way, else creamRange(). the cube a fight killed dropped its cream and the gold dig took the tick within 2 s, twice,
+    // and the cream was left (heel-253-mc3 r14); fights killed about 61 cubes in 23 no-cream runs, their cream mostly left
+    private boolean _creamDropOn;
+
+    private Task creamDropEarly(AltoClef mod) {
+        boolean trading = _frTrade != null && _frTrade.begun() && _frTrade.live();
+        double range = trading ? CREAM_TRADE_RANGE : creamRange();
+        // (phases 1 and 2 only: from the wart on the brew step picks a cream drop up between fights)
+        if (adris.altoclef.util.helpers.Tuning.get("cream_pickup_any", 0) <= 0 || _routePhase >= adris.altoclef.util.helpers.RouteRules.WART
+                || _brewDone || tradeFireDone(mod)
+                || adris.altoclef.util.helpers.SlimeCream.have(mod) || !dropNear(mod, Items.MAGMA_CREAM, range) || homeHolds()) {
+            _creamDropOn = false;
+            return null;
+        }
+        if (!_creamDropOn) {
+            _creamDropOn = true;
+            Debug.logInternal("route: a magma cream drop within " + Math.round(range) + ", picked up first (cream_pickup_any)");
+        }
+        setDebugState("Picking up the magma cream on the way");
+        return new PickupDroppedItemTask(new ItemTarget(Items.MAGMA_CREAM, 1), true);
     }
 
     private static boolean dropNear(AltoClef mod, net.minecraft.world.item.Item item, double range) {
