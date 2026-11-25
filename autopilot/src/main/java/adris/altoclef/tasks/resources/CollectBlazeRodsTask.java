@@ -629,6 +629,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
                     _routePhase >= adris.altoclef.util.helpers.RouteRules.RODS2);
         }
         noteRods(mod);
+        // (the buddy's fork, Tuning potion_step_in, off by default: the potion's full length and the buddy's last hit on a blaze,
+        // each tick, potionWatch)
+        if (adris.altoclef.util.helpers.CampStepIn.potionOn()) potionWatch(mod);
         campDry(mod);
         // (the buddy's fork, Tuning far_box: the far box's kills and the two rods, watched every tick, the fight's too)
         if (_farBegunFor != null) farWatch(mod);
@@ -813,6 +816,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Debug.logInternal(wall ? "route: phase 3, the zones walked away from are walls for the walks, a wart or a cube in one passed over"
                     : "route: the zones walked away from no walls now");
         }
+        // (the buddy's fork, Tuning potion_step_in, off by default: at a step-in stand with a short potion's last seconds left and
+        // none in the bag, back to the open side before the effect ends, potionOut)
+        potionOut(mod);
         // blazes first: kill the one we picked, run when it goes badly. null is "nobody to fight"
         boolean building = _pillbox != null && !_pillbox.isFinished(mod);
         // (the cell is the fight's corner from its first block on, the wall nearest the spawner: a run then goes into it, not out
@@ -838,7 +844,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (Tuning route_brew_first, a fix, on by default: two rods under the potion with the brew's kit, the brew next, the fight
         // as while a box goes up, and no hiding place below, brewFirstDue)
         boolean brewFirst = brewFirstDue(mod);
-        _fight.building(building || brewBuilding || brewFirst);
+        // (Tuning potion_step_in: on the way out of the stand only a biting blaze too, as while a box goes up: no chase toward a
+        // blaze over an edge by the spawner, potionLeaving)
+        _fight.building(building || brewBuilding || brewFirst || potionLeaving(mod));
         java.util.Set<BlockPos> exempt = building ? _pillbox.blocks() : java.util.Set.of();
         if (brewBuilding) {
             exempt = new java.util.HashSet<>(exempt);
@@ -4153,24 +4161,119 @@ public class CollectBlazeRodsTask extends ResourceTask {
         long since = Math.max(Math.max(_lastRodAt, _campPickedAt), _fight.killAt());
         long dry = now < since ? 0 : now - since;
         boolean openSide = _campFireproof && _campSpot != null && _campSpot.equals(_fireproofSpot);
-        if (!adris.altoclef.util.helpers.CampStepIn.due(true, openSide, true, _stepInPick == _campPickedAt, BlazeFight.fireResTicks(me), dry)) return;
+        int effect = BlazeFight.fireResTicks(me);
+        // (Tuning potion_step_in, off by default: under a short potion a clock of its own, from the last rod, the last hit on a
+        // blaze, the camp's pick or the potion's start; not from the fight's last KILL tick, as 85 s of KILL standing still with
+        // no path to a hovering blaze counted as not dry. CampStepIn.due)
+        boolean potion = adris.altoclef.util.helpers.CampStepIn.potionOn();
+        boolean shortPotion = potion && adris.altoclef.util.helpers.CampStepIn.shortPotion(effect, _potionFull);
+        long potionSince = Math.max(Math.max(_lastRodAt, _campPickedAt), Math.max(_blazeHitAt, _potionAt));
+        long potionDry = now < potionSince ? 0 : now - potionSince;
+        if (!adris.altoclef.util.helpers.CampStepIn.due(true, potion, shortPotion, openSide, true, _stepInPick == _campPickedAt, _potionOut,
+                effect, dry, potionDry)) return;
         _stepInPick = _campPickedAt;
         Cells cells = CliffAvoidance.of(new baritone.utils.BlockStateInterface(mod.getClientBaritone().getPlayerContext(), true));
         List<int[]> stands = adris.altoclef.util.helpers.CampStepIn.stands(cells, _foundBlazeSpawner.getX(), _foundBlazeSpawner.getY(),
                 _foundBlazeSpawner.getZ(), _campSpot.getX(), _campSpot.getY(), _campSpot.getZ());
-        String why = "no blaze in reach at the open side " + _campSpot.toShortString() + " for " + dry / 20 + " s with " + _fight.around()
+        String why = "no blaze in reach at the open side " + _campSpot.toShortString() + " for " + (shortPotion ? potionDry : dry) / 20 + " s with " + _fight.around()
                 + " about, " + BlazeFight.effectLeft(me) + " of fire resistance";
         if (stands.isEmpty()) {
             Debug.logInternal("camp step in: " + why + "; no stand by the spawner " + _foundBlazeSpawner.toShortString() + " fits, the camp stays");
             return;
         }
+        BlockPos open = _campSpot;
         _rushStands = stands;
         _stepInStands = stands;
         _rushStand = 0;
         _rushWalkTicks = 0;
         _campSpot = rushStandPos();
+        if (shortPotion) {
+            Debug.logInternal("blaze camp: potion step in, " + BlazeFight.effectLeft(me) + " of fire resistance left, no rod and no hit on a blaze for "
+                    + potionDry / 20 + " s at the open side " + open.toShortString() + " with " + _fight.around() + " about; the stand at "
+                    + _campSpot.toShortString() + " by the spawner " + _foundBlazeSpawner.toShortString() + " (stand 1 of " + stands.size() + ")");
+            return;
+        }
         Debug.logInternal("camp step in: " + why + "; the stand at " + _campSpot.toShortString() + " by the spawner "
                 + _foundBlazeSpawner.toShortString() + " (stand 1 of " + stands.size() + ")");
+    }
+
+    // ---- the buddy's fork, Tuning potion_step_in (CampStepIn, off by default, 25 Nov 2026): the step-in under a short potion
+
+    // the fire resistance ticks at the last look (-1: no look yet), the full length of the potion on (CampStepIn.fullTicks) and
+    // the game tick it began, the buddy's last hit on a blaze, and whether the buddy left a stand under this potion: no step-in
+    // again till a new potion is on, and only a biting blaze fought while the effect lasts
+    private int _potionWas = -1;
+    private int _potionFull;
+    private long _potionAt = -1;
+    private long _blazeHitAt = -1;
+    private boolean _potionOut;
+
+    // each tick with the switch on: a new potion (CampStepIn.newPotion) starts its clock and lifts the bar of a stand left; a
+    // blaze hurt with the buddy as its damage's source (the damage event the client gets, as the hurt watch of
+    // PlayerExtraController reads it) is a hit now, by sword or bow
+    private void potionWatch(AltoClef mod) {
+        var me = mod.getPlayer();
+        if (me == null || mod.getWorld() == null) return;
+        long now = mod.getWorld().getGameTime();
+        int ticks = BlazeFight.fireResTicks(me);
+        if (adris.altoclef.util.helpers.CampStepIn.newPotion(_potionWas, ticks)) {
+            _potionAt = now;
+            _potionOut = false;
+        }
+        _potionFull = adris.altoclef.util.helpers.CampStepIn.fullTicks(_potionWas, ticks, _potionFull);
+        _potionWas = ticks;
+        try {
+            for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+                if (b.hurtTime <= 0) continue;
+                var source = b.getLastDamageSource();
+                if (source != null && source.getEntity() == me) {
+                    _blazeHitAt = now;
+                    break;
+                }
+            }
+        } catch (java.util.ConcurrentModificationException e) {
+            // the tracker being rebuilt: the next tick looks again
+        }
+    }
+
+    // at a step-in stand (or on the walk to one) under a short potion with CampStepIn.POTION_OUT_TICKS or less left and no fire
+    // resistance potion in the bag to go down next: the camp is the open side again, as when no stand is reached (rushWalk), so
+    // the camp's own walk takes the buddy there, out of the spawner's spawn area before the crowd by it is no longer harmless.
+    // at the effect's end the camp is picked again as without the switch
+    private void potionOut(AltoClef mod) {
+        if (!adris.altoclef.util.helpers.CampStepIn.potionOn()) return;
+        var me = mod.getPlayer();
+        if (me == null) return;
+        boolean steppedIn = stepInCamp() && _fireproofSpot != null && _foundBlazeSpawner != null && _foundBlazeSpawner.equals(_campSpotFor);
+        if (!steppedIn) return;
+        int effect = BlazeFight.fireResTicks(me);
+        if (!adris.altoclef.util.helpers.CampStepIn.leaves(true, true, adris.altoclef.util.helpers.CampStepIn.shortPotion(effect, _potionFull),
+                effect, BlazeFight.fireResPotions(me))) return;
+        BlockPos stand = _campSpot;
+        _rushStands = null;
+        _campSpot = _fireproofSpot;
+        _potionOut = true;
+        Debug.logInternal("blaze camp: potion out, " + BlazeFight.effectLeft(me) + " of fire resistance left and none in the bag, "
+                + blazesWithin(mod, me, 8) + " blazes within 8; from the stand at " + (stand == null ? "the spawner" : stand.toShortString())
+                + " back to the open side " + _campSpot.toShortString());
+    }
+
+    // the stand left under the potion and its effect still on: the fight takes only a biting blaze (BlazeFight.building)
+    private boolean potionLeaving(AltoClef mod) {
+        return _potionOut && BlazeFight.fireResTicks(mod.getPlayer()) > 0;
+    }
+
+    // the live blazes the tracker has within r of the buddy (those counted so far while the tracker is being rebuilt)
+    private int blazesWithin(AltoClef mod, net.minecraft.world.entity.player.Player me, double r) {
+        int n = 0;
+        try {
+            for (Blaze b : mod.getEntityTracker().getTrackedEntities(Blaze.class)) {
+                if (b.isAlive() && b.distanceTo(me) <= r) n++;
+            }
+        } catch (java.util.ConcurrentModificationException e) {
+            return n;
+        }
+        return n;
     }
 
     // ---- the buddy's fork, Tuning box_home (BoxHomeRules): the box as home

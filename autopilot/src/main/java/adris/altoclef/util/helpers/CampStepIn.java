@@ -41,6 +41,63 @@ public final class CampStepIn {
         return on && fireproofCamp && waiting && !stepped && effectTicks > FightOpenRules.RUSH_MIN_TICKS && dryTicks >= DRY_TICKS;
     }
 
+    // ---- (Tuning potion_step_in, off by default, 25 Nov 2026) the step-in under a short potion. a traded potion is 3:00 in all,
+    // so DRY_TICKS never ran out under one: in phase 4 the camp stood still about 55% of four potions' time, about 1 rod a potion,
+    // and every death read came as the effect ended with 6 to 12 blazes about. under a short potion the step-in waits
+    // POTION_DRY_TICKS with no rod and no hit on a blaze (a chase standing still with no path is no hit), only while
+    // POTION_IN_TICKS or more of the effect are left; with POTION_OUT_TICKS or less left and no potion in the bag the buddy leaves
+    // the stand for the open side and steps in no more till a new potion is on. an endless effect and the brewed 8:00 potions of
+    // phase 6 keep DRY_TICKS: their last three minutes are no short potion's
+
+    // no rod and no hit on a blaze this long under a short potion (game ticks): 30 s
+    public static final long POTION_DRY_TICKS = 600;
+    // the effect left for that step-in, at least: 60 s
+    public static final int POTION_IN_TICKS = 1200;
+    // the effect left at which the buddy leaves the stand, at most: 25 s
+    public static final int POTION_OUT_TICKS = 500;
+    // a potion this long in all, or shorter, is a short one: the traded potion's 3:00 (a splash one thrown at the feet less)
+    public static final int SHORT_FULL_TICKS = 3600;
+    // the effect's ticks rising by more than this is a new potion, not a sync of the same one
+    public static final int NEW_POTION_RISE = 100;
+
+    public static boolean potionOn() {
+        return Tuning.get("potion_step_in", 0) > 0;
+    }
+
+    // whether the effect's ticks went from was (the last look; -1: no look yet) to now (0 none, MAX_VALUE endless) by a new
+    // potion: on from none, or up by more than NEW_POTION_RISE
+    public static boolean newPotion(int was, int now) {
+        return now > 0 && was >= 0 && (was == 0 || now > (long) was + NEW_POTION_RISE);
+    }
+
+    // the full length of the potion on now, from the last look (was), now and the full length known (full): a new potion's is
+    // what it has now; one on before the first look is of no known length (MAX_VALUE, never short); 0 with none
+    public static int fullTicks(int was, int now, int full) {
+        if (now <= 0) return 0;
+        if (was < 0) return Integer.MAX_VALUE;
+        return newPotion(was, now) ? now : full;
+    }
+
+    // whether the effect is a short potion's: on, finite and SHORT_FULL_TICKS or less in all
+    public static boolean shortPotion(int effectTicks, int fullTicks) {
+        return effectTicks > 0 && effectTicks != Integer.MAX_VALUE && fullTicks > 0 && fullTicks <= SHORT_FULL_TICKS;
+    }
+
+    // whether the camp steps in now, with potion_step_in. potionOn: that switch. shortPotion: as above. barred: the buddy left a
+    // stand under this potion (leaves). potionDryTicks: since the last rod, the last hit on a blaze, the camp's pick or the
+    // potion's start. the switch off or no short potion: due as without the switch
+    public static boolean due(boolean on, boolean potionOn, boolean shortPotion, boolean fireproofCamp, boolean waiting, boolean stepped,
+                              boolean barred, int effectTicks, long dryTicks, long potionDryTicks) {
+        if (!potionOn || !shortPotion) return due(on, fireproofCamp, waiting, stepped, effectTicks, dryTicks);
+        return on && fireproofCamp && waiting && !stepped && !barred && effectTicks >= POTION_IN_TICKS && potionDryTicks >= POTION_DRY_TICKS;
+    }
+
+    // whether the buddy leaves the stand by the spawner now (potion_step_in). steppedIn: the camp is a step-in stand. a short
+    // potion with POTION_OUT_TICKS or less left and no fire resistance potion in the bag to go down next
+    public static boolean leaves(boolean potionOn, boolean steppedIn, boolean shortPotion, int effectTicks, int potionsLeft) {
+        return potionOn && steppedIn && shortPotion && effectTicks <= POTION_OUT_TICKS && potionsLeft <= 0;
+    }
+
     // the stands by the spawner at (sx, sy, sz) for a camp at (cx, cy, cz), best first: {x, y, z} feet cells; empty when none fits
     public static List<int[]> stands(Cells cells, int sx, int sy, int sz, int cx, int cy, int cz) {
         double campDist = dist(cx, cy, cz, sx, sy, sz);

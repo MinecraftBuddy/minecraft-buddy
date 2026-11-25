@@ -42,6 +42,124 @@ public class CampStepInTest {
         assertTrue(CampStepIn.due(true, true, true, false, Integer.MAX_VALUE, 18000));
     }
 
+    // ---- potion_step_in
+
+    // a traded potion's full length, and a brewed one's
+    private static final int TRADED = 3600;
+    private static final int BREWED = 9600;
+    private static final int ENDLESS = Integer.MAX_VALUE;
+
+    @Test
+    public void aShortPotionStepsInAfterThirtySecondsWithAMinuteLeft() {
+        assertEquals(600, CampStepIn.POTION_DRY_TICKS);
+        assertEquals(1200, CampStepIn.POTION_IN_TICKS);
+        // 60 s left and 30 s dry: in; the old clock (dryTicks) does not count
+        assertTrue(CampStepIn.due(true, true, true, true, true, false, false, 1200, 0, 600));
+        // 59.95 s left, or 29.95 s dry: not
+        assertFalse(CampStepIn.due(true, true, true, true, true, false, false, 1199, 18000, 600));
+        assertFalse(CampStepIn.due(true, true, true, true, true, false, false, 3000, 18000, 599));
+        // the potion just drunk, after a minute with no rod
+        assertTrue(CampStepIn.due(true, true, true, true, true, false, false, 2400, 0, 1200));
+    }
+
+    @Test
+    public void aShortPotionStepInNotOtherwise() {
+        // camp_step_in off, not the open side, a blaze in reach, stepped in already at this camp
+        assertFalse(CampStepIn.due(false, true, true, true, true, false, false, 2400, 18000, 18000));
+        assertFalse(CampStepIn.due(true, true, true, false, true, false, false, 2400, 18000, 18000));
+        assertFalse(CampStepIn.due(true, true, true, true, false, false, false, 2400, 18000, 18000));
+        assertFalse(CampStepIn.due(true, true, true, true, true, true, false, 2400, 18000, 18000));
+        // the stand left under this potion: no step-in till a new one
+        assertFalse(CampStepIn.due(true, true, true, true, true, false, true, 2400, 18000, 18000));
+    }
+
+    @Test
+    public void switchOffOrNoShortPotionIsTheOldRule() {
+        int[] effects = {0, 200, 201, 500, 1199, 1200, 2400, 3600, 9600, ENDLESS};
+        long[] dries = {0, 599, 600, 3599, 3600, 18000};
+        boolean[] tf = {false, true};
+        for (int e : effects) {
+            for (long d : dries) {
+                for (long pd : dries) {
+                    for (boolean stepped : tf) {
+                        for (boolean barred : tf) {
+                            boolean old = CampStepIn.due(true, true, true, stepped, e, d);
+                            // the switch off, whatever the potion
+                            assertEquals(old, CampStepIn.due(true, false, true, true, true, stepped, barred, e, d, pd));
+                            assertEquals(old, CampStepIn.due(true, false, false, true, true, stepped, barred, e, d, pd));
+                            // on, but an endless effect or a brewed potion: the old rule, its three minutes
+                            assertEquals(old, CampStepIn.due(true, true, false, true, true, stepped, barred, e, d, pd));
+                        }
+                    }
+                }
+            }
+        }
+        // the last three minutes of a brewed 8:00 potion (phase 6) are no short potion's: three dry minutes still
+        assertFalse(CampStepIn.shortPotion(2400, BREWED));
+        assertFalse(CampStepIn.due(true, true, CampStepIn.shortPotion(2400, BREWED), true, true, false, false, 2400, 600, 18000));
+        assertTrue(CampStepIn.due(true, true, CampStepIn.shortPotion(2400, BREWED), true, true, false, false, 2400, 3600, 0));
+    }
+
+    @Test
+    public void aShortPotionIsFiniteAndThreeMinutesOrLessInAll() {
+        assertTrue(CampStepIn.shortPotion(2400, TRADED));
+        assertTrue(CampStepIn.shortPotion(1, TRADED));
+        // a splash potion thrown at the feet, a little less
+        assertTrue(CampStepIn.shortPotion(2000, 3100));
+        assertFalse(CampStepIn.shortPotion(0, TRADED));
+        assertFalse(CampStepIn.shortPotion(ENDLESS, ENDLESS));
+        assertFalse(CampStepIn.shortPotion(ENDLESS, TRADED));
+        assertFalse(CampStepIn.shortPotion(2400, BREWED));
+        // on before the first look: of no known length
+        assertFalse(CampStepIn.shortPotion(2400, CampStepIn.fullTicks(-1, 2400, 0)));
+    }
+
+    @Test
+    public void theFullLengthIsTheNewPotionsTicks() {
+        // no look yet: none, or one of no known length
+        assertEquals(0, CampStepIn.fullTicks(-1, 0, 0));
+        assertEquals(Integer.MAX_VALUE, CampStepIn.fullTicks(-1, 2400, 0));
+        assertFalse(CampStepIn.newPotion(-1, 2400));
+        // drunk from none
+        assertTrue(CampStepIn.newPotion(0, TRADED));
+        assertEquals(TRADED, CampStepIn.fullTicks(0, TRADED, 0));
+        // ticking down: the same potion
+        assertFalse(CampStepIn.newPotion(TRADED, TRADED - 1));
+        assertEquals(TRADED, CampStepIn.fullTicks(TRADED, TRADED - 1, TRADED));
+        // a sync a few ticks up: the same potion
+        assertFalse(CampStepIn.newPotion(2400, 2400 + CampStepIn.NEW_POTION_RISE));
+        assertEquals(BREWED, CampStepIn.fullTicks(2400, 2450, BREWED));
+        // a traded potion drunk with a brewed one's last minute left, and the other way round
+        assertTrue(CampStepIn.newPotion(1200, TRADED));
+        assertEquals(TRADED, CampStepIn.fullTicks(1200, TRADED, BREWED));
+        assertEquals(BREWED, CampStepIn.fullTicks(1200, BREWED, TRADED));
+        // gone
+        assertEquals(0, CampStepIn.fullTicks(5, 0, TRADED));
+        assertFalse(CampStepIn.newPotion(5, 0));
+        // endless: never a new potion by its ticks, never short
+        assertFalse(CampStepIn.newPotion(ENDLESS, ENDLESS));
+        assertEquals(ENDLESS, CampStepIn.fullTicks(0, ENDLESS, 0));
+    }
+
+    @Test
+    public void outAtTwentyFiveSecondsWithNoPotionLeft() {
+        assertEquals(500, CampStepIn.POTION_OUT_TICKS);
+        assertTrue(CampStepIn.leaves(true, true, true, 500, 0));
+        assertTrue(CampStepIn.leaves(true, true, true, 1, 0));
+        // 25.05 s left: not yet
+        assertFalse(CampStepIn.leaves(true, true, true, 501, 0));
+        // a potion left to go down next
+        assertFalse(CampStepIn.leaves(true, true, true, 500, 1));
+        // not at a step-in stand
+        assertFalse(CampStepIn.leaves(true, false, true, 500, 0));
+        // an endless effect or a brewed potion
+        assertFalse(CampStepIn.leaves(true, true, CampStepIn.shortPotion(ENDLESS, ENDLESS), ENDLESS, 0));
+        assertFalse(CampStepIn.leaves(true, true, CampStepIn.shortPotion(400, BREWED), 400, 0));
+        // the switch off: never
+        assertFalse(CampStepIn.leaves(false, true, true, 500, 0));
+        assertFalse(CampStepIn.leaves(false, true, true, 1, 0));
+    }
+
     // a stone floor at y 60, the spawner at 0 63 0 on a pillar from the floor, open above; set holds other cells
     private static Cells room(Map<Long, Cell> set) {
         return (x, y, z) -> {

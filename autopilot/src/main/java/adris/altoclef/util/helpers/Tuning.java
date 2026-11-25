@@ -585,6 +585,12 @@ public final class Tuning {
             // on since 20 Nov 2026 by the maintainer's word (steering 203): 3 of 6 phase-6 stalls read were the camp waiting with
             // 5 or 6 blazes hovering 6 to 9 off, never in reach
             java.util.Map.entry("camp_step_in", 1.0),
+            // potion_step_in: under a short potion (3:00 or less in all, the traded one) the step-in comes after 30 s with no rod
+            // and no hit on a blaze, while 60 s or more of the effect are left; with 25 s or less left and no potion in the bag the
+            // buddy leaves the stand for the open side, only a biting blaze fought on the way (CampStepIn.due, CampStepIn.leaves).
+            // in phase 4 the camp stood still about 55% of four potions' time, about 1 rod a potion, and every death read came
+            // as the effect ended with 6 to 12 blazes about (25 Nov 2026)
+            java.util.Map.entry("potion_step_in", 0.0),
             // (on since 19 Nov 2026: test obsidiaan confirmed the four together, alive with the ten obsidian A 66, B 77 of 90 pairs,
             // z 2.12 against 2.00, deaths 24 against 12; before, off and turned on by its B arm) the route's M3.2, ten obsidian cast
             // with lava and a water bucket: of 369 whole runs that began it 66 were lost there, 61 of them dead.
