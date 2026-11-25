@@ -1328,7 +1328,11 @@ public final class Tuning {
             // obsidian_no_sky (off, the block onderdak): M3.2 stays out from under the open sky: no cast where the sky light
             // reaches or in the deep dark, natural obsidian only near, in the own height's band and roofed; under the sky with no
             // roofed cell near, down 16 blocks before any wander (CollectObsidianTask, 25 Nov 2026)
-            java.util.Map.entry("obsidian_no_sky", 0.0));
+            java.util.Map.entry("obsidian_no_sky", 0.0),
+            // a no-brew for want of cream ends when cream comes after all: a cream drop close by is picked up, and cream with the
+            // wart in the bag brings the brew back, once a run (2 of 23 no-cream runs got cream after the no-brew and fought the
+            // other rods without a potion; CollectBlazeRodsTask.noBrewCream, 25 Nov 2026)
+            java.util.Map.entry("nobrew_cream_reopen", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

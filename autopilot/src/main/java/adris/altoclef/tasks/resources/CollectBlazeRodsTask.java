@@ -179,6 +179,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private Task _wartFarSearch;
     private String _errandActSaid;
     private boolean _noBrewSaid;
+    // (Tuning nobrew_cream_reopen) why the no-brew was said, and whether cream got after it brought the brew back once
+    private String _noBrewWhy;
+    private boolean _noBrewReopened;
     // ---- the wart walk (Tuning route_wart_walk, route jar 6; RouteRules.wartWalkOn): the walk to the wart held (_wartAt) and
     // its break, the nearest the buddy has been to it, the walk's own ticks since a step closer and within the break's range,
     // the tick it last ran (-1: not yet; a gap past BrewErrandRules.GAP_MAX means another task had the buddy, and the
@@ -2069,11 +2072,40 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private void noteNoBrew(AltoClef mod, String why) {
         if (_noBrewSaid) return;
         _noBrewSaid = true;
+        _noBrewWhy = why;
         adris.altoclef.util.helpers.RouteRules.noBrewSaid();
         boolean potion = FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.DRINK)
                 + FireResTrade.count(mod, adris.altoclef.util.helpers.FireResTradeRules.Form.THROW) > 0
                 || mod.getPlayer().hasEffect(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE);
         Debug.logInternal(adris.altoclef.util.helpers.RouteRules.NO_BREW + " (" + why + "), the first two rods " + (potion ? "under the potion kept" : "without a potion (none left)"));
+    }
+
+    // (nobrew_cream_reopen) the step's marker: the no-brew is over and the brew step goes on below
+    private static final Task BREW_ON = new adris.altoclef.tasks.movement.IdleTask();
+
+    // (nobrew_cream_reopen) after a no-brew for want of cream: the brew back once cream and wart are in the bag (BREW_ON), the
+    // pickup of a cream drop close by, or null (nothing of the brew's)
+    private Task noBrewCream(AltoClef mod, int water) {
+        if (adris.altoclef.util.helpers.Tuning.get("nobrew_cream_reopen", 0) <= 0 || _noBrewReopened
+                || _noBrewWhy == null || !_noBrewWhy.contains("cream")) return null;
+        boolean cream = adris.altoclef.util.helpers.SlimeCream.have(mod);
+        boolean wart = water == 0 || mod.getItemStorage().hasItem(Items.NETHER_WART);
+        if (cream && wart) {
+            _noBrewSaid = false;
+            _noBrewReopened = true;
+            adris.altoclef.util.helpers.RouteRules.forgetNoBrew();
+            Debug.logInternal("route: the brew again, cream in the bag after the no-brew (" + _noBrewWhy + ") (nobrew_cream_reopen)");
+            return BREW_ON;
+        }
+        if (!cream && dropNear(mod, Items.MAGMA_CREAM, creamRange())) {
+            if (homeHolds()) {
+                homeSkip("the cream pickup");
+                return null;
+            }
+            setDebugState("Picking up the magma cream after the no-brew");
+            return new PickupDroppedItemTask(new ItemTarget(Items.MAGMA_CREAM, 1), true);
+        }
+        return null;
     }
 
     // between fights: the brew that is under way, a magma cube or a nether wart close by while the bottles want them, and the
@@ -2170,7 +2202,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // reach, and took turns with the walk to the spawner every second: 16 minutes standing still, 177 of the potion's 180 s,
         // standban2 8.B, look 71)
         if (_noBrewSaid && adris.altoclef.util.helpers.Tuning.get("route_nobrew_stop", 1) > 0) {
-            return null;
+            // (Tuning nobrew_cream_reopen, a fix of 25 Nov 2026, on) a no-brew for want of cream ends when cream comes after all:
+            // a cream drop close by is picked up, and cream in the bag with the wart brings the brew back, once a run. cream from
+            // a fight's cube lay unpicked or came after the no-brew in 2 of 23 no-cream runs of heel-252/253, and the other rods
+            // were fought without a potion (phase 6 passed 13 of 24 so, 10 of 13 with the brew)
+            Task back = noBrewCream(mod, water);
+            if (back != BREW_ON) return back;
         }
         boolean wart = water == 0 || mod.getItemStorage().hasItem(Items.NETHER_WART);
         boolean cream = adris.altoclef.util.helpers.SlimeCream.have(mod);
