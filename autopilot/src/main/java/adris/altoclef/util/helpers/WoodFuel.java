@@ -67,7 +67,17 @@ public final class WoodFuel {
         // (Tuning stick_reserve, a fix of 14 Nov 2026, on) and the next pickaxe's wood on top: 3 planks (or a log) and the planks
         // of 2 sticks while the bag holds fewer, StickReserve
         int keep = StickReserve.on() ? StickReserve.fuelKeepPlanks(mod.getItemStorage().getItemCount(Items.STICK)) : 0;
-        FuelPolicy.plan(on() ? planPlanks(mod) + keep : 0);
+        FuelPolicy.plan(on() ? planPlanks(mod) + keep + shieldKeep : 0);
+    }
+
+    // (the buddy's spare_shield_wood, 25 Nov 2026) the planks of the route's spare shield, kept from the furnace from the armour
+    // phase until the spare shield is made or passed over: set by the buddy every tick, 0 otherwise. at the end of the tools
+    // phase the bag held coal 4-15 and wood worth 1-5 planks in most runs, so the spare shield (6 planks, 10 with no table)
+    // was passed over in all but one lane of 24
+    private static volatile int shieldKeep;
+
+    public static void keepForShield(int planks) {
+        shieldKeep = Math.max(0, planks);
     }
 
     // one recipe of the task chain as the plan sees it: its planks, log and stick slots per craft, and the crafts still to do

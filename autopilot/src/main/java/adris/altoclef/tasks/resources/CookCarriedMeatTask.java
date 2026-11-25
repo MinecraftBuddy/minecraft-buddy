@@ -46,6 +46,15 @@ public class CookCarriedMeatTask extends Task {
     private long _startMs;
     private boolean _started;
 
+    // a cook under way: the buddy's piece stays wanted while it runs (the meat in the furnace is no longer in the bag, and the
+    // route went on to the diamonds 1 s into the first fixed smoke's cook, which stopped it)
+    private static volatile boolean active;
+
+    /** Whether a cook is under way now. */
+    public static boolean active() {
+        return active;
+    }
+
     /** The raw items this would cook now (whole kinds the bag's fuel covers, at most MAX_ITEMS); 0 without a furnace in the bag. */
     public static int cookable(AltoClef mod) {
         return choose(mod, null);
@@ -70,6 +79,7 @@ public class CookCarriedMeatTask extends Task {
         _plan.clear();
         _planned = choose(mod, _plan);
         _started = true;
+        active = true;
         _index = 0;
         _current = null;
         _startMs = System.currentTimeMillis();
@@ -117,6 +127,7 @@ public class CookCarriedMeatTask extends Task {
 
     @Override
     protected void onStop(AltoClef mod, Task interruptTask) {
+        active = false;
         int left = 0;
         for (Item[] k : KINDS) left += mod.getItemStorage().getItemCount(k[0]);
         Debug.logInternal("food: the raw meat cook " + (isFinished(mod) ? "done" : "stopped") + " after "

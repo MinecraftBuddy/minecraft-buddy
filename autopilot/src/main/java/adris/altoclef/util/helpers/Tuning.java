@@ -1344,7 +1344,11 @@ public final class Tuning {
             // a block that is the box's last floor while another column under the box has no floor is stepped off before it is
             // broken (DestroyBlockTask.lastSupportOverDrop): the centre-distance test missed a box on the ore's last edge over a
             // 29-block shaft, and the buddy mined the ore it hung on (heel-254-mc3 r1, 25 Nov 2026)
-            java.util.Map.entry("last_support_step", 1.0));
+            java.util.Map.entry("last_support_step", 1.0),
+            // spare_shield_wood (read by the buddy, Alto.spareWoodKeep): the spare shield's planks kept from the furnace from the
+            // armour phase until the spare shield is made or tried (WoodFuel.keepForShield): it was passed over for want of wood
+            // on all but one lane of 24 (25 Nov 2026)
+            java.util.Map.entry("spare_shield_wood", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
