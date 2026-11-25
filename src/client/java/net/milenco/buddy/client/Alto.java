@@ -998,12 +998,16 @@ final class Alto {
 	 */
 	private static boolean spareMakings(net.minecraft.client.player.LocalPlayer p) {
 		int wood = planks(p);
-		boolean ok = ObtainSteps.count(p, "iron_ingot") >= 1 && wood >= (ObtainSteps.count(p, "crafting_table") >= 1 ? 6 : 10);
+		// (25 Nov 2026) raw iron counts with a furnace in the bag: a smelt of one, no trip. After the sword the bag held 1-8 raw
+		// iron and often no ingot, and the piece was passed over
+		int iron = ObtainSteps.count(p, "iron_ingot") + (ObtainSteps.count(p, "furnace") >= 1 ? ObtainSteps.count(p, "raw_iron") : 0);
+		boolean ok = iron >= 1 && wood >= (ObtainSteps.count(p, "crafting_table") >= 1 ? 6 : 10);
 		long now = System.currentTimeMillis();
 		if (!ok && now - spareSkipSaidAt > 600_000) {
 			spareSkipSaidAt = now;
 			adris.altoclef.Debug.logInternal("route: piece m2.2/spare shield passed over: " + ObtainSteps.count(p, "iron_ingot")
-				+ " iron ingots and " + wood + " planks of wood in the bag (spare_shield_m2)");
+				+ " iron ingots, " + ObtainSteps.count(p, "raw_iron") + " raw iron, " + ObtainSteps.count(p, "furnace") + " furnaces and "
+				+ wood + " planks of wood in the bag (spare_shield_m2)");
 		}
 		return ok;
 	}
@@ -1019,7 +1023,10 @@ final class Alto {
 		if (p != null && ObtainRoute.on() && adris.altoclef.util.helpers.Tuning.get("spare_shield_wood", 0) > 0
 				&& adris.altoclef.util.helpers.Tuning.get("spare_shield_m2", 0) > 0
 				&& (ObtainRoute.phase() == ObtainRoute.M2_1 || ObtainRoute.phase() == ObtainRoute.M2_2)
-				&& ObtainSteps.count(p, "shield") < 2 && ObtainRoute.triedCount("m2.2/spare shield") == 0)
+				&& ObtainSteps.count(p, "shield") < 2 && ObtainRoute.triedCount("m2.2/spare shield") == 0
+				// (until the spare shield's turn: with the tools made it is asked now or passed over, and the planks kept past that
+				// took the raw meat cook's fuel, kook-rook3 r1)
+				&& !(ObtainRoute.phase() == ObtainRoute.M2_2 && ObtainRoute.met(ObtainRoute.M2_2, routeBag(p), false)))
 			keep = ObtainSteps.count(p, "crafting_table") >= 1 ? 6 : 10;
 		adris.altoclef.util.helpers.WoodFuel.keepForShield(keep);
 	}
