@@ -114,6 +114,7 @@ final class Alto {
 		if (!present()) return;
 		if (up) watchDoing();
 		if (up) shieldWatch();
+		if (up) spareWoodKeep();
 		scaleTimeouts();
 		boolean want = on();
 		if (want != up) {
@@ -1007,6 +1008,22 @@ final class Alto {
 		return ok;
 	}
 
+	/**
+	 * (spare_shield_wood, a fix of 25 Nov 2026, on) The spare shield's planks kept from the furnace from the armour phase until
+	 * the spare shield is made or tried: six with a crafting table in the bag, ten without. At M3.1's start the bag held coal 4-15
+	 * and wood worth 1-5 planks in most runs, and the spare shield was passed over on all but one lane of 24.
+	 */
+	private static void spareWoodKeep() {
+		var p = net.minecraft.client.Minecraft.getInstance().player;
+		int keep = 0;
+		if (p != null && ObtainRoute.on() && adris.altoclef.util.helpers.Tuning.get("spare_shield_wood", 0) > 0
+				&& adris.altoclef.util.helpers.Tuning.get("spare_shield_m2", 0) > 0
+				&& (ObtainRoute.phase() == ObtainRoute.M2_1 || ObtainRoute.phase() == ObtainRoute.M2_2)
+				&& ObtainSteps.count(p, "shield") < 2 && ObtainRoute.triedCount("m2.2/spare shield") == 0)
+			keep = ObtainSteps.count(p, "crafting_table") >= 1 ? 6 : 10;
+		adris.altoclef.util.helpers.WoodFuel.keepForShield(keep);
+	}
+
 	/** The shields carried at the last tick (-1 before the first) and whether the one in the off hand was at its last uses. */
 	private static int shieldsSeen = -1;
 	private static boolean shieldLow;
@@ -1259,7 +1276,10 @@ final class Alto {
 
 			public int cookableMeat() {
 				var mod = instance();
-				return mod == null ? 0 : adris.altoclef.tasks.resources.CookCarriedMeatTask.cookable(mod);
+				// (a cook under way keeps the piece: its meat is in the furnace, not the bag)
+				if (mod == null) return 0;
+				if (adris.altoclef.tasks.resources.CookCarriedMeatTask.active()) return ObtainRoute.COOK_MIN;
+				return adris.altoclef.tasks.resources.CookCarriedMeatTask.cookable(mod);
 			}
 
 			public boolean kitAgain() { return kitAgainOn(); }
