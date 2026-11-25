@@ -1402,16 +1402,19 @@ final class Alto {
 			case "shield":
 				return new Run("equip shield", pieceMinutes("shield") * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(
 					new adris.altoclef.util.ItemTarget("shield", 1))));
-			// (spare_shield_m2) the second shield, only asked with its makings in the bag (spareMakings): a craft, no trip
+			// (spare_shield_m2) the second shield, only asked with its makings in the bag (spareMakings): a craft, no trip. The bill
+			// counts the bag, not the off hand: asked for two it made two more (three shields, kook-rook5 r1, 25 Nov 2026), so one
 			case "spare shield":
 				return new Run("kit the spare shield (m2.2)", 3 * 60_000L, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
-					new adris.altoclef.util.ItemTarget("shield", 2))));
+					new adris.altoclef.util.ItemTarget("shield", 1))));
 			// (cook_raw_m2) the raw meat carried, cooked in the bag's furnace as far as its fuel goes, no trip: 12 s an item and a
 			// minute to put the furnace down and take it up, at most five minutes, one try
 			case "cook raw meat": {
 				var mod = instance();
 				int n = mod == null ? 0 : adris.altoclef.tasks.resources.CookCarriedMeatTask.cookable(mod, furnaceAtHand(p));
-				return new Run("cook the raw meat carried (m2.2)", Math.min(5 * 60_000L, 60_000L + 12_000L * n),
+				// (named "kit ..." as every piece of the kit: under another name the step machine took it for no kit piece and put a
+				// fresh copy of it in its place every five seconds, which stopped the cook with the meat in the furnace, kook-rook5 r1)
+				return new Run("kit the raw meat cooked (m2.2)", Math.min(5 * 60_000L, 60_000L + 12_000L * n),
 					() -> night(new adris.altoclef.tasks.resources.CookCarriedMeatTask()));
 			}
 			case "copper_chestplate", "copper_leggings", "copper_boots":
