@@ -54,6 +54,17 @@ public class TradeGoldRulesTest {
         assertTrue(TradeGoldRules.overWhy(100, 0, 20 * 300, cap, dry).contains("no gold ore"));
     }
 
+    // the dry clock restarts on 8 gold more than at its last restart; step 0 on any nugget
+    @Test
+    public void dryClockRestartsOnEightGold() {
+        int at = 9 * 40;
+        assertFalse(TradeGoldRules.dryRestart(at + 1, at, 8));
+        assertFalse(TradeGoldRules.dryRestart(at + 9 * 8 - 1, at, 8));
+        assertTrue(TradeGoldRules.dryRestart(at + 9 * 8, at, 8));
+        assertTrue(TradeGoldRules.dryRestart(at + 1, at, 0));
+        assertFalse(TradeGoldRules.dryRestart(at, at, 0));
+    }
+
     // the band stays round the start's height and above the lava sea
     @Test
     public void theBandRoundTheStartAboveTheLavaSea() {

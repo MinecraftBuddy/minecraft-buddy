@@ -69,6 +69,8 @@ final class TradeGold {
     private long _dangerAt = Long.MIN_VALUE / 2;
     static final long DANGER_HOLD = 200;
     private int _bestNinths;
+    // (gold_dry_step) the gold at the last restart of the dry clock, in ninths
+    private int _riseNinths;
     private int _ninthsAtBegin;
     private int _progressLogged;
     private int _anchors;
@@ -235,14 +237,15 @@ final class TradeGold {
             _riseAt = now;
             _anchor = player.blockPosition();
             _start = _anchor;
-            _ninthsAtBegin = _bestNinths = TradeGoldRules.ninths(ingots, nuggets);
+            _ninthsAtBegin = _bestNinths = _riseNinths = TradeGoldRules.ninths(ingots, nuggets);
             Debug.logInternal(String.format(Locale.ROOT, "trade gold: begun, %d gold, target %d, %d nuggets, at %s; cap %s s, %s s with no new gold",
                     ingots, target, nuggets, _anchor.toShortString(), (long) (capTicks() / 20), (long) (dryTicks() / 20)));
         }
         if (now < _riseAt) _riseAt = now;
         int ninths = TradeGoldRules.ninths(ingots, nuggets);
-        if (ninths > _bestNinths) {
-            _bestNinths = ninths;
+        if (ninths > _bestNinths) _bestNinths = ninths;
+        if (TradeGoldRules.dryRestart(ninths, _riseNinths, (int) Tuning.get("gold_dry_step", 8))) {
+            _riseNinths = ninths;
             _riseAt = now;
         }
         if (ninths / 9 >= _progressLogged + PROGRESS_EVERY && ingots < target) {

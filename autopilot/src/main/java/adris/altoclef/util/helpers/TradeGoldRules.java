@@ -83,6 +83,13 @@ public final class TradeGoldRules {
         return Math.max(0, Math.min(cobble, standStone - kept));
     }
 
+    // (Tuning gold_dry_step, on at 8, a fix) whether new gold restarts the dry clock: this many gold more than at its last restart
+    // (step 0: any nugget, as before). a nugget now and then kept a dig gaining under a gold a minute going for 20 game minutes
+    // and more, piglins sending it off ore after ore, and the run stalled in the gold step (3 of 9 nether stalls, 24 Nov 2026)
+    public static boolean dryRestart(int ninths, int riseNinths, int step) {
+        return step <= 0 ? ninths > riseNinths : ninths >= riseNinths + 9 * step;
+    }
+
     // why the step is over by a clock, or null: its cap, no new gold for the dry spell, or no ore known for NO_ORE_S (game ticks)
     public static String overWhy(long ran, long sinceRise, long noOre, long cap, long dry) {
         if (ran >= cap) return "the cap of " + cap / 20 + " s";
