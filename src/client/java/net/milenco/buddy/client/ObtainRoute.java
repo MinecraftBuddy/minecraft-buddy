@@ -325,6 +325,9 @@ final class ObtainRoute {
 	/** A try of this piece has ended, done or failed. */
 	static void tried(String key) { TRIED.merge(key, 1, Integer::sum); }
 
+	/** How often the piece of this key was tried this order (for the log). */
+	static int triedCount(String key) { return TRIED.getOrDefault(key, 0); }
+
 	static int tries(String key) { return TRIED.getOrDefault(key, 0); }
 
 	/** A try of this piece ran out of its time or failed (kit_failed_skip): passed over for ten minutes from now. */

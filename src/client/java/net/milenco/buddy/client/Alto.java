@@ -985,8 +985,11 @@ final class Alto {
 		return wood >= planks;
 	}
 
-	/** When the spare shield's skip was last said, wall clock ms: at most once in ten minutes. */
-	private static long spareSkipSaidAt = Long.MIN_VALUE;
+	/**
+	 * When the spare shield's skip was last said, wall clock ms: at most once in ten minutes. (Long.MIN_VALUE overflowed in
+	 * now - spareSkipSaidAt, so the line never came: a start ten minutes back says the first skip.)
+	 */
+	private static long spareSkipSaidAt = -600_001L;
 
 	/**
 	 * (spare_shield_m2) The spare shield's makings with no trip and no smelt: an iron ingot, six planks of wood, and a crafting
@@ -1204,6 +1207,16 @@ final class Alto {
 	private static void routeSay(int phase, String state) {
 		String line = ObtainRoute.BEGUN.equals(state) ? ObtainRoute.line(phase) : ObtainRoute.shortLine(phase);
 		if (present()) adris.altoclef.Debug.logInternal(line);
+		// (25 Nov 2026) the spare shield's inputs as M2.2 is left: in heel-254/255 the piece was asked on one lane of 24 with
+		// the makings in the bag, and its passed-over line never came (spareSkipSaidAt's overflow); this says which input held it
+		if (present() && phase == ObtainRoute.M3_1 && ObtainRoute.BEGUN.equals(state)) {
+			var p = net.minecraft.client.Minecraft.getInstance().player;
+			if (p != null) adris.altoclef.Debug.logInternal("route: m2.2 left: spare shield switch " + adris.altoclef.util.helpers.Tuning.get("spare_shield_m2", 0)
+				+ ", shields " + ObtainSteps.count(p, "shield") + " (off hand " + AfkHelperClient.itemId(p.getOffhandItem()) + "), iron ingots "
+				+ ObtainSteps.count(p, "iron_ingot") + ", wood " + planks(p) + " planks, tables " + ObtainSteps.count(p, "crafting_table")
+				+ ", tried " + ObtainRoute.triedCount("m2.2/spare shield") + "; cook switch " + adris.altoclef.util.helpers.Tuning.get("cook_raw_m2", 0)
+				+ ", tried " + ObtainRoute.triedCount("m2.2/cook raw meat"));
+		}
 		// (the trade's gold the M3 kit asks: 0 with nether_gold, so the rig's m3.3 asks the helmets alone, steering 200)
 		Exchange.emit("obtain", "action", "route phase", "phase", ObtainRoute.PHASES.get(phase), "word", ObtainRoute.WORDS.get(phase),
 			"state", state, "trade_gold", netherGoldOn() ? 0 : ObtainRoute.GOLD);
