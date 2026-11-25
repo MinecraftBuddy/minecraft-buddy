@@ -55,13 +55,18 @@ public class CookCarriedMeatTask extends Task {
         return active;
     }
 
-    /** The raw items this would cook now (whole kinds the bag's fuel covers, at most MAX_ITEMS); 0 without a furnace in the bag. */
-    public static int cookable(AltoClef mod) {
-        return choose(mod, null);
+    /**
+     * The raw items this would cook now (whole kinds the bag's fuel covers, at most MAX_ITEMS); 0 without a furnace at hand. The
+     * caller says whether one is: in the bag, or put down to smelt this order (at the end of the tools phase the furnace still
+     * stood with the last iron in it, and the piece read 0 in the smoke). The furnace task takes the one near, or places or
+     * makes one.
+     */
+    public static int cookable(AltoClef mod, boolean furnaceAtHand) {
+        return furnaceAtHand ? choose(mod, null) : 0;
     }
 
     private static int choose(AltoClef mod, List<Item[]> out) {
-        if (mod == null || mod.getPlayer() == null || mod.getItemStorage().getItemCount(Items.FURNACE) < 1) return 0;
+        if (mod == null || mod.getPlayer() == null) return 0;
         // (one smelt's margin: a part-burnt plank in the slot is not in the bag's count)
         double fuel = StorageHelper.calculateInventoryFuelCount(mod) - 1;
         int n = 0;
