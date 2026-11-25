@@ -50,6 +50,8 @@ public class CollectObsidianTask extends ResourceTask {
     static final int NO_SKY_REACH = 96, NO_SKY_DESCEND = 16;
     // the height the descent out of the sky goes to, latched so the walk keeps one goal; MIN_VALUE when none
     private int _descendY = Integer.MIN_VALUE;
+    // when the cell underfoot was last said refused (obsidian_no_sky)
+    private long _skyRefusedAt = Long.MIN_VALUE;
 
     static boolean noSkyOn() {
         return adris.altoclef.util.helpers.Tuning.get("obsidian_no_sky", 0) > 0;
@@ -241,6 +243,16 @@ public class CollectObsidianTask extends ResourceTask {
             _placeObsidianTask = null;
         }
         if (_placeObsidianTask == null) {
+            // (Tuning obsidian_no_sky) the cell underfoot refused for the sky or the deep dark: a line at most once a minute, so
+            // a block can count the runs where the rule came into play
+            if (noSky && !sheltered(mod.getWorld(), mod.getPlayer().blockPosition())) {
+                long now = mod.getWorld().getGameTime();
+                if (_skyRefusedAt == Long.MIN_VALUE || now < _skyRefusedAt || now - _skyRefusedAt >= 1200) {
+                    _skyRefusedAt = now;
+                    Debug.logInternal("obsidian: no cast at " + mod.getPlayer().blockPosition().toShortString()
+                            + (mod.getWorld().canSeeSky(mod.getPlayer().blockPosition()) ? ", under the open sky" : ", in the deep dark") + " (obsidian_no_sky)");
+                }
+            }
             BlockPos goodPos = getGoodObsidianPosition(mod);
             if (goodPos != null && !mod.getBlockTracker().unreachable(goodPos)) {
                 _castSpot = null;
