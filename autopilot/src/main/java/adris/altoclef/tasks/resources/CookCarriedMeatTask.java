@@ -44,6 +44,7 @@ public class CookCarriedMeatTask extends Task {
     private Task _current;
     private int _planned;
     private long _startMs;
+    private boolean _started;
 
     /** The raw items this would cook now (whole kinds the bag's fuel covers, at most MAX_ITEMS); 0 without a furnace in the bag. */
     public static int cookable(AltoClef mod) {
@@ -68,6 +69,7 @@ public class CookCarriedMeatTask extends Task {
     protected void onStart(AltoClef mod) {
         _plan.clear();
         _planned = choose(mod, _plan);
+        _started = true;
         _index = 0;
         _current = null;
         _startMs = System.currentTimeMillis();
@@ -106,9 +108,11 @@ public class CookCarriedMeatTask extends Task {
         return null;
     }
 
+    // (the plan is made in onStart: before it the empty plan read as done, and the first smoke's cook ended at once with 18 raw
+    // pieces and the fuel for them in the bag, 25 Nov 2026)
     @Override
     public boolean isFinished(AltoClef mod) {
-        return _index >= _plan.size();
+        return _started && _index >= _plan.size();
     }
 
     @Override
