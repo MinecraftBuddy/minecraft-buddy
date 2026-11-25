@@ -90,6 +90,12 @@ final class ObtainRoute {
 		/** A shield's makings carried: one iron, raw or smelted, and wood worth six planks (ten with no crafting table). */
 		default boolean shieldMakings() { return false; }
 
+		/** The autopilot's cook_raw_m2 switch: the raw meat carried is cooked at the end of M2.2, before the deep. */
+		default boolean cookRawOn() { return false; }
+
+		/** The raw meat the bag's furnace and fuel would cook now (whole kinds, at most twenty); 0 with no furnace in the bag. */
+		default int cookableMeat() { return 0; }
+
 		/** The autopilot's m34_kit_again switch: before the portal a crafting table, and the M3 kit asked again. */
 		default boolean kitAgain() { return false; }
 
@@ -147,6 +153,9 @@ final class ObtainRoute {
 	/** (m34_food_points) under this many food points the portal phase gathers food for the nether (a food run gathers 160). */
 	static final int M34_FOOD_POINTS = 120;
 
+	/** (cook_raw_m2) fewer raw pieces than this are not worth putting the furnace down for at the end of M2.2. */
+	static final int COOK_MIN = 4;
+
 	/** What the rig counts as food in the bag (raw meat too). */
 	static final Set<String> FOOD = Set.of("cooked_beef", "cooked_porkchop", "cooked_mutton", "cooked_chicken", "cooked_cod",
 		"cooked_salmon", "cooked_rabbit", "bread", "baked_potato", "apple", "golden_apple", "carrot", "potato", "beef", "porkchop",
@@ -185,7 +194,11 @@ final class ObtainRoute {
 			// from the bag alone: of 53 overworld deaths after M2.1 whose shield could be read, 17 had none (a creeper's blast
 			// costs a shield 25-44 uses of 336), and the shield again needs its makings in the bag, which those runs lacked. One
 			// try; with no iron or wood for it the piece is passed over, never a trip for them
-			new Piece(M2_2, "spare shield", 1, b -> b.spareShieldOn() && b.inv("shield") < 2 && b.shieldMakings())),
+			new Piece(M2_2, "spare shield", 1, b -> b.spareShieldOn() && b.inv("shield") < 2 && b.shieldMakings()),
+			// (cook_raw_m2, 25 Nov 2026) the raw meat carried, cooked in the bag's furnace before the deep as far as the bag's fuel
+			// goes: 9 of 29 heel runs went down with 9 or more raw pieces, and 5 of 16 obsidian deaths had run out of food. One
+			// try, never a trip for fuel; fewer than four raw pieces the fuel covers is no piece
+			new Piece(M2_2, "cook raw meat", 1, b -> b.cookRawOn() && b.cookableMeat() >= COOK_MIN)),
 		// down to the diamonds for the pickaxe and the sword; the brew's redstone down there
 		List.of(piece(M3_1, "diamonds", b -> !anyOf(b, "diamond_pickaxe", "netherite_pickaxe") || !anyOf(b, "diamond_sword", "netherite_sword")),
 			piece(M3_1, "redstone", b -> b.inv("redstone") < 1)),

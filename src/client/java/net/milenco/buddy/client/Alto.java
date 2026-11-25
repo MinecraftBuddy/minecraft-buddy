@@ -1242,6 +1242,13 @@ final class Alto {
 
 			public boolean shieldMakings() { return spareMakings(p); }
 
+			public boolean cookRawOn() { return present() && adris.altoclef.util.helpers.Tuning.get("cook_raw_m2", 0) > 0; }
+
+			public int cookableMeat() {
+				var mod = instance();
+				return mod == null ? 0 : adris.altoclef.tasks.resources.CookCarriedMeatTask.cookable(mod);
+			}
+
 			public boolean kitAgain() { return kitAgainOn(); }
 
 			public int netherSticks() { return netherSticksWanted(); }
@@ -1350,6 +1357,14 @@ final class Alto {
 			case "spare shield":
 				return new Run("kit the spare shield (m2.2)", 3 * 60_000L, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
 					new adris.altoclef.util.ItemTarget("shield", 2))));
+			// (cook_raw_m2) the raw meat carried, cooked in the bag's furnace as far as its fuel goes, no trip: 12 s an item and a
+			// minute to put the furnace down and take it up, at most five minutes, one try
+			case "cook raw meat": {
+				var mod = instance();
+				int n = mod == null ? 0 : adris.altoclef.tasks.resources.CookCarriedMeatTask.cookable(mod);
+				return new Run("cook the raw meat carried (m2.2)", Math.min(5 * 60_000L, 60_000L + 12_000L * n),
+					() -> night(new adris.altoclef.tasks.resources.CookCarriedMeatTask()));
+			}
 			case "copper_chestplate", "copper_leggings", "copper_boots":
 				return new Run("equip " + name, (6 + 2 * ingots(name.substring("copper_".length()))) * 60_000L,
 					() -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget(name, 1))));

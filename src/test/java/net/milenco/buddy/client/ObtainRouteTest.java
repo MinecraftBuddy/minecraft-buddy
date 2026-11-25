@@ -25,8 +25,8 @@ class ObtainRouteTest {
 	static final class Kit implements ObtainRoute.Bag {
 		final Map<String, Integer> items = new HashMap<>();
 		final Map<String, String> worn = new HashMap<>();
-		boolean bedNear, rest, slimeNear, kitAgain, goldClockFix, rawGoldSmelt, netherGold, spareShield, makings;
-		int netherSticks;
+		boolean bedNear, rest, slimeNear, kitAgain, goldClockFix, rawGoldSmelt, netherGold, spareShield, makings, cookRaw;
+		int netherSticks, cookable;
 
 		Kit give(String item, int n) { items.merge(item, n, Integer::sum); return this; }
 
@@ -65,6 +65,10 @@ class ObtainRouteTest {
 		public boolean spareShieldOn() { return spareShield; }
 
 		public boolean shieldMakings() { return makings; }
+
+		public boolean cookRawOn() { return cookRaw; }
+
+		public int cookableMeat() { return cookable; }
 	}
 
 	private final List<String> said = new ArrayList<>();
@@ -483,6 +487,40 @@ class ObtainRouteTest {
 		assertEquals("diamonds", next(k));
 	}
 
+	/**
+	 * (cook_raw_m2) The raw meat carried is cooked once at the end of M2.2, after the spare shield, with its switch and four or
+	 * more raw pieces the bag's furnace and fuel cover; then the diamonds. Without the switch or with fewer it is no piece.
+	 */
+	@Test
+	void theRawMeatIsCookedOnceAtTheEndOfTheTools() {
+		Kit k = from("m2.2");
+		walk(k);
+		k.give("water_bucket").give("iron_pickaxe", 2).give("iron_sword");
+		k.cookable = 12;
+		assertEquals("diamonds", next(k));
+
+		k = from("m2.2");
+		walk(k);
+		k.give("water_bucket").give("iron_pickaxe", 2).give("iron_sword");
+		k.cookRaw = true;
+		k.cookable = ObtainRoute.COOK_MIN - 1;
+		assertEquals("diamonds", next(k));
+
+		k = from("m2.2");
+		walk(k);
+		k.give("water_bucket").give("iron_pickaxe", 2).give("iron_sword");
+		k.spareShield = true;
+		k.makings = true;
+		k.cookRaw = true;
+		k.cookable = 12;
+		assertEquals("spare shield", next(k));
+		ObtainRoute.tried("m2.2/spare shield");
+		assertEquals("cook raw meat", next(k));
+		assertEquals(ObtainRoute.M2_2, ObtainRoute.phase());
+		ObtainRoute.tried("m2.2/cook raw meat");
+		assertEquals("diamonds", next(k));
+	}
+
 	/** (steering 204) One slime search: when it ends without a ball the route goes on to the portal. */
 	@Test
 	void theSlimePhaseHasOneTry() {
@@ -548,7 +586,7 @@ class ObtainRouteTest {
 		for (List<ObtainRoute.Piece> phase : ObtainRoute.PIECES) for (ObtainRoute.Piece p : phase) names.add(p.key());
 		assertEquals(List.of("m1.1/wood", "m1.2/stone pickaxes", "m1.2/stone sword", "m1.2/furnace", "m1.3/food", "m1.3/bed", "m1.3/sand",
 			"m2.1/shield", "m2.1/copper_chestplate", "m2.1/copper_leggings", "m2.1/copper_boots", "m2.1/iron_chestplate",
-			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.1/iron_helmet", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m2.2/spare shield", "m3.1/diamonds",
+			"m2.1/iron_leggings", "m2.1/iron_boots", "m2.1/iron_helmet", "m2.2/water bucket", "m2.2/iron pickaxes", "m2.2/iron sword", "m2.2/spare shield", "m2.2/cook raw meat", "m3.1/diamonds",
 			"m3.1/redstone", "m3.2/obsidian", "m3.2/water bucket", "m3.3/slime ball", "m3.3/golden boots", "m3.3/golden boots again", "m3.3/gold", "m3.3b/golden boots again", "m3.3b/slime ball",
 			"m3.4/flint and steel", "m3.4/rest", "m3.4/crafting table", "m3.4/sticks", "m3.4/food", "m3.4/bed", "m3.4/water bucket",
 			"m3.4/iron pickaxes", "m3.4/diamonds", "m3.4/redstone", "m3.4/obsidian", "m3.4/raw gold", "m3.4/golden boots", "m3.4/gold",
