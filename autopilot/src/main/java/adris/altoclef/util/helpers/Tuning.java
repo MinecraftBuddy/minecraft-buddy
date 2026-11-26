@@ -671,6 +671,9 @@ public final class Tuning {
             // (26 Nov 2026, a fix, heel-255-mc3 r19: a drink begun in the lava is finished while the buddy still burns,
             // RouteRules.wayKeepBurning)
             java.util.Map.entry("route_hold_burn_on", 1.0),
+            // (26 Nov 2026, a fix: the route's errand ends 15 minutes after phase 3 began with the spawner known, the far
+            // pass included, not by a stall; RouteRules.errandCapped)
+            java.util.Map.entry("route_errand_cap_s", 900.0),
             // (12 Nov 2026, steering 170: far cave gold with 15 armour only at y 0 or above and not beside lava, MineAndCollectTask)
             java.util.Map.entry("gold_cave_safe", 1.0),
             // (12 Nov 2026, a fix: with a calm neutral by the target and no axe, the pickaxe, which never sweeps, WeaponPick)

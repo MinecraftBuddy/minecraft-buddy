@@ -1650,9 +1650,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 : adris.altoclef.util.helpers.RouteRules.errandDeadEnd(_errandPoint, _errandSinceGot,
                 adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.Tuning.get("route_errand_dead_s", adris.altoclef.util.helpers.RouteRules.ERRAND_DEAD_S)),
                 adris.altoclef.util.helpers.RouteRules.errandRounds());
-        // (Tuning route_errand_cap_s, off by default: a ceiling from phase 3's start, the far pass included, RouteRules.errandCapped)
+        // (Tuning route_errand_cap_s, 900 by default: a ceiling from phase 3's start, the far pass included, RouteRules.errandCapped)
         String capped = adris.altoclef.util.helpers.RouteRules.errandCapped(adris.altoclef.util.helpers.Tuning.get("route_errand_cap_s", 0),
-                spawner, now - _errandAt);
+                spawner, now - _errandAt,
+                _wartAt != null && _wartStall <= adris.altoclef.util.helpers.BrewErrandRules.ticks(adris.altoclef.util.helpers.RouteRules.WART_FAR_CLOSING_S));
         if (capped != null) why = capped;
         if (why == null) return false;
         // (Tuning route_wart_far: a dead end with the wart still wanted begins the far pass along the fortress first)

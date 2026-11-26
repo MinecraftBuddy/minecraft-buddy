@@ -221,9 +221,18 @@ public final class RouteRules {
     // its own, so the errand has no upper bound: of heel-254/255's 100 phase-3 runs in 18 h, 12 stalled (20 game minutes with
     // no new phase or rod); in four of the ten read the spawner was found and the rings and the far pass ran past the 20
     // minutes (a fortress search of 5 to 13 minutes first). with the spawner known, this many seconds after phase 3 began
-    // end the errand (no brew, phase 4), the far pass included; without a spawner the search goes on as before
+    // end the errand (no brew, phase 4), the far pass included; without a spawner the search goes on as before. a walk to a
+    // wart that came closer within WART_FAR_CLOSING_S holds it off up to WART_FAR_HOLD_S, as the far pass's own cap. of
+    // 131 heel runs (24-26 Nov) that reached phase 4, 10 had spent 15 minutes or more in phase 3, one of them with a brew
+    public static final double ERRAND_CAP_S = 900;
+
     public static String errandCapped(double capS, boolean spawnerKnown, long sinceTicks) {
+        return errandCapped(capS, spawnerKnown, sinceTicks, false);
+    }
+
+    public static String errandCapped(double capS, boolean spawnerKnown, long sinceTicks, boolean walkClosing) {
         if (capS <= 0 || !spawnerKnown || sinceTicks < Math.round(capS * 20)) return null;
+        if (walkClosing && sinceTicks < Math.round(capS * 20) + Math.round(WART_FAR_HOLD_S * 20)) return null;
         return "the errand's ceiling, " + Math.round(sinceTicks / 20.0) + " s since phase 3 began";
     }
 

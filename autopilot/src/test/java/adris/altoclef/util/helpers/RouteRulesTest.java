@@ -779,6 +779,9 @@ public class RouteRulesTest {
         assertNull(RouteRules.errandCapped(900, false, 100_000));       // no spawner yet: the search goes on
         assertNull(RouteRules.errandCapped(900, true, 900 * 20 - 1));   // not yet
         assertEquals("the errand's ceiling, 900 s since phase 3 began", RouteRules.errandCapped(900, true, 900 * 20));
+        assertNull(RouteRules.errandCapped(900, true, 900 * 20, true));                 // a walk closing on a wart holds it
+        assertEquals("the errand's ceiling, 1020 s since phase 3 began", RouteRules.errandCapped(900, true, 1020 * 20, true));
+        assertEquals(900, Tuning.get("route_errand_cap_s", 0), 0);                    // on by default
     }
 
     @Test
