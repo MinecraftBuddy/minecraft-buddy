@@ -772,4 +772,12 @@ public class RouteRulesTest {
         assertFalse(RouteRules.beyondDeadEnd(0, 0, -60, 0, 48, 0));    // the other side
         assertFalse(RouteRules.beyondDeadEnd(0, 0, 0, 0, -48, 0));     // a dead end at the spawner says nothing
     }
+
+    @Test
+    public void theErrandsCeilingCountsFromPhase3OnlyWithTheSpawnerKnown() {
+        assertNull(RouteRules.errandCapped(0, true, 100_000));          // off
+        assertNull(RouteRules.errandCapped(900, false, 100_000));       // no spawner yet: the search goes on
+        assertNull(RouteRules.errandCapped(900, true, 900 * 20 - 1));   // not yet
+        assertEquals("the errand's ceiling, 900 s since phase 3 began", RouteRules.errandCapped(900, true, 900 * 20));
+    }
 }

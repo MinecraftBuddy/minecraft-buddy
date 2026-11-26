@@ -216,6 +216,17 @@ public final class RouteRules {
         return on && wantWart && kit && !begun;
     }
 
+    // ---- the errand's ceiling from phase 3's start (Tuning route_errand_cap_s, game seconds, 0 off; 26 Nov 2026). the dead
+    // end's clock counts only near the spawner once it is known, an item got starts it again and the far pass has a clock of
+    // its own, so the errand has no upper bound: of heel-254/255's 100 phase-3 runs in 18 h, 12 stalled (20 game minutes with
+    // no new phase or rod); in four of the ten read the spawner was found and the rings and the far pass ran past the 20
+    // minutes (a fortress search of 5 to 13 minutes first). with the spawner known, this many seconds after phase 3 began
+    // end the errand (no brew, phase 4), the far pass included; without a spawner the search goes on as before
+    public static String errandCapped(double capS, boolean spawnerKnown, long sinceTicks) {
+        if (capS <= 0 || !spawnerKnown || sinceTicks < Math.round(capS * 20)) return null;
+        return "the errand's ceiling, " + Math.round(sinceTicks / 20.0) + " s since phase 3 began";
+    }
+
     // ---- the potion at a guarded wart (Tuning route_wart_drink, off; his yes of 11 Nov 2026, steering 157). of 20 whole-route
     // runs that began phase 4 without wart (11 Nov 2026, 03:00-09:00), 12 had seen it and given it up: blazes by it (the wart
     // room by the spawner) set off phase 3's walk-away every second or two, at the edge of their sight, so the walk never got
