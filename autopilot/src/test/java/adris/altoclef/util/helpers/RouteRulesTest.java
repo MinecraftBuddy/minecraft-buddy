@@ -780,4 +780,14 @@ public class RouteRulesTest {
         assertNull(RouteRules.errandCapped(900, true, 900 * 20 - 1));   // not yet
         assertEquals("the errand's ceiling, 900 s since phase 3 began", RouteRules.errandCapped(900, true, 900 * 20));
     }
+
+    @Test
+    public void aLetGoStaysWhileTheBuddyStillBurns() {
+        assertEquals("let go 1 s ago and still burning", RouteRules.wayKeepBurning(true, true, 20));
+        assertNull(RouteRules.wayKeepBurning(false, true, 20));                          // off
+        assertNull(RouteRules.wayKeepBurning(true, false, 20));                          // the fire out
+        assertNull(RouteRules.wayKeepBurning(true, true, RouteRules.WAY_KEEP_BURN + 1)); // too long ago
+        assertNull(RouteRules.wayKeepBurning(true, true, Long.MAX_VALUE / 2));           // never let go
+        assertNull(RouteRules.wayKeepBurning(true, true, -5));                           // a clock that went back
+    }
 }

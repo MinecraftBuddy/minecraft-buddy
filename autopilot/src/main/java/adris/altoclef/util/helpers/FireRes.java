@@ -183,6 +183,8 @@ public final class FireRes {
                     Tuning.get("route_hold_lava_hp", RouteRules.WAY_LAVA_HP), Tuning.get("route_hold_burn_hp", RouteRules.WAY_BURN_HP));
             // (Tuning route_way_blaze, on by default: past phase 3 a burn among the blazes is their fight, RouteRules.wayBlazeLetGo)
             if (why == null && RouteRules.wayBlazeOn()) why = RouteRules.wayBlazeLetGo(routePast, e.isOnFire(), blaze);
+            // (Tuning route_hold_burn_on, on by default: a let-go stays while the buddy burns, RouteRules.wayKeepBurning)
+            if (why == null) why = RouteRules.wayKeepBurning(Tuning.get("route_hold_burn_on", 0) > 0, e.isOnFire(), now - routeLetAt);
             if (why != null) {
                 if (FireResTradeRules.newEpisode(routeLetAt, now)) {
                     Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion goes down on the way, %s (%.1f hp, nearest blaze %s)",

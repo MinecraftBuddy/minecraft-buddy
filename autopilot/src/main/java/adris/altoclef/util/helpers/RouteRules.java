@@ -633,6 +633,17 @@ public final class RouteRules {
         return null;
     }
 
+    // (Tuning route_hold_burn_on, on by default; 26 Nov 2026, a fix: heel-255-mc3 r19 began the drink under the lava, the eyes
+    // came out above 10 hp, the rule above held the potion again mid-drink, and the buddy burned for 8 s and died on fire the
+    // tick the potion went down) a potion let go on the way stays let go while the buddy still burns, within WAY_KEEP_BURN
+    // game ticks of the last let-go: a begun drink is finished, not dropped at the lava's edge
+    public static final long WAY_KEEP_BURN = 300;
+
+    public static String wayKeepBurning(boolean on, boolean onFire, long sinceLetGo) {
+        if (!on || !onFire || sinceLetGo < 0 || sinceLetGo > WAY_KEEP_BURN) return null;
+        return "let go " + Math.round(sinceLetGo / 20.0) + " s ago and still burning";
+    }
+
     // and past phase 3 (the first two rods on) but out of the spawner's FIGHT_NEAR: a burn with a blaze within WAY_BLAZE is the
     // blazes' fight, not the way's, so the potion goes down at once (Tuning route_way_blaze, on by default; 11 Nov 2026, a
     // fix: a traded potion ran out on a rim 16 blocks from nine blazes, the next waited for 10 hp under the way's rule, and the
