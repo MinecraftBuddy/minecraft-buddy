@@ -199,11 +199,81 @@ public class PoolCastTest {
 
     @Test
     public void aFightThatCarriesTheBuddyFarPicksANewCell() {
-        assertEquals(PoolCast.Step.CAST, PoolCast.step(false, 3));
-        assertEquals(PoolCast.Step.WALK, PoolCast.step(false, 40));
-        assertEquals(PoolCast.Step.CAST, PoolCast.step(true, 5));
-        assertEquals(PoolCast.Step.BACK, PoolCast.step(true, 12));
-        assertEquals(PoolCast.Step.REPICK, PoolCast.step(true, 30));
+        assertEquals(PoolCast.Step.CAST, PoolCast.step(false, 3, false));
+        assertEquals(PoolCast.Step.WALK, PoolCast.step(false, 40, true));
+        assertEquals(PoolCast.Step.CAST, PoolCast.step(true, 5, true));
+        assertEquals(PoolCast.Step.BACK, PoolCast.step(true, 12, true));
+        assertEquals(PoolCast.Step.REPICK, PoolCast.step(true, 30, true));
+    }
+
+    @Test
+    public void aWalkOfItsOwnGoesBackHoweverFar() {
+        // the lava fetch's wander, the mining, a pickup or a take-along: back to the pinned cell, never a new one
+        assertEquals(PoolCast.Step.BACK, PoolCast.step(true, 30, false));
+        assertEquals(PoolCast.Step.BACK, PoolCast.step(true, 200, false));
+    }
+
+    @Test
+    public void aFightCountsForTenSeconds() {
+        assertFalse(PoolCast.fightRecent(1000, Long.MIN_VALUE));
+        assertTrue(PoolCast.fightRecent(1000, 1000));
+        assertTrue(PoolCast.fightRecent(1000, 1000 - PoolCast.FIGHT_RECENT_TICKS));
+        assertFalse(PoolCast.fightRecent(1000, 1000 - PoolCast.FIGHT_RECENT_TICKS - 1));
+    }
+
+    @Test
+    public void theFetchTakesOnlyThePoolsSources() {
+        BlockPos cell = new BlockPos(6, 2, 0);
+        assertTrue(PoolCast.inFetch(cell, new BlockPos(10, 0, 0)));
+        assertTrue(PoolCast.inFetch(cell, new BlockPos(12, 0, 4)));
+        // the smoke's other source, 20 blocks east
+        assertFalse(PoolCast.inFetch(cell, new BlockPos(26, 2, 1)));
+        assertFalse(PoolCast.inFetch(cell, new BlockPos(13, -3, 3)));
+    }
+
+    @Test
+    public void aSourceUnderLavaOrBuriedIsNotTheFetchs() {
+        // a pool two deep: the top layer is taken, the one under it is not (WorldHelper.isSourceBlock)
+        World deep = rim().box(10, -1, -3, 14, -1, 3, Cell.LAVA);
+        assertTrue(PoolCast.fetchable(deep, 10, 0, 0));
+        assertFalse(PoolCast.fetchable(deep, 10, -1, 0));
+        // a source in rock with no open cell beside its lid: nowhere to dig it from
+        World buried = new World().set(0, 0, 0, Cell.LAVA);
+        assertFalse(PoolCast.fetchable(buried, 0, 0, 0));
+        // the same with a cell to stand in beside the lid: a lid source, taken
+        assertTrue(PoolCast.fetchable(buried.set(1, 1, 0, Cell.OPEN), 0, 0, 0));
+    }
+
+    @Test
+    public void aPoolOfOneSourceRefuses() {
+        // the smoke's pool: one source under a lid, four from the cell. the fetch took it, then found nothing it took
+        World one = new World().set(10, 0, 0, Cell.LAVA).set(9, 1, 0, Cell.OPEN);
+        String why = PoolCast.refuse(one, 6, 2, 0);
+        assertNotNull(why);
+        assertTrue(why, why.contains("only 1"));
+        // four sources there pass
+        World four = new World().box(10, 0, -1, 11, 0, 0, Cell.LAVA).box(10, 1, -1, 11, 1, 0, Cell.OPEN);
+        assertNull(PoolCast.refuse(four, 6, 2, 0));
+        assertEquals(4, PoolCast.poolSources(four, new BlockPos(6, 2, 0), p -> false));
+        assertEquals(3, PoolCast.poolSources(four, new BlockPos(6, 2, 0), p -> p.equals(new BlockPos(10, 0, 0))));
+    }
+
+    @Test
+    public void aFetchWithNoLavaForThirtySecondsRuinsTheCell() {
+        PoolCast.Pin pin = new PoolCast.Pin();
+        pin.pin(new BlockPos(6, 2, 0), new BlockPos(10, 0, 0), 0);
+        // getting the empty bucket (iron, a smelt) does not count
+        assertFalse(pin.fetchStalled(false, 0));
+        assertFalse(pin.fetchStalled(false, 5000));
+        assertFalse(pin.fetchStalled(true, 6000));
+        assertFalse(pin.fetchStalled(true, 6000 + PoolCast.POOL_FETCH_TICKS));
+        // a fight of 10 s in between does not count
+        pin.paused(200);
+        assertFalse(pin.fetchStalled(true, 6000 + PoolCast.POOL_FETCH_TICKS + 200));
+        assertTrue(pin.fetchStalled(true, 6000 + PoolCast.POOL_FETCH_TICKS + 201));
+        // a scoop ends the hunt; the next one starts its own clock
+        assertFalse(pin.fetchStalled(false, 7000));
+        assertFalse(pin.fetchStalled(true, 7001));
     }
 
     @Test
@@ -215,6 +285,11 @@ public class PoolCastTest {
         // stood at 30 since tick 200
         assertFalse(pin.walkStalled(29.5, 200 + PoolCast.WALK_STALL_TICKS));
         assertTrue(pin.walkStalled(29.5, 201 + PoolCast.WALK_STALL_TICKS));
+        // a walk back starts its own clock
+        pin.walkStart(5000);
+        assertFalse(pin.walkStalled(15, 5000));
+        assertFalse(pin.walkStalled(15, 5000 + PoolCast.WALK_STALL_TICKS));
+        assertTrue(pin.walkStalled(15, 5001 + PoolCast.WALK_STALL_TICKS));
     }
 
     @Test

@@ -266,8 +266,24 @@ public class PlaceObsidianBucketTask extends Task {
         return true;
     }
 
+    // (pool_cast) the only sources the lava fetch may take (null: any), and the tick the cast last handed its lava fetch out
+    private java.util.function.Predicate<BlockPos> _fetchOnly;
+    private int _fetchHandedAt = Integer.MIN_VALUE;
+
+    // (pool_cast) the cast at a pinned cell by a pool fetches its lava from that pool alone; the caller reads the switch
+    public PlaceObsidianBucketTask onlyFetch(java.util.function.Predicate<BlockPos> only) {
+        _fetchOnly = only;
+        return this;
+    }
+
+    // (pool_cast) the cast's last tick (or the one before) handed out its lava fetch: the parent ticks before the cast
+    public boolean fetchingLava() {
+        return _fetchHandedAt != Integer.MIN_VALUE && GameClock.since(_fetchHandedAt, WorldHelper.getTicks()) <= 2;
+    }
+
     // the cast's own lava fetch, same rule as the parent's: not the cells we are casting in
     private Task ownFetch() {
+        _fetchHandedAt = WorldHelper.getTicks();
         if (_bandSince == Integer.MIN_VALUE) {
             _bandSince = WorldHelper.getTicks();
             if (_bandHere && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD) {
@@ -276,7 +292,8 @@ public class PlaceObsidianBucketTask extends Task {
             }
         }
         if (_fetch == null) {
-            _fetch = new CollectBucketLiquidTask.CollectLavaBucketTask(1).leaveAlone(p -> scoopOff(p) || offBand(p));
+            _fetch = new CollectBucketLiquidTask.CollectLavaBucketTask(1).leaveAlone(p -> scoopOff(p) || offBand(p)
+                    || (_fetchOnly != null && !_fetchOnly.test(p)));
         }
         return _fetch;
     }

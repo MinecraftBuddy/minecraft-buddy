@@ -1,6 +1,7 @@
 package adris.altoclef.tasks.resources;
 
 import adris.altoclef.tasks.construction.PlaceObsidianBucketTask;
+import adris.altoclef.util.helpers.BucketSourceRules;
 import adris.altoclef.util.helpers.LavaBreak;
 import adris.altoclef.util.helpers.SafeStand;
 import baritone.pathing.movement.CliffAvoidance.Cell;
@@ -50,8 +51,18 @@ public final class PoolCast {
     static final double LEASH = 24;
     // a walk to the pinned cell that comes no block nearer in this long got nowhere (game ticks the task ran)
     static final long WALK_STALL_TICKS = 20 * 60;
-    // natural obsidian while the pool goes on: only this near, and with a floor under it
+    // natural obsidian while the pool goes on: only this near (the pinned cell, or the buddy while none), and with a floor
+    // under it
     static final double NATURAL_REACH = 16;
+    // (the smoke of 27 Nov 2026) the cast at the pinned cell fetches its lava only within POOL_FETCH of the cell, and the cell
+    // is picked only by a pool with POOL_MIN sources there that the fetch takes: the first pool was one source under a lid,
+    // and after its scoop the fetch found nothing it took and wandered off. a fetch with an empty bucket in the bag and no
+    // lava in POOL_FETCH_TICKS ruins the cell
+    static final double POOL_FETCH = 8;
+    static final int POOL_MIN = 4;
+    static final long POOL_FETCH_TICKS = 20 * 30;
+    // the mob defense held the wheel this recently: the buddy's way off the cell was a fight's (game ticks)
+    static final long FIGHT_RECENT_TICKS = 20 * 10;
 
     // the cells the cast digs: the lava cell, the water cell, the air over it, the stand and its head room
     static final Vec3i[] DUG = {new Vec3i(0, 0, 0), new Vec3i(0, 1, 0), new Vec3i(0, 2, 0), new Vec3i(-1, 1, 0), new Vec3i(-1, 2, 0)};
@@ -94,23 +105,64 @@ public final class PoolCast {
         return cell.offset(-1, 1, 0);
     }
 
-    // a lava cell: x, y, z, and 1 for a source
+    // a lava cell: x, y, z, and 1 for a source the fetch takes (fetchable)
     private static List<int[]> lavaIn(Grid g, int x0, int x1, int y0, int y1, int z0, int z1) {
         List<int[]> out = new ArrayList<>();
         for (int x = x0; x <= x1; x++) {
             for (int y = y0; y <= y1; y++) {
                 for (int z = z0; z <= z1; z++) {
-                    if (g.at(x, y, z) == Cell.LAVA) out.add(new int[]{x, y, z, g.source(x, y, z) ? 1 : 0});
+                    if (g.at(x, y, z) == Cell.LAVA) out.add(new int[]{x, y, z, fetchable(g, x, y, z) ? 1 : 0});
                 }
             }
         }
         return out;
     }
 
+    // a source the cast's lava fetch takes (CollectBucketLiquidTask): a source with no liquid over it
+    // (WorldHelper.isSourceBlock), open to a ray or under a lid dug from the side (BucketSourceRules), and no lid that takes
+    // too long to dig. a source in the pool's middle, under more lava, is not one
+    static boolean fetchable(Grid g, int x, int y, int z) {
+        if (!g.source(x, y, z)) return false;
+        Cell above = g.at(x, y + 1, z);
+        if (above == Cell.LAVA || above == Cell.WATER) return false;
+        if (above == Cell.SOLID && g.hard(x, y + 1, z)) return false;
+        return BucketSourceRules.classify(new BucketSourceRules.Cells() {
+            @Override
+            public boolean solid(int cx, int cy, int cz) {
+                return g.at(cx, cy, cz) == Cell.SOLID;
+            }
+
+            @Override
+            public boolean open(int cx, int cy, int cz) {
+                return g.at(cx, cy, cz) != Cell.SOLID;
+            }
+
+            @Override
+            public boolean free(int cx, int cy, int cz) {
+                return g.at(cx, cy, cz) == Cell.OPEN;
+            }
+        }, x, y, z) != BucketSourceRules.Kind.NONE;
+    }
+
+    // a source within the pinned cell's fetch (the leaveAlone of the cast's lava fetch)
+    public static boolean inFetch(BlockPos cell, BlockPos source) {
+        return cell.distSqr(source) <= POOL_FETCH * POOL_FETCH;
+    }
+
+    // the sources the fetch takes within POOL_FETCH of the cell, banned ones left out
+    static int poolSources(Grid g, BlockPos cell, Predicate<BlockPos> banned) {
+        int r = (int) POOL_FETCH, n = 0;
+        for (int[] l : lavaIn(g, cell.getX() - r, cell.getX() + r, cell.getY() - r, cell.getY() + r, cell.getZ() - r, cell.getZ() + r)) {
+            BlockPos p = new BlockPos(l[0], l[1], l[2]);
+            if (l[3] == 1 && inFetch(cell, p) && !banned.test(p)) n++;
+        }
+        return n;
+    }
+
     // why the cell at x y z is no cast cell by a pool, or null when it is one
     public static String refuse(Grid g, int x, int y, int z) {
-        int r = (int) Math.ceil(POOL_FAR) + 1;
-        String why = refuseNear(g, lavaIn(g, x - r, x + r, y - POOL_DY_MAX, y + LAVA_UP, z - r, z + r), x, y, z);
+        int r = (int) POOL_FETCH;
+        String why = refuseNear(g, lavaIn(g, x - r, x + r, y - r, y + r, z - r, z + r), x, y, z);
         return why != null ? why : refuseStand(g, x, y, z);
     }
 
@@ -135,8 +187,13 @@ public final class PoolCast {
             if (c == Cell.SOLID && g.loose(fx, fy, fz) && g.at(fx, fy - 1, fz) != Cell.SOLID) return "a frame block that would fall";
         }
         boolean pool = false;
-        double clear = LAVA_CLEAR * LAVA_CLEAR, far = POOL_FAR * POOL_FAR;
+        int fetch = 0;
+        double clear = LAVA_CLEAR * LAVA_CLEAR, far = POOL_FAR * POOL_FAR, fetchSq = POOL_FETCH * POOL_FETCH;
         for (int[] l : lava) {
+            if (l[3] == 1) {
+                double fx = l[0] - x, fy = l[1] - y, fz = l[2] - z;
+                if (fx * fx + fy * fy + fz * fz <= fetchSq) fetch++;
+            }
             if (l[1] < y - POOL_DY_MAX || l[1] > y + LAVA_UP) continue;
             double dz = l[2] - z, dx = l[0] - x, dxs = l[0] - (x - 1);
             double toCell = dx * dx + dz * dz;
@@ -146,7 +203,8 @@ public final class PoolCast {
             if (l[0] <= x) return "lava on the stand's side, not east of the cell";
             if (l[3] == 1 && l[1] <= y - POOL_DY_MIN) pool = true;
         }
-        return pool ? null : "no pool source within " + (int) POOL_FAR + " under the floor";
+        if (!pool) return "no pool source the fetch takes within " + (int) POOL_FAR + " under the floor";
+        return fetch >= POOL_MIN ? null : "only " + fetch + " sources the fetch takes within " + (int) POOL_FETCH;
     }
 
     // the rules on the stand (costly): out of the sky, and no ordinary hit from any side ends in lava or a fall that hurts,
@@ -218,8 +276,9 @@ public final class PoolCast {
     // POOL_DY_MAX over it; banned cells are skipped. null for none
     public static Pick pick(Grid g, BlockPos lava, BlockPos from, Predicate<BlockPos> banned) {
         int lx = lava.getX(), ly = lava.getY(), lz = lava.getZ();
-        int r = SCAN + (int) Math.ceil(POOL_FAR) + 2;
-        List<int[]> near = lavaIn(g, lx - r, lx + r, ly + POOL_DY_MIN - POOL_DY_MAX, ly + POOL_DY_MAX + LAVA_UP, lz - r, lz + r);
+        // every lava cell any candidate's rules look at: POOL_FETCH round it, and the stand's LAVA_CLEAR
+        int r = SCAN + (int) POOL_FETCH, f = (int) POOL_FETCH;
+        List<int[]> near = lavaIn(g, lx - r, lx + r, ly + POOL_DY_MIN - f, ly + POOL_DY_MAX + f, lz - r, lz + r);
         List<double[]> passing = new ArrayList<>();
         for (int y = ly + POOL_DY_MIN; y <= ly + POOL_DY_MAX; y++) {
             for (int x = lx - SCAN; x <= lx + SCAN; x++) {
@@ -256,13 +315,20 @@ public final class PoolCast {
         return floor && distanceSq <= NATURAL_REACH * NATURAL_REACH;
     }
 
-    // what the parent does with a pinned cell and no cast going at it, by how far the feet are from the stand
+    // what the parent does with a pinned cell, by how far the feet are from the stand. a new cell only when a fight carried
+    // the buddy past LEASH (fightRecent); a walk of its own (the fetch, the mining, a pickup, a take-along) goes back. in the
+    // smoke a lava fetch that found nothing wandered 24 off and the pin was let go for it
     enum Step {CAST, WALK, BACK, REPICK}
 
-    static Step step(boolean reached, double toStand) {
+    static Step step(boolean reached, double toStand, boolean fightRecent) {
         if (toStand <= NEAR) return Step.CAST;
         if (!reached) return Step.WALK;
-        return toStand > LEASH ? Step.REPICK : Step.BACK;
+        return toStand > LEASH && fightRecent ? Step.REPICK : Step.BACK;
+    }
+
+    // the mob defense held the wheel within FIGHT_RECENT_TICKS (defenseAt MIN_VALUE: never)
+    static boolean fightRecent(long now, long defenseAt) {
+        return defenseAt != Long.MIN_VALUE && now >= defenseAt && now - defenseAt <= FIGHT_RECENT_TICKS;
     }
 
     // the pin and its fallbacks, kept by CollectObsidianTask so it outlives the mining and the fights
@@ -282,6 +348,8 @@ public final class PoolCast {
         // the walk to the pinned cell: its nearest yet and since when
         double walkBest = Double.MAX_VALUE;
         long walkBestAt;
+        // since when the cast's lava fetch has looked for the pool's lava with an empty bucket in the bag, MIN_VALUE while not
+        long fetchSince = Long.MIN_VALUE;
 
         boolean on() {
             return gaveUp == null;
@@ -294,6 +362,19 @@ public final class PoolCast {
             searchSince = Long.MIN_VALUE;
             walkBest = Double.MAX_VALUE;
             walkBestAt = now;
+            fetchSince = Long.MIN_VALUE;
+        }
+
+        // the cast's lava fetch at the pinned cell this tick (hunting: handed out, an empty bucket in the bag, no lava bucket):
+        // true once it has hunted POOL_FETCH_TICKS with no lava, which ruins the cell. a fetch for the empty bucket itself (iron,
+        // a smelt) does not count
+        boolean fetchStalled(boolean hunting, long now) {
+            if (!hunting) {
+                fetchSince = Long.MIN_VALUE;
+                return false;
+            }
+            if (fetchSince == Long.MIN_VALUE || now < fetchSince) fetchSince = now;
+            return now - fetchSince > POOL_FETCH_TICKS;
         }
 
         // the pinned cell ruined (its cast banned it, the walk to it got nowhere): banned and let go; MAX_RUINED of them give
@@ -338,6 +419,12 @@ public final class PoolCast {
             return false;
         }
 
+        // a walk to the pinned cell begins (the first, or one back to it)
+        void walkStart(long now) {
+            walkBest = Double.MAX_VALUE;
+            walkBestAt = now;
+        }
+
         // the walk to the pinned cell: true when it came no block nearer in WALK_STALL_TICKS
         boolean walkStalled(double toStand, long now) {
             if (toStand < walkBest - 1) {
@@ -350,6 +437,7 @@ public final class PoolCast {
         // the task did not run for this long (a fight, an eat): the clocks don't count it
         void paused(long ticks) {
             if (searchSince != Long.MIN_VALUE) searchSince += ticks;
+            if (fetchSince != Long.MIN_VALUE) fetchSince += ticks;
             walkBestAt += ticks;
         }
     }

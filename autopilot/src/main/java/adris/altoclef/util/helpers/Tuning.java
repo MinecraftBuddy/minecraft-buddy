@@ -958,7 +958,9 @@ public final class Tuning {
             // off. the cell stood a median 33 blocks from its lava and the walk between was 27% of the phase, where 6 of 10
             // fatal fights began. the critic's change: the cell has its own test (LavaBreak on the cells dug, SafeStand on the
             // stand, sheltered), not the cast's cube of breakable blocks, and the pool on the frame's closed east side (PoolCast,
-            // CollectObsidianTask; the read heel-obsidian-time, 26 Nov 2026)
+            // CollectObsidianTask; the read heel-obsidian-time, 26 Nov 2026). after the smoke of 27 Nov 2026: the cast's lava
+            // fetch keeps to the pool (8 of the cell), a pool of 4 sources the fetch takes, a fetch with no lava in 30 s ruins
+            // the cell, and only a fight (not a walk of the buddy's own) gives the cell up for distance
             java.util.Map.entry("pool_cast", 0.0),
             // a plant or snow layer in a portal frame cell is broken by hand before the click: the ray stopped on its outline and
             // the click never went in; 5 of 15 dropped sites in one run's 34 minutes on a forest floor, ConstructNetherPortalObsidianTask (look 131)

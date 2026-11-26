@@ -18,6 +18,8 @@ public class TaskRunner {
     private float[] _priorities = new float[0];
     private final WheelPick<TaskChain> _pick = new WheelPick<>();
     private final HeldWheelWatch _heldWatch = new HeldWheelWatch();
+    // the game time the mob defense last held the wheel, MIN_VALUE for never (pool_cast: a fight carried the buddy off)
+    private long _defenseHeldAt = Long.MIN_VALUE;
 
     public TaskRunner(AltoClef mod) {
         _mod = mod;
@@ -52,6 +54,9 @@ public class TaskRunner {
             _cachedCurrentTaskChain.onInterrupt(_mod, maxChain);
         }
         _cachedCurrentTaskChain = maxChain;
+        if (maxChain instanceof adris.altoclef.chains.MobDefenseChain && maxPriority > 0 && _mod.getWorld() != null) {
+            _defenseHeldAt = _mod.getWorld().getGameTime();
+        }
         if (maxChain != null) {
             maxChain.tick(_mod);
         }
@@ -146,6 +151,10 @@ public class TaskRunner {
         } else if (failure != null) {
             throw new RuntimeException(failure);
         }
+    }
+
+    public long defenseHeldAt() {
+        return _defenseHeldAt;
     }
 
     public TaskChain getCurrentTaskChain() {
