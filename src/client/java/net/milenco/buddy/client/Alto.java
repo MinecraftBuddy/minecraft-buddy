@@ -862,6 +862,11 @@ final class Alto {
 		return present() && adris.altoclef.util.helpers.Tuning.get("slime_search_whole", 0) > 0;
 	}
 
+	/** The autopilot's slime_clock_fix switch (a fix of 26 Nov 2026, on by default); off without the autopilot. */
+	static boolean slimeClockFixOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("slime_clock_fix", 0) > 0;
+	}
+
 	static boolean goldRunsOn() {
 		return present() && adris.altoclef.util.helpers.Tuning.get("gold_runs_on", 0) > 0;
 	}
@@ -1807,6 +1812,9 @@ final class Alto {
 		private int goldOrder;
 		/** The clock of the last tick (game ms): a try stopped from outside banks up to it. */
 		private long lastNow = Long.MIN_VALUE;
+		/** (slime_clock_fix) this try's time went into the slime search's sum; the order the try began in. */
+		private boolean slimeBanked;
+		private int slimeOrder;
 
 		Run(String what, long limit, java.util.function.Supplier<Object> make) { this.what = what; this.limit = limit; this.make = make; }
 
@@ -1951,6 +1959,7 @@ final class Alto {
 				startedAt = now;
 				shutsAtStart = shuts;
 				goldOrder = ObtainRoute.goldOrder();
+				slimeOrder = ObtainRoute.goldOrder();
 				gaveUpsAtStart = adris.altoclef.tasks.movement.BranchMineTask.gaveUps;
 				picksWornAtStart = adris.altoclef.tasks.movement.BranchMineTask.picksWornStops;
 				goldTryOn();
@@ -1980,7 +1989,7 @@ final class Alto {
 					// (gold_runs_on) on past the limit while the gold rises
 					String end = goldEnd(p, now);
 					if (end != null) { cancel(); return fail(end); }
-				} else if (now - startedAt > limit) { cancel(); return fail("AltoClef did not " + what + " in " + limit / 60_000 + " minutes"); }
+				} else if (now - startedAt + slimeBefore() > limit) { cancel(); return fail("AltoClef did not " + what + " in " + limit / 60_000 + " minutes"); }
 				// (mine_water_roof) the branch mine under a piece of the kit gave up its depth where it stood: the piece fails
 				// and the next one goes on, rather than its whole time in the same place
 				// (slime_search_whole, a fix of 21 Nov 2026, on) except the slime ball's: its one try is one search of forty minutes
@@ -1998,9 +2007,25 @@ final class Alto {
 			return ObtainSteps.Result.DONE;
 		}
 
+		/** (slime_clock_fix) the slime search's time in its earlier tries of this order, stopped from outside; 0 for any other step. */
+		private long slimeBefore() { return slimeSearch() && slimeClockFixOn() ? ObtainRoute.slimeSpent() : 0; }
+
+		/** (slime_clock_fix) a slime search stopped from outside banks its time up to its last tick, once, into the order it began in. */
+		private void bankSlime() {
+			if (!slimeSearch() || !slimeClockFixOn() || slimeBanked || startedAt < 0 || lastNow < startedAt) return;
+			slimeBanked = true;
+			if (slimeOrder != ObtainRoute.goldOrder()) return;
+			ObtainRoute.slimeBank(lastNow - startedAt);
+			String line = "route: the slime search stopped after " + (lastNow - startedAt) / 60_000 + " minutes, its time banked: "
+				+ ObtainRoute.slimeSpent() / 60_000 + " of " + limit / 60_000 + " minutes spent (slime_clock_fix)";
+			if (present()) adris.altoclef.Debug.logInternal(line);
+			Exchange.emit("obtain", "action", "slime banked", "min", ObtainRoute.slimeSpent() / 60_000);
+		}
+
 		@Override
 		void stop() {
 			bankStopped();
+			bankSlime();
 			goldTryOff();
 			cancel();
 		}

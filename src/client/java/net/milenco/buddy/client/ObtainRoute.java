@@ -280,6 +280,7 @@ final class ObtainRoute {
 		TRIED.clear();
 		FAILED.clear();
 		goldSpent = 0;
+		slimeSpent = 0;
 		goldStopped = goldPassSaid = goldPicksWorn = false;
 		goldOrder++;
 	}
@@ -457,6 +458,20 @@ final class ObtainRoute {
 
 	/** A try of a gold piece ran this long (game ms): into the budget. */
 	static void goldBank(long ms) { if (ms > 0) goldSpent += ms; }
+
+	/**
+	 * (slime_clock_fix) the game ms the slime ball's search ran in tries of this order that were stopped from outside (food, a
+	 * shield, the night's hole): the search's forty minutes are one search over all of them (steering 204). Without it each
+	 * stop began the forty minutes again: 69 of 179 searches given up in heel-254..257 ran past 41 minutes, up to 84, and
+	 * two runs stalled in the search when the rig's 45 minutes without progress came first (the read heel-slime-search,
+	 * 26 Nov 2026).
+	 */
+	private static long slimeSpent;
+
+	static long slimeSpent() { return slimeSpent; }
+
+	/** A stopped try of the slime search ran this long (game ms): into the search's forty minutes. */
+	static void slimeBank(long ms) { if (ms > 0) slimeSpent += ms; }
 
 	/**
 	 * (gold_clock_fix) a try of a gold piece ended (done or failed, not stopped from outside): with no rise in the gold, it has

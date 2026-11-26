@@ -824,4 +824,16 @@ class ObtainRouteTest {
 	void theSlimePhaseWearsTheGoldenBootsAgain() {
 		assertTrue(ObtainRoute.piece("m3.3b/golden boots again") != null);
 	}
+
+	@Test
+	void theSlimeSearchsStoppedTriesAddUpAndANewOrderStartsAtNothing() {
+		ObtainRoute.reset(true);
+		assertEquals(0, ObtainRoute.slimeSpent());
+		ObtainRoute.slimeBank(7 * 60_000);
+		ObtainRoute.slimeBank(-5);
+		ObtainRoute.slimeBank(15 * 60_000);
+		assertEquals(22 * 60_000, ObtainRoute.slimeSpent());
+		ObtainRoute.reset(true);
+		assertEquals(0, ObtainRoute.slimeSpent());
+	}
 }

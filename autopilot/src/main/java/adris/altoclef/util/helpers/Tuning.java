@@ -758,6 +758,11 @@ public final class Tuning {
             // depth: the mine walks on and begins afresh; a give-up near the surface ended 13 of 68 searches within five minutes
             // (21 Nov 2026, the evaluation of 21:05)
             java.util.Map.entry("slime_search_whole", 1.0),
+            // (read by the buddy, Alto and ObtainRoute) the slime search's forty minutes count over its tries of one order: a
+            // try stopped from outside (food, a shield, the night's hole) banks its time and the next goes on from there. each
+            // stop began the forty minutes again: 69 of 179 searches given up ran past 41 minutes, up to 84, and two runs stalled
+            // in the search at the rig's 45 minutes without progress (the read heel-slime-search, 26 Nov 2026)
+            java.util.Map.entry("slime_clock_fix", 1.0),
             // the branch mine's own tunnel with the feet two or more above its height steps a stair down, checked at the stair's
             // height: the level step lay up to eight under the feet over a cave's open space, three minutes of searches that got
             // two blocks, BranchMineTask (look 208)
