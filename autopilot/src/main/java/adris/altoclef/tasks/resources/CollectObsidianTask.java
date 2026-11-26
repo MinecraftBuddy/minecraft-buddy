@@ -28,7 +28,12 @@ public class CollectObsidianTask extends ResourceTask {
     private Task _forceCompleteTask = null;
     // (obsidian_seen_hold) when obsidian was last found, and how long that still counts as found (10 s)
     private long _seenAt = Long.MIN_VALUE;
-    private static final long SEEN_HOLD = 200;
+    static final long SEEN_HOLD = 200;
+    // (Tuning cast_hold_end) the cell of the last cast that came out obsidian, when obsidian other than the cast's own was last
+    // found, and the cell whose end of the hold was said (a line a cell)
+    private BlockPos _castMade;
+    private long _otherSeenAt = Long.MIN_VALUE;
+    private BlockPos _holdEndSaid;
 
     private PlaceObsidianBucketTask _placeObsidianTask;
     // (Tuning cast_spot_scan) the spot within CAST_SCAN blocks the cast's walk goes to, and when it was last looked for
@@ -142,6 +147,19 @@ public class CollectObsidianTask extends ResourceTask {
         return (x * (ny + 1) + y) * (nx + 1) + z;
     }
 
+    // (obsidian_seen_hold, cast_hold_end) whether obsidian not found this tick still counts as found. the hold is for a natural
+    // block that comes and goes in the tracker (look 130); once the block of the buddy's own cast is mined and picked up, with
+    // no other obsidian found within the hold, there is nothing to hold for: the collect had nothing to mine and wandered for
+    // the 10 s, and the next cast began where the wander stopped
+    static boolean held(boolean holdOn, boolean castHoldEnd, long tick, long seenAt, long otherSeenAt, boolean ownCastGone) {
+        if (!holdOn || !within(tick, seenAt)) return false;
+        return !(castHoldEnd && ownCastGone && !within(tick, otherSeenAt));
+    }
+
+    private static boolean within(long tick, long at) {
+        return at != Long.MIN_VALUE && tick >= at && tick - at <= SEEN_HOLD;
+    }
+
     @Override
     protected boolean shouldAvoidPickingUp(AltoClef mod) {
         return false;
@@ -199,13 +217,33 @@ public class CollectObsidianTask extends ResourceTask {
         // (Tuning obsidian_seen_hold, a fix of 18 Nov 2026, on) obsidian found in the last SEEN_HOLD ticks still counts as found:
         // a natural block 120 off and 122 down came and went from the tracker about once a second, and every change switched
         // between walking to it and a cast with no lava, each cancelling the other's path, for six minutes (look 130)
-        boolean found = mod.getBlockTracker().anyFound(goodObsidian, Blocks.OBSIDIAN) || mod.getEntityTracker().itemDropped(Items.OBSIDIAN);
+        // (Tuning cast_hold_end, a fix of 26 Nov 2026, on) but not for the block of the buddy's own cast once it is mined: see held
+        boolean castHoldEnd = adris.altoclef.util.helpers.Tuning.get("cast_hold_end", 0) > 0;
+        boolean tracked = mod.getBlockTracker().anyFound(goodObsidian, Blocks.OBSIDIAN);
+        boolean found = tracked || mod.getEntityTracker().itemDropped(Items.OBSIDIAN);
         long tick = mod.getWorld().getGameTime();
         if (found) {
             _seenAt = tick;
-        } else if (adris.altoclef.util.helpers.Tuning.get("obsidian_seen_hold", 0) > 0 && _seenAt != Long.MIN_VALUE
-                && tick >= _seenAt && tick - _seenAt <= SEEN_HOLD) {
-            found = true;
+        }
+        if (tracked && castHoldEnd) {
+            // obsidian other than the cast's own cell, the one in the making or the last one made
+            BlockPos making = _placeObsidianTask != null ? _placeObsidianTask.getPos() : null;
+            BlockPos made = _castMade;
+            if ((made == null && making == null) || mod.getBlockTracker().anyFound(
+                    goodObsidian.and(p -> !p.equals(made) && !p.equals(making)), Blocks.OBSIDIAN)) {
+                _otherSeenAt = tick;
+            }
+        }
+        if (!found) {
+            boolean holdOn = adris.altoclef.util.helpers.Tuning.get("obsidian_seen_hold", 0) > 0;
+            boolean ownGone = _castMade != null && !mod.getWorld().getBlockState(_castMade).is(Blocks.OBSIDIAN);
+            found = held(holdOn, castHoldEnd, tick, _seenAt, _otherSeenAt, ownGone);
+            // a line a cast cell, so a block can count the holds this ended
+            if (!found && holdOn && castHoldEnd && ownGone && within(tick, _seenAt) && !_castMade.equals(_holdEndSaid)) {
+                _holdEndSaid = _castMade;
+                Debug.logInternal("obsidian: the cast's block at " + _castMade.toShortString()
+                        + " mined and picked up, no hold: the next cast from here (cast_hold_end)");
+            }
         }
         if (/*obsidianNearby || */found) {
             /*
@@ -223,6 +261,10 @@ public class CollectObsidianTask extends ResourceTask {
              */
 
             setDebugState("Mining/Collecting obsidian");
+            // (cast_hold_end) the cast just made obsidian in its cell: that block is the buddy's own, its mining holds nothing after it
+            if (_placeObsidianTask != null && mod.getWorld().getBlockState(_placeObsidianTask.getPos()).is(Blocks.OBSIDIAN)) {
+                _castMade = _placeObsidianTask.getPos();
+            }
             _placeObsidianTask = null;
             // lava crust obsidian is 9 seconds of digging to watch the drop burn. leave it be, the bucket cast below scoops that
             // same lava and makes obsidian that lands on something. obsidian with a floor under it still beats a cast

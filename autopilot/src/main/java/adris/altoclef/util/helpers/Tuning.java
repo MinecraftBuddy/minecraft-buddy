@@ -946,6 +946,11 @@ public final class Tuning {
             // obsidian found in the last 10 s still counts as found: a far natural block came and went about once a second and
             // each change switched between walking to it and a cast with no lava, six minutes, CollectObsidianTask (look 130)
             java.util.Map.entry("obsidian_seen_hold", 1.0),
+            // that hold ends at once for the block of the buddy's own cast, once it is mined and picked up with no other obsidian
+            // found: with nothing to mine the collect wandered for the 10 s and the next cast began where the wander stopped, so
+            // the cast cell climbed a net 415 blocks over 84 casts, once from y -27 to the surface (CollectObsidianTask.held;
+            // the read heel-obsidian-time, 26 Nov 2026)
+            java.util.Map.entry("cast_hold_end", 1.0),
             // a plant or snow layer in a portal frame cell is broken by hand before the click: the ray stopped on its outline and
             // the click never went in; 5 of 15 dropped sites in one run's 34 minutes on a forest floor, ConstructNetherPortalObsidianTask (look 131)
             java.util.Map.entry("portal_frame_clear", 1.0),
