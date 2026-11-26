@@ -62,6 +62,26 @@ public class CollectObsidianTask extends ResourceTask {
         return adris.altoclef.util.helpers.Tuning.get("obsidian_no_sky", 0) > 0;
     }
 
+    // (Tuning pool_cast, off, 26 Nov 2026) the cast at one cell by a lava pool, pinned for every block (PoolCast). the pin lives
+    // here, so it outlives the mining (MineAndCollectTask) and the fights
+    private final PoolCast.Pin _pool = new PoolCast.Pin();
+    // lava tracked for the pool's search, the last tick the pool's part ran (a gap is a fight or an eat: the clocks skip it),
+    // the walk back said, the give-up said, the pool's search wants this tick (no task)
+    private boolean _poolTracking;
+    private long _poolTickAt = Long.MIN_VALUE;
+    private boolean _poolBackSaid;
+    private boolean _poolGiveUpSaid;
+    private boolean _poolWait;
+
+    static boolean poolSwitch() {
+        return adris.altoclef.util.helpers.Tuning.get("pool_cast", 0) > 0;
+    }
+
+    // the pool goes on: the switch, not given up, in the overworld
+    private boolean poolOn() {
+        return poolSwitch() && _pool.on() && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD;
+    }
+
     // a cell out of the sky's light and not in the deep dark (obsidian_no_sky)
     static boolean sheltered(net.minecraft.world.level.Level level, BlockPos cell) {
         return !level.canSeeSky(cell) && !level.getBiome(cell).is(net.minecraft.world.level.biome.Biomes.DEEP_DARK);
@@ -143,6 +163,13 @@ public class CollectObsidianTask extends ResourceTask {
         return st.getFluidState().isEmpty() && st.getCollisionShape(level, p).isEmpty();
     }
 
+    // (pool_cast) something under the block for its drop to land on: a collision shape and no fluid
+    private static boolean floorUnder(AltoClef mod, BlockPos p) {
+        BlockPos b = p.below();
+        var st = mod.getWorld().getBlockState(b);
+        return st.getFluidState().isEmpty() && !st.getCollisionShape(mod.getWorld(), b).isEmpty();
+    }
+
     private static int idx(int x, int y, int z, int ny, int nx) {
         return (x * (ny + 1) + y) * (nx + 1) + z;
     }
@@ -174,6 +201,176 @@ public class CollectObsidianTask extends ResourceTask {
         mod.getBlockTracker().trackBlock(Blocks.OBSIDIAN);
         //mod.getBlockTracker().trackBlock(Blocks.WATER);
         //mod.getBlockTracker().trackBlock(Blocks.LAVA);
+        // (pool_cast) the pool is looked for among the lava the tracker knows
+        if (poolSwitch()) poolTrack(mod);
+    }
+
+    private void poolTrack(AltoClef mod) {
+        if (_poolTracking) return;
+        _poolTracking = true;
+        mod.getBlockTracker().trackBlock(Blocks.LAVA);
+    }
+
+    // (pool_cast) the pinned cell let go for a ruin: its cast's too
+    private void poolRuin(AltoClef mod, String why) {
+        BlockPos was = _pool.cell;
+        _pool.ruin(mod.getWorld().getGameTime());
+        if (_placeObsidianTask != null && _placeObsidianTask.getPos().equals(was)) _placeObsidianTask = null;
+        Debug.logInternal("pool cast: the pinned cell at " + was.toShortString() + " ruined, " + why + " (" + _pool.ruined
+                + " of " + PoolCast.MAX_RUINED + ", pool_cast)");
+        poolGaveUp();
+    }
+
+    // the line for the give-up, once
+    private void poolGaveUp() {
+        if (_pool.gaveUp != null && !_poolGiveUpSaid) {
+            _poolGiveUpSaid = true;
+            Debug.logInternal("pool cast: given up (" + _pool.gaveUp + "), the old way (pool_cast)");
+        }
+    }
+
+    // the live world as PoolCast's grid. an unloaded cell reads as rock (SafeStand.cells) and as one the cast can't dig, so no
+    // cell is picked there
+    private static PoolCast.Grid poolGrid(AltoClef mod) {
+        net.minecraft.world.level.Level level = mod.getWorld();
+        baritone.pathing.movement.CliffAvoidance.Cells cells = adris.altoclef.util.helpers.SafeStand.cells(level);
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        return new PoolCast.Grid() {
+            @Override
+            public baritone.pathing.movement.CliffAvoidance.Cell at(int x, int y, int z) {
+                return cells.at(x, y, z);
+            }
+
+            @Override
+            public boolean source(int x, int y, int z) {
+                var fluid = level.getFluidState(at.set(x, y, z));
+                return fluid.is(net.minecraft.tags.FluidTags.LAVA) && fluid.isSource();
+            }
+
+            @Override
+            public boolean hard(int x, int y, int z) {
+                at.set(x, y, z);
+                if (!level.isLoaded(at)) return true;
+                return level.getBlockState(at).getDestroySpeed(level, at) < 0 || WorldHelper.tooSlowToBreak(mod, at.immutable());
+            }
+
+            @Override
+            public boolean flammable(int x, int y, int z) {
+                return level.getBlockState(at.set(x, y, z)).ignitedByLava();
+            }
+
+            @Override
+            public boolean loose(int x, int y, int z) {
+                return level.getBlockState(at.set(x, y, z)).getBlock() instanceof net.minecraft.world.level.block.FallingBlock;
+            }
+
+            @Override
+            public boolean sheltered(int x, int y, int z) {
+                return CollectObsidianTask.sheltered(level, new BlockPos(x, y, z));
+            }
+        };
+    }
+
+    // (pool_cast) the nearest lava source in the band of the buddy's own height (as the cast's fetch keeps to,
+    // LavaHunt.inBand) that the tracker has not banned and no tried source is near; null for none
+    private BlockPos poolLava(AltoClef mod) {
+        int feetY = mod.getPlayer().blockPosition().getY();
+        return mod.getBlockTracker().getNearestTracking(p -> adris.altoclef.tasks.speedrun.gamer.portal.LavaHunt.inBand(p.getY(), feetY, true)
+                && !_pool.triedNear(p) && !mod.getBlockTracker().unreachable(p)
+                && WorldHelper.isSourceBlock(mod, p, false) && WorldHelper.canReach(mod, p), Blocks.LAVA).orElse(null);
+    }
+
+    // (pool_cast) the pool's part of a tick that needs a cast: a task to run (the walk to the pinned cell or back to it), or
+    // null with _placeObsidianTask the pinned cell's cast; _poolWait when the search wants the tick; with the pool given up,
+    // null and the old way goes on
+    private Task poolTick(AltoClef mod) {
+        _poolWait = false;
+        long now = mod.getWorld().getGameTime();
+        if (_poolTickAt != Long.MIN_VALUE && now > _poolTickAt + 20) _pool.paused(now - _poolTickAt);
+        _poolTickAt = now;
+        poolTrack(mod);
+        BlockPos feet = mod.getPlayer().blockPosition();
+        // the pinned cell's cast banned it: ruined, its lava loose, a walk the progress checker gave up on
+        if (_pool.cell != null && mod.getBlockTracker().unreachable(_pool.cell)) {
+            poolRuin(mod, "its cast banned it");
+            if (!_pool.on()) return null;
+        }
+        if (_pool.cell != null) {
+            BlockPos stand = PoolCast.stand(_pool.cell);
+            double to = Math.sqrt(feet.distSqr(stand));
+            boolean casting = _placeObsidianTask != null && _placeObsidianTask.getPos().equals(_pool.cell);
+            // a cast of the old way somewhere else finishes first while its lava is out, else it goes
+            if (_placeObsidianTask != null && !casting) {
+                if (_placeObsidianTask.ownsTheLava(mod)) return _placeObsidianTask;
+                _placeObsidianTask = null;
+            }
+            PoolCast.Step step = PoolCast.step(_pool.reached, to);
+            if (step == PoolCast.Step.REPICK && !(casting && _placeObsidianTask.ownsTheLava(mod))) {
+                Debug.logInternal("pool cast: " + Math.round(to) + " blocks from the pinned cell at " + _pool.cell.toShortString()
+                        + ", a new cell near here (pool_cast)");
+                if (casting) _placeObsidianTask = null;
+                _pool.unpin(now);
+            } else if (casting) {
+                if (step == PoolCast.Step.CAST) _pool.reached = true;
+                return null;
+            } else if (step == PoolCast.Step.CAST) {
+                _pool.reached = true;
+                _poolBackSaid = false;
+                _castSpot = null;
+                _placeObsidianTask = new PlaceObsidianBucketTask(_pool.cell).bandHere(adris.altoclef.util.helpers.Tuning.get("cast_band_here", 0) > 0);
+                return null;
+            } else if (step == PoolCast.Step.WALK) {
+                if (!_pool.walkStalled(to, now)) {
+                    setDebugState("Walking to the pool's cast cell");
+                    return new adris.altoclef.tasks.movement.GetToBlockTask(stand, false);
+                }
+                poolRuin(mod, "the walk to it came no nearer in " + PoolCast.WALK_STALL_TICKS / 20 + " s");
+                if (!_pool.on()) return null;
+            } else {
+                if (!_poolBackSaid) {
+                    _poolBackSaid = true;
+                    Debug.logInternal("pool cast: back to the pinned cell at " + _pool.cell.toShortString() + ", " + Math.round(to)
+                            + " blocks (pool_cast)");
+                }
+                setDebugState("Walking back to the pool's cast cell");
+                return new adris.altoclef.tasks.movement.GetToBlockTask(stand, false);
+            }
+        }
+        // no cell pinned: look for one, a lava source a tick
+        if (!_pool.searching(now)) {
+            poolGaveUp();
+            return null;
+        }
+        _poolWait = true;
+        if (!mod.getBlockTracker().hasBeenScanned(Blocks.LAVA)) {
+            setDebugState("Looking for a lava pool to cast by");
+            return null;
+        }
+        BlockPos lava = poolLava(mod);
+        if (lava == null) {
+            _pool.gaveUp = "no lava source in the band of the buddy's height";
+            _poolWait = false;
+            poolGaveUp();
+            return null;
+        }
+        PoolCast.Pick pick = PoolCast.pick(poolGrid(mod), lava, feet,
+                p -> _pool.banned.contains(p) || mod.getBlockTracker().unreachable(p) || mod.getBlockTracker().unreachable(PoolCast.stand(p)));
+        if (pick == null) {
+            setDebugState("Looking for a cast cell by a lava pool");
+            if (!_pool.tried(lava)) {
+                _poolWait = false;
+                poolGaveUp();
+            }
+            return null;
+        }
+        _pool.pin(pick.cell(), pick.lava(), now);
+        _poolBackSaid = false;
+        Debug.logInternal("pool cast: cell pinned at " + pick.cell().toShortString() + ", lava at " + pick.lava().toShortString() + ", "
+                + String.format(java.util.Locale.ROOT, "%.1f", pick.gap()) + " blocks, " + Math.round(Math.sqrt(feet.distSqr(PoolCast.stand(pick.cell()))))
+                + " from the buddy, " + PoolCast.frameMissing(poolGrid(mod), pick.cell().getX(), pick.cell().getY(), pick.cell().getZ())
+                + " frame blocks to place (pool_cast)");
+        setDebugState("Walking to the pool's cast cell");
+        return null;
     }
 
     @Override
@@ -192,12 +389,18 @@ public class CollectObsidianTask extends ResourceTask {
         // (Tuning obsidian_no_sky: near, in the own height's band, no sky above)
         boolean noSky = noSkyOn();
         int feetY = mod.getPlayer().blockPosition().getY();
+        // (Tuning pool_cast) while the pool goes on, natural obsidian only within PoolCast.NATURAL_REACH and with a floor under
+        // it, so a far cluster or a crust does not pull the buddy from the pool; the pinned cell's own block is always taken
+        boolean pool = poolOn();
+        BlockPos pinned = _pool.cell;
         Predicate<BlockPos> goodObsidian = (blockPos ->
                 blockPos.closerToCenterThan(mod.getPlayer().position(), noSky ? NO_SKY_REACH : 800)
                         && WorldHelper.canBreak(mod, blockPos)
                         && !WorldHelper.dropWouldBurn(mod, blockPos)
                         && (!noSky || (Math.abs(blockPos.getY() - feetY) <= adris.altoclef.tasks.speedrun.gamer.portal.LavaHunt.BAND
                         && !mod.getWorld().canSeeSky(blockPos.above())))
+                        && (!pool || blockPos.equals(pinned) || PoolCast.naturalTaken(blockPos.distToCenterSqr(mod.getPlayer().position()),
+                        floorUnder(mod, blockPos)))
         );
 
         /*
@@ -269,7 +472,7 @@ public class CollectObsidianTask extends ResourceTask {
             // lava crust obsidian is 9 seconds of digging to watch the drop burn. leave it be, the bucket cast below scoops that
             // same lava and makes obsidian that lands on something. obsidian with a floor under it still beats a cast
             return new MineAndCollectTask(new ItemTarget(Items.OBSIDIAN, _count), new Block[]{Blocks.OBSIDIAN}, MiningRequirement.DIAMOND)
-                    .onlyWhere(p -> !WorldHelper.dropWouldBurn(mod, p) && (!noSky || goodObsidian.test(p)));
+                    .onlyWhere(p -> !WorldHelper.dropWouldBurn(mod, p) && (!noSky && !pool || goodObsidian.test(p)));
         }
 
         if (WorldHelper.getCurrentDimension() == Dimension.NETHER) {
@@ -277,6 +480,13 @@ public class CollectObsidianTask extends ResourceTask {
             int gold_buffer = (int) (AVERAGE_GOLD_PER_OBSIDIAN * _count);
             setDebugState("We can't place water, so we're trading for obsidian");
             return new TradeWithPiglinsTask(gold_buffer, Items.OBSIDIAN, _count);
+        }
+
+        // (Tuning pool_cast) the cell pinned by the pool, walked to and back to; given up, the old way below
+        if (pool) {
+            Task t = poolTick(mod);
+            if (t != null) return t;
+            if (_poolWait) return null;
         }
 
         // the cast bans its own cell when it's ruined or its lava got loose, and then sits there waiting for someone to
@@ -349,6 +559,10 @@ public class CollectObsidianTask extends ResourceTask {
         //mod.getBlockTracker().stopTracking(Blocks.LAVA);
         //mod.getBlockTracker().stopTracking(Blocks.WATER);
         mod.getBlockTracker().stopTracking(Blocks.OBSIDIAN);
+        if (_poolTracking) {
+            _poolTracking = false;
+            mod.getBlockTracker().stopTracking(Blocks.LAVA);
+        }
         mod.getBehaviour().pop();
     }
 

@@ -951,6 +951,15 @@ public final class Tuning {
             // the cast cell climbed a net 415 blocks over 84 casts, once from y -27 to the surface (CollectObsidianTask.held;
             // the read heel-obsidian-time, 26 Nov 2026)
             java.util.Map.entry("cast_hold_end", 1.0),
+            // pool_cast (off): M3.2 casts at one cell by a lava pool, pinned for every block, and goes back to it after each:
+            // the nearest pool in the band of the buddy's height, a cell 3 to 5 blocks west of it, its floor 1 or more over the
+            // lava, no lava within 3 of the cell or the stand, the stand safe from a hit; natural obsidian only within 16 with a
+            // floor under it; the old way after 60 s with no cell or 2 cells ruined, a new cell when a fight carried the buddy 24
+            // off. the cell stood a median 33 blocks from its lava and the walk between was 27% of the phase, where 6 of 10
+            // fatal fights began. the critic's change: the cell has its own test (LavaBreak on the cells dug, SafeStand on the
+            // stand, sheltered), not the cast's cube of breakable blocks, and the pool on the frame's closed east side (PoolCast,
+            // CollectObsidianTask; the read heel-obsidian-time, 26 Nov 2026)
+            java.util.Map.entry("pool_cast", 0.0),
             // a plant or snow layer in a portal frame cell is broken by hand before the click: the ray stopped on its outline and
             // the click never went in; 5 of 15 dropped sites in one run's 34 minutes on a forest floor, ConstructNetherPortalObsidianTask (look 131)
             java.util.Map.entry("portal_frame_clear", 1.0),
