@@ -304,6 +304,51 @@ final class ObtainRoute {
 		return (phase == M3_1 || phase == M3_2) && now >= next && ways < SLIME_WAYS && balls < 1 && !menu;
 	}
 
+	/**
+	 * (Tuning night_route_m34, off) The route's last stretch to the nether, where the night's rules hold whatever the armour: the
+	 * switch on, an order under way that walks the route (the trip home from the nether is no part of it), the slime's phase or
+	 * the portal's (M3.3b, M3.4), in the overworld, no bed for tonight, and no slime search under way (its one search of forty
+	 * minutes runs on, steering 204). Every night rule ends at armour 15, and the kit with golden boots counts 15 since 20 Nov
+	 * 2026: 14 of 24 deaths between M3.3 and the nether came on the surface at night, 8 of them after the slime search gave up,
+	 * at M3.4's food, bed, table, bottles and the climb to the portal (the read heel-slime-search, 26 Nov 2026).
+	 */
+	static boolean nightStretch(boolean on, boolean order, boolean walking, int phase, boolean overworld, boolean bedTonight,
+			boolean slimeSearch) {
+		return on && order && walking && phase >= M3_3B && phase <= M3_4 && overworld && !bedTonight && !slimeSearch;
+	}
+
+	/** (night_route_m34) the name a wait gives the whole order's walk to the portal's site, after the last piece. */
+	static final String PORTAL_WALK = "the walk to the portal";
+
+	/**
+	 * (night_route_m34) Whether this piece, come up in the dark on the night's stretch, waits for the morning: a piece of the
+	 * portal's phase done on the surface. The tables (wood), the food and the bed (animals), the bottles (sand and water), and
+	 * the sticks when the bag's wood does not make them (a log fetched). The food goes on when the buddy is hurt with nothing to
+	 * eat, as the night's food rule lets it. The pieces below the ground (the diamonds, the obsidian, the gold) go on at night.
+	 */
+	static boolean waitsForMorning(Piece pc, Bag b, boolean hurtAndNoFood) {
+		if (pc.phase() != M3_4) return false;
+		return switch (pc.name()) {
+			case "crafting table", "crafting table last", "bed", "water bottles" -> true;
+			case "food" -> !hurtAndNoFood;
+			case "sticks" -> wood(b) < sticksWood(b);
+			default -> false;
+		};
+	}
+
+	/** (night_route_m34) the planks the sticks still missing take: two planks make four sticks. */
+	static int sticksWood(Bag b) {
+		int more = Math.max(0, b.netherSticks() - b.inv("stick"));
+		return 2 * ((more + 3) / 4);
+	}
+
+	/** A time of day as a clock shows it ("18:31"): the day's tick 0 is 06:00, a game hour is 1000 ticks. */
+	static String clock(long dayTime) {
+		long t = Math.floorMod(dayTime, 24000L);
+		long h = (t / 1000 + 6) % 24, m = t % 1000 * 60 / 1000;
+		return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+	}
+
 	/** Out of the overworld: the route is behind the buddy, the rest of the order is the old kit's. */
 	static void out() { if (on) through = true; }
 

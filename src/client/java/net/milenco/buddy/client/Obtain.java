@@ -250,6 +250,8 @@ final class Obtain {
 		sopranoEnds = 0;
 		deep = null;
 		foodAfterHome = false;
+		nightWait = null;
+		nightWaitGaveUpAt = null;
 		Alto.orderDanger = ObtainKit.Danger.DEEP;
 		Alto.kitReset();
 		LocalPlayer p = AfkHelperClient.mc().player;
@@ -788,6 +790,8 @@ final class Obtain {
 				shelterGaveUpAt = p.blockPosition().immutable();
 				shelterGaveUpTime = now;
 			}
+			// (night_route_m34) the wait for the morning said with its minutes
+			if (sh == nightWait) nightWaitEnded(p, now, sh.noWay);
 			// a hole that ends the moment it starts is not tried again for a game minute: it started and ended forty times a
 			// second, a hole for the night that said "morning" at once; what differed is told
 			if (now - holeStarted < 2000) {
@@ -802,6 +806,8 @@ final class Obtain {
 		}
 		// (shelter_none_go_on) the day, or a world without the night's need: the give-up is over
 		if (shelterGaveUpAt != null && !ObtainSafe.needsShelter(p)) shelterGaveUpAt = null;
+		// (night_route_m34) and a wait's give-up for want of a way to shut in: over with the dark, the next night waits again
+		if (nightWaitGaveUpAt != null && !dark(p)) nightWaitGaveUpAt = null;
 		if (now >= holeOffUntil && holeNight(p) && !inMenuNow(p) && shelterLooksAgain(p, now)) {
 			holeStarted = now;
 			if (exec != null) exec.stop();
@@ -986,6 +992,8 @@ final class Obtain {
 				// for cobblestone every five seconds, and round it went
 				if (k != null && exec instanceof Alto.Run run && run.detail().startsWith("AltoClef: get ")
 						&& !k.detail().startsWith("AltoClef: equip ") && !k.detail().contains("spare shield")) k = null;
+				// (night_route_m34, off) a surface piece of the portal's phase in the dark waits shut in for the morning
+				if (k != null && routeNight(p) && nightWait(p, now, Alto.nightPiece(k, p, hurtAndNoFood(p)))) return true;
 				if (k != null) {
 					if (exec != null) exec.stop();
 					step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:kit", 1, null, 0, List.of(), "kit by Soprano");
@@ -1005,6 +1013,9 @@ final class Obtain {
 			}
 		}
 		if (!(exec instanceof Alto.Run)) {
+			// (night_route_m34, off) after the portal phase's last piece the whole order walks or climbs to the portal's site and
+			// builds the frame under the sky ("Going to nether"): begun in the dark, it waits shut in for the morning too
+			if (ObtainRoute.phase() == ObtainRoute.M3_4 && routeNight(p) && nightWait(p, now, ObtainRoute.PORTAL_WALK)) return true;
 			if (exec != null) exec.stop();
 			step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@soprano:" + item, count, null, 0, List.of(), "by Soprano");
 			stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
@@ -1062,6 +1073,93 @@ final class Obtain {
 		if (!p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return false;
 		long t = Math.floorMod(p.level().getOverworldClockTime(), 24000L);
 		return p.level().isThundering() || t >= 11520 && t < 23300;
+	}
+
+	/**
+	 * (night_route_m34, off) The route's last stretch to the nether, where the night's rules hold whatever the armour
+	 * (ObtainRoute.nightStretch): the order walks the route at M3.3b or M3.4, in the overworld, with no bed for tonight
+	 * (Alto.bedTonight) and no slime search under way. No clock here: the night's hole reads its own (ObtainSafe.needsShelter,
+	 * the night from 11500 till 1000).
+	 */
+	static boolean routeNightStretch(LocalPlayer p) {
+		boolean on = Alto.nightRouteOn();
+		if (!on) return false;
+		boolean slimeSearch = exec instanceof Alto.Run r && r.slimeSearch();
+		return ObtainRoute.nightStretch(on, item != null, ObtainRoute.walking(), ObtainRoute.phase(),
+			p.level().dimension().equals(Level.OVERWORLD), Alto.bedTonight(p), slimeSearch);
+	}
+
+	/** (night_route_m34) the stretch in the dark (dark: from 11520 till 23300, or a thunderstorm): a surface piece waits. */
+	static boolean routeNight(LocalPlayer p) {
+		return routeNightStretch(p) && dark(p);
+	}
+
+	/**
+	 * (night_route_m34) The wait for the morning under way (null for none), what waits (a piece's key or the walk to the
+	 * portal), and when it began (the whole order's game clock). Where and when a wait found no way to shut in: the pieces go
+	 * on in the dark, the old way, until a wait may look again (DigIn.lookAgain) or the dark is over.
+	 */
+	private static ObtainSafe.Shelter nightWait;
+	private static String nightWaitFor;
+	private static long nightWaitFrom;
+	private static BlockPos nightWaitGaveUpAt;
+	private static long nightWaitGaveUpTime;
+
+	/**
+	 * (night_route_m34, off) A surface piece of the portal's phase, or the whole order's walk to the portal's site, about to
+	 * start in the dark on the route's last stretch: the buddy is shut in on the spot until the morning instead, as the morning
+	 * down here of a plan step is (a Shelter till the morning: dug in under the open sky, the open sides shut under the
+	 * ground). The one place a piece waits; the night's hole on the surface (holeNight) stops whatever runs. True when the
+	 * wait began; false lets the piece start: off the stretch, by day, a game minute after a hole that ended at once, in a
+	 * menu, or after a wait that found no way to shut in until it may look again.
+	 */
+	private static boolean nightWait(LocalPlayer p, long now, String what) {
+		if (what == null || now < holeOffUntil || inMenuNow(p) || !routeNight(p)) return false;
+		if (nightWaitGaveUpAt != null) {
+			double moved = Math.sqrt(p.blockPosition().distSqr(nightWaitGaveUpAt));
+			if (!DigIn.lookAgain(now, nightWaitGaveUpTime, moved, ObtainSafe.blocksOrLogs(p))) return false;
+			nightWaitGaveUpAt = null;
+		}
+		if (exec != null) exec.stop();
+		ObtainSafe.Shelter sh = new ObtainSafe.Shelter();
+		sh.tillMorning = true;
+		// (no way to shut in: no blocks, no hole; given up rather than a wait in the open, and the piece goes on, nightWaitEnded)
+		sh.mayGiveUp = true;
+		exec = sh;
+		nightWait = sh;
+		nightWaitFor = what;
+		nightWaitFrom = now;
+		holeStarted = now;
+		step = new ObtainPlan.Step(ObtainPlan.Act.SPECIAL, "@shelter", 1, null, 0, List.of(), "shelter");
+		stepSince = System.currentTimeMillis();   // the panel reads it on the wall clock
+		String clock = ObtainRoute.clock(p.level().getOverworldClockTime());
+		String phase = ObtainRoute.PHASES.get(ObtainRoute.phase());
+		routeLine("route: " + what + " waits for the morning, shut in from " + clock + " (night_route_m34)");
+		Exchange.emit("obtain", "action", "step", "step", "shut in till the morning, then " + what, "way", "shelter", "y", p.getBlockY());
+		Exchange.emit("obtain", "action", "night wait", "what", "begins", "piece", what, "phase", phase, "time", clock,
+			"deep", ObtainSafe.deepUnder(p), "y", p.getBlockY());
+		return true;
+	}
+
+	/** (night_route_m34) the wait for the morning has ended: the morning, or no way to shut in here (the old way then). */
+	private static void nightWaitEnded(LocalPlayer p, long now, boolean noWay) {
+		long min = Math.max(0, now - nightWaitFrom) / 60_000;
+		String clock = ObtainRoute.clock(p.level().getOverworldClockTime());
+		if (noWay) {
+			nightWaitGaveUpAt = p.blockPosition().immutable();
+			nightWaitGaveUpTime = now;
+			routeLine("route: no way to shut in here at " + clock + ": " + nightWaitFor + " goes on in the dark, after " + min
+				+ " minutes (night_route_m34)");
+		} else routeLine("route: the wait for the morning ended at " + clock + " after " + min + " minutes: " + nightWaitFor
+			+ " goes on (night_route_m34)");
+		Exchange.emit("obtain", "action", "night wait", "what", noWay ? "no way" : "ends", "piece", nightWaitFor, "time", clock, "min", min);
+		nightWait = null;
+		nightWaitFor = null;
+	}
+
+	/** A line in the autopilot's log, where the rig reads the route's lines. */
+	private static void routeLine(String line) {
+		if (Alto.present()) adris.altoclef.Debug.logInternal(line);
 	}
 
 	/** The night on the deep stretch was told once (holeNight); told again the next night. */
@@ -1122,6 +1220,9 @@ final class Obtain {
 	 */
 	private static boolean foodNow(LocalPlayer p) {
 		if (Alto.deepNight(p)) return hurtAndNoFood(p);
+		// (night_route_m34, off) on the route's last stretch no food run under the nether's reserve in the dark either: the food
+		// waits for the morning (nightWait), unless the buddy is hurt with nothing to eat
+		if (routeNight(p)) return hurtAndNoFood(p);
 		return !dark(p) || Alto.foodScore(true) < Alto.NETHER_FOOD_RESERVE || hurtAndNoFood(p);
 	}
 

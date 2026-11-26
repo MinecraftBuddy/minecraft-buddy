@@ -49,7 +49,9 @@ final class ObtainSafe {
 		// deep under the ground the night changes nothing: monsters stand up in the dark there at any hour, and a player
 		// mines on through the night (at y 33 it walled itself in for a night for nothing). A step that wants the surface
 		// waits down there for the morning (Obtain)
-		return dim.equals("overworld") && night(p.level()) && (kitArmour(p) < 15 || phantomsDue()) && !deepUnder(p);
+		// (night_route_m34, off) on the route's last stretch to the nether the night is not taken in any armour: the kit with
+		// golden boots counts 15, and the surface work of M3.4 met the night in it (Obtain.routeNightStretch)
+		return dim.equals("overworld") && night(p.level()) && (kitArmour(p) < 15 || phantomsDue() || Obtain.routeNightStretch(p)) && !deepUnder(p);
 	}
 
 	/**

@@ -763,6 +763,12 @@ public final class Tuning {
             // stop began the forty minutes again: 69 of 179 searches given up ran past 41 minutes, up to 84, and two runs stalled
             // in the search at the rig's 45 minutes without progress (the read heel-slime-search, 26 Nov 2026)
             java.util.Map.entry("slime_clock_fix", 1.0),
+            // (off: test of 26 Nov 2026, read by the buddy, Obtain and ObtainSafe) the night's rules on the route's last stretch
+            // (M3.3b and M3.4 in the overworld, no bed tonight) whatever the armour: the night's hole holds on the surface, and a
+            // surface piece of M3.4 (food, bed, tables, bottles, the walk to the portal) waits shut in for the morning. every
+            // night rule ends at armour 15, which the kit with golden boots counts: 14 of 24 deaths between M3.3 and the nether
+            // came on the surface at night, 8 of them after the slime search gave up (the read heel-slime-search, 26 Nov 2026)
+            java.util.Map.entry("night_route_m34", 0.0),
             // the branch mine's own tunnel with the feet two or more above its height steps a stair down, checked at the stair's
             // height: the level step lay up to eight under the feet over a cave's open space, three minutes of searches that got
             // two blocks, BranchMineTask (look 208)

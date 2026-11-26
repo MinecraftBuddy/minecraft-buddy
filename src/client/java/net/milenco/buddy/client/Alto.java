@@ -1369,6 +1369,21 @@ final class Alto {
 		return pc == null ? null : routePiece(p, bag, pc.name()).piece(pc.key());
 	}
 
+	/**
+	 * (night_route_m34) The key of this run's piece when it waits for the morning at night (ObtainRoute.waitsForMorning: a
+	 * piece of the portal's phase done on the surface), or null: another piece, or no piece of the route (a spare shield).
+	 */
+	static String nightPiece(Run r, net.minecraft.client.player.LocalPlayer p, boolean hurtAndNoFood) {
+		if (r == null || r.piece == null) return null;
+		ObtainRoute.Piece pc = ObtainRoute.piece(r.piece);
+		return pc != null && ObtainRoute.waitsForMorning(pc, routeBag(p), hurtAndNoFood) ? r.piece : null;
+	}
+
+	/** The autopilot's night_route_m34 switch (test of 26 Nov 2026, off): the night's rules on the route's last stretch, Obtain. */
+	static boolean nightRouteOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("night_route_m34", 0) > 0;
+	}
+
 	/** The task of a piece of the route. */
 	private static Run routePiece(net.minecraft.client.player.LocalPlayer p, ObtainRoute.Bag bag, String name) {
 		switch (name) {
