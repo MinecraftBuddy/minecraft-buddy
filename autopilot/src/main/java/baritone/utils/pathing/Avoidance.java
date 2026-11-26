@@ -67,6 +67,26 @@ public class Avoidance {
         return adris.altoclef.util.helpers.Tuning.get("avoid_crowd_cap", 0) > 0;
     }
 
+    // (Tuning fireproof_blaze_avoid, off) whether the blazes are left out of the avoidance: the switch on, fire resistance on
+    // the buddy and more than its last 30 s of it left (FireRes.endingSoon), so the avoidance is back before the effect ends
+    static boolean blazesFree(boolean on, boolean fireRes, boolean endingSoon) {
+        return on && fireRes && !endingSoon;
+    }
+
+    // a line when the blazes are left out, at most one in 30 s (a search builds the avoidance anew each time)
+    private static long blazesFreeNoted = Long.MIN_VALUE;
+
+    private static void noteBlazesFree(IPlayerContext ctx) {
+        long now = System.currentTimeMillis();
+        if (blazesFreeNoted != Long.MIN_VALUE && now - blazesFreeNoted < 30_000) {
+            return;
+        }
+        blazesFreeNoted = now;
+        long n = ctx.entitiesStream().filter(e -> e instanceof net.minecraft.world.entity.monster.Blaze).count();
+        adris.altoclef.Debug.logInternal("avoidance: fire resistance holds, the blazes left out of the path's avoidance (" + n
+                + " about) (fireproof_blaze_avoid)");
+    }
+
     public static List<Avoidance> create(IPlayerContext ctx) {
         if (!Baritone.settings().avoidance.value) {
             return Collections.emptyList();
@@ -81,6 +101,12 @@ public class Avoidance {
                     .forEach(mobspawner -> res.add(new Avoidance(mobspawner, mobSpawnerCoeff, Baritone.settings().mobSpawnerAvoidanceRadius.value)));
         }
         if (mobCoeff != 1.0D) {
+            // (Tuning fireproof_blaze_avoid, off) under fire resistance the blazes are not avoided: see Tuning
+            boolean blazesFree = blazesFree(adris.altoclef.util.helpers.Tuning.get("fireproof_blaze_avoid", 0) > 0,
+                    adris.altoclef.util.helpers.FireRes.has(ctx.player()), adris.altoclef.util.helpers.FireRes.endingSoon(ctx.player()));
+            if (blazesFree) {
+                noteBlazesFree(ctx);
+            }
             ctx.entitiesStream()
                     .filter(entity -> entity instanceof Mob)
                     .filter(entity -> (!(entity instanceof Spider)) || ctx.player().getLightLevelDependentMagicValue() < 0.5)
@@ -88,6 +114,7 @@ public class Avoidance {
                     .filter(entity -> !(entity instanceof Enderman) || ((Enderman) entity).isCreepy())
                     // (Tuning avoid_crowd_cap, a fix of 22 Nov 2026, on) a slime of the smallest size does no harm: not avoided
                     .filter(entity -> !crowdCapOn() || !(entity instanceof net.minecraft.world.entity.monster.cubemob.Slime slime) || slime.getSize() > 1)
+                    .filter(entity -> !blazesFree || !(entity instanceof net.minecraft.world.entity.monster.Blaze))
                     .forEach(entity -> res.add(new Avoidance(entity.blockPosition(), mobCoeff, Baritone.settings().mobAvoidanceRadius.value)));
         }
         return res;

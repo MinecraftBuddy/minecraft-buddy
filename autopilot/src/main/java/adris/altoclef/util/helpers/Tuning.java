@@ -973,6 +973,14 @@ public final class Tuning {
             // fetch keeps to the pool (8 of the cell), a pool of 4 sources the fetch takes, a fetch with no lava in 30 s ruins
             // the cell, and only a fight (not a walk of the buddy's own) gives the cell up for distance
             java.util.Map.entry("pool_cast", 0.0),
+            // fireproof_blaze_avoid (off): while fire resistance holds (more than its last 30 s), Baritone's mob avoidance leaves
+            // the blazes out. each blaze within 8 doubled a block's cost, so at the camp 3 below a spawner with 5-6 blazes about a
+            // step cost 64-128 walks: the search to a blaze or a stand drained the fortress behind the camp for its full 2 s and
+            // ended at "0.0 blocks", the blaze was banned and the brewed minutes went by with few rods (heel-256 t8: 0 rods in
+            // 20 min at hp 20, 88 failed searches to the stands; the walk existed, the reverse search took 7 ms). under the
+            // potion a blaze hurts by its bite alone, and the fight already prices it so; the spawner's own avoidance stays
+            // (Avoidance.create; the read phase6-nopath-cause, 26 Nov 2026)
+            java.util.Map.entry("fireproof_blaze_avoid", 0.0),
             // a plant or snow layer in a portal frame cell is broken by hand before the click: the ray stopped on its outline and
             // the click never went in; 5 of 15 dropped sites in one run's 34 minutes on a forest floor, ConstructNetherPortalObsidianTask (look 131)
             java.util.Map.entry("portal_frame_clear", 1.0),
