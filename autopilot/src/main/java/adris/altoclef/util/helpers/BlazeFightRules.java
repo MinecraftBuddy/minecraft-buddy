@@ -319,6 +319,20 @@ public final class BlazeFightRules {
         return inPocket && onUs <= POCKET_FIGHT_MAX && furthest <= POCKET_FIGHT && health > PANIC_HEALTH;
     }
 
+    // (Tuning pocket_needs_foe, off: test of 27 Nov 2026) the hold only with a blaze on us, when there is no fire resistance.
+    // with none on us the test above holds by default (no blaze, so none past POCKET_FIGHT), and the run decide chose (the burn,
+    // the heal) became CAMP: the camp's looks and lures stepped out at 9 to 13 hp, burning, no potion left; the heal wait ended
+    // for good. 17 of 19 such deaths in phases 4 to 6 came in the own corner or pocket (the read phase46-potion-deaths). under
+    // fire resistance the hold stays as it was: the heal wait there would spend the potion's minutes
+    public static boolean holdPocket(boolean inPocket, int onUs, double furthest, float health, boolean fireRes, boolean needsFoe) {
+        if (needsFoe && onUs == 0 && !fireRes) return false;
+        return holdPocket(inPocket, onUs, furthest, health);
+    }
+
+    public static boolean pocketNeedsFoe() {
+        return Tuning.get("pocket_needs_foe", 0) > 0;
+    }
+
     // the ones that hurt from where they are, with something thrown: a danger only with a line on us
     public static boolean shooter(String kind) {
         return switch (kind) {

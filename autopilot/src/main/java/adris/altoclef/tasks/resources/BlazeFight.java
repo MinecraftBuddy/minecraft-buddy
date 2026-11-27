@@ -892,7 +892,8 @@ final class BlazeFight {
         // in the pocket with only blazes that came round on us: fight them there. the run found no cell they do not see (they
         // are in the pocket), and the old run dug out through its wall: the choke point gone, with a blaze in it the sword
         // could easily have killed (4 Nov 2026)
-        if (next == Mode.RUN && BlazeFightRules.holdPocket(inPocket(player), threats.size(), nearestThreat(player), health)) {
+        if (next == Mode.RUN && BlazeFightRules.holdPocket(inPocket(player), threats.size(), nearestThreat(player), health,
+                adris.altoclef.util.helpers.FireRes.has(player), BlazeFightRules.pocketNeedsFoe())) {
             next = target != null ? Mode.KILL : Mode.CAMP;
             if (!pocketHeld && now - pocketLoggedAt > 100) Debug.logInternal("rods: in the pocket at " + String.format(java.util.Locale.ROOT, "%.1f", health)
                     + " hp, the blazes on us came round (nearest " + String.format(java.util.Locale.ROOT, "%.1f", nearestThreat(player)) + "): fighting, no run");

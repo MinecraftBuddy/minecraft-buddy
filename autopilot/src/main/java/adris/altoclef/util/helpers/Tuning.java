@@ -1393,7 +1393,10 @@ public final class Tuning {
             // on the route, gold in the bag begins the trade by the fortress or a blaze too (FireResTradeRules.fortressStops): a
             // gold dig that ended by the fortress with 14 to 38 gold left the trade unbegun, and the first rods were fought with
             // no potion (3 runs of heel-254/255, 25 Nov 2026)
-            java.util.Map.entry("trade_at_fortress", 1.0));
+            java.util.Map.entry("trade_at_fortress", 1.0),
+            // (off: test of 27 Nov 2026, BlazeFightRules.holdPocket) the pocket's hold only with a blaze on the buddy, when there
+            // is no fire resistance: with none on it the hold turned the burn's or the heal's run into the camp's looks and lures
+            java.util.Map.entry("pocket_needs_foe", 0.0));
 
     private static Path file;
     private static Properties props = new Properties();

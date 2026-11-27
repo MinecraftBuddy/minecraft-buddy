@@ -281,6 +281,22 @@ public class BlazeFightRulesTest {
         assertFalse(BlazeFightRules.holdPocket(true, 1, 12.0, 9));
         assertFalse(BlazeFightRules.holdPocket(true, 1, 3.0, BlazeFightRules.PANIC_HEALTH));
         assertFalse(BlazeFightRules.holdPocket(false, 1, 3.0, 9));
+        // (pocket_needs_foe off, the default) the old rule
+        assertTrue(BlazeFightRules.holdPocket(true, 0, 0, 9, false, false));
+        assertTrue(BlazeFightRules.holdPocket(true, 1, 3.0, 9, false, false));
+    }
+
+    @Test
+    public void withPocketNeedsFoeThePocketHoldsOnlyWithABlazeOnUsUnlessFireproof() {
+        // none on us, no fire resistance: the run decide chose goes on (the burn, the heal)
+        assertFalse(BlazeFightRules.holdPocket(true, 0, 0, 9, false, true));
+        // under fire resistance the hold stays as it was
+        assertTrue(BlazeFightRules.holdPocket(true, 0, 0, 9, true, true));
+        // one or two come round within reach: the sword, as before
+        assertTrue(BlazeFightRules.holdPocket(true, 1, 3.0, 9, false, true));
+        assertTrue(BlazeFightRules.holdPocket(true, 2, 4.0, 9, false, true));
+        assertFalse(BlazeFightRules.holdPocket(true, 3, 3.0, 9, false, true));
+        assertFalse(BlazeFightRules.holdPocket(false, 1, 3.0, 9, false, true));
     }
 
     @Test
