@@ -839,6 +839,18 @@ final class Obtain {
 		}
 		// a boat first where much water lies ahead (Alto.wantsBoat), or food (Alto.wantsFood), then the order again
 		if (exec instanceof Alto.Run b && (b.boat() || b.food() || b.kit() || b.home())) {
+			// (food_top_deep) the top-up's food run ends after ObtainRoute.TOP_UP_MS with what the bag holds, unless hurt with
+			// nothing to eat: the obsidian goes on below
+			if (b.food() && ObtainRoute.topUpRunOver(now) && !hurtAndNoFood(p)) {
+				Exchange.emit("obtain", "action", "food top-up over", "why", "six minutes of the food run before the obsidian",
+					"food", Alto.foodScore(true), "y", p.getBlockY());
+				foodTriedAt = now;
+				ObtainRoute.foodRunEnded();
+				exec.stop();
+				exec = null;
+				step = null;
+				return true;
+			}
 			// (the autopilot's food_one_trip, a fix of 13 Nov 2026: the night on the deep stretch with no bed is spent in the mine,
 			// not up in a hole or among the night's monsters: a food run under way gives way, unless the buddy is hurt with
 			// nothing to eat, and the order goes on down; the rest of the food the next morning, Alto.deepNight)
@@ -846,6 +858,8 @@ final class Obtain {
 				Exchange.emit("obtain", "action", "food run gives way", "why", "night on the deep stretch with no bed: down into the mine (food_one_trip)",
 					"food", Alto.foodScore(true), "y", p.getBlockY());
 				foodTriedAt = now;
+				// (food_top_deep) a top-up cut by the night is spent too: its clock would end the next food run at once
+				ObtainRoute.foodRunEnded();
 				exec.stop();
 				exec = null;
 				step = null;

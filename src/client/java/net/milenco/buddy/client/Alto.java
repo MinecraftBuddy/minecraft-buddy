@@ -1729,6 +1729,7 @@ final class Alto {
 				&& !Obtain.dark(p) && !climbGivenUp(p)) {
 			if (!ObtainRoute.topUpSaid) {
 				ObtainRoute.topUpSaid = true;
+				ObtainRoute.topUpAt = p.level().getGameTime() * 50;
 				Exchange.emit("obtain", "action", "food top-up before the obsidian", "food", score, "phase", ObtainRoute.phase(), "y", p.getBlockY());
 			}
 			return true;

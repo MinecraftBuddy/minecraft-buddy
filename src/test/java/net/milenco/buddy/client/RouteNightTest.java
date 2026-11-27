@@ -119,4 +119,13 @@ class RouteNightTest {
 		assertFalse(ObtainRoute.topUpDue(true, ObtainRoute.M3_3, false, 0, 40), "after the obsidian");
 		assertFalse(ObtainRoute.topUpDue(false, ObtainRoute.M3_2, false, 0, 40), "not on the route");
 	}
+
+	// (food_top_deep) the top-up's food run has six game minutes from the ask
+	@Test
+	void topUpRunEndsAfterSixMinutes() {
+		assertFalse(ObtainRoute.topUpRunOver(true, 1_000_000, 1_000_000 + 360_000));
+		assertTrue(ObtainRoute.topUpRunOver(true, 1_000_000, 1_000_000 + 360_001));
+		assertFalse(ObtainRoute.topUpRunOver(false, 1_000_000, 2_000_000), "no top-up asked");
+		assertFalse(ObtainRoute.topUpRunOver(true, 0, 2_000_000), "no time kept");
+	}
 }

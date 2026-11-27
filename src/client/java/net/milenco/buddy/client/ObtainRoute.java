@@ -284,6 +284,7 @@ final class ObtainRoute {
 		goldStopped = goldPassSaid = goldPicksWorn = false;
 		goldOrder++;
 		topUpDone = topUpSaid = false;
+		topUpAt = 0;
 	}
 
 	/** (food_top_deep) a food run ended on the deep stretch's first two phases this order: the top-up is spent. */
@@ -291,6 +292,24 @@ final class ObtainRoute {
 
 	/** (food_top_deep) the top-up's line said once a run of it (Alto.wantsFood); set back when a food run ends or an order begins. */
 	static boolean topUpSaid;
+
+	/** (food_top_deep) when the top-up was first asked (game time, ms), 0 for not yet: its food run has TOP_UP_MS from then. */
+	static long topUpAt;
+
+	/**
+	 * (food_top_deep) the top-up's food run ends after 6 game minutes, with whatever the bag holds: in a world with no animals
+	 * near it wandered 30 minutes and the bag went from 64 points to 18, and the night then sent it down with that (voorraad's
+	 * smoke, box 3 lane t10, 27 Nov 2026); a run that found animals came back in 5.4 minutes with 196.
+	 */
+	static final long TOP_UP_MS = 360_000;
+
+	static boolean topUpRunOver(long now) {
+		return topUpRunOver(topUpSaid, topUpAt, now);
+	}
+
+	static boolean topUpRunOver(boolean said, long at, long now) {
+		return said && at > 0 && now - at > TOP_UP_MS;
+	}
 
 	/** (Tuning food_top_deep, off: test voorraad of 27 Nov 2026) the points the bag is topped up to before the deep's obsidian. */
 	static final int FOOD_TOP = 85;
@@ -312,6 +331,7 @@ final class ObtainRoute {
 	/** (food_top_deep) a food run ended: on the deep stretch's first two phases the top-up is spent, whatever came of it. */
 	static void foodRunEnded() {
 		topUpSaid = false;
+		topUpAt = 0;
 		if (walking() && (phase == M3_1 || phase == M3_2)) topUpDone = true;
 	}
 
