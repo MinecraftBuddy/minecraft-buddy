@@ -1681,6 +1681,13 @@ final class CombatBrain {
             line += CombatLog.hotFloor(player.input.keyPresses.shift(), player.onGround(), player.getY(), player.input.getClass().getSimpleName());
         }
         Debug.logInternal(line);
+        // (lines only, 27 Nov 2026) the shield's state at this hurt, on a line of its own (bin/odd.py reads the hurt line to its
+        // end): the log's "shield up" is the raise, while 26.3 blocks only after 5 ticks of use and within 90 degrees of the
+        // head's yaw, and wither skeleton blows of 4.5-4.8 landed with "shield up" logged (E1127-2105.4)
+        if (player.getOffhandItem().is(Items.SHIELD)) {
+            boolean shieldUse = player.isUsingItem() && player.getUseItem().is(Items.SHIELD);
+            Debug.logInternal(CombatLog.shieldAtHurt(player.isBlocking(), shieldUse, shieldUse ? player.getTicksUsingItem() : 0));
+        }
     }
 
     private final CombatCommit.Drive _drive = new CombatCommit.Drive();

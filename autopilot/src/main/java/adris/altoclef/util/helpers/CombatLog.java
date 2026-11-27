@@ -96,6 +96,14 @@ public final class CombatLog {
         return tag + " by " + who + (how == null ? "" : " (" + how + ")");
     }
 
+    // the shield at a hurt (the offhand holds one): blocking (the blow came from outside its 90 degrees, or bypasses it),
+    // raised for under the 5 ticks a block needs, or down
+    public static String shieldAtHurt(boolean blocking, boolean inUse, int ticks) {
+        if (blocking) return "combat: shield at the hurt: blocking";
+        if (inUse) return "combat: shield at the hurt: raised " + ticks + " ticks, not blocking yet";
+        return "combat: shield at the hurt: down";
+    }
+
     // what a magma hit gets on the end of its hurt line. magma only spares a held shift, so this says if it was, and whose input
     // object said so
     public static String hotFloor(boolean shift, boolean onGround, double y, String input) {
