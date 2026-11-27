@@ -628,6 +628,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 && _routePhase == adris.altoclef.util.helpers.RouteRules.TRADE)) {
             double toSpawner = _foundBlazeSpawner == null ? Double.POSITIVE_INFINITY : mod.getPlayer().position().distanceTo(Vec3.atCenterOf(_foundBlazeSpawner));
             boolean begun = adris.altoclef.util.helpers.RouteRules.fightBegun(_routePhase, toSpawner);
+            adris.altoclef.util.helpers.FireRes.routeSpawnerAt(toSpawner);
             // (Tuning route_drink_ready, off by default: at the spawner fight the potion waits for a blaze that can be fought)
             boolean ready = true;
             if (begun && adris.altoclef.util.helpers.RouteRules.drinkReadyOn()) {

@@ -170,6 +170,13 @@ public final class FireRes {
     // pastErrand: the route past phase 3 (the first two rods on), RouteRules.wayBlazeLetGo
     private static volatile boolean routePast = false;
 
+    // the spawner's distance at the route's last say (blocks, infinite for none known): for the hold's lines only
+    private static volatile double routeSpawner = Double.POSITIVE_INFINITY;
+
+    public static void routeSpawnerAt(double toSpawner) {
+        routeSpawner = toSpawner;
+    }
+
     public static void routeHolds(long now, boolean fightBegun, boolean ready, boolean pastErrand) {
         routeAt = now;
         routeFight = fightBegun;
@@ -207,8 +214,8 @@ public final class FireRes {
             if (why == null) why = RouteRules.wayKeepBurning(Tuning.get("route_hold_burn_on", 0) > 0, e.isOnFire(), now - routeLetAt);
             if (why != null) {
                 if (FireResTradeRules.newEpisode(routeLetAt, now)) {
-                    Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion goes down on the way, %s (%.1f hp, nearest blaze %s)",
-                            why, e.getHealth(), FireResTradeRules.distance(blaze)));
+                    Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion goes down on the way, %s (%.1f hp, nearest blaze %s, spawner %s)",
+                            why, e.getHealth(), FireResTradeRules.distance(blaze), FireResTradeRules.distance(routeSpawner)));
                 }
                 routeLetAt = now;
                 return false;
@@ -246,8 +253,9 @@ public final class FireRes {
             }
             if (why != null) {
                 if (FireResTradeRules.newEpisode(routeLetAt, now)) {
-                    Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion goes down, %s (%.1f hp%s, nearest blaze %s)", why,
-                            e.getHealth(), falling ? String.format(Locale.ROOT, ", %.1f at the burn's start", burnBest) : "", FireResTradeRules.distance(blaze)));
+                    Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion goes down, %s (%.1f hp%s, nearest blaze %s, spawner %s)", why,
+                            e.getHealth(), falling ? String.format(Locale.ROOT, ", %.1f at the burn's start", burnBest) : "", FireResTradeRules.distance(blaze),
+                            FireResTradeRules.distance(routeSpawner)));
                 }
                 routeLetAt = now;
                 return false;
@@ -256,8 +264,8 @@ public final class FireRes {
             return false;
         }
         if (FireResTradeRules.newEpisode(routeHeldAt, now)) {
-            Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion kept for the blazes (%s, %.1f hp, nearest blaze %s)",
-                    e.isOnFire() ? "on fire" : "not on fire", e.getHealth(), FireResTradeRules.distance(blaze)));
+            Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion kept for the blazes (%s, %.1f hp, nearest blaze %s, spawner %s)",
+                    e.isOnFire() ? "on fire" : "not on fire", e.getHealth(), FireResTradeRules.distance(blaze), FireResTradeRules.distance(routeSpawner)));
         }
         routeHeldAt = now;
         return true;
