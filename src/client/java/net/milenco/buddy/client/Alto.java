@@ -1379,7 +1379,7 @@ final class Alto {
 		return pc != null && ObtainRoute.waitsForMorning(pc, routeBag(p), hurtAndNoFood) ? r.piece : null;
 	}
 
-	/** The autopilot's night_route_m34 switch (test of 26 Nov 2026, off): the night's rules on the route's last stretch, Obtain. */
+	/** The autopilot's night_route_m34 switch (test of 26 Nov 2026, on since 27 Nov 2026): the night's rules on the route's last stretch, Obtain. */
 	static boolean nightRouteOn() {
 		return present() && adris.altoclef.util.helpers.Tuning.get("night_route_m34", 0) > 0;
 	}

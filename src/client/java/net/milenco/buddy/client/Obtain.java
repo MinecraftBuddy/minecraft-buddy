@@ -994,7 +994,7 @@ final class Obtain {
 				// for cobblestone every five seconds, and round it went
 				if (k != null && exec instanceof Alto.Run run && run.detail().startsWith("AltoClef: get ")
 						&& !k.detail().startsWith("AltoClef: equip ") && !k.detail().contains("spare shield")) k = null;
-				// (night_route_m34, off) a surface piece of the portal's phase in the dark waits shut in for the morning
+				// (night_route_m34, on since 27 Nov 2026) a surface piece of the portal's phase in the dark waits shut in for the morning
 				if (k != null && routeNight(p) && nightWait(p, now, Alto.nightPiece(k, p, hurtAndNoFood(p)))) return true;
 				if (k != null) {
 					if (exec != null) exec.stop();
@@ -1015,7 +1015,7 @@ final class Obtain {
 			}
 		}
 		if (!(exec instanceof Alto.Run)) {
-			// (night_route_m34, off) after the portal phase's last piece the whole order walks or climbs to the portal's site and
+			// (night_route_m34, on since 27 Nov 2026) after the portal phase's last piece the whole order walks or climbs to the portal's site and
 			// builds the frame under the sky ("Going to nether"): begun in the dark, it waits shut in for the morning too
 			if (ObtainRoute.phase() == ObtainRoute.M3_4 && routeNight(p) && nightWait(p, now, ObtainRoute.PORTAL_WALK)) return true;
 			if (exec != null) exec.stop();
@@ -1078,7 +1078,7 @@ final class Obtain {
 	}
 
 	/**
-	 * (night_route_m34, off) The route's last stretch to the nether, where the night's rules hold whatever the armour
+	 * (night_route_m34, on since 27 Nov 2026) The route's last stretch to the nether, where the night's rules hold whatever the armour
 	 * (ObtainRoute.nightStretch): the order walks the route at M3.3b or M3.4, in the overworld, with no bed for tonight
 	 * (Alto.bedTonight) and no slime search under way. No clock here: the night's hole reads its own (ObtainSafe.needsShelter,
 	 * the night from 11500 till 1000).
@@ -1108,7 +1108,7 @@ final class Obtain {
 	private static long nightWaitGaveUpTime;
 
 	/**
-	 * (night_route_m34, off) A surface piece of the portal's phase, or the whole order's walk to the portal's site, about to
+	 * (night_route_m34, on since 27 Nov 2026) A surface piece of the portal's phase, or the whole order's walk to the portal's site, about to
 	 * start in the dark on the route's last stretch: the buddy is shut in on the spot until the morning instead, as the morning
 	 * down here of a plan step is (a Shelter till the morning: dug in under the open sky, the open sides shut under the
 	 * ground). The one place a piece waits; the night's hole on the surface (holeNight) stops whatever runs. True when the
@@ -1250,7 +1250,7 @@ final class Obtain {
 	 */
 	private static boolean foodNow(LocalPlayer p) {
 		if (Alto.deepNight(p)) return hurtAndNoFood(p);
-		// (night_route_m34, off) on the route's last stretch no food run under the nether's reserve in the dark either: the food
+		// (night_route_m34, on since 27 Nov 2026) on the route's last stretch no food run under the nether's reserve in the dark either: the food
 		// waits for the morning (nightWait), unless the buddy is hurt with nothing to eat
 		if (routeNight(p)) return hurtAndNoFood(p);
 		return !dark(p) || Alto.foodScore(true) < Alto.NETHER_FOOD_RESERVE || hurtAndNoFood(p);

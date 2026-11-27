@@ -305,7 +305,7 @@ final class ObtainRoute {
 	}
 
 	/**
-	 * (Tuning night_route_m34, off) The route's last stretch to the nether, where the night's rules hold whatever the armour: the
+	 * (Tuning night_route_m34, on since 27 Nov 2026) The route's last stretch to the nether, where the night's rules hold whatever the armour: the
 	 * switch on, an order under way that walks the route (the trip home from the nether is no part of it), the slime's phase or
 	 * the portal's (M3.3b, M3.4), in the overworld, no bed for tonight, and no slime search under way (its one search of forty
 	 * minutes runs on, steering 204). Every night rule ends at armour 15, and the kit with golden boots counts 15 since 20 Nov
