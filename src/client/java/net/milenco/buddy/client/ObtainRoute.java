@@ -283,6 +283,36 @@ final class ObtainRoute {
 		slimeSpent = 0;
 		goldStopped = goldPassSaid = goldPicksWorn = false;
 		goldOrder++;
+		topUpDone = topUpSaid = false;
+	}
+
+	/** (food_top_deep) a food run ended on the deep stretch's first two phases this order: the top-up is spent. */
+	private static boolean topUpDone;
+
+	/** (food_top_deep) the top-up's line said once a run of it (Alto.wantsFood); set back when a food run ends or an order begins. */
+	static boolean topUpSaid;
+
+	/** (Tuning food_top_deep, off: test voorraad of 27 Nov 2026) the points the bag is topped up to before the deep's obsidian. */
+	static final int FOOD_TOP = 85;
+
+	/**
+	 * (food_top_deep) Whether one food run is due before the obsidian: walking the route at the diamonds or the obsidian
+	 * (M3.1, M3.2), no obsidian in the bag yet, no food run ended there this order, and under FOOD_TOP points. Heel's runs
+	 * that began the obsidian under 40 points died there 31%, at 40 to 79 23%, at 80 or more 18% (498 starts, 24-27 Nov
+	 * 2026), and a trip up for food in the middle of the phase took 17% of its time and was its main way to the surface.
+	 */
+	static boolean topUpDue(int score, int obsidian) {
+		return topUpDue(walking(), phase, topUpDone, obsidian, score);
+	}
+
+	static boolean topUpDue(boolean walking, int phase, boolean done, int obsidian, int score) {
+		return walking && (phase == M3_1 || phase == M3_2) && !done && obsidian == 0 && score < FOOD_TOP;
+	}
+
+	/** (food_top_deep) a food run ended: on the deep stretch's first two phases the top-up is spent, whatever came of it. */
+	static void foodRunEnded() {
+		topUpSaid = false;
+		if (walking() && (phase == M3_1 || phase == M3_2)) topUpDone = true;
 	}
 
 	/** The order walks the route (its way goes into the nether, and it began in the overworld). */

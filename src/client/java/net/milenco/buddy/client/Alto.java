@@ -1723,7 +1723,22 @@ final class Alto {
 		// left; at 12 in the deep the food run hunted through caves at low health, and both deaths of gold smoke 2 followed)
 		// (food_climb_stuck: not while a climb that got no higher was given up lately; hunger and an empty bag still send it up)
 		if (routeDeep(p) && !open && score < deepFoodFloor() && !Obtain.dark(p) && !climbGivenUp(p)) return true;
+		// (food_top_deep, off: test voorraad) one food run by day before the obsidian when the bag is under ObtainRoute.FOOD_TOP,
+		// so that no trip up for food breaks the phase (ObtainRoute.topUpDue)
+		if (foodTopOn() && ObtainRoute.topUpDue(score, p.getInventory().countItem(net.minecraft.world.item.Items.OBSIDIAN))
+				&& !Obtain.dark(p) && !climbGivenUp(p)) {
+			if (!ObtainRoute.topUpSaid) {
+				ObtainRoute.topUpSaid = true;
+				Exchange.emit("obtain", "action", "food top-up before the obsidian", "food", score, "phase", ObtainRoute.phase(), "y", p.getBlockY());
+			}
+			return true;
+		}
 		return score < 12 || score < sky && open || hungryNow;
+	}
+
+	/** The autopilot's food_top_deep switch (off: test voorraad of 27 Nov 2026): a food run before the obsidian, ObtainRoute.topUpDue. */
+	static boolean foodTopOn() {
+		return present() && adris.altoclef.util.helpers.Tuning.get("food_top_deep", 0) > 0;
 	}
 
 	/** (food_climb_stuck) a climb for food was given up lately, by the autopilot's clock; never without the autopilot. */

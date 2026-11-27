@@ -106,4 +106,17 @@ class RouteNightTest {
 		assertEquals("07:00", ObtainRoute.clock(24000 * 3 + 1000), "a later day");
 		assertEquals("05:00", ObtainRoute.clock(-1000));
 	}
+
+	// (food_top_deep) one food run before the obsidian: at the diamonds or the obsidian, none in the bag, under 85, once
+	@Test
+	void topUpOnlyBeforeTheObsidian() {
+		assertTrue(ObtainRoute.topUpDue(true, ObtainRoute.M3_1, false, 0, 64));
+		assertTrue(ObtainRoute.topUpDue(true, ObtainRoute.M3_2, false, 0, 84));
+		assertFalse(ObtainRoute.topUpDue(true, ObtainRoute.M3_2, false, 0, 85), "enough in the bag");
+		assertFalse(ObtainRoute.topUpDue(true, ObtainRoute.M3_2, false, 3, 40), "the obsidian begun");
+		assertFalse(ObtainRoute.topUpDue(true, ObtainRoute.M3_2, true, 0, 40), "spent this order");
+		assertFalse(ObtainRoute.topUpDue(true, ObtainRoute.M2_2, false, 0, 40), "before the deep");
+		assertFalse(ObtainRoute.topUpDue(true, ObtainRoute.M3_3, false, 0, 40), "after the obsidian");
+		assertFalse(ObtainRoute.topUpDue(false, ObtainRoute.M3_2, false, 0, 40), "not on the route");
+	}
 }

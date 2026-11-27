@@ -897,7 +897,7 @@ final class Obtain {
 			// a piece of the kit that came is followed by the next at once; one that did not come is not asked again for ten
 			// game minutes, and the other pieces go on meanwhile: a wait after the shield had come sent it down to the diamonds
 			// in its clothes for ten minutes, where a creeper and skeletons killed it
-			if (b.food()) foodTriedAt = now;
+			if (b.food()) { foodTriedAt = now; ObtainRoute.foodRunEnded(); }
 			else if (b.home()) { homeTriedAt = now; foodAfterHome = p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD); }
 			else if (b.kit()) { Alto.Run next = Alto.kit(p, now); if (br == ObtainSteps.Result.FAIL || next != null && next.detail().equals(b.detail())) Alto.kitFailed(b, now); }
 			else boatTriedAt = now;
