@@ -252,6 +252,7 @@ final class Obtain {
 		foodAfterHome = false;
 		nightWait = null;
 		nightWaitGaveUpAt = null;
+		stretchHoleFrom = 0;
 		Alto.orderDanger = ObtainKit.Danger.DEEP;
 		Alto.kitReset();
 		LocalPlayer p = AfkHelperClient.mc().player;
@@ -499,6 +500,7 @@ final class Obtain {
 				junkAskTick = tk;
 			}
 		}
+		stretchHoleLine(p, tk * 50);
 		if (Alto.knows(item)) return whole(mc, p, p.level().getGameTime() * 50);
 		ObtainSafe.watch(p, now);
 		// where it last stood under the sky in this world: the way back up without a pickaxe
@@ -1155,6 +1157,34 @@ final class Obtain {
 		Exchange.emit("obtain", "action", "night wait", "what", noWay ? "no way" : "ends", "piece", nightWaitFor, "time", clock, "min", min);
 		nightWait = null;
 		nightWaitFor = null;
+	}
+
+	/** (night_route_m34) when the night's hole the stretch's rule alone asks began (game time in ms), 0 for none. */
+	private static long stretchHoleFrom;
+
+	/**
+	 * (night_route_m34) The night's hole that only the stretch's rule asks (armour 15 or more, no phantoms due, so the
+	 * rule's needsShelter is what holds it), told in the log and the events when it begins and ends. Most of the stretch's
+	 * waits went through the night's hole (holeNight, the step's shelter) rather than a piece's wait (nightWait), and wrote no
+	 * line of the rule: 2 of about 13 in test nacht's first runs (26 Nov 2026). Only told, nothing decided here.
+	 */
+	private static void stretchHoleLine(LocalPlayer p, long gameMs) {
+		if (!Alto.nightRouteOn()) return;
+		boolean in = exec instanceof ObtainSafe.Shelter sh && !sh.wound && sh != nightWait && ObtainSafe.kitArmour(p) >= 15
+			&& !ObtainSafe.phantomsDue() && ObtainSafe.needsShelter(p);
+		if (in == (stretchHoleFrom != 0)) return;
+		String clock = ObtainRoute.clock(p.level().getOverworldClockTime());
+		if (in) {
+			stretchHoleFrom = Math.max(1, gameMs);
+			routeLine("route: the night's hole on the last stretch, shut in from " + clock + " (night_route_m34)");
+			Exchange.emit("obtain", "action", "night wait", "what", "hole begins", "phase", ObtainRoute.PHASES.get(ObtainRoute.phase()),
+				"time", clock, "deep", ObtainSafe.deepUnder(p), "y", p.getBlockY());
+		} else {
+			long min = Math.max(0, gameMs - stretchHoleFrom) / 60_000;
+			stretchHoleFrom = 0;
+			routeLine("route: the night's hole on the last stretch ended at " + clock + " after " + min + " minutes (night_route_m34)");
+			Exchange.emit("obtain", "action", "night wait", "what", "hole ends", "time", clock, "min", min);
+		}
 	}
 
 	/** A line in the autopilot's log, where the rig reads the route's lines. */
