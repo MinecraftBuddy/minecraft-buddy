@@ -491,9 +491,15 @@ public class CollectBlazeRodsTask extends ResourceTask {
     // the buddy burned or stalled (realfort-p4-cream2-mc2, 4 of the 10 runs that reached the brew, 9 Nov 2026). reserved while
     // no stand is in the bag and a brew is still to come, in this task's own level; a reserved item comes after the others in a
     // walk's block order, so the walks bridge with netherrack first. 0 lifts the count, the stone then free to build with)
+    // (Tuning stand_stone_keep, a fix of 27 Nov 2026, on) all three of the stand's stones: the gate and the boxes count
+    // cobblestone, blackstone and cobbled deepslate (BlazePillboxTask.standStoneInBag), the reserve held cobblestone alone, and
+    // the walks to the spawner placed the bag's cobbled deepslate down to none (2 of 14 brews lost to the stand's stone, 24-27 Nov)
     private void reserveStandStone(AltoClef mod) {
         if (behaviourLevel() == null) return;
-        mod.getBehaviour().reserveProtectedItems(behaviourLevel(), java.util.Map.of(Items.COBBLESTONE, standStoneKeep(mod)));
+        int keep = standStoneKeep(mod);
+        mod.getBehaviour().reserveProtectedItems(behaviourLevel(), adris.altoclef.util.helpers.GarbageRules.standStoneKeepOn()
+                ? java.util.Map.of(Items.COBBLESTONE, keep, Items.BLACKSTONE, keep, Items.COBBLED_DEEPSLATE, keep)
+                : java.util.Map.of(Items.COBBLESTONE, keep));
     }
 
     // (Tuning nether_pick_make, a fix of 20 Nov 2026, on) in the nether with no usable pickaxe left, a stone one from the bag's

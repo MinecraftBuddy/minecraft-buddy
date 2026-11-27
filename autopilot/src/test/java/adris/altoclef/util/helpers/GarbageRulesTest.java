@@ -667,4 +667,34 @@ public class GarbageRulesTest {
         assertTrue(GarbageRules.dropIsNextPick(bag, pick, e(Items.CALCITE, 3), 64, true, 0, 0, GarbageRules::junkAllRank, GarbageRules::kitItem));
         assertFalse(GarbageRules.dropIsNextPick(bag, pick, e(Items.GLASS, 3), 64, true, 0, 0, GarbageRules::junkAllRank, GarbageRules::kitItem));
     }
+
+    // stand_stone_keep: the stand's stone kept biggest first until three, blackstone too; a stack kept already counts
+    @Test
+    public void standStoneKeptUntilThree() {
+        List<ItemStack> bag = new ArrayList<>(List.of(new ItemStack(Items.NETHERRACK, 64), new ItemStack(Items.BLACKSTONE, 2),
+                new ItemStack(Items.COBBLED_DEEPSLATE, 1), new ItemStack(Items.BLACKSTONE, 5), new ItemStack(Items.DIRT, 10)));
+        boolean[] kept = new boolean[bag.size()];
+        GarbageRules.keepStandStone(bag, kept, 3);
+        assertFalse(kept[0]);
+        assertFalse(kept[1]);
+        assertFalse(kept[2]);
+        assertTrue(kept[3]);
+        assertFalse(kept[4]);
+        // two small stacks: both, as one alone is short of three
+        bag = new ArrayList<>(List.of(new ItemStack(Items.COBBLESTONE, 2), new ItemStack(Items.BLACKSTONE, 2)));
+        kept = new boolean[bag.size()];
+        GarbageRules.keepStandStone(bag, kept, 3);
+        assertTrue(kept[0]);
+        assertTrue(kept[1]);
+        // a cobblestone stack the nether kept already is enough
+        bag = new ArrayList<>(List.of(new ItemStack(Items.COBBLESTONE, 20), new ItemStack(Items.BLACKSTONE, 30)));
+        kept = new boolean[] {true, false};
+        GarbageRules.keepStandStone(bag, kept, 3);
+        assertFalse(kept[1]);
+        // 0 keeps nothing
+        kept = new boolean[2];
+        GarbageRules.keepStandStone(bag, kept, 0);
+        assertFalse(kept[0]);
+        assertFalse(kept[1]);
+    }
 }

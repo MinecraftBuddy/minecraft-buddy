@@ -1397,7 +1397,11 @@ public final class Tuning {
             java.util.Map.entry("trade_at_fortress", 1.0),
             // (off: test of 27 Nov 2026, BlazeFightRules.holdPocket) the pocket's hold only with a blaze on the buddy, when there
             // is no fire resistance: with none on it the hold turned the burn's or the heal's run into the camp's looks and lures
-            java.util.Map.entry("pocket_needs_foe", 0.0));
+            java.util.Map.entry("pocket_needs_foe", 0.0),
+            // the bag keeps the brewing stand's stone (cobblestone, blackstone or cobbled deepslate, brew_keep_stone of them) from
+            // the room-making in either dimension, and the rods task's reserve holds all three from the walks: 14 of 102 heel
+            // brews (24-27 Nov 2026) ended with no stone for the stand, GarbageRules.keepStandStone, CollectBlazeRodsTask
+            java.util.Map.entry("stand_stone_keep", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

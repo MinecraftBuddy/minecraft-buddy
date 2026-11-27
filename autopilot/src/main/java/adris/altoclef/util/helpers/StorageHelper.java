@@ -245,6 +245,8 @@ public class StorageHelper {
             armor.add(armorOf(mod, stack));
         }
         boolean[] keep = GarbageRules.netherKeepOn() && nether() ? GarbageRules.netherKept(stacks) : new boolean[stacks.size()];
+        // (stand_stone_keep) the brewing stand's stone, in either dimension
+        if (GarbageRules.standStoneKeepOn()) GarbageRules.keepStandStone(stacks, keep, RouteRules.keepStone());
         return new Bag(slots, stacks, GarbageRules.keptArmor(armor), keep);
     }
 

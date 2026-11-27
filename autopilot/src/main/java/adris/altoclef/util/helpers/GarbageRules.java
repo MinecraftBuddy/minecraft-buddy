@@ -311,6 +311,41 @@ public final class GarbageRules {
         return kept;
     }
 
+    // (Tuning stand_stone_keep, a fix of 27 Nov 2026, on) the brewing stand's three stone may be cobblestone, blackstone or
+    // cobbled deepslate, and the bag kept none of them for it: in the overworld the room-making (the water bottles' full bucket)
+    // threw cobblestone first, in the nether netherrack's stack was kept and blackstone thrown, and 14 of 102 heel runs at the
+    // brew (24-27 Nov) ended it with no stone for the stand. the stacks of the three, the biggest first, are kept until `count`
+    // of them are, in either dimension; a stack kept already counts
+    public static void keepStandStone(List<ItemStack> bag, boolean[] kept, int count) {
+        if (count <= 0) return;
+        int have = 0;
+        List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < bag.size(); i++) {
+            if (!isStandStone(bag.get(i))) continue;
+            if (kept[i]) have += bag.get(i).getCount();
+            else order.add(i);
+        }
+        order.sort((a, b) -> {
+            int byCount = Integer.compare(bag.get(b).getCount(), bag.get(a).getCount());
+            return byCount != 0 ? byCount : Integer.compare(a, b);
+        });
+        for (int i : order) {
+            if (have >= count) break;
+            kept[i] = true;
+            have += bag.get(i).getCount();
+        }
+    }
+
+    // a stone the brewing stand is made of
+    static boolean isStandStone(ItemStack s) {
+        return s != null && !s.isEmpty()
+                && (s.getItem() == Items.COBBLESTONE || s.getItem() == Items.BLACKSTONE || s.getItem() == Items.COBBLED_DEEPSLATE);
+    }
+
+    public static boolean standStoneKeepOn() {
+        return Tuning.get("stand_stone_keep", 0) > 0;
+    }
+
     // what a piglin's barter fills the bag with and no piece of the route asks for: the nether brick (the item), soul sand and
     // gravel, in that order; -1 for anything else
     public static int barterJunkRank(Item item) {
