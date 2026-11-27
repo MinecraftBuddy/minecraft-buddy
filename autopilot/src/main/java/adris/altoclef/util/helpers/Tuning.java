@@ -1401,7 +1401,10 @@ public final class Tuning {
             // the bag keeps the brewing stand's stone (cobblestone, blackstone or cobbled deepslate, brew_keep_stone of them) from
             // the room-making in either dimension, and the rods task's reserve holds all three from the walks: 14 of 102 heel
             // brews (24-27 Nov 2026) ended with no stone for the stand, GarbageRules.keepStandStone, CollectBlazeRodsTask
-            java.util.Map.entry("stand_stone_keep", 1.0));
+            java.util.Map.entry("stand_stone_keep", 1.0),
+            // (off: test vroegdrank of 28 Nov 2026, RouteRules.fightNear) the spawner fight, for the kept potion's sake, begins
+            // this many blocks from the spawner (10 off), and its let-go waits while a melee foe is within 3
+            java.util.Map.entry("route_fight_near", 0.0));
 
     private static Path file;
     private static Properties props = new Properties();

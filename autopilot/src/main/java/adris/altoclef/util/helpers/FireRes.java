@@ -142,6 +142,26 @@ public final class FireRes {
     // ready: RouteRules.fightReady at the spawner fight (Tuning route_drink_ready; true with the switch off)
     private static volatile boolean routeReady = true;
     private static volatile long routeUnreadyAt = Long.MIN_VALUE / 2;
+    // (route_fight_near) the last tick the melee guard held the spawner fight's let-go
+    private static volatile long routeMeleeAt = Long.MIN_VALUE / 2;
+
+    // (route_fight_near) the nearest foe within r that fights hand to hand now: a wither skeleton, a magma cube, a hoglin, a
+    // piglin brute, or any other hostile with its arms up (aggressive: a zombified piglin or piglin angry with us); blazes and
+    // ghasts are the potion's own business. infinite for none
+    static double nearestMelee(LivingEntity e, double r) {
+        double best = Double.POSITIVE_INFINITY;
+        for (net.minecraft.world.entity.Mob m : e.level().getEntitiesOfClass(net.minecraft.world.entity.Mob.class, e.getBoundingBox().inflate(r),
+                m -> m.isAlive() && m instanceof net.minecraft.world.entity.monster.Enemy)) {
+            if (m instanceof net.minecraft.world.entity.monster.Blaze || m instanceof net.minecraft.world.entity.monster.Ghast) continue;
+            boolean melee = m instanceof net.minecraft.world.entity.monster.skeleton.WitherSkeleton
+                    || m instanceof net.minecraft.world.entity.monster.cubemob.MagmaCube
+                    || m instanceof net.minecraft.world.entity.monster.hoglin.Hoglin
+                    || m instanceof net.minecraft.world.entity.monster.piglin.PiglinBrute
+                    || m.isAggressive();
+            if (melee) best = Math.min(best, m.distanceTo(e));
+        }
+        return best;
+    }
 
     public static void routeHolds(long now, boolean fightBegun, boolean ready) {
         routeHolds(now, fightBegun, ready, fightBegun);
@@ -212,6 +232,18 @@ public final class FireRes {
                 routeUnreadyAt = now;
             }
             String why = RouteRules.holdLetGo(asked, inLava, onFire, falling, e.getHealth(), hp, routeFight, near);
+            // (Tuning route_fight_near: the spawner fight's let-go waits while a melee foe is within DRINK_MELEE_GUARD)
+            if (why != null && RouteRules.fightNearOn()) {
+                double melee = nearestMelee(e, RouteRules.DRINK_MELEE_GUARD + 1);
+                if (RouteRules.meleeGuard(why, true, melee) == null) {
+                    if (FireResTradeRules.newEpisode(routeMeleeAt, now)) {
+                        Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion waits, a melee foe %.1f off (%.1f hp, nearest blaze %s)",
+                                melee, e.getHealth(), FireResTradeRules.distance(blaze)));
+                    }
+                    routeMeleeAt = now;
+                    why = null;
+                }
+            }
             if (why != null) {
                 if (FireResTradeRules.newEpisode(routeLetAt, now)) {
                     Debug.logInternal(String.format(Locale.ROOT, "route hold: the potion goes down, %s (%.1f hp%s, nearest blaze %s)", why,

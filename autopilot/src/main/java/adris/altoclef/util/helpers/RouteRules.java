@@ -673,8 +673,36 @@ public final class RouteRules {
     // the spawner fight has begun for the potion's sake: the buddy this close to the spawner (blocks), the route past phase 3
     public static final double FIGHT_NEAR = 10;
 
+    // (Tuning route_fight_near, blocks, off by default: test vroegdrank of 28 Nov 2026) the spawner fight begins this far from
+    // the spawner instead of FIGHT_NEAR, so a blaze within 16 lets the kept potion go on the walk's last stretch, before the
+    // first hit: in none of 11 phase-4 deaths of 27 Nov was fire resistance on at the first hit, four of them walking
+    // through the fortress to the spawner with one or two potions held (notes/reads/heel-phase4-deaths-2026-11-27.md)
+    public static double fightNear() {
+        double t = Tuning.get("route_fight_near", 0);
+        return t > 0 ? t : FIGHT_NEAR;
+    }
+
+    public static boolean fightNearOn() {
+        return Tuning.get("route_fight_near", 0) > 0;
+    }
+
     public static boolean fightBegun(int phase, double toSpawner) {
-        return phase >= RODS2 && toSpawner <= FIGHT_NEAR;
+        return fightBegun(phase, toSpawner, fightNear());
+    }
+
+    public static boolean fightBegun(int phase, double toSpawner, double near) {
+        return phase >= RODS2 && toSpawner <= near;
+    }
+
+    // (route_fight_near) a drink takes 1.6 s, the hand's clicks are thrown away meanwhile and the buddy walks at a fifth of
+    // its speed: with a melee foe this close (blocks) the spawner fight's let-go waits. a burn, lava or an ask still let go
+    public static final double DRINK_MELEE_GUARD = 3;
+
+    // the let-go's reason after the melee guard: the spawner fight's own let-go waits while a melee foe is within the guard
+    // (melee: the nearest one, infinite for none); every other reason stands
+    public static String meleeGuard(String why, boolean on, double melee) {
+        if (on && "the spawner fight".equals(why) && melee <= DRINK_MELEE_GUARD) return null;
+        return why;
     }
 
     // a burn's health counts as falling this far below its best (half a heart: one tick of fire is a whole heart)

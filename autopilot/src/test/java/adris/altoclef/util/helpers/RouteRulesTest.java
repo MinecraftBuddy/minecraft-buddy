@@ -371,6 +371,27 @@ public class RouteRulesTest {
     }
 
     @Test
+    public void routeFightNearBeginsTheSpawnerFightFurtherOut() {
+        // (route_fight_near 24) the walk's last stretch counts as the spawner fight
+        assertTrue(RouteRules.fightBegun(RouteRules.RODS2, 23.9, 24));
+        assertFalse(RouteRules.fightBegun(RouteRules.RODS2, 24.1, 24));
+        assertFalse(RouteRules.fightBegun(RouteRules.WART, 5, 24));
+    }
+
+    @Test
+    public void theMeleeGuardHoldsOnlyTheSpawnerFightsLetGo() {
+        // a wither skeleton within 3: the spawner fight's drink waits
+        assertNull(RouteRules.meleeGuard("the spawner fight", true, 2.0));
+        // none that close, or the switch off: it goes
+        assertEquals("the spawner fight", RouteRules.meleeGuard("the spawner fight", true, 3.5));
+        assertEquals("the spawner fight", RouteRules.meleeGuard("the spawner fight", false, 1.0));
+        // a burn, lava or an ask goes whatever is near
+        assertEquals("in lava", RouteRules.meleeGuard("in lava", true, 1.0));
+        assertEquals("burning, the health falling", RouteRules.meleeGuard("burning, the health falling", true, 1.0));
+        assertNull(RouteRules.meleeGuard(null, true, 1.0));
+    }
+
+    @Test
     public void oneFramesCellsAreOnePortal() {
         assertTrue(RouteRules.samePortal(0, 64, 0, 1, 65, 0));
         assertTrue(RouteRules.samePortal(0, 64, 0, 0, 64, 3));
