@@ -1417,7 +1417,10 @@ public final class Tuning {
             java.util.Map.entry("camp_ring_shut", 1.0),
             // (the buddy's Alto.goldEquipCapped) in the overworld the golden boots are asked at most three times in two minutes:
             // taken off again after every equip, the ask looped 37 minutes under a portal (heel-258-mc3 r13, 28 Nov 2026)
-            java.util.Map.entry("gold_equip_cap", 1.0));
+            java.util.Map.entry("gold_equip_cap", 1.0),
+            // the fight's shield stays up on the walk up to a melee target (CombatRules.fightShieldDown): down until contact it
+            // came up too late for the first blow of 110 in 120 landed wither skeleton blows (28 Nov 2026)
+            java.util.Map.entry("fight_shield_melee_walk", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

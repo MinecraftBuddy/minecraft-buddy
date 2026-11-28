@@ -343,6 +343,10 @@ public class CombatRulesTest {
         assertFalse(CombatRules.fightShieldDown(true, CombatRules.CONTACT_RANGE));
         // no path going: nothing to walk, the fight's own shield rule decides
         assertFalse(CombatRules.fightShieldDown(false, CombatRules.CONTACT_RANGE + 0.5));
+        // (fight_shield_melee_walk) a melee target keeps the shield up on the walk; a shooter does not
+        assertFalse(CombatRules.fightShieldDown(true, CombatRules.CONTACT_RANGE + 1.5, true, true));
+        assertTrue(CombatRules.fightShieldDown(true, CombatRules.CONTACT_RANGE + 1.5, false, true));
+        assertTrue(CombatRules.fightShieldDown(true, CombatRules.CONTACT_RANGE + 1.5, true, false));
     }
 
     @Test

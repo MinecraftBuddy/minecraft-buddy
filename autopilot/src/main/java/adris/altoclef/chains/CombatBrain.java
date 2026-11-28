@@ -1382,8 +1382,15 @@ final class CombatBrain {
         Foe fightFoe = target;
         List<Foe> shieldFoes = fightFoe != null && foes.stream().noneMatch(f -> f.id() == fightFoe.id()) ? List.of(fightFoe) : foes;
         _fightShield = _commit.mode() == Mode.FIGHT && !_commit.perching() && !_commit.gapping() && CombatRules.fightShield(_fightShield, _commit.targetId(), shieldFoes);
+        // (fight_shield_melee_walk) the target as the shield's rule saw it: on the commit tick it is not looked up yet (above), and
+        // an unknown distance held the shield down for that tick
+        Foe walkFoe = target;
+        if (walkFoe == null && _commit.mode() == Mode.FIGHT) {
+            for (Foe f : foes) if (f.id() == _commit.targetId()) walkFoe = f;
+        }
         _fightWalking = _commit.mode() == Mode.FIGHT && !_commit.perching() && !_commit.gapping() && CombatRules.fightShieldDown(
-                mod.getClientBaritone().getPathingBehavior().getCurrent() != null, target != null ? target.distance() : Double.POSITIVE_INFINITY);
+                mod.getClientBaritone().getPathingBehavior().getCurrent() != null, walkFoe != null ? walkFoe.distance() : Double.POSITIVE_INFINITY,
+                walkFoe != null && walkFoe.melee(), adris.altoclef.util.helpers.Tuning.get("fight_shield_melee_walk", 0) > 0);
         _walkNoArrowShield = _fightWalking && target != null && (target.kind() == Kind.FLYER || target.patrol());
         // (outside a fight the shield pauses pathing, so it waits until the walk is done instead of pinning us on the edge)
         // (Tuning rim_guard_lava_off, a fix of 20 Nov 2026, on) in the lava already the rim's shield and sneak only hold the buddy
@@ -1748,8 +1755,36 @@ final class CombatBrain {
         return false;
     }
 
+    // (lines only, 28 Nov 2026) the off hand shield's wear last tick: a blow the shield blocks costs it durability and nothing else
+    // tells the client (the server's SHIELD_BLOCK sound aside), so a rise is the count of blocked blows beside the hurts
+    private int _shieldWear = -1;
+    private long _shieldWearToldAt = -100;
+
+    private void logShieldBlock(AltoClef mod, Dimension dimension, LocalPlayer player) {
+        net.minecraft.world.item.ItemStack off = player.getOffhandItem();
+        int wear = off.is(Items.SHIELD) ? off.getDamageValue() : -1;
+        int was = _shieldWear;
+        _shieldWear = wear;
+        if (was < 0 || wear <= was) return;
+        long now = mod.getWorld().getGameTime();
+        if (now - _shieldWearToldAt < 2) return;
+        _shieldWearToldAt = now;
+        String near = null;
+        double best = 6;
+        for (Mob mob : mod.getWorld().getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(6))) {
+            double d = mob.distanceTo(player);
+            if (mob.isAlive() && d < best) {
+                best = d;
+                near = MobReachability.shortName(mob) + String.format(java.util.Locale.ROOT, " at %.1f", d);
+            }
+        }
+        Debug.logInternal("combat: [" + dimension.name().toLowerCase(java.util.Locale.ROOT) + "] shield blocked a blow (wear +" + (wear - was)
+                + ", " + player.getTicksUsingItem() + " ticks of use" + (near == null ? "" : ", nearest " + near) + ")");
+    }
+
     private void logHurt(AltoClef mod, Dimension dimension) {
         LocalPlayer player = mod.getPlayer();
+        logShieldBlock(mod, dimension, player);
         float hp = player.getHealth();
         float before = _lastHealth;
         _lastHealth = hp;

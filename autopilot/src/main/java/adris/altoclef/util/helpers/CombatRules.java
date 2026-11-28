@@ -162,8 +162,17 @@ public final class CombatRules {
 
     // the shield comes down for the walk up. a raised shield is a third of the speed and a mid jump lands short, and three blocks
     // of that under fire is longer than the hit it would have blocked. once it is in contact the path does not matter
+    // (Tuning fight_shield_melee_walk, a fix of 28 Nov 2026, on) not for a melee target: it walks to us, and down until contact
+    // the shield came up 0-4 ticks before its first blow, which lands at about 2 blocks; a block needs 5 on the server, which
+    // counts about 2 behind. 110 of 120 wither skeleton blows that landed in a committed fight were the fight's first, the
+    // shield raised late or just down (the read of 28 Nov), against FIGHT_SHIELD_RANGE above. the walk-up rule is for a
+    // shooter or a patrol we close on
     public static boolean fightShieldDown(boolean pathLive, double targetDistance) {
-        return pathLive && targetDistance > CONTACT_RANGE;
+        return fightShieldDown(pathLive, targetDistance, false, false);
+    }
+
+    public static boolean fightShieldDown(boolean pathLive, double targetDistance, boolean melee, boolean meleeWalkOn) {
+        return pathLive && targetDistance > CONTACT_RANGE && !(meleeWalkOn && melee);
     }
 
     // whether the aura's shield holds us still. a fight never does: a paused path never gets its first tick, so nothing ever
