@@ -7,8 +7,10 @@ package adris.altoclef.util.helpers;
 // blow, so the swing is no warning but a clock: a blow taken on a raised shield, then the turn, leaves a whole cycle for the
 // sprint. 26.3 blocks only after 5 ticks of use (BlocksAttacks block_delay_seconds 0.25) and only what comes from within 90
 // degrees of the head's yaw (LivingEntity.applyItemBlocking), so the hold faces the skeleton (the run's shield guard, as on a
-// rim) and counts a swing only while isBlocking(). Not on a rim (its own guard), not at 5 hp or less, not with another melee
-// foe in reach behind the shield's line, not in lava; capped at CAP ticks, so a skeleton that never swings cannot pin the run.
+// rim). Any swing ends the hold, blocked or not: the next blow is a cycle away either way (the server counts its own 5 ticks
+// from the use packet, so a shield the client calls blocking can still take a blow: smoke of 28 Nov, 4.5 at 4 degrees). Not on
+// a rim (its own guard), not at 5 hp or less, not with another melee foe in reach behind the shield's line, not in lava;
+// capped at CAP ticks, so a skeleton that never swings cannot pin the run.
 public final class WitherTurnHold {
     // centre to centre, on our floor: the skeleton's blow reaches about this far
     public static final double REACH = 2.5;
@@ -24,7 +26,7 @@ public final class WitherTurnHold {
     // a second melee foe this close behind the shield's line ends the hold: the shield cannot face both
     public static final double BEHIND_RANGE = 3;
 
-    public enum End { NONE, BLOCKED, CAP, GONE, FAR, LOW_HP, BEHIND, LAVA, RUN_OVER }
+    public enum End { NONE, BLOCKED, SWUNG, CAP, GONE, FAR, LOW_HP, BEHIND, LAVA, RUN_OVER }
 
     private int foe = -1;
     private int held;
@@ -51,7 +53,18 @@ public final class WitherTurnHold {
 
     // at a run's start: whether the hold begins on a skeleton this far (centre to centre on the flat) and this high over us
     public static boolean wants(double distance, double dy, float hp, boolean rim, boolean lava, boolean behind) {
-        return distance <= REACH && Math.abs(dy) <= FLOOR && hp > MIN_HP && !rim && !lava && !behind;
+        return whyNot(distance, dy, hp, rim, lava, behind) == null;
+    }
+
+    // why the hold does not begin, null when it does: for the line of a run start with a skeleton near that is let be
+    public static String whyNot(double distance, double dy, float hp, boolean rim, boolean lava, boolean behind) {
+        if (distance > REACH) return "out of reach";
+        if (Math.abs(dy) > FLOOR) return "not on our floor";
+        if (hp <= MIN_HP) return "hp " + Math.round(hp);
+        if (rim) return "on a rim";
+        if (lava) return "in lava";
+        if (behind) return "another one behind";
+        return null;
     }
 
     // swinging: its swing state now, so a swing already under way is not read as the next blow
@@ -75,7 +88,7 @@ public final class WitherTurnHold {
         if (hp <= MIN_HP) return End.LOW_HP;
         if (behind) return End.BEHIND;
         if (distance > LEAVE) return End.FAR;
-        if (edge && blocking) return End.BLOCKED;
+        if (edge) return blocking ? End.BLOCKED : End.SWUNG;
         if (held >= CAP) return End.CAP;
         return End.NONE;
     }

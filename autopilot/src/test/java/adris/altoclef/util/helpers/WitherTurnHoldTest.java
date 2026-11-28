@@ -33,15 +33,21 @@ public class WitherTurnHoldTest {
     }
 
     @Test
-    public void aSwingBeforeTheBlockIsNotTheRelease() {
+    public void aSwingBeforeTheBlockReleasesTheRunToo() {
         WitherTurnHold h = new WitherTurnHold();
         h.begin(7, false);
-        // the blow lands while the shield is still rising: hold on for the next one
-        assertEquals(End.NONE, h.step(true, true, 2.0, 12f, false, false, false, true));
-        // the swing goes on for a few ticks: no new edge while it lasts
-        for (int i = 0; i < 6; i++) assertEquals(End.NONE, h.step(true, true, 2.0, 12f, false, false, true, true));
-        for (int i = 0; i < 5; i++) assertEquals(End.NONE, h.step(true, true, 2.0, 12f, false, false, true, false));
-        assertEquals(End.BLOCKED, h.step(true, true, 2.0, 12f, false, false, true, true));
+        assertEquals(End.NONE, h.step(true, true, 2.0, 12f, false, false, false, false));
+        // the blow lands while the shield is still rising: the next one is a cycle away all the same
+        assertEquals(End.SWUNG, h.step(true, true, 2.0, 12f, false, false, false, true));
+    }
+
+    @Test
+    public void whyNotNamesTheReason() {
+        assertEquals(null, WitherTurnHold.whyNot(2.0, 0.0, 12f, false, false, false));
+        assertEquals("out of reach", WitherTurnHold.whyNot(3.0, 0.0, 12f, false, false, false));
+        assertEquals("not on our floor", WitherTurnHold.whyNot(2.0, 2.0, 12f, false, false, false));
+        assertEquals("hp 5", WitherTurnHold.whyNot(2.0, 0.0, 5f, false, false, false));
+        assertEquals("another one behind", WitherTurnHold.whyNot(2.0, 0.0, 12f, false, false, true));
     }
 
     @Test

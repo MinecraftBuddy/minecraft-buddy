@@ -99,7 +99,8 @@ public final class CombatLog {
     // the shield at a hurt (the offhand holds one): blocking (the blow came from outside its 90 degrees, or bypasses it),
     // raised for under the 5 ticks a block needs, or down
     public static String shieldAtHurt(boolean blocking, boolean inUse, int ticks) {
-        if (blocking) return "combat: shield at the hurt: blocking";
+        // (the ticks of use too: the server counts its own 5 from the use packet, a blow at the client's 5 or 6 can still land)
+        if (blocking) return "combat: shield at the hurt: blocking, " + ticks + " ticks of use";
         if (inUse) return "combat: shield at the hurt: raised " + ticks + " ticks, not blocking yet";
         return "combat: shield at the hurt: down";
     }

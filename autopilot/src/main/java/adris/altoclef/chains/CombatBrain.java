@@ -1692,8 +1692,13 @@ final class CombatBrain {
             double dy = skel.getY() - player.getY();
             boolean behind = meleeBehind(player, mobs, skel);
             boolean shield = player.getOffhandItem().is(Items.SHIELD) || mod.getItemStorage().hasItem(Items.SHIELD);
-            if (!shield || !adris.altoclef.util.helpers.WitherTurnHold.wants(best, dy, hp, false, lavaIn, behind)) return;
             String at = String.format(java.util.Locale.ROOT, "#%d at %.1f (hp %.1f, %s)", skel.getId(), best, hp, _commit.why());
+            String whyNot = !shield ? "no shield" : adris.altoclef.util.helpers.WitherTurnHold.whyNot(best, dy, hp, false, lavaIn, behind);
+            if (whyNot != null) {
+                // (a line for a run start with one near that is let be, so a smoke shows why no hold came)
+                if (best <= WITHER_TURN_SAY) Debug.logInternal("wither turn: no hold on " + at + ": " + whyNot);
+                return;
+            }
             if (!adris.altoclef.util.helpers.WitherTurnHold.on()) {
                 Debug.logInternal("wither turn would hold: " + at);
                 return;
@@ -1719,6 +1724,9 @@ final class CombatBrain {
                 _turnHold.held(), end.name().toLowerCase(java.util.Locale.ROOT).replace('_', ' '), hp, distance));
         _turnHold.reset();
     }
+
+    // a run start with a wither skeleton this close (flat) and no hold says why
+    private static final double WITHER_TURN_SAY = 6;
 
     // centre to centre on the flat
     private static double flat(LocalPlayer player, Entity mob) {
