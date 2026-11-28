@@ -304,6 +304,14 @@ public final class LavaShore {
     public static int lastStandable, lastWithLine;
 
     public static int[] campSpot(Cells cells, int sx, int sy, int sz, double ux, double uz, double min, double max) {
+        return campSpot(cells, sx, sy, sz, ux, uz, min, max, null);
+    }
+
+    // the same, with the cells skip names passed over (Skip, below). (Tuning camp_ring_shut, a fix of 28 Nov 2026, on: a ring spot whose walk
+    // the corner give-up shut out came straight back from this pick, which knew nothing of the shut-out cells, and every
+    // give-up started the walk's clock over, so the stall give-up never fired: 20 minutes on a lava sea's rim 120 blocks from
+    // the spawner, the brew begun again every minute, heel-258-mc1 run 15)
+    public static int[] campSpot(Cells cells, int sx, int sy, int sz, double ux, double uz, double min, double max, Skip skip) {
         int[] best = null;
         lastStandable = 0;
         lastWithLine = 0;
@@ -319,7 +327,7 @@ public final class LavaShore {
                     int x = sx + dx;
                     int y = sy + dy;
                     int z = sz + dz;
-                    if (!standable(cells, x, y, z, sx + 0.5, sz + 0.5)) {
+                    if (!standable(cells, x, y, z, sx + 0.5, sz + 0.5) || (skip != null && skip.skip(x, y, z))) {
                         continue;
                     }
                     lastStandable++;

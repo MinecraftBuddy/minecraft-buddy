@@ -599,6 +599,18 @@ public class LavaShoreTest {
         assertTrue(out >= LavaShore.CAMP_MIN && out <= LavaShore.CAMP_MAX);
     }
 
+    // (camp_ring_shut) a spot the walk gave up is passed over: the pick takes the next one, never the same again
+    @Test
+    public void campSpotPassesOverASkippedCell() {
+        int[] first = LavaShore.campSpot(new World(), 0, 0, 0, 20, 0);
+        assertNotNull(first);
+        int[] second = LavaShore.campSpot(new World(), 0, 0, 0, 20, 0, LavaShore.CAMP_MIN, LavaShore.CAMP_MAX,
+                (x, y, z) -> x == first[0] && y == first[1] && z == first[2]);
+        assertNotNull(second);
+        assertFalse(second[0] == first[0] && second[1] == first[1] && second[2] == first[2]);
+        assertNull(LavaShore.campSpot(new World(), 0, 0, 0, 20, 0, LavaShore.CAMP_MIN, LavaShore.CAMP_MAX, (x, y, z) -> true));
+    }
+
     @Test
     public void campSpotSkipsCellsBehindAWall() {
         // a wall ring at 5 hides everything past it, so the only spots with a line are none

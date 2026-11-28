@@ -1411,7 +1411,13 @@ public final class Tuning {
             java.util.Map.entry("wither_turn_swing", 0.0),
             // from the route's exit phase on no potion is kept for the blazes (CollectBlazeRodsTask.exitFree): a kept potion burned
             // a run with 9 rods to death in lava on the way out (heel-259 r32, 28 Nov 2026)
-            java.util.Map.entry("route_hold_exit_free", 1.0));
+            java.util.Map.entry("route_hold_exit_free", 1.0),
+            // the blaze camp's ring pick passes over the spots the walk gave up (LavaShore.Skip): the same spot came straight
+            // back after every corner give-up, which also started the stall clock over (heel-258-mc1 r15, 28 Nov 2026)
+            java.util.Map.entry("camp_ring_shut", 1.0),
+            // (the buddy's Alto.goldEquipCapped) in the overworld the golden boots are asked at most three times in two minutes:
+            // taken off again after every equip, the ask looped 37 minutes under a portal (heel-258-mc3 r13, 28 Nov 2026)
+            java.util.Map.entry("gold_equip_cap", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

@@ -3192,10 +3192,13 @@ public class CollectBlazeRodsTask extends ResourceTask {
                     + " (spawner " + _foundBlazeSpawner.toShortString() + ")");
             return;
         }
-        int[] spot = LavaShore.campSpot(cells, sx, sy, sz, us.getX(), us.getZ());
+        // (Tuning camp_ring_shut, a fix of 28 Nov 2026, on: LavaShore.Skip) the ring's spots the walk gave up are passed over
+        LavaShore.Skip skip = adris.altoclef.util.helpers.Tuning.get("camp_ring_shut", 0) > 0 && !_shutOut.isEmpty()
+                ? (x, y, z) -> _shutOut.contains(new BlockPos(x, y, z)) : null;
+        int[] spot = LavaShore.campSpot(cells, sx, sy, sz, us.getX(), us.getZ(), LavaShore.CAMP_MIN, LavaShore.CAMP_MAX, skip);
         String how = "six to eight out";
         if (spot == null) {
-            spot = LavaShore.campSpot(cells, sx, sy, sz, us.getX(), us.getZ(), LavaShore.WIDE_MIN, LavaShore.WIDE_MAX);
+            spot = LavaShore.campSpot(cells, sx, sy, sz, us.getX(), us.getZ(), LavaShore.WIDE_MIN, LavaShore.WIDE_MAX, skip);
             how = "five to ten out";
         }
         _campSpot = spot == null ? null : new BlockPos(spot[0], spot[1], spot[2]);
