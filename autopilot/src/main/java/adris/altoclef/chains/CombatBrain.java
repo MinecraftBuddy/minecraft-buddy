@@ -127,6 +127,10 @@ final class CombatBrain {
     // a run on a rim with a knocker on us: the shield goes up and nothing swings (KillAura.rimGuard), capped by _rimHold
     private int _rimGuardId = -1;
     private final RimHold _rimHold = new RimHold();
+    // (Tuning wither_turn_swing, off) a run that begins with a wither skeleton in reach: the rim's shield guard on it until its
+    // swing lands on the shield or the cap, then the run (WitherTurnHold)
+    private final adris.altoclef.util.helpers.WitherTurnHold _turnHold = new adris.altoclef.util.helpers.WitherTurnHold();
+    private Mode _turnPrevMode = Mode.NONE;
     private static final long STANCE_LOG_GAP = 20;
     private CombatRules.Stance _loggedStance = CombatRules.Stance.CALM;
     private long _stanceLogAt = Long.MIN_VALUE / 2;
@@ -635,6 +639,8 @@ final class CombatBrain {
         _rim = false;
         _rimGuardId = -1;
         _rimHold.reset();
+        _turnHold.reset();
+        _turnPrevMode = Mode.NONE;
         _loggedStance = CombatRules.Stance.CALM;
         _stanceLogAt = Long.MIN_VALUE / 2;
         _lastHealth = -1;
@@ -1400,6 +1406,7 @@ final class CombatBrain {
             _swingAt.clear();
             _rimGuardId = -1;
         }
+        witherTurn(mod, player, mobs, lavaIn);
         _meleeNear = meleeNear;
         _meleeAround = meleeAround;
         // a shooter that was on us a moment ago still is: the ray flickers behind a tree and the skeleton steps in and out of the
@@ -1653,6 +1660,86 @@ final class CombatBrain {
                 || (player.isOnFire() && !player.isInLava() && !adris.altoclef.util.helpers.FireRes.has(player));
     }
 
+    // (Tuning wither_turn_swing, off: test C4 of 28 Nov 2026) at a run's start with a wither skeleton in reach on our floor, the
+    // rim's shield guard is put on it (KillAura.rimGuard: faced, shield up, standing still, no swing) until its swing lands on the
+    // raised shield or WitherTurnHold.CAP ticks pass, then the run turns and goes. the rim's own guard comes first. with the key
+    // off only a note, so the would-be holds can be counted in A
+    private void witherTurn(AltoClef mod, LocalPlayer player, List<Mob> mobs, boolean lavaIn) {
+        boolean run = _commit.mode() == Mode.RUN;
+        boolean runStart = run && _turnPrevMode != Mode.RUN;
+        _turnPrevMode = _commit.mode();
+        if (_commit.perching() || _commit.gapping() || _rimGuardId >= 0) {
+            if (_turnHold.holding() >= 0) {
+                Debug.logInternal("wither turn: the run goes after " + _turnHold.held() + " ticks: " + (_rimGuardId >= 0 ? "the rim's guard" : "a perch or a gap"));
+                _turnHold.reset();
+            }
+            return;
+        }
+        float hp = player.getHealth();
+        if (_turnHold.holding() < 0) {
+            if (!runStart) return;
+            Mob skel = null;
+            double best = Double.POSITIVE_INFINITY;
+            for (Mob mob : mobs) {
+                if (!(mob instanceof WitherSkeleton) || !mob.isAlive()) continue;
+                double d = flat(player, mob);
+                if (d < best) {
+                    best = d;
+                    skel = mob;
+                }
+            }
+            if (skel == null) return;
+            double dy = skel.getY() - player.getY();
+            boolean behind = meleeBehind(player, mobs, skel);
+            boolean shield = player.getOffhandItem().is(Items.SHIELD) || mod.getItemStorage().hasItem(Items.SHIELD);
+            if (!shield || !adris.altoclef.util.helpers.WitherTurnHold.wants(best, dy, hp, false, lavaIn, behind)) return;
+            String at = String.format(java.util.Locale.ROOT, "#%d at %.1f (hp %.1f, %s)", skel.getId(), best, hp, _commit.why());
+            if (!adris.altoclef.util.helpers.WitherTurnHold.on()) {
+                Debug.logInternal("wither turn would hold: " + at);
+                return;
+            }
+            _turnHold.begin(skel.getId(), skel.isSwinging());
+            Debug.logInternal("wither turn: the shield up on " + at + " before the run");
+        }
+        int id = _turnHold.holding();
+        Entity entity = mod.getWorld().getEntity(id);
+        Mob skel = entity instanceof Mob mob && mob.isAlive() ? mob : null;
+        double distance = skel != null ? flat(player, skel) : Double.POSITIVE_INFINITY;
+        boolean behind = skel != null && meleeBehind(player, mobs, skel);
+        adris.altoclef.util.helpers.WitherTurnHold.End end = _turnHold.step(run, skel != null, distance, hp, lavaIn, behind,
+                player.isBlocking(), skel != null && skel.isSwinging());
+        if (end == adris.altoclef.util.helpers.WitherTurnHold.End.NONE) {
+            _commit.pauseCorner();
+            _rim = true;
+            _rimGuardId = id;
+            _swingAt.add(id);
+            return;
+        }
+        Debug.logInternal(String.format(java.util.Locale.ROOT, "wither turn: the run goes after %d ticks: %s (hp %.1f, at %.1f)",
+                _turnHold.held(), end.name().toLowerCase(java.util.Locale.ROOT).replace('_', ' '), hp, distance));
+        _turnHold.reset();
+    }
+
+    // centre to centre on the flat
+    private static double flat(LocalPlayer player, Entity mob) {
+        double dx = mob.getX() - player.getX();
+        double dz = mob.getZ() - player.getZ();
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    // another melee mob in reach on our floor behind the shield's line when it faces the skeleton
+    private static boolean meleeBehind(LocalPlayer player, List<Mob> mobs, Mob skel) {
+        double ax = skel.getX() - player.getX();
+        double az = skel.getZ() - player.getZ();
+        for (Mob mob : mobs) {
+            if (mob == skel || !mob.isAlive() || MobReachability.isRanged(mob) && !(mob instanceof WitherSkeleton)) continue;
+            if (flat(player, mob) > adris.altoclef.util.helpers.WitherTurnHold.BEHIND_RANGE
+                    || Math.abs(mob.getY() - player.getY()) > adris.altoclef.util.helpers.WitherTurnHold.FLOOR) continue;
+            if (adris.altoclef.util.helpers.WitherTurnHold.behind(ax, az, mob.getX() - player.getX(), mob.getZ() - player.getZ())) return true;
+        }
+        return false;
+    }
+
     private void logHurt(AltoClef mod, Dimension dimension) {
         LocalPlayer player = mod.getPlayer();
         float hp = player.getHealth();
@@ -1686,7 +1773,15 @@ final class CombatBrain {
         // head's yaw, and wither skeleton blows of 4.5-4.8 landed with "shield up" logged (E1127-2105.4)
         if (player.getOffhandItem().is(Items.SHIELD)) {
             boolean shieldUse = player.isUsingItem() && player.getUseItem().is(Items.SHIELD);
-            Debug.logInternal(CombatLog.shieldAtHurt(player.isBlocking(), shieldUse, shieldUse ? player.getTicksUsingItem() : 0));
+            String line2 = CombatLog.shieldAtHurt(player.isBlocking(), shieldUse, shieldUse ? player.getTicksUsingItem() : 0);
+            // (lines only, 28 Nov 2026) and where the blow came from against the head's yaw: over 90 degrees the shield cannot block
+            // it (LivingEntity.applyItemBlocking); "blocking" with a wither skeleton's 4.5 landed twice in test vroegdrank
+            Entity from = source != null ? source.getEntity() : null;
+            if (from != null) {
+                line2 += String.format(java.util.Locale.ROOT, " (the blow from %.0f degrees off the head's yaw)",
+                        adris.altoclef.util.helpers.WitherTurnHold.angleTo(player.getYHeadRot(), from.getX() - player.getX(), from.getZ() - player.getZ()));
+            }
+            Debug.logInternal(line2);
         }
     }
 

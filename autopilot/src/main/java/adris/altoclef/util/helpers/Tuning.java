@@ -1404,7 +1404,11 @@ public final class Tuning {
             java.util.Map.entry("stand_stone_keep", 1.0),
             // (off: test vroegdrank of 28 Nov 2026, RouteRules.fightNear) the spawner fight, for the kept potion's sake, begins
             // this many blocks from the spawner (10 off), and its let-go waits while a melee foe is within 3
-            java.util.Map.entry("route_fight_near", 0.0));
+            java.util.Map.entry("route_fight_near", 0.0),
+            // (off: test C4 of 28 Nov 2026, WitherTurnHold) a run that begins with a wither skeleton in reach waits behind the
+            // shield, faced to it, for its swing (or 25 ticks), then turns: 18 of 63 of their hits at the spawner landed in the
+            // run's first second
+            java.util.Map.entry("wither_turn_swing", 0.0));
 
     private static Path file;
     private static Properties props = new Properties();
