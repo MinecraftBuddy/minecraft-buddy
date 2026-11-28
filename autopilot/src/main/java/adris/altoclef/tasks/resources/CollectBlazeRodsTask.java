@@ -349,6 +349,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
         _noBrewSaid = adris.altoclef.util.helpers.RouteRules.noBrewKept();
     }
 
+    // (Tuning route_hold_exit_free) the route's potion hold ends at the exit phase: the rods are in
+    private boolean exitFree() {
+        return _routePhase >= adris.altoclef.util.helpers.RouteRules.EXIT && adris.altoclef.util.helpers.Tuning.get("route_hold_exit_free", 1) > 0;
+    }
+
     // the route's phase line, once, when the route first reaches it (RouteRules)
     private void routePhase(int phase) {
         if (!adris.altoclef.util.helpers.RouteRules.says(_routePhase, phase)) return;
@@ -623,7 +628,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // (Tuning route_hold_fight, on by default, route jar 2: the potion kept through phases 3 and 4, said before the fight's
         // tick so a fight on the way does not end the wait; at the spawner a blaze lets it go, RouteRules.holdPotion)
         // (Tuning route_trade_fire: the potions the trade goes on past, and the way to the fortress after it with no errand, phase 2)
-        if (adris.altoclef.util.helpers.RouteRules.holdFightOn() && (_errandOn || _routePhase == adris.altoclef.util.helpers.RouteRules.RODS2
+        // (Tuning route_hold_exit_free, a fix of 28 Nov 2026, on) from the exit phase on there is no spawner fight left to keep a potion
+        // for: an errand reopened on the way out kept it "for the blazes" with 9 rods in the bag, and the buddy burned in lava from
+        // 17 hp down to the 10-hp let-go, too late for the 1.6 s drink (heel-259 r32, cascade, 28 Nov)
+        if (adris.altoclef.util.helpers.RouteRules.holdFightOn() && !exitFree()
+                && (_errandOn || _routePhase == adris.altoclef.util.helpers.RouteRules.RODS2
                 || (adris.altoclef.util.helpers.RouteRules.tradeFireTicks() > 0 || adris.altoclef.util.helpers.RouteRules.tradePotions() > 1)
                 && _routePhase == adris.altoclef.util.helpers.RouteRules.TRADE)) {
             double toSpawner = _foundBlazeSpawner == null ? Double.POSITIVE_INFINITY : mod.getPlayer().position().distanceTo(Vec3.atCenterOf(_foundBlazeSpawner));
@@ -990,7 +999,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
         // errands are held off, and by the spawner with nothing in sight the buddy waits rather than taking the camp)
         Task errand = brewErrand(mod);
         // (Tuning route_hold: the route's phase 3 under way, any fire resistance potion waits for the blazes, FireRes.holdsRoute)
-        if (_errandOn && !adris.altoclef.util.helpers.RouteRules.holdFightOn()) adris.altoclef.util.helpers.FireRes.routeHolds(mod.getWorld().getGameTime());
+        if (_errandOn && !exitFree() && !adris.altoclef.util.helpers.RouteRules.holdFightOn()) adris.altoclef.util.helpers.FireRes.routeHolds(mod.getWorld().getGameTime());
         if (errand != null) {
             return errand;
         }

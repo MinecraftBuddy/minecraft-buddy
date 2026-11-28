@@ -1408,7 +1408,10 @@ public final class Tuning {
             // (off: test C4 of 28 Nov 2026, WitherTurnHold) a run that begins with a wither skeleton in reach waits behind the
             // shield, faced to it, for its swing (or 25 ticks), then turns: 18 of 63 of their hits at the spawner landed in the
             // run's first second
-            java.util.Map.entry("wither_turn_swing", 0.0));
+            java.util.Map.entry("wither_turn_swing", 0.0),
+            // from the route's exit phase on no potion is kept for the blazes (CollectBlazeRodsTask.exitFree): a kept potion burned
+            // a run with 9 rods to death in lava on the way out (heel-259 r32, 28 Nov 2026)
+            java.util.Map.entry("route_hold_exit_free", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();
