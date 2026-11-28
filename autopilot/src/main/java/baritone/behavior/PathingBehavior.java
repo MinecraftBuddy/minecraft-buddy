@@ -174,6 +174,12 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         return feet == null ? null : trail.back(feet.x, feet.y, feet.z, min, maxAge, tickCount);
     }
 
+    // the same, the newest such block that fit takes (Trail.backFit)
+    public Trail.Point trailBackFit(double min, long maxAge, java.util.function.Predicate<Trail.Point> fit) {
+        BetterBlockPos feet = ctx.playerFeet();
+        return feet == null ? null : trail.backFit(feet.x, feet.y, feet.z, min, maxAge, tickCount, fit);
+    }
+
     // (the buddy's fork, Tuning station_no_step_ban, a fix of 14 Nov 2026, on) the last search that ended "couldn't get more than 0.0
     // blocks": its start, its goal's text and when; noStepHere asks whether that was this goal from the block the buddy stands on
     private volatile BetterBlockPos noStepStart;

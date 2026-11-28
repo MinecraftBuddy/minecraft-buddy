@@ -126,6 +126,8 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
         _rimLive = false;
         _groundCell = null;
         _groundTicks = 0;
+        _trailCell = null;
+        _trailTicks = 0;
         _rimFailed.clear();
         _standCap.reset();
         _waitCap.reset();
@@ -298,6 +300,11 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
                 }
                 // nowhere better to stand: no walking from here either (an approach or a shuffle along the rim is how we end up
                 // off it), the foe comes to us and the swing is what we do. capped, a foe that cannot get to us is not waited on forever
+                // (cube_trail_back) by a magma cube: back along the way the buddy came to ground with no lava or drop near
+                Task back = cubeTrailBack(mod, entity);
+                if (back != null) {
+                    return back;
+                }
                 if ((plan == ApproachRules.Plan.APPROACH || plan == ApproachRules.Plan.WANDER) && ++_rimStandTicks <= RIM_STAND_TICKS) {
                     _progress.reset();
                     setDebugState("On an edge, letting it come");
@@ -327,6 +334,11 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
                         Task off = underFire ? null : rimStep(mod, entity);
                         if (off != null) {
                             return off;
+                        }
+                        // (cube_trail_back) by a magma cube with no step off: back along the way the buddy came
+                        Task back = underFire ? null : cubeTrailBack(mod, entity);
+                        if (back != null) {
+                            return back;
                         }
                         if (stareDown(mod, entity)) {
                             return null;
@@ -540,6 +552,56 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
     // the walk to real ground. no range on the foe: the holds that call us are waiting on one that isn't here yet, which is the
     // best time to get off the shore. null when we're on ground, the walk ran out or there's nowhere to go, and rimStep carries
     // on with its one cell step
+    // (Tuning cube_trail_back, his yes of 28 Nov 2026, steering 211, on) a fight by a magma cube on a rim, or with lava by it, where
+    // the step off found no cell: back along the way the buddy came (the pathing's trail, the last TRAIL_BACK_AGE ticks) to the
+    // newest block of it with no lava within LavaShore.GROUND_CLEAR and a floor (LavaShore.groundFit), and the fight goes on
+    // there. standing still on the rim, "letting it come", a cube's landing knocked the buddy into the lava twice in a night,
+    // once with 9 rods in the bag (heel-259 r32, heel-259-mc1 r26); his rule 55: never stand where a hit can throw the buddy into
+    // lava. the fight's shield is up meanwhile while the cube is within reach of a hop (fight_shield_melee_walk). capped at
+    // TRAIL_BACK_TICKS a fight, a cell that stops getting closer is dropped as the ground walk's are
+    static final long TRAIL_BACK_AGE = 400;
+    static final double TRAIL_BACK_MIN = 2;
+    static final int TRAIL_BACK_TICKS = 200;
+    private BlockPos _trailCell;
+    private int _trailTicks;
+
+    private Task cubeTrailBack(AltoClef mod, Entity entity) {
+        if (!(entity instanceof net.minecraft.world.entity.monster.cubemob.MagmaCube) || adris.altoclef.util.helpers.Tuning.get("cube_trail_back", 0) <= 0
+                || _trailTicks >= TRAIL_BACK_TICKS) {
+            _trailCell = null;
+            return null;
+        }
+        var us = mod.getPlayer();
+        Cells cells = CliffAvoidance.of(mod.getClientBaritone().bsi);
+        if (_trailCell == null || !LavaShore.groundFit(cells, _trailCell.getX(), _trailCell.getY(), _trailCell.getZ(), entity.getX(), entity.getZ())) {
+            baritone.behavior.Trail.Point p = mod.getClientBaritone().getPathingBehavior().trailBackFit(TRAIL_BACK_MIN, TRAIL_BACK_AGE,
+                    pt -> !_rimFailed.contains(new BlockPos(pt.x(), pt.y(), pt.z())) && LavaShore.groundFit(cells, pt.x(), pt.y(), pt.z(), entity.getX(), entity.getZ()));
+            if (p == null) {
+                if (_trailCell != null) Debug.logInternal("kill: no ground back along the way came from a magma cube's rim, standing (cube_trail_back)");
+                _trailCell = null;
+                return null;
+            }
+            _trailCell = new BlockPos(p.x(), p.y(), p.z());
+            _rimBestDist = Math.sqrt(_trailCell.distToCenterSqr(us.position()));
+            _rimIdleTicks = 0;
+            Debug.logInternal("kill: on a rim by a magma cube with no step off, back along the way came to " + _trailCell.toShortString()
+                    + String.format(java.util.Locale.ROOT, " (%.1f blocks, the cube at %.1f) (cube_trail_back)", _rimBestDist, entity.distanceTo(us)));
+        } else {
+            double best = LavaShore.stepBest(_rimBestDist, Math.sqrt(_trailCell.distToCenterSqr(us.position())));
+            _rimIdleTicks = best < _rimBestDist ? 0 : _rimIdleTicks + 1;
+            _rimBestDist = best;
+            if (LavaShore.walkStalled(_rimIdleTicks)) {
+                _rimFailed.add(_trailCell);
+                _trailCell = null;
+                return null;
+            }
+        }
+        _trailTicks++;
+        _progress.reset();
+        setDebugState("By a magma cube on a rim, back along the way came");
+        return new GetToBlockTask(_trailCell);
+    }
+
     private Task groundWalk(AltoClef mod, Entity entity) {
         var us = mod.getPlayer();
         Cells cells = CliffAvoidance.of(mod.getClientBaritone().bsi);

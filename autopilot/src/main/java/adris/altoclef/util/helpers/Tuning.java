@@ -1420,7 +1420,11 @@ public final class Tuning {
             java.util.Map.entry("gold_equip_cap", 1.0),
             // the fight's shield stays up on the walk up to a melee target (CombatRules.fightShieldDown): down until contact it
             // came up too late for the first blow of 110 in 120 landed wither skeleton blows (28 Nov 2026)
-            java.util.Map.entry("fight_shield_melee_walk", 1.0));
+            java.util.Map.entry("fight_shield_melee_walk", 1.0),
+            // his yes of 28 Nov 2026 (steering 211): a fight by a magma cube on a rim with no step off walks back along the way it
+            // came to ground with no lava near (AbstractDoToEntityTask.cubeTrailBack); a cube's landing knocked the buddy into lava
+            // from such a rim twice in a night
+            java.util.Map.entry("cube_trail_back", 1.0));
 
     private static Path file;
     private static Properties props = new Properties();

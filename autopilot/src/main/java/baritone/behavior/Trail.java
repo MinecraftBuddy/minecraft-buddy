@@ -55,6 +55,17 @@ public final class Trail {
         return null;
     }
 
+    // (cube_trail_back, 28 Nov 2026) the newest point at least min from the feet, no older than maxAge ticks, that fit takes:
+    // the first good ground back along the way the buddy came. null for none
+    public Point backFit(int x, int y, int z, double min, long maxAge, long now, java.util.function.Predicate<Point> fit) {
+        for (Iterator<Point> it = points.descendingIterator(); it.hasNext(); ) {
+            Point p = it.next();
+            if (now < p.at || now - p.at > maxAge) return null;
+            if (dist(p, x, y, z) >= min && fit.test(p)) return p;
+        }
+        return null;
+    }
+
     public void clear() {
         points.clear();
     }

@@ -60,6 +60,20 @@ public class SpotFailsTest {
         assertNull(trail.back(21, 64, 1, 8, 100, 320));
     }
 
+    // (cube_trail_back) the newest point the fit takes: the first good ground back along the way, within the age
+    @Test
+    public void theWayBackToFitGroundIsTheNewestThatFits() {
+        Trail trail = new Trail();
+        for (int x = 0; x <= 20; x += 2) trail.note(x, 64, 0, x * 10L);
+        // x 20 and 18 are on the rim (not fit), 16 is ground
+        Trail.Point p = trail.backFit(21, 64, 0, 2, 400, 210, pt -> pt.x() <= 16);
+        assertNotNull(p);
+        assertEquals(16, p.x());
+        // within 2 of the feet is never taken, nothing fits, or the fit ground is older than the age
+        assertNull(trail.backFit(21, 64, 0, 2, 400, 210, pt -> false));
+        assertNull(trail.backFit(21, 64, 0, 2, 30, 210, pt -> pt.x() <= 16));
+    }
+
     @Test
     public void aPointIsKeptOnlyStepsApart() {
         Trail trail = new Trail();
