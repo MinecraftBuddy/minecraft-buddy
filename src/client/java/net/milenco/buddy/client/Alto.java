@@ -1070,6 +1070,30 @@ final class Alto {
 		shieldsSeen = n;
 	}
 
+	// (Tuning gold_equip_cap, a fix of 28 Nov 2026, on) the golden boots' equip above is never given up while nothing golden is
+	// worn, and on a trip home something took them off again within seconds of every equip: equip, the rods task for five
+	// seconds, equip again, 761 task starts in 37 minutes under the portal until the stall ended the run (heel-258-mc3 run 13;
+	// the same loop briefly in 15 other logs). In the overworld GOLD_EQUIP_ASKS asks within GOLD_EQUIP_WINDOW_MS are the
+	// last: the order goes on, and in the nether wantsSpareGold puts them on again
+	static final int GOLD_EQUIP_ASKS = 3;
+	static final long GOLD_EQUIP_WINDOW_MS = 120_000L;
+	private static final java.util.ArrayDeque<Long> goldEquipAsks = new java.util.ArrayDeque<>();
+
+	static boolean goldEquipCapped(net.minecraft.client.player.LocalPlayer p, long now) {
+		// (kit(p) asks with no time, to see what is missing: that is no ask)
+		if (now == Long.MIN_VALUE) return false;
+		while (!goldEquipAsks.isEmpty() && now - goldEquipAsks.peekFirst() > GOLD_EQUIP_WINDOW_MS) goldEquipAsks.pollFirst();
+		boolean capped = adris.altoclef.util.helpers.Tuning.get("gold_equip_cap", 0) > 0
+			&& !p.level().dimension().equals(net.minecraft.world.level.Level.NETHER) && goldEquipAsks.size() >= GOLD_EQUIP_ASKS;
+		if (capped && now - goldEquipToldAt > GOLD_EQUIP_WINDOW_MS) {
+			goldEquipToldAt = now;
+			if (present()) adris.altoclef.Debug.logInternal("kit: the golden boots asked " + goldEquipAsks.size() + " times in two minutes and taken off again each time; on without them for now (gold_equip_cap)");
+		}
+		return capped;
+	}
+
+	private static long goldEquipToldAt = -GOLD_EQUIP_WINDOW_MS;
+
 	private static Run kit(net.minecraft.client.player.LocalPlayer p, long now, java.util.function.Predicate<String> skip) {
 		// an order into the nether begun in the overworld fetches its kit by the route's phases (ObtainRoute) until it is out
 		// of the overworld; the old kit from then on, as for any order
@@ -1205,8 +1229,10 @@ final class Alto {
 		// missing, and the order went on in an iron helmet; a bill for the spare had taken the worn one off, attempt 167)
 		// (steering 202: the golden boots in place of the iron ones, four ingots)
 		boolean goldInBag = kitDanger(p).ordinal() >= ObtainKit.Danger.NETHER.ordinal() && !goldOn(p) && ObtainSteps.count(p, GOLD_PIECE) > 0;
-		if ((armour.contains(GOLD_PIECE) || goldInBag) && (!skip.test("equip " + GOLD_PIECE) || !goldOn(p)))
+		if ((armour.contains(GOLD_PIECE) || goldInBag) && (!skip.test("equip " + GOLD_PIECE) || !goldOn(p)) && !goldEquipCapped(p, now)) {
+			if (now != Long.MIN_VALUE) goldEquipAsks.addLast(now);
 			return new Run("equip " + GOLD_PIECE, (10 + 3 * 4) * 60_000L, () -> night(new adris.altoclef.tasks.misc.EquipArmorTask(new adris.altoclef.util.ItemTarget(GOLD_PIECE, 1))));
+		}
 		String what = "kit " + String.join(", ", names.stream().filter(n -> !armour.contains(n) && !armour.contains("iron_" + n)).toList());
 		if (!rest.isEmpty() && !skip.test(what))
 			return new Run(what, 20 * 60_000, () -> night(new adris.altoclef.tasks.squashed.GatherBillTask(
